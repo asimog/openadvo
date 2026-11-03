@@ -1,0 +1,26 @@
+[package]
+name = "oa-cli"
+description = "The `oa` command line: a thin front end over the control surface (spec B02)"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "oa"
+path = "src/main.rs"
+
+[dependencies]
+oa-types.workspace = true
+oa-store.workspace = true
+oa-kernel.workspace = true
+oa-client.workspace = true
+oa-protocol.workspace = true
+clap.workspace = true
+serde_json.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+oa-control.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

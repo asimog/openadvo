@@ -1,0 +1,22 @@
+[package]
+name = "oa-control"
+description = "The control server in the kernel process (spec B01): named pipe, handshake, origin from process identity"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+oa-types.workspace = true
+oa-kernel.workspace = true
+oa-protocol.workspace = true
+serde_json.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys.workspace = true
+
+[dev-dependencies]
+oa-protocol.workspace = true
+oa-client.workspace = true
+oa-store.workspace = true
+tempfile.workspace = true

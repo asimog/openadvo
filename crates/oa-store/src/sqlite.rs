@@ -1,0 +1,1096 @@
+//! SQLite implementations of the repository traits.
+
+use std::path::Path;
+use std::time::Duration;
+
+use rusqlite::{params, Connection, OpenFlags, OptionalExtension, Row};
+
+use crate::*;
+
+pub const REGISTRY_FILE: &str = "registry.db";
+pub const FIRM_FILE: &str = "firm.db";
+pub const MATTER_FILE: &str = "matter.db";
+
+const REGISTRY_MIGRATIONS: &[&str] = &[r#"
+    CREATE TABLE matters (
+        id TEXT PRIMARY KEY,
+        path TEXT NOT NULL,
+        title TEXT NOT NULL,
+        archived INTEGER NOT NULL,
+        removed INTEGER NOT NULL,
+        last_seen TEXT NOT NULL
+    );
+    CREATE TABLE idempotency (key TEXT PRIMARY KEY, result TEXT NOT NULL);
+    CREATE TABLE jobs (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        status TEXT NOT NULL,
+        done INTEGER NOT NULL,
+        total INTEGER NOT NULL,
+        cancel_requested INTEGER NOT NULL,
+        message TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+"#];
+
+const FIRM_MIGRATIONS: &[&str] = &[
+    r#"
+    CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    CREATE TABLE contacts (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        creation_key TEXT UNIQUE,
+        created_at TEXT NOT NULL
+    );
+    CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL);
+    CREATE TABLE pending (id TEXT PRIMARY KEY, kind TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL);
+    CREATE TABLE rejected_writes (
+        at TEXT NOT NULL, actor TEXT NOT NULL, origin TEXT NOT NULL,
+        command TEXT NOT NULL, reason TEXT NOT NULL, body_hash TEXT NOT NULL
+    );
+"#,
+    r#"
+    CREATE TABLE command_log (
+        at TEXT NOT NULL, actor TEXT NOT NULL, origin TEXT NOT NULL,
+        command TEXT NOT NULL, idempotency_key TEXT, matter TEXT
+    );
+"#,
+];
+
+const MATTER_MIGRATIONS: &[&str] = &[
+    r#"
+    CREATE TABLE matter_state (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        archived INTEGER NOT NULL,
+        client_id TEXT,
+        created_at TEXT NOT NULL,
+        standard_version TEXT NOT NULL
+    );
+    CREATE TABLE ledger (
+        seq INTEGER PRIMARY KEY,
+        recorded_at TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        origin TEXT NOT NULL,
+        command TEXT NOT NULL,
+        idempotency_key TEXT UNIQUE,
+        body TEXT NOT NULL,
+        prev_hash TEXT NOT NULL,
+        hash TEXT NOT NULL
+    );
+    CREATE TABLE rejected_writes (
+        at TEXT NOT NULL, actor TEXT NOT NULL, origin TEXT NOT NULL,
+        command TEXT NOT NULL, reason TEXT NOT NULL, body_hash TEXT NOT NULL
+    );
+"#,
+    r#"
+    CREATE TABLE evidence (
+        id TEXT PRIMARY KEY,
+        original_name TEXT NOT NULL,
+        primary_origin TEXT NOT NULL,
+        blob TEXT NOT NULL UNIQUE,
+        size INTEGER NOT NULL,
+        created_at TEXT NOT NULL
+    );
+    CREATE TABLE evidence_origins (
+        evidence_id TEXT NOT NULL REFERENCES evidence(id),
+        origin TEXT NOT NULL,
+        original_name TEXT NOT NULL,
+        added_at TEXT NOT NULL
+    );
+    CREATE TABLE drafts (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        head TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    );
+    CREATE TABLE revisions (
+        hash TEXT PRIMARY KEY,
+        draft_id TEXT NOT NULL REFERENCES drafts(id) DEFERRABLE INITIALLY DEFERRED,
+        parents TEXT NOT NULL,
+        author_kind TEXT NOT NULL,
+        author TEXT NOT NULL,
+        blob TEXT NOT NULL,
+        note TEXT,
+        created_at TEXT NOT NULL
+    );
+    CREATE TABLE checkpoints (
+        draft_id TEXT NOT NULL REFERENCES drafts(id),
+        name TEXT NOT NULL,
+        revision TEXT NOT NULL REFERENCES revisions(hash),
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (draft_id, name)
+    );
+    CREATE TABLE approvals (
+        id TEXT PRIMARY KEY,
+        gate TEXT NOT NULL,
+        target TEXT NOT NULL,
+        requested_at TEXT NOT NULL,
+        requested_by TEXT NOT NULL,
+        decision TEXT,
+        reason TEXT,
+        decided_at TEXT,
+        decided_by TEXT
+    );
+    CREATE TRIGGER revisions_never_deleted BEFORE DELETE ON revisions
+        BEGIN SELECT RAISE(ABORT, 'revisions are never deleted'); END;
+    CREATE TRIGGER evidence_never_changes BEFORE UPDATE ON evidence
+        BEGIN SELECT RAISE(ABORT, 'evidence entries never change'); END;
+    CREATE TRIGGER ledger_no_update BEFORE UPDATE ON ledger
+        BEGIN SELECT RAISE(ABORT, 'the ledger is append only'); END;
+    CREATE TRIGGER ledger_no_delete BEFORE DELETE ON ledger
+        BEGIN SELECT RAISE(ABORT, 'the ledger is append only'); END;
+"#,
+];
+
+fn err(e: rusqlite::Error) -> StoreError {
+    StoreError::new(StoreErrorKind::Other, e.to_string())
+}
+
+fn open(path: &Path, create: bool) -> StoreResult<Connection> {
+    let mut flags = OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX;
+    if create {
+        flags |= OpenFlags::SQLITE_OPEN_CREATE;
+    }
+    let conn = Connection::open_with_flags(path, flags).map_err(|e| {
+        StoreError::new(
+            StoreErrorKind::Unavailable,
+            format!("cannot open {}: {e}", path.display()),
+        )
+    })?;
+    conn.busy_timeout(Duration::from_secs(5)).map_err(err)?;
+    conn.pragma_update(None, "journal_mode", "WAL")
+        .map_err(|e| StoreError::new(StoreErrorKind::Unavailable, e.to_string()))?;
+    conn.pragma_update(None, "foreign_keys", "ON")
+        .map_err(err)?;
+    Ok(conn)
+}
+
+/// Applies numbered migrations. Each runs in its own transaction, so a failed
+/// migration leaves the previous schema intact (spec E rule 2).
+fn migrate(conn: &mut Connection, migrations: &[&str]) -> StoreResult<()> {
+    let current: i64 = conn
+        .query_row("PRAGMA user_version", [], |r| r.get(0))
+        .map_err(err)?;
+    if current > migrations.len() as i64 {
+        return Err(StoreError::new(
+            StoreErrorKind::Unavailable,
+            format!(
+                "schema version {current} is newer than this build supports ({})",
+                migrations.len()
+            ),
+        ));
+    }
+    for (i, sql) in migrations.iter().enumerate().skip(current as usize) {
+        let tx = conn.transaction().map_err(err)?;
+        tx.execute_batch(sql).map_err(err)?;
+        tx.pragma_update(None, "user_version", (i + 1) as i64)
+            .map_err(err)?;
+        tx.commit().map_err(err)?;
+    }
+    Ok(())
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+pub struct SqliteFactory;
+
+impl StoreFactory for SqliteFactory {
+    fn registry(&self, app_data: &Path) -> StoreResult<Box<dyn RegistryStore>> {
+        let mut conn = open(&app_data.join(REGISTRY_FILE), true)?;
+        migrate(&mut conn, REGISTRY_MIGRATIONS)?;
+        Ok(Box::new(SqliteRegistry { conn }))
+    }
+
+    fn firm(&self, app_data: &Path) -> StoreResult<Box<dyn FirmStore>> {
+        let mut conn = open(&app_data.join(FIRM_FILE), true)?;
+        migrate(&mut conn, FIRM_MIGRATIONS)?;
+        Ok(Box::new(SqliteFirm { conn }))
+    }
+
+    fn create_matter(&self, matter_dir: &Path) -> StoreResult<Box<dyn MatterStore>> {
+        let path = matter_dir.join(MATTER_FILE);
+        if path.exists() {
+            return Err(StoreError::new(
+                StoreErrorKind::Conflict,
+                format!("{} already exists", path.display()),
+            ));
+        }
+        let mut conn = open(&path, true)?;
+        migrate(&mut conn, MATTER_MIGRATIONS)?;
+        Ok(Box::new(SqliteMatter { conn }))
+    }
+
+    fn open_matter(&self, matter_dir: &Path) -> StoreResult<Box<dyn MatterStore>> {
+        let path = matter_dir.join(MATTER_FILE);
+        if !path.is_file() {
+            return Err(StoreError::new(
+                StoreErrorKind::NotFound,
+                format!("{} is missing", path.display()),
+            ));
+        }
+        let mut conn = open(&path, false)?;
+        migrate(&mut conn, MATTER_MIGRATIONS)?;
+        Ok(Box::new(SqliteMatter { conn }))
+    }
+}
+
+struct SqliteRegistry {
+    conn: Connection,
+}
+
+fn matter_row(r: &Row) -> rusqlite::Result<MatterRow> {
+    Ok(MatterRow {
+        id: r.get(0)?,
+        path: r.get(1)?,
+        title: r.get(2)?,
+        archived: r.get(3)?,
+        removed: r.get(4)?,
+        last_seen: r.get(5)?,
+    })
+}
+
+fn job_row(r: &Row) -> rusqlite::Result<JobRow> {
+    let status: String = r.get(2)?;
+    Ok(JobRow {
+        id: r.get(0)?,
+        kind: r.get(1)?,
+        status: JobStatus::parse(&status).unwrap_or(JobStatus::Failed),
+        done: r.get(3)?,
+        total: r.get(4)?,
+        cancel_requested: r.get(5)?,
+        message: r.get(6)?,
+        created_at: r.get(7)?,
+        updated_at: r.get(8)?,
+    })
+}
+
+const MATTER_COLS: &str = "id, path, title, archived, removed, last_seen";
+const JOB_COLS: &str =
+    "id, kind, status, done, total, cancel_requested, message, created_at, updated_at";
+
+fn upsert(conn: &Connection, row: &MatterRow) -> rusqlite::Result<usize> {
+    conn.execute(
+        "INSERT INTO matters (id, path, title, archived, removed, last_seen)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(id) DO UPDATE SET path = ?2, title = ?3, archived = ?4, removed = ?5, last_seen = ?6",
+        params![row.id, row.path, row.title, row.archived, row.removed, row.last_seen],
+    )
+}
+
+impl RegistryStore for SqliteRegistry {
+    fn matter(&self, id: &str) -> StoreResult<Option<MatterRow>> {
+        self.conn
+            .query_row(
+                &format!("SELECT {MATTER_COLS} FROM matters WHERE id = ?1"),
+                params![id],
+                matter_row,
+            )
+            .optional()
+            .map_err(err)
+    }
+
+    fn matters(&self) -> StoreResult<Vec<MatterRow>> {
+        let mut stmt = self
+            .conn
+            .prepare(&format!("SELECT {MATTER_COLS} FROM matters ORDER BY id"))
+            .map_err(err)?;
+        let rows = stmt.query_map([], matter_row).map_err(err)?;
+        rows.collect::<Result<_, _>>().map_err(err)
+    }
+
+    fn upsert_matter(&self, row: &MatterRow) -> StoreResult<()> {
+        upsert(&self.conn, row).map(|_| ()).map_err(err)
+    }
+
+    fn insert_created_matter(&self, row: &MatterRow, key: &str, result: &str) -> StoreResult<()> {
+        let tx = self.conn.unchecked_transaction().map_err(err)?;
+        upsert(&tx, row).map_err(err)?;
+        tx.execute(
+            "INSERT INTO idempotency (key, result) VALUES (?1, ?2)",
+            params![key, result],
+        )
+        .map_err(err)?;
+        tx.commit().map_err(err)
+    }
+
+    fn idempotent_result(&self, key: &str) -> StoreResult<Option<String>> {
+        self.conn
+            .query_row(
+                "SELECT result FROM idempotency WHERE key = ?1",
+                params![key],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(err)
+    }
+
+    fn apply_rescan(&self, found: &[MatterRow], seen_at: &str) -> StoreResult<Vec<String>> {
+        let tx = self.conn.unchecked_transaction().map_err(err)?;
+        for row in found {
+            upsert(&tx, row).map_err(err)?;
+        }
+        let mut newly_removed = Vec::new();
+        {
+            let mut stmt = tx
+                .prepare("SELECT id FROM matters WHERE removed = 0")
+                .map_err(err)?;
+            let ids: Vec<String> = stmt
+                .query_map([], |r| r.get(0))
+                .map_err(err)?
+                .collect::<Result<_, _>>()
+                .map_err(err)?;
+            for id in ids {
+                if !found.iter().any(|f| f.id == id) {
+                    newly_removed.push(id);
+                }
+            }
+        }
+        for id in &newly_removed {
+            tx.execute(
+                "UPDATE matters SET removed = 1, last_seen = ?2 WHERE id = ?1",
+                params![id, seen_at],
+            )
+            .map_err(err)?;
+        }
+        tx.commit().map_err(err)?;
+        Ok(newly_removed)
+    }
+
+    fn create_job(&self, job: &JobRow) -> StoreResult<()> {
+        self.conn
+            .execute(
+                &format!(
+                    "INSERT INTO jobs ({JOB_COLS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"
+                ),
+                params![
+                    job.id,
+                    job.kind,
+                    job.status.as_str(),
+                    job.done,
+                    job.total,
+                    job.cancel_requested,
+                    job.message,
+                    job.created_at,
+                    job.updated_at
+                ],
+            )
+            .map(|_| ())
+            .map_err(err)
+    }
+
+    fn update_job(&self, id: &str, u: &JobUpdate) -> StoreResult<()> {
+        let n = self
+            .conn
+            .execute(
+                "UPDATE jobs SET status = ?2, done = ?3, total = ?4, message = ?5, updated_at = ?6 WHERE id = ?1",
+                params![id, u.status.as_str(), u.done, u.total, u.message, u.at],
+            )
+            .map_err(err)?;
+        if n == 0 {
+            return Err(StoreError::new(
+                StoreErrorKind::NotFound,
+                format!("no job {id}"),
+            ));
+        }
+        Ok(())
+    }
+
+    fn request_cancel(&self, id: &str, at: &str) -> StoreResult<bool> {
+        let n = self
+            .conn
+            .execute(
+                "UPDATE jobs SET cancel_requested = 1, updated_at = ?2 WHERE id = ?1 AND status = 'running'",
+                params![id, at],
+            )
+            .map_err(err)?;
+        Ok(n == 1)
+    }
+
+    fn job(&self, id: &str) -> StoreResult<Option<JobRow>> {
+        self.conn
+            .query_row(
+                &format!("SELECT {JOB_COLS} FROM jobs WHERE id = ?1"),
+                params![id],
+                job_row,
+            )
+            .optional()
+            .map_err(err)
+    }
+
+    fn jobs(&self) -> StoreResult<Vec<JobRow>> {
+        let mut stmt = self
+            .conn
+            .prepare(&format!(
+                "SELECT {JOB_COLS} FROM jobs ORDER BY created_at, id"
+            ))
+            .map_err(err)?;
+        let rows = stmt.query_map([], job_row).map_err(err)?;
+        rows.collect::<Result<_, _>>().map_err(err)
+    }
+}
+
+struct SqliteFirm {
+    conn: Connection,
+}
+
+fn contact_row(r: &Row) -> rusqlite::Result<Contact> {
+    Ok(Contact {
+        id: r.get(0)?,
+        name: r.get(1)?,
+        creation_key: r.get(2)?,
+        created_at: r.get(3)?,
+    })
+}
+
+fn rejected_row(r: &Row) -> rusqlite::Result<RejectedWrite> {
+    Ok(RejectedWrite {
+        at: r.get(0)?,
+        actor: r.get(1)?,
+        origin: r.get(2)?,
+        command: r.get(3)?,
+        reason: r.get(4)?,
+        body_hash: r.get(5)?,
+    })
+}
+
+fn insert_rejected(conn: &Connection, r: &RejectedWrite) -> StoreResult<()> {
+    conn.execute(
+        "INSERT INTO rejected_writes (at, actor, origin, command, reason, body_hash)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![r.at, r.actor, r.origin, r.command, r.reason, r.body_hash],
+    )
+    .map(|_| ())
+    .map_err(err)
+}
+
+fn select_rejected(conn: &Connection) -> StoreResult<Vec<RejectedWrite>> {
+    let mut stmt = conn
+        .prepare("SELECT at, actor, origin, command, reason, body_hash FROM rejected_writes ORDER BY rowid")
+        .map_err(err)?;
+    let rows = stmt.query_map([], rejected_row).map_err(err)?;
+    rows.collect::<Result<_, _>>().map_err(err)
+}
+
+impl FirmStore for SqliteFirm {
+    fn workspace_root(&self) -> StoreResult<Option<String>> {
+        self.conn
+            .query_row(
+                "SELECT value FROM config WHERE key = 'workspace_root'",
+                [],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(err)
+    }
+
+    fn set_workspace_root(&self, root: &str) -> StoreResult<()> {
+        self.conn
+            .execute(
+                "INSERT INTO config (key, value) VALUES ('workspace_root', ?1)
+                 ON CONFLICT(key) DO UPDATE SET value = ?1",
+                params![root],
+            )
+            .map(|_| ())
+            .map_err(err)
+    }
+
+    fn contact(&self, id: &str) -> StoreResult<Option<Contact>> {
+        self.conn
+            .query_row(
+                "SELECT id, name, creation_key, created_at FROM contacts WHERE id = ?1",
+                params![id],
+                contact_row,
+            )
+            .optional()
+            .map_err(err)
+    }
+
+    fn contact_by_creation_key(&self, key: &str) -> StoreResult<Option<Contact>> {
+        self.conn
+            .query_row(
+                "SELECT id, name, creation_key, created_at FROM contacts WHERE creation_key = ?1",
+                params![key],
+                contact_row,
+            )
+            .optional()
+            .map_err(err)
+    }
+
+    fn insert_contact(&self, c: &Contact) -> StoreResult<()> {
+        self.conn
+            .execute(
+                "INSERT INTO contacts (id, name, creation_key, created_at) VALUES (?1, ?2, ?3, ?4)",
+                params![c.id, c.name, c.creation_key, c.created_at],
+            )
+            .map(|_| ())
+            .map_err(err)
+    }
+
+    fn setting(&self, key: &str) -> StoreResult<Option<String>> {
+        self.conn
+            .query_row(
+                "SELECT value FROM settings WHERE key = ?1",
+                params![key],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(err)
+    }
+
+    fn set_setting(&self, key: &str, value: &str, at: &str) -> StoreResult<()> {
+        self.conn
+            .execute(
+                "INSERT INTO settings (key, value, updated_at) VALUES (?1, ?2, ?3)
+                 ON CONFLICT(key) DO UPDATE SET value = ?2, updated_at = ?3",
+                params![key, value, at],
+            )
+            .map(|_| ())
+            .map_err(err)
+    }
+
+    fn insert_pending(&self, p: &Pending) -> StoreResult<()> {
+        self.conn
+            .execute(
+                "INSERT INTO pending (id, kind, payload, created_at) VALUES (?1, ?2, ?3, ?4)",
+                params![p.id, p.kind, p.payload, p.created_at],
+            )
+            .map(|_| ())
+            .map_err(err)
+    }
+
+    fn pending(&self, id: &str) -> StoreResult<Option<Pending>> {
+        self.conn
+            .query_row(
+                "SELECT id, kind, payload, created_at FROM pending WHERE id = ?1",
+                params![id],
+                |r| {
+                    Ok(Pending {
+                        id: r.get(0)?,
+                        kind: r.get(1)?,
+                        payload: r.get(2)?,
+                        created_at: r.get(3)?,
+                    })
+                },
+            )
+            .optional()
+            .map_err(err)
+    }
+
+    fn remove_pending(&self, id: &str) -> StoreResult<()> {
+        self.conn
+            .execute("DELETE FROM pending WHERE id = ?1", params![id])
+            .map(|_| ())
+            .map_err(err)
+    }
+
+    fn record_rejected(&self, r: &RejectedWrite) -> StoreResult<()> {
+        insert_rejected(&self.conn, r)
+    }
+
+    fn rejected(&self) -> StoreResult<Vec<RejectedWrite>> {
+        select_rejected(&self.conn)
+    }
+
+    fn log_command(&self, c: &CommandLogRow) -> StoreResult<()> {
+        self.conn
+            .execute(
+                "INSERT INTO command_log (at, actor, origin, command, idempotency_key, matter)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![
+                    c.at,
+                    c.actor,
+                    c.origin,
+                    c.command,
+                    c.idempotency_key,
+                    c.matter
+                ],
+            )
+            .map(|_| ())
+            .map_err(err)
+    }
+
+    fn commands(&self) -> StoreResult<Vec<CommandLogRow>> {
+        many(
+            &self.conn,
+            "SELECT at, actor, origin, command, idempotency_key, matter FROM command_log ORDER BY rowid",
+            params![],
+            |r| {
+                Ok(CommandLogRow {
+                    at: r.get(0)?,
+                    actor: r.get(1)?,
+                    origin: r.get(2)?,
+                    command: r.get(3)?,
+                    idempotency_key: r.get(4)?,
+                    matter: r.get(5)?,
+                })
+            },
+        )
+    }
+}
+
+struct SqliteMatter {
+    conn: Connection,
+}
+
+fn event_row(r: &Row) -> rusqlite::Result<LedgerEvent> {
+    Ok(LedgerEvent {
+        seq: r.get(0)?,
+        recorded_at: r.get(1)?,
+        actor: r.get(2)?,
+        origin: r.get(3)?,
+        command: r.get(4)?,
+        idempotency_key: r.get(5)?,
+        body: r.get(6)?,
+        prev_hash: r.get(7)?,
+        hash: r.get(8)?,
+    })
+}
+
+const EVENT_COLS: &str =
+    "seq, recorded_at, actor, origin, command, idempotency_key, body, prev_hash, hash";
+
+fn insert_event(conn: &Connection, e: &LedgerEvent) -> rusqlite::Result<usize> {
+    conn.execute(
+        &format!("INSERT INTO ledger ({EVENT_COLS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"),
+        params![
+            e.seq,
+            e.recorded_at,
+            e.actor,
+            e.origin,
+            e.command,
+            e.idempotency_key,
+            e.body,
+            e.prev_hash,
+            e.hash
+        ],
+    )
+}
+
+fn write_state(conn: &Connection, s: &MatterState) -> rusqlite::Result<usize> {
+    conn.execute(
+        "INSERT INTO matter_state (singleton, id, title, archived, client_id, created_at, standard_version)
+         VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(singleton) DO UPDATE SET id = ?1, title = ?2, archived = ?3, client_id = ?4,
+             created_at = ?5, standard_version = ?6",
+        params![s.id, s.title, s.archived, s.client_id, s.created_at, s.standard_version],
+    )
+}
+
+fn head(conn: &Connection) -> rusqlite::Result<Option<LedgerEvent>> {
+    conn.query_row(
+        &format!("SELECT {EVENT_COLS} FROM ledger ORDER BY seq DESC LIMIT 1"),
+        [],
+        event_row,
+    )
+    .optional()
+}
+
+impl MatterStore for SqliteMatter {
+    fn initialise(&self, state: &MatterState, genesis: &LedgerEvent) -> StoreResult<()> {
+        let tx = self.conn.unchecked_transaction().map_err(err)?;
+        if head(&tx).map_err(err)?.is_some() {
+            return Err(StoreError::new(
+                StoreErrorKind::Conflict,
+                "ledger already has a genesis event",
+            ));
+        }
+        write_state(&tx, state).map_err(err)?;
+        insert_event(&tx, genesis).map_err(err)?;
+        tx.commit().map_err(err)
+    }
+
+    fn state(&self) -> StoreResult<MatterState> {
+        self.conn
+            .query_row(
+                "SELECT id, title, archived, client_id, created_at, standard_version FROM matter_state",
+                [],
+                |r| {
+                    Ok(MatterState {
+                        id: r.get(0)?,
+                        title: r.get(1)?,
+                        archived: r.get(2)?,
+                        client_id: r.get(3)?,
+                        created_at: r.get(4)?,
+                        standard_version: r.get(5)?,
+                    })
+                },
+            )
+            .optional()
+            .map_err(err)?
+            .ok_or_else(|| StoreError::new(StoreErrorKind::NotFound, "matter state is missing"))
+    }
+
+    fn last_event(&self) -> StoreResult<Option<LedgerEvent>> {
+        head(&self.conn).map_err(err)
+    }
+
+    fn events(&self) -> StoreResult<Vec<LedgerEvent>> {
+        let mut stmt = self
+            .conn
+            .prepare(&format!("SELECT {EVENT_COLS} FROM ledger ORDER BY seq"))
+            .map_err(err)?;
+        let rows = stmt.query_map([], event_row).map_err(err)?;
+        rows.collect::<Result<_, _>>().map_err(err)
+    }
+
+    fn event_by_key(&self, key: &str) -> StoreResult<Option<LedgerEvent>> {
+        self.conn
+            .query_row(
+                &format!("SELECT {EVENT_COLS} FROM ledger WHERE idempotency_key = ?1"),
+                params![key],
+                event_row,
+            )
+            .optional()
+            .map_err(err)
+    }
+
+    fn commit(&self, event: &LedgerEvent, writes: &[MatterWrite]) -> StoreResult<()> {
+        let tx = self.conn.unchecked_transaction().map_err(err)?;
+        let (expected_seq, expected_prev) = match head(&tx).map_err(err)? {
+            Some(h) => (h.seq + 1, h.hash),
+            None => return Err(conflict("ledger has no genesis event")),
+        };
+        if event.seq != expected_seq || event.prev_hash != expected_prev {
+            return Err(conflict(format!(
+                "stale append: expected seq {expected_seq}, got {}",
+                event.seq
+            )));
+        }
+        insert_event(&tx, event).map_err(err)?;
+        for w in writes {
+            apply(&tx, w)?;
+        }
+        tx.commit().map_err(err)
+    }
+
+    fn evidence(&self, id: &str) -> StoreResult<Option<EvidenceRow>> {
+        one(
+            &self.conn,
+            &format!("SELECT {EVIDENCE_COLS} FROM evidence WHERE id = ?1"),
+            params![id],
+            evidence_row,
+        )
+    }
+
+    fn evidence_by_blob(&self, blob: &str) -> StoreResult<Option<EvidenceRow>> {
+        one(
+            &self.conn,
+            &format!("SELECT {EVIDENCE_COLS} FROM evidence WHERE blob = ?1"),
+            params![blob],
+            evidence_row,
+        )
+    }
+
+    fn evidence_list(&self) -> StoreResult<Vec<EvidenceRow>> {
+        many(
+            &self.conn,
+            &format!("SELECT {EVIDENCE_COLS} FROM evidence ORDER BY created_at, id"),
+            params![],
+            evidence_row,
+        )
+    }
+
+    fn origins(&self, evidence_id: &str) -> StoreResult<Vec<OriginRow>> {
+        many(
+            &self.conn,
+            "SELECT evidence_id, origin, original_name, added_at FROM evidence_origins
+             WHERE evidence_id = ?1 ORDER BY rowid",
+            params![evidence_id],
+            |r| {
+                Ok(OriginRow {
+                    evidence_id: r.get(0)?,
+                    origin: r.get(1)?,
+                    original_name: r.get(2)?,
+                    added_at: r.get(3)?,
+                })
+            },
+        )
+    }
+
+    fn draft(&self, id: &str) -> StoreResult<Option<DraftRow>> {
+        one(
+            &self.conn,
+            "SELECT id, title, head, created_at FROM drafts WHERE id = ?1",
+            params![id],
+            draft_row,
+        )
+    }
+
+    fn drafts(&self) -> StoreResult<Vec<DraftRow>> {
+        many(
+            &self.conn,
+            "SELECT id, title, head, created_at FROM drafts ORDER BY created_at, id",
+            params![],
+            draft_row,
+        )
+    }
+
+    fn revision(&self, hash: &str) -> StoreResult<Option<RevisionRow>> {
+        one(
+            &self.conn,
+            &format!("SELECT {REVISION_COLS} FROM revisions WHERE hash = ?1"),
+            params![hash],
+            revision_row,
+        )
+    }
+
+    fn revisions(&self, draft_id: &str) -> StoreResult<Vec<RevisionRow>> {
+        many(
+            &self.conn,
+            &format!("SELECT {REVISION_COLS} FROM revisions WHERE draft_id = ?1 ORDER BY rowid"),
+            params![draft_id],
+            revision_row,
+        )
+    }
+
+    fn checkpoint(&self, draft_id: &str, name: &str) -> StoreResult<Option<CheckpointRow>> {
+        one(
+            &self.conn,
+            "SELECT draft_id, name, revision, created_at FROM checkpoints
+             WHERE draft_id = ?1 AND name = ?2",
+            params![draft_id, name],
+            checkpoint_row,
+        )
+    }
+
+    fn checkpoints(&self, draft_id: &str) -> StoreResult<Vec<CheckpointRow>> {
+        many(
+            &self.conn,
+            "SELECT draft_id, name, revision, created_at FROM checkpoints
+             WHERE draft_id = ?1 ORDER BY created_at",
+            params![draft_id],
+            checkpoint_row,
+        )
+    }
+
+    fn approval(&self, id: &str) -> StoreResult<Option<ApprovalRow>> {
+        one(
+            &self.conn,
+            &format!("SELECT {APPROVAL_COLS} FROM approvals WHERE id = ?1"),
+            params![id],
+            approval_row,
+        )
+    }
+
+    fn approvals(&self) -> StoreResult<Vec<ApprovalRow>> {
+        many(
+            &self.conn,
+            &format!("SELECT {APPROVAL_COLS} FROM approvals ORDER BY requested_at, id"),
+            params![],
+            approval_row,
+        )
+    }
+
+    fn record_rejected(&self, r: &RejectedWrite) -> StoreResult<()> {
+        insert_rejected(&self.conn, r)
+    }
+
+    fn rejected(&self) -> StoreResult<Vec<RejectedWrite>> {
+        select_rejected(&self.conn)
+    }
+}
+
+fn one<T>(
+    conn: &Connection,
+    sql: &str,
+    p: &[&dyn rusqlite::ToSql],
+    f: impl FnOnce(&Row) -> rusqlite::Result<T>,
+) -> StoreResult<Option<T>> {
+    conn.query_row(sql, p, f).optional().map_err(err)
+}
+
+fn many<T>(
+    conn: &Connection,
+    sql: &str,
+    p: &[&dyn rusqlite::ToSql],
+    f: impl FnMut(&Row) -> rusqlite::Result<T>,
+) -> StoreResult<Vec<T>> {
+    let mut stmt = conn.prepare(sql).map_err(err)?;
+    let rows = stmt.query_map(p, f).map_err(err)?;
+    rows.collect::<Result<_, _>>().map_err(err)
+}
+
+fn conflict(message: impl Into<String>) -> StoreError {
+    StoreError::new(StoreErrorKind::Conflict, message)
+}
+
+const EVIDENCE_COLS: &str = "id, original_name, primary_origin, blob, size, created_at";
+const REVISION_COLS: &str = "hash, draft_id, parents, author_kind, author, blob, note, created_at";
+const APPROVAL_COLS: &str =
+    "id, gate, target, requested_at, requested_by, decision, reason, decided_at, decided_by";
+
+fn evidence_row(r: &Row) -> rusqlite::Result<EvidenceRow> {
+    Ok(EvidenceRow {
+        id: r.get(0)?,
+        original_name: r.get(1)?,
+        primary_origin: r.get(2)?,
+        blob: r.get(3)?,
+        size: r.get(4)?,
+        created_at: r.get(5)?,
+    })
+}
+
+fn draft_row(r: &Row) -> rusqlite::Result<DraftRow> {
+    Ok(DraftRow {
+        id: r.get(0)?,
+        title: r.get(1)?,
+        head: r.get(2)?,
+        created_at: r.get(3)?,
+    })
+}
+
+fn revision_row(r: &Row) -> rusqlite::Result<RevisionRow> {
+    Ok(RevisionRow {
+        hash: r.get(0)?,
+        draft_id: r.get(1)?,
+        parents: r.get(2)?,
+        author_kind: r.get(3)?,
+        author: r.get(4)?,
+        blob: r.get(5)?,
+        note: r.get(6)?,
+        created_at: r.get(7)?,
+    })
+}
+
+fn checkpoint_row(r: &Row) -> rusqlite::Result<CheckpointRow> {
+    Ok(CheckpointRow {
+        draft_id: r.get(0)?,
+        name: r.get(1)?,
+        revision: r.get(2)?,
+        created_at: r.get(3)?,
+    })
+}
+
+fn approval_row(r: &Row) -> rusqlite::Result<ApprovalRow> {
+    Ok(ApprovalRow {
+        id: r.get(0)?,
+        gate: r.get(1)?,
+        target: r.get(2)?,
+        requested_at: r.get(3)?,
+        requested_by: r.get(4)?,
+        decision: r.get(5)?,
+        reason: r.get(6)?,
+        decided_at: r.get(7)?,
+        decided_by: r.get(8)?,
+    })
+}
+
+fn is_constraint(e: &rusqlite::Error) -> bool {
+    matches!(e, rusqlite::Error::SqliteFailure(f, _) if f.code == rusqlite::ErrorCode::ConstraintViolation)
+}
+
+/// Applies one write inside the commit transaction.
+fn apply(tx: &Connection, w: &MatterWrite) -> StoreResult<()> {
+    let done = |r: rusqlite::Result<usize>| r.map(|_| ()).map_err(err);
+    match w {
+        MatterWrite::State(s) => done(write_state(tx, s)),
+        MatterWrite::InsertEvidence(e) => done(tx.execute(
+            &format!("INSERT INTO evidence ({EVIDENCE_COLS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6)"),
+            params![e.id, e.original_name, e.primary_origin, e.blob, e.size, e.created_at],
+        )),
+        MatterWrite::AddOrigin(o) => done(tx.execute(
+            "INSERT INTO evidence_origins (evidence_id, origin, original_name, added_at)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![o.evidence_id, o.origin, o.original_name, o.added_at],
+        )),
+        MatterWrite::InsertDraft(d) => done(tx.execute(
+            "INSERT INTO drafts (id, title, head, created_at) VALUES (?1, ?2, ?3, ?4)",
+            params![d.id, d.title, d.head, d.created_at],
+        )),
+        MatterWrite::InsertRevision(r) => done(tx.execute(
+            &format!(
+                "INSERT INTO revisions ({REVISION_COLS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
+            ),
+            params![
+                r.hash,
+                r.draft_id,
+                r.parents,
+                r.author_kind,
+                r.author,
+                r.blob,
+                r.note,
+                r.created_at
+            ],
+        )),
+        MatterWrite::MoveHead {
+            draft_id,
+            expected,
+            new,
+        } => {
+            let n = tx
+                .execute(
+                    "UPDATE drafts SET head = ?3 WHERE id = ?1 AND head = ?2",
+                    params![draft_id, expected, new],
+                )
+                .map_err(err)?;
+            if n == 1 {
+                return Ok(());
+            }
+            let current: Option<String> = tx
+                .query_row(
+                    "SELECT head FROM drafts WHERE id = ?1",
+                    params![draft_id],
+                    |r| r.get(0),
+                )
+                .optional()
+                .map_err(err)?;
+            Err(conflict(format!(
+                "stale parent: the head of draft {draft_id} is {}",
+                current.unwrap_or_else(|| "missing".into())
+            )))
+        }
+        MatterWrite::InsertCheckpoint(c) => tx
+            .execute(
+                "INSERT INTO checkpoints (draft_id, name, revision, created_at) VALUES (?1, ?2, ?3, ?4)",
+                params![c.draft_id, c.name, c.revision, c.created_at],
+            )
+            .map(|_| ())
+            .map_err(|e| {
+                if is_constraint(&e) {
+                    conflict(format!("checkpoint {:?} already exists", c.name))
+                } else {
+                    err(e)
+                }
+            }),
+        MatterWrite::InsertApproval(a) => done(tx.execute(
+            &format!(
+                "INSERT INTO approvals ({APPROVAL_COLS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"
+            ),
+            params![
+                a.id,
+                a.gate,
+                a.target,
+                a.requested_at,
+                a.requested_by,
+                a.decision,
+                a.reason,
+                a.decided_at,
+                a.decided_by
+            ],
+        )),
+        MatterWrite::DecideApproval {
+            id,
+            decision,
+            reason,
+            decided_at,
+            decided_by,
+        } => {
+            let n = tx
+                .execute(
+                    "UPDATE approvals SET decision = ?2, reason = ?3, decided_at = ?4, decided_by = ?5
+                     WHERE id = ?1 AND decision IS NULL",
+                    params![id, decision, reason, decided_at, decided_by],
+                )
+                .map_err(err)?;
+            if n == 1 {
+                Ok(())
+            } else {
+                Err(conflict(format!(
+                    "approval {id} is already decided or does not exist"
+                )))
+            }
+        }
+    }
+}

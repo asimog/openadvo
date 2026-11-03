@@ -1,0 +1,41 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/oa-types",
+    "crates/oa-store",
+    "crates/oa-kernel",
+    "crates/oa-protocol",
+    "crates/oa-control",
+    "crates/oa-client",
+    "crates/oa-cli",
+    "crates/oa-shell",
+    "crates/oa-repo-checks",
+]
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+license = "UNLICENSED"
+publish = false
+
+[workspace.dependencies]
+oa-types = { path = "crates/oa-types" }
+oa-store = { path = "crates/oa-store" }
+oa-kernel = { path = "crates/oa-kernel" }
+oa-client = { path = "crates/oa-client" }
+oa-protocol = { path = "crates/oa-protocol" }
+oa-control = { path = "crates/oa-control" }
+base64 = "0.22"
+schemars = "0.8"
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_System_Pipes", "Win32_System_JobObjects", "Win32_System_Threading"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+clap = { version = "4.5", features = ["derive"] }
+eframe = "0.31"
+hex = "0.4"
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tempfile = "3"
+thiserror = "1"
+ulid = "1"

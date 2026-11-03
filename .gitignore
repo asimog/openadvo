@@ -1,0 +1,11 @@
+# Tool configuration and tool build output. Not part of the product.
+.kilo/
+.pstack-build/
+
+# Rust build output
+/target/
+
+# Local matter data, never committed
+*.db
+*.db-wal
+*.db-shm

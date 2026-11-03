@@ -1,0 +1,18 @@
+[package]
+name = "oa-shell"
+description = "The window (spec A): egui and winit, our panes, a client of the control pipe"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "oa-shell"
+path = "src/main.rs"
+
+[dependencies]
+oa-types.workspace = true
+oa-kernel.workspace = true
+oa-client.workspace = true
+eframe.workspace = true
+serde_json.workspace = true

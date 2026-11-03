@@ -1,0 +1,9 @@
+[package]
+name = "oa-repo-checks"
+description = "Repository-wide checks run as tests: the workflow docs stay identical (A-AC-14), and only oa-store links rusqlite (R-AC-01)"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]

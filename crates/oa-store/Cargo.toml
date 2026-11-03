@@ -1,0 +1,14 @@
+[package]
+name = "oa-store"
+description = "Repository traits and their SQLite implementations. The only crate that links rusqlite (spec R rule 1)"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+rusqlite.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
