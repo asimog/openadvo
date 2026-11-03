@@ -123,6 +123,31 @@ impl Kernel {
         Ok(approval_json(&decided))
     }
 
+    /// Every approval of the matter. An accepted approval whose target is no
+    /// longer the head of its draft is marked stale (spec C, Approvals board).
+    pub(crate) fn approval_list(&self, matter: &str) -> Result<Vec<Value>, OaError> {
+        let live = self.live(matter)?;
+        let heads: std::collections::BTreeSet<String> = live
+            .store
+            .drafts()
+            .map_err(store_err)?
+            .into_iter()
+            .map(|d| d.head)
+            .collect();
+        Ok(live
+            .store
+            .approvals()
+            .map_err(store_err)?
+            .iter()
+            .map(|a| {
+                let mut v = approval_json(a);
+                v["stale"] = json!(a.decision.is_some() && !heads.contains(&a.target));
+                v["state"] = json!(a.decision.clone().unwrap_or_else(|| "pending".into()));
+                v
+            })
+            .collect())
+    }
+
     /// Whether a gate is satisfied for exactly this target. Approvals given on
     /// other revisions are reported as stale and never count (spec C rule 10).
     pub(crate) fn approval_status(

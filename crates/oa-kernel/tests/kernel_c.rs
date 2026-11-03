@@ -577,3 +577,99 @@ fn c_ac_21_links_in_lists_referrers_and_a_rebuild_gives_the_same_answer() {
         .collect();
     assert_eq!(again, into_blob);
 }
+
+#[test]
+fn e_ac_11_find_returns_several_kinds_each_with_its_kind() {
+    let w = world(Hooks::default());
+    one(
+        &w.k,
+        &cli(),
+        Request::EvidenceAdd {
+            matter: w.matter.clone(),
+            file: file("slp-order.pdf", b"order bytes"),
+            origin: "advocate_import".into(),
+        },
+    )
+    .unwrap();
+    one(
+        &w.k,
+        &cli(),
+        Request::DraftCreate {
+            matter: w.matter.clone(),
+            title: "SLP against order".into(),
+            file: file("slp.docx", b"draft"),
+        },
+    )
+    .unwrap();
+    let find = |kinds: &[&str], filter: Option<&str>| {
+        q(
+            &w,
+            Request::Find {
+                matter: Some(w.matter.clone()),
+                query: "order".into(),
+                kinds: kinds.iter().map(|k| k.to_string()).collect(),
+                filter: filter.map(str::to_string),
+            },
+        )
+    };
+    let all = find(&[], None).unwrap();
+    let kinds: std::collections::BTreeSet<String> = all.iter().map(|r| s(&r["kind"])).collect();
+    assert!(
+        kinds.contains("evidence") && kinds.contains("draft"),
+        "{kinds:?}"
+    );
+    assert!(all.iter().all(|r| !r["id"].is_null()));
+    let only = find(&["evidence"], None).unwrap();
+    assert!(only.iter().all(|r| r["kind"] == "evidence"));
+    let by_origin = find(&[], Some("kind:evidence origin:advocate_import")).unwrap();
+    assert_eq!(by_origin.len(), 1);
+    assert_eq!(find(&[], Some("origin:email")).unwrap().len(), 0);
+    assert_eq!(find(&["nope"], None).unwrap_err().code, ErrorCode::Usage);
+    assert_eq!(
+        find(&[], Some("badclause")).unwrap_err().code,
+        ErrorCode::Usage
+    );
+}
+
+#[test]
+fn c_ac_19_the_approvals_list_marks_an_approval_on_a_non_head_revision_stale() {
+    let w = world(Hooks {
+        presence: Arc::new(Approve(AtomicUsize::new(0))),
+        ..Hooks::default()
+    });
+    let (draft, r1) = new_draft(&w);
+    let a = one(
+        &w.k,
+        &cli(),
+        Request::ApprovalRequest {
+            matter: w.matter.clone(),
+            gate: "final_revision".into(),
+            target: r1.clone(),
+        },
+    )
+    .unwrap();
+    one(
+        &w.k,
+        &cli(),
+        Request::ApprovalDecide {
+            matter: w.matter.clone(),
+            id: s(&a["id"]),
+            accept: true,
+            reason: "ok".into(),
+        },
+    )
+    .unwrap();
+    let list = || {
+        q(
+            &w,
+            Request::ApprovalList {
+                matter: w.matter.clone(),
+            },
+        )
+        .unwrap()
+    };
+    assert_eq!(list()[0]["stale"], false);
+    commit(&w, &cli(), &draft, &r1, b"edited").unwrap();
+    assert_eq!(list()[0]["stale"], true);
+    assert_eq!(list()[0]["state"], "accepted");
+}

@@ -46,6 +46,18 @@ impl Kernel {
             .ok_or_else(|| OaError::new(ErrorCode::NotFound, format!("no setting {key}")))
     }
 
+    /// Both layers, each value with its source (spec A, Settings).
+    pub(crate) fn settings_list(&self) -> Result<Vec<Value>, OaError> {
+        let mut out: Vec<Value> = LEGAL_LAYER
+            .iter()
+            .map(|(k, v)| json!({ "key": k, "value": v, "layer": "legal" }))
+            .collect();
+        for (k, v) in self.firm()?.settings().map_err(store_err)? {
+            out.push(json!({ "key": k, "value": v, "layer": "firm" }));
+        }
+        Ok(out)
+    }
+
     pub(crate) fn settings_set(&self, ctx: &Ctx, key: &str, value: &str) -> Result<Value, OaError> {
         if is_legal(key) {
             let reason = "the legal layer is read only";

@@ -10,6 +10,7 @@ mod approvals;
 mod command;
 mod drafts;
 mod evidence;
+mod find;
 mod hooks;
 mod jobs;
 mod layout;
@@ -33,6 +34,7 @@ use oa_types::{CommandClass, ErrorCode, OaError, Origin};
 use serde_json::Value;
 
 pub use command::{Attachment, ClientSpec, Request};
+pub use find::KINDS as FIND_KINDS;
 pub use hooks::{
     FaultHook, GrantPolicy, Hooks, NoFaults, NobodyPresent, PresencePrompt, Step, StepOneGrants,
 };
@@ -234,6 +236,14 @@ impl Kernel {
             Request::Inspect { matter, id } => self.inspect(&matter, &id).map(one),
             Request::LinksOut { matter, id } => self.links_out(&matter, &id),
             Request::LinksIn { matter, id } => self.links_in(&matter, &id),
+            Request::SettingsList => self.settings_list(),
+            Request::ApprovalList { matter } => self.approval_list(&matter),
+            Request::Find {
+                matter,
+                query,
+                kinds,
+                filter,
+            } => self.find(matter.as_deref(), &query, &kinds, filter.as_deref()),
         }
     }
 

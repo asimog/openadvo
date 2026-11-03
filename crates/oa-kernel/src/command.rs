@@ -165,6 +165,17 @@ pub enum Request {
     LinksOut { matter: String, id: String },
     #[serde(rename = "links.in")]
     LinksIn { matter: String, id: String },
+    #[serde(rename = "settings.list")]
+    SettingsList,
+    #[serde(rename = "approval.list")]
+    ApprovalList { matter: String },
+    #[serde(rename = "find")]
+    Find {
+        matter: Option<String>,
+        query: String,
+        kinds: Vec<String>,
+        filter: Option<String>,
+    },
 }
 
 impl Request {
@@ -206,6 +217,9 @@ impl Request {
         "inspect",
         "links.out",
         "links.in",
+        "find",
+        "settings.list",
+        "approval.list",
     ];
 
     /// Every `query` class command. The shell's view registry must cover each
@@ -229,6 +243,9 @@ impl Request {
         "inspect",
         "links.out",
         "links.in",
+        "find",
+        "settings.list",
+        "approval.list",
     ];
 
     pub fn name(&self) -> &'static str {
@@ -268,6 +285,9 @@ impl Request {
             Request::Inspect { .. } => "inspect",
             Request::LinksOut { .. } => "links.out",
             Request::LinksIn { .. } => "links.in",
+            Request::Find { .. } => "find",
+            Request::SettingsList => "settings.list",
+            Request::ApprovalList { .. } => "approval.list",
         }
     }
 
@@ -290,7 +310,10 @@ impl Request {
             | Request::RulesPin { .. }
             | Request::Inspect { .. }
             | Request::LinksOut { .. }
-            | Request::LinksIn { .. } => CommandClass::Query,
+            | Request::LinksIn { .. }
+            | Request::Find { .. }
+            | Request::SettingsList
+            | Request::ApprovalList { .. } => CommandClass::Query,
             Request::MatterConfirm { .. } | Request::ApprovalDecide { .. } => CommandClass::Human,
             Request::WorkspaceInit { .. }
             | Request::MatterCreate { .. }
@@ -333,10 +356,11 @@ impl Request {
             | Request::ApprovalDecide { matter, .. }
             | Request::ApprovalStatus { matter, .. }
             | Request::Inspect { matter, .. }
+            | Request::ApprovalList { matter }
             | Request::LinksOut { matter, .. }
             | Request::LinksIn { matter, .. }
             | Request::RulesPin { matter } => Some(matter),
-            Request::AuditRejected { matter } => matter.as_deref(),
+            Request::AuditRejected { matter } | Request::Find { matter, .. } => matter.as_deref(),
             _ => None,
         }
     }

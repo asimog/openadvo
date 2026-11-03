@@ -75,6 +75,8 @@ pub trait FirmStore: Send {
 
     fn setting(&self, key: &str) -> StoreResult<Option<String>>;
     fn set_setting(&self, key: &str, value: &str, at: &str) -> StoreResult<()>;
+    /// Every firm setting as (key, value), sorted by key.
+    fn settings(&self) -> StoreResult<Vec<(String, String)>>;
 
     fn insert_pending(&self, pending: &Pending) -> StoreResult<()>;
     fn pending(&self, id: &str) -> StoreResult<Option<Pending>>;

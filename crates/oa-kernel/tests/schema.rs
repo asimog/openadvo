@@ -128,6 +128,14 @@ fn samples() -> Vec<Request> {
             matter: m(),
             id: "x".into(),
         },
+        Request::SettingsList,
+        Request::ApprovalList { matter: m() },
+        Request::Find {
+            matter: Some(m()),
+            query: "q".into(),
+            kinds: vec!["evidence".into()],
+            filter: Some("origin:x".into()),
+        },
     ]
 }
 

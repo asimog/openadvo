@@ -80,6 +80,19 @@ enum Command {
     /// What a record references, and what references it
     #[command(subcommand)]
     Links(LinksCmd),
+    /// One search across every record kind
+    Find {
+        query: String,
+        /// Limit to a matter (default: every matter)
+        #[arg(long)]
+        matter: Option<String>,
+        /// Limit to a kind; repeatable
+        #[arg(long = "kind")]
+        kinds: Vec<String>,
+        /// field:value clauses separated by spaces
+        #[arg(long)]
+        filter: Option<String>,
+    },
     /// Run the kernel and its control pipe
     #[command(subcommand)]
     Kernel(KernelCmd),
@@ -155,8 +168,15 @@ enum RegistryCmd {
 
 #[derive(Subcommand)]
 enum SettingsCmd {
-    Get { key: String },
-    Set { key: String, value: String },
+    Get {
+        key: String,
+    },
+    Set {
+        key: String,
+        value: String,
+    },
+    /// Both layers, each value with its source
+    List,
 }
 
 #[derive(Subcommand)]
@@ -276,6 +296,11 @@ enum DraftCmd {
 
 #[derive(Subcommand)]
 enum ApprovalCmd {
+    /// Every approval, with stale ones marked
+    List {
+        #[command(flatten)]
+        m: MatterArg,
+    },
     Request {
         #[command(flatten)]
         m: MatterArg,
@@ -410,6 +435,7 @@ fn request(cmd: Command) -> Result<Request, OaError> {
         },
         Command::Registry(RegistryCmd::Rescan) => Request::RegistryRescan,
         Command::Settings(SettingsCmd::Get { key }) => Request::SettingsGet { key },
+        Command::Settings(SettingsCmd::List) => Request::SettingsList,
         Command::Settings(SettingsCmd::Set { key, value }) => Request::SettingsSet { key, value },
         Command::Job(JobCmd::List) => Request::JobList,
         Command::Job(JobCmd::Show { id }) => Request::JobShow { id },
@@ -494,6 +520,7 @@ fn request(cmd: Command) -> Result<Request, OaError> {
                 accept,
                 reason,
             },
+            ApprovalCmd::List { m } => Request::ApprovalList { matter: m.matter },
             ApprovalCmd::Status { m, gate, target } => Request::ApprovalStatus {
                 matter: m.matter,
                 gate,
@@ -501,6 +528,17 @@ fn request(cmd: Command) -> Result<Request, OaError> {
             },
         },
         Command::Rules(RulesCmd::Pin { m }) => Request::RulesPin { matter: m.matter },
+        Command::Find {
+            query,
+            matter,
+            kinds,
+            filter,
+        } => Request::Find {
+            matter,
+            query,
+            kinds,
+            filter,
+        },
         Command::Inspect { m, id } => Request::Inspect {
             matter: m.matter,
             id,

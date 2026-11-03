@@ -550,6 +550,17 @@ impl FirmStore for SqliteFirm {
             .map_err(err)
     }
 
+    fn settings(&self) -> StoreResult<Vec<(String, String)>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT key, value FROM settings ORDER BY key")
+            .map_err(err)?;
+        let rows = stmt
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .map_err(err)?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(err)
+    }
+
     fn insert_pending(&self, p: &Pending) -> StoreResult<()> {
         self.conn
             .execute(
