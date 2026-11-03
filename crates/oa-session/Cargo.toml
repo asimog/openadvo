@@ -1,0 +1,11 @@
+[package]
+name = "oa-session"
+description = "The harness session store contract (spec D rules 5, 6 and 17) and an in-memory implementation for tests"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true

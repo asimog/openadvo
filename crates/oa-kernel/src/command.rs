@@ -248,6 +248,21 @@ impl Request {
         "approval.list",
     ];
 
+    /// The class of a command by wire name. Used by the tool registry, which
+    /// lists commands without building a request.
+    pub fn class_of_name(name: &str) -> Option<CommandClass> {
+        if !Self::NAMES.contains(&name) {
+            return None;
+        }
+        Some(if Self::QUERY_NAMES.contains(&name) {
+            CommandClass::Query
+        } else if matches!(name, "matter.confirm" | "approval.decide") {
+            CommandClass::Human
+        } else {
+            CommandClass::Internal
+        })
+    }
+
     pub fn name(&self) -> &'static str {
         match self {
             Request::WorkspaceInit { .. } => "workspace.init",

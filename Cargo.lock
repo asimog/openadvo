@@ -2086,8 +2086,10 @@ dependencies = [
  "clap",
  "oa-client",
  "oa-control",
+ "oa-harness",
  "oa-kernel",
  "oa-protocol",
+ "oa-session",
  "oa-store",
  "oa-types",
  "serde_json",
@@ -2116,6 +2118,18 @@ dependencies = [
  "serde_json",
  "tempfile",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "oa-harness"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "oa-session",
+ "oa-types",
+ "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]
@@ -2152,6 +2166,14 @@ name = "oa-repo-checks"
 version = "0.1.0"
 
 [[package]]
+name = "oa-session"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "oa-shell"
 version = "0.1.0"
 dependencies = [
@@ -2167,6 +2189,7 @@ dependencies = [
 name = "oa-store"
 version = "0.1.0"
 dependencies = [
+ "oa-session",
  "rusqlite",
  "tempfile",
  "thiserror 1.0.69",

@@ -1,0 +1,15 @@
+[package]
+name = "oa-harness"
+description = "The harness (spec D): the one turn loop, tool registry, policy, router, context assembler, replay, playbooks and supervision. Proposes through the control protocol, never commits canonical state"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+oa-types.workspace = true
+oa-session.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+hex.workspace = true

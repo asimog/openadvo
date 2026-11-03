@@ -16,6 +16,8 @@ oa-store.workspace = true
 oa-kernel.workspace = true
 oa-client.workspace = true
 oa-protocol.workspace = true
+oa-harness.workspace = true
+oa-session.workspace = true
 clap.workspace = true
 serde_json.workspace = true
 

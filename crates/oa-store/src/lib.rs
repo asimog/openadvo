@@ -6,6 +6,7 @@
 //! implementations live in [`sqlite`].
 
 mod model;
+pub mod session;
 pub mod sqlite;
 
 use std::path::Path;

@@ -160,3 +160,102 @@ fn b_ac_02_oa_connect_talks_to_a_served_kernel_and_oa_call_matches_the_subcomman
     let _ = server.kill();
     let _ = server.wait();
 }
+
+#[test]
+fn d_cli_agent_run_uses_harness_origin_policy_and_records_effects() {
+    let tmp = tempfile::tempdir().unwrap();
+    let app = tmp.path().join("app");
+    let root = tmp.path().join("root");
+    oa(&app, &["workspace", "init", root.to_str().unwrap()]);
+    let id = lines(&oa(&app, &["matter", "create", "--title", "Before"]))[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let script = tmp.path().join("script.json");
+    let first = serde_json::json!([
+        { "kind": "tool_call", "name": "matter.rename", "args": { "id": id, "title": "After" } },
+        { "kind": "tool_call", "name": "approval.decide", "args": { "matter": id, "id": "x", "accept": true, "reason": "r" } }
+    ]);
+    let second = serde_json::json!([{ "kind": "token", "text": "done" }]);
+    std::fs::write(&script, serde_json::json!([first, second]).to_string()).unwrap();
+    let script_s = script.to_str().unwrap();
+
+    // Without a grant the internal tool is refused, and so is the human one.
+    let denied = lines(&oa(
+        &app,
+        &[
+            "agent",
+            "run",
+            "--matter",
+            &id,
+            "--instruction",
+            "rename it",
+            "--script",
+            script_s,
+        ],
+    ));
+    let tools = denied[0]["tools"].as_array().unwrap();
+    assert!(tools.iter().all(|t| t["state"] == "refused"), "{tools:?}");
+    assert_eq!(lines(&oa(&app, &["matter", "list"]))[0]["title"], "Before");
+
+    // With the internal grant the rename runs as origin harness; the human
+    // command stays refused. A new script position is needed for a new turn.
+    let granted = lines(&oa(
+        &app,
+        &[
+            "agent",
+            "run",
+            "--matter",
+            &id,
+            "--instruction",
+            "rename it now",
+            "--script",
+            script_s,
+            "--grant-internal",
+        ],
+    ));
+    let tools = granted[0]["tools"].as_array().unwrap();
+    let rename = tools.iter().find(|t| t["tool"] == "matter.rename").unwrap();
+    let decide = tools
+        .iter()
+        .find(|t| t["tool"] == "approval.decide")
+        .unwrap();
+    assert_eq!(rename["state"], "returned");
+    assert_eq!(decide["state"], "refused");
+    assert_eq!(lines(&oa(&app, &["matter", "list"]))[0]["title"], "After");
+
+    let effects = lines(&oa(&app, &["agent", "effects", "--matter", &id]));
+    assert_eq!(effects.len(), 1);
+    assert_eq!(effects[0]["state"], "returned");
+    let unknown = lines(&oa(
+        &app,
+        &["agent", "effects", "--matter", &id, "--state", "unknown"],
+    ));
+    assert!(unknown.is_empty(), "empty after a clean run");
+    let audit = lines(&oa(&app, &["audit", "commands"]));
+    assert!(
+        audit
+            .iter()
+            .any(|c| c["command"] == "matter.rename" && c["origin"] == "harness"),
+        "the kernel recorded the harness origin"
+    );
+    let ctx = lines(&oa(&app, &["agent", "context", "--matter", &id, "1"]));
+    assert!(!ctx.is_empty());
+}
+
+#[test]
+fn d_cli_tools_list_marks_human_commands_as_not_callable() {
+    let tmp = tempfile::tempdir().unwrap();
+    let app = tmp.path().join("app");
+    let tools = lines(&oa(&app, &["tools", "list"]));
+    let decide = tools
+        .iter()
+        .find(|t| t["name"] == "approval.decide")
+        .unwrap();
+    assert_eq!(decide["class"], "human");
+    assert_eq!(decide["harness_may_call"], false);
+    let find = tools.iter().find(|t| t["name"] == "find").unwrap();
+    assert_eq!(find["class"], "query");
+    let pb = lines(&oa(&app, &["playbook", "show", "slp"]));
+    assert_eq!(pb[0]["stages"].as_array().unwrap().len(), 10);
+}

@@ -178,6 +178,19 @@ fn b_ac_02_every_command_round_trips_and_its_wire_name_is_its_name() {
 }
 
 #[test]
+fn class_of_name_agrees_with_class_for_every_command() {
+    for r in samples() {
+        assert_eq!(
+            Request::class_of_name(r.name()),
+            Some(r.class()),
+            "{}",
+            r.name()
+        );
+    }
+    assert_eq!(Request::class_of_name("no.such"), None);
+}
+
+#[test]
 fn query_names_equal_the_query_class_commands() {
     let from_class: BTreeSet<&str> = samples()
         .iter()

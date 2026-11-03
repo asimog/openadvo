@@ -11,6 +11,8 @@ use std::process::ExitCode;
 use std::sync::Arc;
 
 use clap::{Args, Parser, Subcommand};
+mod harness_cmds;
+
 use oa_client::{Client, InProcess, PipeClient};
 use oa_kernel::{Attachment, ClientSpec, Hooks, Kernel, PresencePrompt, Request};
 use oa_store::sqlite::SqliteFactory;
@@ -93,6 +95,18 @@ enum Command {
         #[arg(long)]
         filter: Option<String>,
     },
+    /// The harness tool registry
+    #[command(subcommand)]
+    Tools(harness_cmds::ToolsCmd),
+    /// Workflow playbooks
+    #[command(subcommand)]
+    Playbook(harness_cmds::PlaybookCmd),
+    /// Supervised processes
+    #[command(subcommand)]
+    Services(harness_cmds::ServicesCmd),
+    /// The agent: runs, effects, memory, context
+    #[command(subcommand)]
+    Agent(harness_cmds::AgentCmd),
     /// Run the kernel and its control pipe
     #[command(subcommand)]
     Kernel(KernelCmd),
@@ -561,7 +575,12 @@ fn request(cmd: Command) -> Result<Request, OaError> {
             serde_json::from_value(envelope)
                 .map_err(|e| OaError::new(ErrorCode::Usage, format!("{command}: {e}")))?
         }
-        Command::Kernel(_) | Command::Schema { .. } => {
+        Command::Kernel(_)
+        | Command::Schema { .. }
+        | Command::Tools(_)
+        | Command::Playbook(_)
+        | Command::Services(_)
+        | Command::Agent(_) => {
             unreachable!("handled before a request is built")
         }
     })
@@ -631,6 +650,14 @@ fn run(cli: Cli) -> Result<Vec<Value>, OaError> {
     match cli.command {
         Command::Kernel(KernelCmd::Serve) => return serve(&app),
         Command::Schema { command } => return schema(command).map(|s| vec![s]),
+        Command::Tools(harness_cmds::ToolsCmd::List) => return Ok(harness_cmds::tools_list()),
+        Command::Playbook(c) => return harness_cmds::playbook(c),
+        Command::Services(_) => return Ok(harness_cmds::services()),
+        Command::Agent(c) => {
+            let user = InProcess::new(kernel(&app), Origin::Cli);
+            let harness = harness_cmds::harness_client(kernel(&app));
+            return harness_cmds::agent(c, &user, harness);
+        }
         _ => {}
     }
     let key = cli.idempotency_key.or_else(|| Some(oa_types::new_key()));
