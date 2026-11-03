@@ -15,4 +15,5 @@ oa-types.workspace = true
 oa-kernel.workspace = true
 oa-client.workspace = true
 eframe.workspace = true
+image.workspace = true
 serde_json.workspace = true

@@ -673,3 +673,33 @@ fn c_ac_19_the_approvals_list_marks_an_approval_on_a_non_head_revision_stale() {
     assert_eq!(list()[0]["stale"], true);
     assert_eq!(list()[0]["state"], "accepted");
 }
+
+#[test]
+fn a_ac_21_a_window_decision_needs_no_prompt_but_the_harness_is_still_refused() {
+    let presence = Arc::new(Approve(AtomicUsize::new(0)));
+    let w = world(Hooks {
+        presence: presence.clone(),
+        ..Hooks::default()
+    });
+    let (_, r1) = new_draft(&w);
+    let a = one(
+        &w.k,
+        &cli(),
+        Request::ApprovalRequest {
+            matter: w.matter.clone(),
+            gate: "final_revision".into(),
+            target: r1,
+        },
+    )
+    .unwrap();
+    let decide = Request::ApprovalDecide {
+        matter: w.matter.clone(),
+        id: s(&a["id"]),
+        accept: true,
+        reason: "reviewed in the window".into(),
+    };
+    let harness = one(&w.k, &Ctx::new(Origin::Harness, new_key()), decide.clone()).unwrap_err();
+    assert_eq!(harness.code, ErrorCode::HumanCommandRefused);
+    one(&w.k, &Ctx::new(Origin::Ui, new_key()), decide).unwrap();
+    assert_eq!(presence.0.load(Ordering::SeqCst), 0, "no terminal prompt");
+}

@@ -146,6 +146,19 @@ impl Kernel {
                 json!({ "id": live.row.id, "title": live.row.title, "archived": live.row.archived }),
             ));
         }
+        if let Some(seq) = id
+            .strip_prefix("event:")
+            .and_then(|n| n.parse::<i64>().ok())
+        {
+            if let Some(e) = st
+                .events()
+                .map_err(store_err)?
+                .iter()
+                .find(|e| e.seq == seq)
+            {
+                return Ok(("ledger_event", event_json(e)));
+            }
+        }
         if let Some(e) = st.evidence_by_blob(id).map_err(store_err)? {
             return Ok(("blob", json!({ "hash": id, "evidence": e.id })));
         }
@@ -163,11 +176,13 @@ impl Kernel {
         let touched: Vec<Value> = events
             .iter()
             .filter(|e| {
-                let body: Value = serde_json::from_str(&e.body).unwrap_or(Value::Null);
-                names(&body, id)
-                    || id
-                        .split_once('#')
-                        .is_some_and(|(d, n)| names(&body, d) && names(&body, n))
+                kind == "ledger_event" && format!("event:{}", e.seq) == id || {
+                    let body: Value = serde_json::from_str(&e.body).unwrap_or(Value::Null);
+                    names(&body, id)
+                        || id
+                            .split_once('#')
+                            .is_some_and(|(d, n)| names(&body, d) && names(&body, n))
+                }
             })
             .map(event_json)
             .collect();

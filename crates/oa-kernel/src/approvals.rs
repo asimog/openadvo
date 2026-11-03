@@ -96,10 +96,14 @@ impl Kernel {
             ));
         }
         let decision = if accept { ACCEPTED } else { REJECTED };
-        self.require_presence(&format!(
-            "Record \"{decision}\" on gate {} for revision {}",
-            a.gate, a.target
-        ))?;
+        // In the window the deliberate decision control is the user-presence
+        // gesture (README GUI convention 4); from the CLI the kernel prompts.
+        if ctx.origin != oa_types::Origin::Ui {
+            self.require_presence(&format!(
+                "Record \"{decision}\" on gate {} for revision {}",
+                a.gate, a.target
+            ))?;
+        }
         let decided_at = oa_types::now_utc();
         let decided_by = ctx.origin.actor().to_string();
         self.commit_event(

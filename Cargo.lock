@@ -2156,6 +2156,7 @@ name = "oa-shell"
 version = "0.1.0"
 dependencies = [
  "eframe",
+ "image",
  "oa-client",
  "oa-kernel",
  "oa-types",
