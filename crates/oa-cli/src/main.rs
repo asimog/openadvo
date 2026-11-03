@@ -71,6 +71,15 @@ enum Command {
     /// The rule pack and standard version a matter pins
     #[command(subcommand)]
     Rules(RulesCmd),
+    /// Any record with the ledger events that touched it and its links
+    Inspect {
+        #[command(flatten)]
+        m: MatterArg,
+        id: String,
+    },
+    /// What a record references, and what references it
+    #[command(subcommand)]
+    Links(LinksCmd),
     /// Run the kernel and its control pipe
     #[command(subcommand)]
     Kernel(KernelCmd),
@@ -304,6 +313,20 @@ enum RulesCmd {
 }
 
 #[derive(Subcommand)]
+enum LinksCmd {
+    Out {
+        #[command(flatten)]
+        m: MatterArg,
+        id: String,
+    },
+    In {
+        #[command(flatten)]
+        m: MatterArg,
+        id: String,
+    },
+}
+
+#[derive(Subcommand)]
 enum KernelCmd {
     /// Serve the control pipe until stopped
     Serve,
@@ -478,6 +501,18 @@ fn request(cmd: Command) -> Result<Request, OaError> {
             },
         },
         Command::Rules(RulesCmd::Pin { m }) => Request::RulesPin { matter: m.matter },
+        Command::Inspect { m, id } => Request::Inspect {
+            matter: m.matter,
+            id,
+        },
+        Command::Links(LinksCmd::Out { m, id }) => Request::LinksOut {
+            matter: m.matter,
+            id,
+        },
+        Command::Links(LinksCmd::In { m, id }) => Request::LinksIn {
+            matter: m.matter,
+            id,
+        },
         Command::Call { command, input } => {
             let input: Value = serde_json::from_str(&input)
                 .map_err(|e| OaError::new(ErrorCode::Usage, format!("--input is not JSON: {e}")))?;

@@ -158,6 +158,13 @@ pub enum Request {
 
     #[serde(rename = "rules.pin")]
     RulesPin { matter: String },
+
+    #[serde(rename = "inspect")]
+    Inspect { matter: String, id: String },
+    #[serde(rename = "links.out")]
+    LinksOut { matter: String, id: String },
+    #[serde(rename = "links.in")]
+    LinksIn { matter: String, id: String },
 }
 
 impl Request {
@@ -196,6 +203,32 @@ impl Request {
         "approval.decide",
         "approval.status",
         "rules.pin",
+        "inspect",
+        "links.out",
+        "links.in",
+    ];
+
+    /// Every `query` class command. The shell's view registry must cover each
+    /// one (A-AC-16); a kernel test keeps this list equal to `class()`.
+    pub const QUERY_NAMES: &'static [&'static str] = &[
+        "matter.list",
+        "settings.get",
+        "job.list",
+        "job.show",
+        "ledger.tail",
+        "ledger.verify",
+        "audit.rejected",
+        "audit.commands",
+        "evidence.list",
+        "evidence.show",
+        "draft.list",
+        "draft.log",
+        "draft.show",
+        "approval.status",
+        "rules.pin",
+        "inspect",
+        "links.out",
+        "links.in",
     ];
 
     pub fn name(&self) -> &'static str {
@@ -232,6 +265,9 @@ impl Request {
             Request::ApprovalDecide { .. } => "approval.decide",
             Request::ApprovalStatus { .. } => "approval.status",
             Request::RulesPin { .. } => "rules.pin",
+            Request::Inspect { .. } => "inspect",
+            Request::LinksOut { .. } => "links.out",
+            Request::LinksIn { .. } => "links.in",
         }
     }
 
@@ -251,7 +287,10 @@ impl Request {
             | Request::DraftLog { .. }
             | Request::DraftShow { .. }
             | Request::ApprovalStatus { .. }
-            | Request::RulesPin { .. } => CommandClass::Query,
+            | Request::RulesPin { .. }
+            | Request::Inspect { .. }
+            | Request::LinksOut { .. }
+            | Request::LinksIn { .. } => CommandClass::Query,
             Request::MatterConfirm { .. } | Request::ApprovalDecide { .. } => CommandClass::Human,
             Request::WorkspaceInit { .. }
             | Request::MatterCreate { .. }
@@ -293,6 +332,9 @@ impl Request {
             | Request::ApprovalRequest { matter, .. }
             | Request::ApprovalDecide { matter, .. }
             | Request::ApprovalStatus { matter, .. }
+            | Request::Inspect { matter, .. }
+            | Request::LinksOut { matter, .. }
+            | Request::LinksIn { matter, .. }
             | Request::RulesPin { matter } => Some(matter),
             Request::AuditRejected { matter } => matter.as_deref(),
             _ => None,

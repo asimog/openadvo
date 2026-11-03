@@ -14,6 +14,7 @@ mod hooks;
 mod jobs;
 mod layout;
 mod ledger;
+mod links;
 mod matters;
 mod paths;
 mod records;
@@ -37,6 +38,7 @@ pub use hooks::{
 };
 pub use layout::{Manifest, MANIFEST, STAGING, SUBDIRS};
 pub use ledger::{verify_chain, ChainBreak};
+pub use links::{edges, Edge};
 pub use paths::WriteArea;
 
 /// Who is asking, and under which idempotency key.
@@ -229,6 +231,9 @@ impl Kernel {
                 target,
             } => self.approval_status(&matter, &gate, &target).map(one),
             Request::RulesPin { matter } => self.rules_pin(&matter).map(one),
+            Request::Inspect { matter, id } => self.inspect(&matter, &id).map(one),
+            Request::LinksOut { matter, id } => self.links_out(&matter, &id),
+            Request::LinksIn { matter, id } => self.links_in(&matter, &id),
         }
     }
 

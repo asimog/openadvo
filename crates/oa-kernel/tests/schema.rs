@@ -116,6 +116,18 @@ fn samples() -> Vec<Request> {
             target: "r".into(),
         },
         Request::RulesPin { matter: m() },
+        Request::Inspect {
+            matter: m(),
+            id: "x".into(),
+        },
+        Request::LinksOut {
+            matter: m(),
+            id: "x".into(),
+        },
+        Request::LinksIn {
+            matter: m(),
+            id: "x".into(),
+        },
     ]
 }
 
@@ -155,4 +167,15 @@ fn b_ac_02_every_command_round_trips_and_its_wire_name_is_its_name() {
         let back: Request = serde_json::from_value(wire).unwrap();
         assert_eq!(back, req);
     }
+}
+
+#[test]
+fn query_names_equal_the_query_class_commands() {
+    let from_class: BTreeSet<&str> = samples()
+        .iter()
+        .filter(|r| r.class() == oa_types::CommandClass::Query)
+        .map(|r| r.name())
+        .collect();
+    let listed: BTreeSet<&str> = Request::QUERY_NAMES.iter().copied().collect();
+    assert_eq!(from_class, listed);
 }

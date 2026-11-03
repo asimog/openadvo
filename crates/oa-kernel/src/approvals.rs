@@ -11,7 +11,7 @@ use crate::{store_err, Ctx, Kernel};
 const ACCEPTED: &str = "accepted";
 const REJECTED: &str = "rejected";
 
-fn approval_json(a: &ApprovalRow) -> Value {
+pub(crate) fn approval_json(a: &ApprovalRow) -> Value {
     json!({
         "id": a.id,
         "gate": a.gate,

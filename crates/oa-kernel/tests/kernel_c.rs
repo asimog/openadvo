@@ -451,3 +451,129 @@ fn b_ac_06_a_repeated_key_commits_one_event() {
     let events = SqliteFactory.open_matter(&w.dir).unwrap().events().unwrap();
     assert_eq!(events.len(), 2, "genesis plus one evidence event");
 }
+
+fn q(w: &World, r: Request) -> Result<Vec<Value>, OaError> {
+    w.k.dispatch(&Ctx::query(Origin::Cli), r)
+}
+
+#[test]
+fn c_ac_20_inspect_lists_the_ledger_events_that_touched_a_record() {
+    let w = world(Hooks::default());
+    let (draft, r1) = new_draft(&w);
+    let r2 = s(&commit(&w, &cli(), &draft, &r1, b"rev 1").unwrap()["hash"]);
+    one(
+        &w.k,
+        &cli(),
+        Request::DraftCheckpoint {
+            matter: w.matter.clone(),
+            draft: draft.clone(),
+            name: "v1".into(),
+        },
+    )
+    .unwrap();
+    let inspect = |id: &str| {
+        q(
+            &w,
+            Request::Inspect {
+                matter: w.matter.clone(),
+                id: id.into(),
+            },
+        )
+        .unwrap()
+        .remove(0)
+    };
+    let d = inspect(&draft);
+    assert_eq!(d["kind"], "draft");
+    let cmds: Vec<&str> = d["events"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["command"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        cmds,
+        ["draft.created", "draft.revised", "draft.checkpointed"]
+    );
+    let rev = inspect(&r2);
+    assert_eq!(rev["kind"], "revision");
+    assert!(!rev["events"].as_array().unwrap().is_empty());
+    assert_eq!(inspect(&format!("{draft}#v1"))["kind"], "checkpoint");
+    let missing = q(
+        &w,
+        Request::Inspect {
+            matter: w.matter.clone(),
+            id: "nope".into(),
+        },
+    )
+    .unwrap_err();
+    assert_eq!(missing.code, ErrorCode::NotFound);
+}
+
+#[test]
+fn c_ac_21_links_in_lists_referrers_and_a_rebuild_gives_the_same_answer() {
+    let w = world(Hooks::default());
+    let ev = one(
+        &w.k,
+        &cli(),
+        Request::EvidenceAdd {
+            matter: w.matter.clone(),
+            file: file("order.pdf", b"same bytes"),
+            origin: "advocate_import".into(),
+        },
+    )
+    .unwrap();
+    let blob = s(&ev["blob"]);
+    let d = one(
+        &w.k,
+        &cli(),
+        Request::DraftCreate {
+            matter: w.matter.clone(),
+            title: "Reply".into(),
+            file: file("reply.docx", b"same bytes"),
+        },
+    )
+    .unwrap();
+    let links_in = |id: &str| {
+        q(
+            &w,
+            Request::LinksIn {
+                matter: w.matter.clone(),
+                id: id.into(),
+            },
+        )
+        .unwrap()
+    };
+    let into_blob = links_in(&blob);
+    let from: Vec<String> = into_blob.iter().map(|e| s(&e["from"])).collect();
+    assert!(from.contains(&s(&ev["id"])), "the evidence entry");
+    assert!(from.contains(&s(&d["revision"]["hash"])), "the revision");
+
+    let events = q(
+        &w,
+        Request::LedgerTail {
+            matter: w.matter.clone(),
+            n: Some(1000),
+        },
+    )
+    .unwrap();
+    let rebuilt: Vec<oa_store::LedgerEvent> = events
+        .iter()
+        .map(|e| oa_store::LedgerEvent {
+            seq: e["seq"].as_i64().unwrap(),
+            recorded_at: s(&e["recorded_at"]),
+            actor: s(&e["actor"]),
+            origin: s(&e["origin"]),
+            command: s(&e["command"]),
+            idempotency_key: None,
+            body: serde_json::to_string(&e["body"]).unwrap(),
+            prev_hash: s(&e["prev_hash"]),
+            hash: s(&e["hash"]),
+        })
+        .collect();
+    let again: Vec<Value> = oa_kernel::edges(&rebuilt)
+        .iter()
+        .filter(|e| e.to == blob)
+        .map(|e| serde_json::json!({ "from": e.from, "to": e.to, "seq": e.seq, "via": e.via }))
+        .collect();
+    assert_eq!(again, into_blob);
+}

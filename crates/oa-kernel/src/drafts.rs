@@ -54,7 +54,7 @@ fn revision(
     }
 }
 
-fn revision_json(live: &Live, r: &RevisionRow) -> Value {
+pub(crate) fn revision_json(live: &Live, r: &RevisionRow) -> Value {
     json!({
         "hash": r.hash,
         "draft": r.draft_id,
@@ -68,7 +68,7 @@ fn revision_json(live: &Live, r: &RevisionRow) -> Value {
     })
 }
 
-fn draft_json(d: &DraftRow) -> Value {
+pub(crate) fn draft_json(d: &DraftRow) -> Value {
     json!({ "id": d.id, "title": d.title, "head": d.head, "created_at": d.created_at })
 }
 

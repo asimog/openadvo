@@ -18,7 +18,7 @@ const KNOWN_ORIGINS: &[&str] = &["court_portal", "india_code", "email", "advocat
 /// paths do not exist yet, so only advocate imports can be added.
 const CONNECTION_ORIGINS: &[&str] = &["advocate_import"];
 
-fn evidence_json(live: &Live, row: &EvidenceRow, origins: &[OriginRow]) -> Value {
+pub(crate) fn evidence_json(live: &Live, row: &EvidenceRow, origins: &[OriginRow]) -> Value {
     json!({
         "id": row.id,
         "original_name": row.original_name,

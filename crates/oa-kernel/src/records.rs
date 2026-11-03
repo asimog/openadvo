@@ -50,7 +50,7 @@ pub(crate) fn blob_path(dir: &Path, hash: &str) -> PathBuf {
         .join(hash.strip_prefix("sha256:").unwrap_or(hash))
 }
 
-fn event_json(e: &LedgerEvent) -> Value {
+pub(crate) fn event_json(e: &LedgerEvent) -> Value {
     json!({
         "seq": e.seq,
         "recorded_at": e.recorded_at,
