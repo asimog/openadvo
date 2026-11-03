@@ -19,7 +19,7 @@ Every decision has a status.
 
 ## 2. Foundation principles
 
-These eight principles come out of the decisions below. Each one is cross-cutting, so every spec repeats the parts that touch it.
+These nine principles come out of the decisions below. Each one is cross-cutting, so every spec repeats the parts that touch it.
 
 | ID | Principle | Source |
 |---|---|---|
@@ -31,6 +31,7 @@ These eight principles come out of the decisions below. Each one is cross-cuttin
 | P6 | **Legal judgement stays with the advocate.** Citation voice, precedent treatment, limitation, amended-section versions and self-verification of an unresolved item are all human decisions, recorded as such. | RQ-16, RQ-17, RQ-19, RQ-55, RQ-60 |
 | P7 | **Vendor the source, run it separately.** The OCR engines, WordCraft and PdfCraft are vendored into our tree and run as separate processes under the supervisor. Nothing heavy or hostile-input-facing runs in the window process. | RQ-78, RQ-84, RQ-85, map calls 2 and 7 |
 | P8 | **DOCX is the working format, PDF/A is the filing format.** Drafting and verification happen on the DOCX. The final DOCX is converted to PDF/A for filing, checked against the DOCX, and never edited (5.5). | RQ-79 |
+| P9 | **Everything is inspectable.** The GUI is a second front end of the same commands as the CLI, with parity both ways: every query has a GUI view, and every GUI action is a command. Every record, event, command, refusal, process, job, verification, model call and context manifest can be opened in an inspector that shows its raw record, the ledger events that touched it, what it links to and what links to it, and the command and origin that produced it. Nothing the system does is visible only in a log. | User, 4 November 2026; Macro reference (section 13) |
 
 ## 3. Terms
 
@@ -50,6 +51,10 @@ The docs used several words in two senses. These are the meanings from now on. E
 | **Advocate attestation** | A recorded human decision that an `unresolved` item has been checked by the advocate. It is shown and disclosed as "advocate-attested", never as `verified`. | Verified |
 | **Simulated** | The ULOS standard and the validator are our own stand-ins for a court standard and a court validator that do not exist (RQ-44). The checks themselves run against real court sources. A **fixture source** is the test-only backend that replaces the court sources in tests (RQ-08). | A "simulated verdict" tag, which no longer exists |
 | **Quick check** | A fast, early look-up of a citation against the AWS open-data catalogue, in Research Studio (I14). Its results use their own words (`found`, `not_found`, `mismatch`, `unavailable`), never a validator outcome. It never unblocks a gate and never appears in the disclosure document as verification. | Verification, which is the portal through `ulos` |
+| **Inspector** | The drawer every view opens on any item: raw record, ledger events, links out and in, producing command, origin and actor (A16). | A debug log |
+| **Signal and Noise** | The two halves of the review inbox. Signal is what needs the advocate's decision or blocks a gate. Noise is information. | Severity |
+| **Backlink** | The reverse of a reference: from any record, what points at it (C17). | A copy |
+| **Fence** | A number on the harness's claim to a matter session. A new claim increments it, and the store refuses appends carrying an older one (D18). | A lock |
 | **Research Studio** | The research and argument capability (group I): search, treatment, voice, memoranda, case conference, advisory scores. The workflow docs call it "Studio". | Verification |
 | **Harness** | The runtime that runs turns. One process. | An agent |
 | **Orchestrator** | The one long-horizon agent configuration that keeps the matter's plan and memory (RQ-32). | A sub-agent |
@@ -462,3 +467,29 @@ These remain. None blocks the build order's first four steps. Each says what the
 | [ULOSarchitecture.md](ULOSarchitecture.md) | Rewritten for four functions (L, C, CI, N), four outcomes, one source, client-supplied tagging, any India Code Act and the conditional amendment check. |
 | [report.md](report.md) | Marked as the question history. Its recommendations are the pre-decision positions, and this file governs. |
 | [specs/](specs/README.md) | New. One spec per component group, plus the validator. |
+| [specs/](specs/README.md), later on 4 November 2026 | Every spec gained a GUI section and inspectability criteria (P9). Specs A, C, D, E and J gained the section 13 ideas. |
+
+## 13. Ideas adopted from the Macro reference
+
+On 4 November 2026 the Macro workspace (a copy at `C:\dev\.devereferences\macro-2026.11.2.1`) was studied for workspace, UI and agent flow. Macro is AGPLv3, so it is a design reference only (verdict REF). No code is taken, and no file of it may be copied into this repository.
+
+| ID | Idea in the reference | Adopted as | Spec |
+|---|---|---|---|
+| M-01 | Nearly every frontend feature ships a debug view and a fixture gallery beside it. | P9 and the Inspector (A16). Every pane has a gallery of fixture states for visual review (A17). | [A](specs/A-shell-workspace.md), [P](specs/P-observability.md) |
+| M-02 | A built-in window manager with three or more splits that scale with the monitor, with navigation history. | The pane layout (A02) supports at least three splits, back and forward history, and a saved layout per matter. | [A](specs/A-shell-workspace.md) |
+| M-03 | One keyboard-first inbox for every kind of item, split into Signal and Noise, with `j`, `k` and `e`. | The review inbox (A08) is split into Signal and Noise and is fully keyboard operable. | [A](specs/A-shell-workspace.md) |
+| M-04 | A Cmd+K launcher that classifies intent and ranks by frecency. | The command bar (A09) searches commands, matters and records, ranked by frecency, and only ever issues registered commands. | [A](specs/A-shell-workspace.md) |
+| M-05 | Every reference is stored as a bidirectional link, so any record shows what points at it. | A link index (C17), derived from the ledger, answers backlinks for every record. | [C](specs/C-kernel.md) |
+| M-06 | One query service returns many entity kinds through one filter language. | `oa find` searches every record kind through one filter, and the GUI search box uses it. | [E](specs/E-stores.md) |
+| M-07 | A runtime forwarding a user's prompt can never use that identity to approve its own permission. Human approvals are absent from the agent's tools. | Confirms rule 4 of spec B and X-19. A forwarded instruction cannot claim the advocate asked for something. | [D](specs/D-harness.md) |
+| M-08 | Recovery revokes an abandoned runtime's claim by incrementing a fence, so the old actor can never append again. | Session lease and fence (D18). | [D](specs/D-harness.md) |
+| M-09 | One tool result never crowds the model out: the model sees a preview and a paging tool, while the log keeps the whole result. | Tool-result limit and paging (D19). | [D](specs/D-harness.md) |
+| M-10 | A view of sessions waiting on their owner: blocked on an interaction, or stalled. | "Waiting on you" in the agent pane and as Signal in the inbox. | [D](specs/D-harness.md) |
+| M-11 | Durable action history: evidence that an instruction reached the session, and how it ended, separate from the transcript. | The session store records each instruction's delivery and outcome. | [D](specs/D-harness.md) |
+| M-12 | Lifecycle facts (opened, turn started, turn ended, waiting) are published apart from the commands that drive a session. | The outbox carries lifecycle facts on their own topic. | [D](specs/D-harness.md) |
+| M-13 | Memory stored as plain markdown the user can read, export and correct. | Matter memory: the orchestrator's notes are a markdown file the advocate can read and edit, with every edit attributed. | [D](specs/D-harness.md) |
+| M-14 | A from-scratch DOCX engine with stable ids on every block, that writes back any XML it does not interpret unchanged, and a corpus CLI. | Requirements on the WordCraft engine (J05): stable ids on every block, uninterpreted XML preserved, and a corpus regression run. These sharpen H-02. | [J](specs/J-documents-editors.md) |
+| M-15 | One shared Changes viewer for pull requests, agent sessions and previews, with review notes anchored under lines, read only unless the host grants the agent capability. | One Changes viewer (J15) for agent proposals, WordCraft saves and restores, with notes anchored to paragraph ids. | [J](specs/J-documents-editors.md) |
+| M-16 | A development status bar and a hotkey debugger. | The status bar shows connection, decided origin and the health of every supervised process. | [A](specs/A-shell-workspace.md) |
+
+Ideas studied and not adopted: CRDT live collaboration (one advocate, one machine), team-level nightly memory across users (no multi-user scope yet), channels and email sending (spec O has no sending path), and hosted model routing (D03 keeps the router local).

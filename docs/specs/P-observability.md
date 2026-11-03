@@ -8,7 +8,7 @@ Seeing what happened in a run, measuring how good each gate is, and proving the 
 
 ## Decisions implemented
 
-RQ-07, RQ-15, RQ-31, RQ-86, X-09.
+RQ-07, RQ-15, RQ-31, RQ-86, X-09, P9, M-01.
 
 ## Depends on
 
@@ -45,6 +45,15 @@ RQ-07, RQ-15, RQ-31, RQ-86, X-09.
 | `oa replay <recording> [--swap <capability>=<impl>]` | internal | The swap drill |
 | `oa diagnostics bundle --out <zip>` | internal | An inspectable diagnostics bundle, opt in |
 
+## GUI
+
+| View | Shows | The engineer or advocate can |
+|---|---|---|
+| Run inspector (P02) | A run's timeline of model calls, tool calls, control calls and gate waits, joined to ledger events | Open any span in the Inspector |
+| Replay | A recorded run against a new loop, prompt or provider, with the first divergence side by side | Step to the divergence |
+| Eval report | Catch rate per gate per version, and every miss | Open each miss |
+| Galleries (A17) | Every view in fixture states | Capture screenshots for review |
+
 ## Rules
 
 1. **Spans.** One span per model call, tool call, control call and gate wait, carrying the run, turn and, where one exists, the ledger sequence number (P01).
@@ -67,6 +76,7 @@ RQ-07, RQ-15, RQ-31, RQ-86, X-09.
 | P-AC-06 | The diagnostics bundle contains no blob unless added. | [AUTO] |
 | P-AC-07 | The planted-defect corpus covers the Registry's defect list. | [HUMAN] (legal review) |
 | P-AC-08 | A lawyer and an engineer can each explain a bad run from the run inspector. | [HUMAN] |
+| P-AC-09 | A replay shows the first divergence side by side. | [AUTO] |
 
 ## Edge cases
 

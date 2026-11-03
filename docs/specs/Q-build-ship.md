@@ -8,7 +8,7 @@ Getting a signed, offline-installable application onto an advocate's machine wit
 
 ## Decisions implemented
 
-RQ-37, P7, X-10, H-10.
+RQ-37, P7, X-10, H-10, P9.
 
 ## Depends on
 
@@ -44,6 +44,14 @@ RQ-37, P7, X-10, H-10.
 | `oa update check` / `oa update apply` / `oa update rollback` | external, internal | The updater |
 | `oa doctor` | query | Checks every supervised process, every bundled asset hash and network reachability of each source |
 
+## GUI
+
+| View | Shows | The advocate can |
+|---|---|---|
+| About | Application, `ulos`, engine, model and rule pack versions with their hashes | Copy for support |
+| Doctor | Every `oa doctor` check | Run it |
+| Updates | The staged update and the previous version | Apply or roll back |
+
 ## Rules
 
 1. The installer works with the network disabled and installs every bundled asset with its hash recorded.
@@ -65,6 +73,7 @@ RQ-37, P7, X-10, H-10.
 | Q-AC-05 | With the network disabled, `oa verify draft` records `unresolved` with `source_unreachable` for every source-dependent check. | [AUTO] |
 | Q-AC-06 | A forced crash mid-run restarts and resumes with no duplicate effect. | [AUTO] |
 | Q-AC-07 | The installer and updater experience is acceptable to a non-technical advocate. | [HUMAN] |
+| Q-AC-08 | The About view lists every bundled asset with the same hash `oa version` prints. | [AUTO] |
 
 ## Edge cases
 

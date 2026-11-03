@@ -45,6 +45,7 @@ These are settled. Do not trade them away to make something work.
 - **One validator.** `ulos` is a separate binary, deterministic, with no model. Verification records come only from it. The verification adapter holds no check code. Only the Supreme Court portal, through `ulos`, verifies a citation. The AWS catalogue is outside the standard, for research and the quick check only.
 - **Separate processes.** The harness, each OCR engine, each browser profile, WordCraft, PdfCraft and `ulos` run as their own supervised processes.
 - **DOCX, then PDF/A.** Drafting and verification happen on DOCX. The approved DOCX is converted to PDF/A for filing, the conversion is checked against the DOCX, and the PDF is never edited.
+- **Everything is inspectable.** Every query command has a GUI view, and every item in a view opens the Inspector. A new query without a view, or a view item the Inspector cannot open, is not done (P9, docs/specs/README.md "GUI conventions").
 - **Honest states.** Never show `verified` for anything the validator did not verify. Never retry an external effect whose outcome is `unknown` before reconciling it.
 - **Vocabulary.** Use the terms in `docs/decisions.md` section 3: "matter workspace", "draft", "verification proof", "verified" only for a validator outcome.
 

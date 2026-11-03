@@ -46,6 +46,10 @@ P3, P4, RQ-08, RQ-09, RQ-10, RQ-12, RQ-20, RQ-21, RQ-43, RQ-44, RQ-48, RQ-51, RQ
 
 Flags common to all: `--json`, `--session <file>` (a captured portal session), `--timeout <s>`, `--fixtures <dir>` (test builds only).
 
+## GUI
+
+None. `ulos` is a command-line program with no SDK and no window (RQ-43). Its records are shown by the verification pane of spec K.
+
 ## Rules
 
 1. **Four outcomes.** Every check returns `verified`, `failed`, `unresolved` or `not_applicable`, with a reason code from the list in [decisions.md](../decisions.md) 5.3 for every non-`verified` outcome. No other outcome word is ever printed.

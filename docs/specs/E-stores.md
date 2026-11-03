@@ -8,7 +8,7 @@ Where the bytes and rows live. One SQLite database per matter workspace (`matter
 
 ## Decisions implemented
 
-RQ-31, RQ-70, RQ-75, RQ-83, C-5, X-12, X-18, H-04.
+RQ-31, RQ-70, RQ-75, RQ-83, C-5, X-12, X-18, H-04, P9, M-06.
 
 ## Depends on
 
@@ -44,10 +44,20 @@ RQ-31, RQ-70, RQ-75, RQ-83, C-5, X-12, X-18, H-04.
 | `oa store check [--matter <id>]` | query | SQLite integrity check, blob presence and hash check, ledger chain check |
 | `oa search text <query> [--matter <id>]` | query | FTS5 search over Notebook text and extracted lines |
 | `oa search similar <text|anchor> [--k <n>]` | query | Vector search within the matter |
+| `oa find <query> [--kind <k>]... [--filter <expr>]` | query | One search across every record kind, with typed results |
 | `oa index rebuild [--fts|--vec|--graph]` | internal | Rebuilds a derived index from canonical tables |
 | `oa export <matter> --out <file>` | internal | A self-contained bundle: manifest, `matter.db` snapshot, blobs |
 | `oa import-bundle <file> --root <root>` | internal | Restores a bundle as a matter workspace |
 | `oa export verify <file>` | query | Checks a bundle offline: hashes, ledger chain, manifest |
+
+## GUI
+
+| View | Shows | The advocate can |
+|---|---|---|
+| Search | One box over every record kind, with kind facets and filters, through `oa find` | Search, filter by kind, open any result in the Inspector |
+| Store health | Integrity, blob presence and ledger chain checks, with the first failure | Run the checks |
+| Indexes | The state of the text, vector and graph indexes, and the embedding model in use | Rebuild an index |
+| Export and import | A bundle's contents before export, and a bundle's verification before import | Export, verify, import |
 
 ## Rules
 
@@ -60,6 +70,7 @@ RQ-31, RQ-70, RQ-75, RQ-83, C-5, X-12, X-18, H-04.
 7. Blobs are written to a temporary name, fsynced, hashed, then renamed to `blobs/<sha256>`. A blob whose content does not hash to its name is reported by `oa store check`.
 8. Secrets (provider keys, portal credentials, signing keys) live in the OS keychain (DPAPI on Windows). A test fails if a secret pattern appears in any SQLite file.
 9. An export bundle is verifiable without the application by `oa export verify`, and its ledger is verifiable by recomputing the chain.
+10. **One find across kinds.** `oa find <query> [--kind <k>]... [--filter <expr>]` searches every record kind (matters, evidence, revisions, Notebook items, verifications, approvals, ledger events) through one filter language and returns typed results with their kind.
 
 ## Acceptance criteria
 
@@ -75,6 +86,8 @@ RQ-31, RQ-70, RQ-75, RQ-83, C-5, X-12, X-18, H-04.
 | E-AC-08 | An exported bundle restores on a clean machine and passes `oa ledger verify`. | [AUTO] |
 | E-AC-09 | FTS5 query p95 under 200 ms on a 5,000 page fixture matter. | [AUTO] |
 | E-AC-10 | Vector search results for ten gold queries contain the expected passage in the top five. | [AUTO+HUMAN] (gold set authored by a lawyer) |
+| E-AC-11 | `oa find` returns results of several kinds for one query, each with its kind, and the GUI search shows the same results. | [AUTO] |
+| E-AC-12 | Store health shows the first failing check with the item it failed on. | [AUTO] |
 
 ## Edge cases
 

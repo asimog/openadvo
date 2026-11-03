@@ -8,16 +8,16 @@ The decisions these specs implement are in [decisions.md](../decisions.md). When
 
 | File | Group | Component ids | First build step |
 |---|---|---|---|
-| [A-shell-workspace.md](A-shell-workspace.md) | Shell and workspace | A01 to A15 | 1 |
+| [A-shell-workspace.md](A-shell-workspace.md) | Shell and workspace | A01 to A17 | 1 |
 | [B-control-surface-cli.md](B-control-surface-cli.md) | Control surface and the `oa` CLI | B01 to B08 | 2 |
-| [C-kernel.md](C-kernel.md) | Kernel | C01 to C16 | 1 |
-| [D-harness.md](D-harness.md) | Harness | D01 to D17 | 2 |
+| [C-kernel.md](C-kernel.md) | Kernel | C01 to C17 | 1 |
+| [D-harness.md](D-harness.md) | Harness | D01 to D19 | 2 |
 | [E-stores.md](E-stores.md) | Stores | E01 to E07 | 1 |
 | [F-capture-ingest.md](F-capture-ingest.md) | Capture and ingest | F01 to F13 | 4 |
 | [G-ocr-document-intelligence.md](G-ocr-document-intelligence.md) | OCR and document intelligence | G01 to G13 | 3 and 5 |
 | [H-notebook.md](H-notebook.md) | Notebook | H01 to H09 | 6 |
 | [I-research-studio.md](I-research-studio.md) | Research Studio | I01 to I14 | 8 |
-| [J-documents-editors.md](J-documents-editors.md) | Documents, viewers and editors | J01 to J14 | 3, 7 and 9 |
+| [J-documents-editors.md](J-documents-editors.md) | Documents, viewers and editors | J01 to J15 | 3, 7 and 9 |
 | [K-verification-adapter.md](K-verification-adapter.md) | Verification adapter | K01 to K14 | 8 |
 | [L-filing.md](L-filing.md) | Filing | L01 to L04 | 10 |
 | [M-browser.md](M-browser.md) | Browser | M01 to M10 | 4 |
@@ -38,12 +38,13 @@ Each spec has the same sections, in this order.
 4. **Assumptions.** Things taken as true. If one is false, the spec needs revision.
 5. **Non-goals.** Things this group must not do, even if it could.
 6. **CLI.** The commands the group exposes first, before any pane.
-7. **Rules.** Numbered, normative. "Must" means a test can fail.
-8. **Acceptance criteria.** Each tagged with how it is checked.
-9. **Edge cases.**
-10. **Failure modes.** What happens when it breaks, and the honest state shown.
-11. **Observable outcomes.** What the advocate, the ledger and the CLI show.
-12. **Open questions.** Pointers to [decisions.md](../decisions.md) section 11, and any local ones.
+7. **GUI.** The views the group adds to the shell, what each lets the advocate inspect or do, and the GUI acceptance criteria. Every view is a client of the same commands as the CLI (P9).
+8. **Rules.** Numbered, normative. "Must" means a test can fail.
+9. **Acceptance criteria.** Each tagged with how it is checked.
+10. **Edge cases.**
+11. **Failure modes.** What happens when it breaks, and the honest state shown.
+12. **Observable outcomes.** What the advocate, the ledger and the CLI show.
+13. **Open questions.** Pointers to [decisions.md](../decisions.md) section 11, and any local ones.
 
 ## Test tags
 
@@ -95,3 +96,15 @@ All record times are UTC in RFC 3339 with milliseconds. Display is in IST. Dates
 ### Vocabulary
 
 Use the terms in [decisions.md](../decisions.md) section 3. In particular: "matter workspace", not "workspace", for one matter; "draft" only for our own documents; "verified" only for a validator outcome; "verification proof", not "evidence", for what a verification record points at.
+
+## GUI conventions shared by every group
+
+The window is `oa-shell` (spec A). It holds no canonical state.
+
+1. **Parity.** Every `query` command has at least one GUI view, and every GUI action issues a registered command. A test enumerates the registry and fails on a query with no view (A-AC-16).
+2. **The Inspector.** Every item in every view opens the Inspector drawer (A16) with one action. It shows the raw record as JSON, the ledger events that touched it, its links out and its backlinks (C17), and the command, origin and actor that produced it. A view that shows an item the Inspector cannot open is not shippable.
+3. **Nothing only in a log.** An error, refusal, unknown effect or degraded adapter is a visible state in the view that owns it, and Signal in the review inbox when it needs the advocate.
+4. **Human commands need a distinct gesture.** A `human` command is a deliberate control in a view that names exactly what is being decided. It is never triggered by a keyboard shortcut alone, a voice command, or a default button.
+5. **Keyboard first.** Every view is operable without a mouse, and the command bar (A09) reaches every command.
+6. **Galleries.** Every view has a gallery of fixture states (empty, loading, error, typical, large, disputed) that runs without a kernel, for visual review and screenshots (A17).
+7. **Honest labels.** Validator outcomes, quick-check results, advisory scores and advocate attestations each have their own visual treatment, and never share one.

@@ -719,6 +719,7 @@ The design questions are settled in [decisions.md](decisions.md). This section s
 6. **Legal judgement stays with the advocate.** Voice, treatment, limitation, amended-section versions and self-verification are recorded human decisions.
 7. **Vendor the source, run it separately.** The OCR engines, WordCraft and PdfCraft are vendored in our tree and run as separate supervised processes.
 8. **DOCX is the working format. PDF/A is the filing format.** Every document is drafted and verified in DOCX, because advocates work in DOCX. When the approved DOCX is final it is converted to PDF/A, a conversion check confirms the PDF says exactly what the verified DOCX says, and the PDF/A is filed. The PDF is never edited. A change goes back to the DOCX.
+9. **Everything is inspectable.** The GUI and the CLI are two front ends of the same commands. Every query has a view, every item opens an Inspector with its raw record, ledger events and links in both directions, and nothing the system does is visible only in a log.
 
 ### Process topology
 

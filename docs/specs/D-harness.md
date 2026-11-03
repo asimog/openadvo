@@ -1,6 +1,6 @@
 # D. Harness
 
-Components: D01 to D17. See [README](README.md) for tags and conventions.
+Components: D01 to D19. See [README](README.md) for tags and conventions.
 
 ## Purpose
 
@@ -8,7 +8,7 @@ The runtime that runs agent turns: the loop, providers, the model router, the to
 
 ## Decisions implemented
 
-RQ-01, RQ-02, RQ-03, RQ-04, RQ-07, RQ-28, RQ-29, RQ-31, RQ-32, RQ-39, RQ-75, C-4, C-6, H-04, H-11.
+RQ-01, RQ-02, RQ-03, RQ-04, RQ-07, RQ-28, RQ-29, RQ-31, RQ-32, RQ-39, RQ-75, C-4, C-6, H-04, H-11, P9, M-07, M-08, M-09, M-10, M-11, M-12, M-13.
 
 ## Depends on
 
@@ -42,9 +42,25 @@ RQ-01, RQ-02, RQ-03, RQ-04, RQ-07, RQ-28, RQ-29, RQ-31, RQ-32, RQ-39, RQ-75, C-4
 | `oa agent reconcile <effect>` | internal | Runs the reconciliation check for one `unknown` effect |
 | `oa agent replay <session> [--until <turn>]` | query | Replays from the trace store and reports the first divergence |
 | `oa agent context <turn>` | query | The context manifest for a turn: what the model was shown |
+| `oa agent memory --matter <id>` / `oa agent memory --matter <id> --edit <file>` | query, internal | Reads or replaces the matter memory, attributed to the editor |
+| `oa agent waiting` | query | Runs blocked on a gate or stalled |
+| `oa agent result <tool-call> [--page <n>]` | query | The whole result of a tool call, paged |
 | `oa playbook list` / `oa playbook show <id>` | query | Workflow definitions, including the SLP state machine |
 | `oa tools list [--json]` | query | The registry with classes and capability manifests |
 | `oa services status` | query | Every supervised process, its health and restart budget |
+
+## GUI
+
+| View | Shows | The advocate can |
+|---|---|---|
+| Agent pane (A07) | The transcript, streaming output, the plan and current step, tool cards with class, arguments and result | Instruct, steer, cancel; open any tool card in the Inspector |
+| Tool card | The full tool result, marked when the model saw only a preview (D19), and the effect state | Read the whole result; reconcile an `unknown` effect |
+| Context manifest | For any model call, every item the model was shown, with its anchor and token count | See exactly what the agent saw |
+| Waiting on you | Every run blocked on a gate, and every run with no progress for the stall interval | Open the gate; steer or cancel the run |
+| Sub-agents | The tree of sub-agents of a run, each with its instructions, tool allowlist, budget, return and context manifest | Inspect any sub-agent's work |
+| Matter memory | The orchestrator's notes for this matter as plain markdown | Read and correct them; each edit is attributed |
+| Effects | Every effect intent with its state; `unknown` effects first | Run reconciliation |
+| Services | Every supervised process with health, restart budget and versions | Restart a stopped service |
 
 ## Rules
 
@@ -64,6 +80,12 @@ RQ-01, RQ-02, RQ-03, RQ-04, RQ-07, RQ-28, RQ-29, RQ-31, RQ-32, RQ-39, RQ-75, C-4
 14. **Untrusted text.** Page text, email bodies and document text enter the context as data with an origin label. Text from those sources can never change a grant, a policy or a plan step on its own; a plan change prompted by such text must cite it and is shown to the advocate.
 15. **Supervision.** Every supervised process has a handshake, a health check, a restart budget and typed stdio or pipe. A process that exhausts its budget is marked failed and its pending tool calls are `raised` with a tool-failure reason, not a task failure (D15).
 16. **Metering.** Tokens, cost and wall time per turn, per sub-agent and per matter are recorded and shown (D16).
+17. **Session lease and fence (D18).** A harness holds a claim on a matter's session with a fence number. A new claim, made after a restart or a recovery, increments the fence. The session store refuses an append carrying an older fence, so a harness that was presumed dead can never append again.
+18. **Tool-result limit (D19).** The model sees at most the configured size of any one tool result. A longer result is cut to a preview with a note naming `read_tool_result`, which pages through the whole result. The session store and the GUI always keep the whole result, and history replays cut it the same way every time.
+19. **Action history.** Each instruction is recorded on arrival, then with how it ended: answered, cancelled, or disconnected before an answer. The record is separate from the transcript, so a replaced transcript cannot hide an instruction.
+20. **Lifecycle facts.** Run opened, turn started, turn ended, waiting on the advocate, stalled and closed are published on their own outbox topic, apart from the commands that drive a run.
+21. **Matter memory.** The orchestrator's persistent notes are a markdown file in the session store, readable and editable by the advocate. An edit by the advocate is a recorded event, and the orchestrator reads the edited version on its next turn.
+22. **No forwarded authority.** A prompt that the harness forwards, or that a trigger produced, cannot carry the claim that the advocate asked for something. Only an instruction from a non-harness connection is the advocate's.
 
 ## Acceptance criteria
 
@@ -84,6 +106,13 @@ RQ-01, RQ-02, RQ-03, RQ-04, RQ-07, RQ-28, RQ-29, RQ-31, RQ-32, RQ-39, RQ-75, C-4
 | D-AC-13 | A provider outage mid-turn yields a `raised` tool failure, a visible notice, and a resumable turn. | [AUTO] |
 | D-AC-14 | Budget exhaustion stops the turn at the next safe point and asks the advocate. | [AUTO] |
 | D-AC-15 | The orchestrator's plan for a sample SLP matter is coherent and recovers sensibly after a forced restart. | [HUMAN] |
+| D-AC-16 | For any turn, the context manifest view lists every item shown to the model with its token count. | [AUTO] |
+| D-AC-17 | A tool result over the limit reaches the model as a preview with the paging note, while the tool card shows the whole result. | [AUTO] |
+| D-AC-18 | An append from a harness holding an older fence is refused after a newer claim. | [AUTO] |
+| D-AC-19 | Waiting on you lists a run blocked on a gate within 2 seconds of the block. | [AUTO] |
+| D-AC-20 | An advocate edit to matter memory is attributed and is what the orchestrator reads next. | [AUTO] |
+| D-AC-21 | An instruction cut off by a disconnect shows as delivered with no answer, not as lost. | [AUTO] |
+| D-AC-22 | An advocate watching the agent pane can always tell what the agent is doing and why. | [HUMAN] |
 
 ## Edge cases
 

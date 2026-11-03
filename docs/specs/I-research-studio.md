@@ -8,7 +8,7 @@ Where legal research and argument development happen. Research Studio finds auth
 
 ## Decisions implemented
 
-RQ-16, RQ-18, RQ-19, RQ-32, RQ-35, RQ-57, X-02, X-06, X-14, L-11, L-12, L-17, H-01, H-13.
+RQ-16, RQ-18, RQ-19, RQ-32, RQ-35, RQ-57, X-02, X-06, X-14, L-11, L-12, L-17, H-01, H-13, P9.
 
 ## Depends on
 
@@ -70,6 +70,17 @@ RQ-16, RQ-18, RQ-19, RQ-32, RQ-35, RQ-57, X-02, X-06, X-14, L-11, L-12, L-17, H-
 | `oa research debate <ground> [--agents <n>]` | internal | Runs a multi-agent evaluation |
 | `oa research quick-check <citation|draft-rev>` | external | Quick-checks one citation, or every citation in a draft, against the AWS catalogue |
 
+## GUI
+
+| View | Shows | The advocate can |
+|---|---|---|
+| Propositions | Each proposition with its bound authorities and their roles | Bind or unbind an authority |
+| Authority card | Role, voice (candidate or confirmed) with its basis, treatment with citing paragraphs, support assessment, verification outcome, quick-check result | Confirm voice (human command); open the judgment at the paragraph |
+| Adverse-authority review | Found and addressed, none found with the stated coverage, or incomplete | Record the review |
+| Conference board | Proposed, accepted and rejected arguments with reasons | Accept or reject (human command) |
+| Advisory scores | Each score with its basis and the advisory label | Read; never insert into a draft |
+| Debate | Each sub-agent's argument with its anchors | Open each anchor |
+
 ## Rules
 
 1. **Capture before quote.** A judgment is quoted only from a copy captured from the portal (I04). Text from the research index may be used to find an authority, never as the quoted text.
@@ -112,6 +123,8 @@ RQ-16, RQ-18, RQ-19, RQ-32, RQ-35, RQ-57, X-02, X-06, X-14, L-11, L-12, L-17, H-
 | I-AC-13 | Voice classification on the gold set is correct for at least the agreed share of passages, measured per voice class. | [AUTO+HUMAN] (gold set by a lawyer) |
 | I-AC-14 | For a sample matter, the authorities found and their treatment are what a competent lawyer would expect. | [HUMAN] |
 | I-AC-15 | Memoranda distinguish fact, dispute, proposition, assumption and question correctly. | [HUMAN] |
+| I-AC-20 | Every authority card shows voice, treatment and support each with its basis, and the verification outcome apart from the quick-check result. | [AUTO] |
+| I-AC-21 | A debate shows each sub-agent's argument with its anchors and its context manifest. | [AUTO] |
 
 ## Edge cases
 

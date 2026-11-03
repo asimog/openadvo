@@ -8,7 +8,7 @@ One Chromium binary serving three uses: the advocate's visible browser inside ou
 
 ## Decisions implemented
 
-RQ-80, RQ-81, H-08, H-15.
+RQ-80, RQ-81, H-08, H-15, P9.
 
 ## Depends on
 
@@ -48,6 +48,14 @@ RQ-80, RQ-81, H-08, H-15.
 | `oa browser detach agent` | internal | Revokes the attachment |
 | `oa browser downloads` | query | Intercepted downloads with hashes and capture records |
 
+## GUI
+
+| View | Shows | The advocate can |
+|---|---|---|
+| Browser pane | The page, the profile name, and a banner while the agent is attached | Browse; attach or detach the agent (human command) |
+| Downloads | Every intercepted download with its hash and capture record | Open the evidence entry |
+| Egress log | Every connection per profile, allowed or refused | Filter by profile |
+
 ## Rules
 
 1. One binary on disk, one process per profile (RQ-80). A crash in one profile does not affect the others.
@@ -75,6 +83,7 @@ RQ-80, RQ-81, H-08, H-15.
 | M-AC-07 | With the allow list empty, the `agent` profile makes no network request. | [AUTO] (egress test) |
 | M-AC-08 | DevTools cannot be opened in the `filing` profile. | [AUTO] |
 | M-AC-09 | The embedded browser behaves like a normal browser for portal use, including file pickers and print. | [HUMAN] |
+| M-AC-10 | The egress log shows every connection of the agent profile, with refused ones marked. | [AUTO] |
 
 ## Edge cases
 

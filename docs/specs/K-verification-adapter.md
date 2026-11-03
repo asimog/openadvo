@@ -8,7 +8,7 @@ The application side of verification. The adapter finds what needs checking in a
 
 ## Decisions implemented
 
-P3, P4, RQ-08, RQ-09, RQ-11, RQ-12, RQ-14, RQ-15, RQ-17, RQ-34, RQ-55, RQ-60, X-03, X-07, X-16, L-02, L-03, L-10, L-14, H-05, H-12, H-14.
+P3, P4, RQ-08, RQ-09, RQ-11, RQ-12, RQ-14, RQ-15, RQ-17, RQ-34, RQ-55, RQ-60, X-03, X-07, X-16, L-02, L-03, L-10, L-14, H-05, H-12, H-14, P9.
 
 ## Depends on
 
@@ -61,6 +61,17 @@ P3, P4, RQ-08, RQ-09, RQ-11, RQ-12, RQ-14, RQ-15, RQ-17, RQ-34, RQ-55, RQ-60, X-
 | `oa limitation confirm --shown <hash>` | human | The advocate confirms the computation they were shown |
 | `oa rules show filing [--version <v>]` | query | The filing compliance rule pack with sources |
 
+## GUI
+
+| View | Shows | The advocate can |
+|---|---|---|
+| Verification pane | Every check with outcome, reason code, the revision judged, and the verification proof (source endpoint, URL, response hash, location, target hash, validator version and hash) | Open the raw `ulos` record; open the source passage |
+| Gate state | The primary gate state and every item producing each state | Open each item |
+| Attestation | An unresolved item with what the validator could not decide | Self-verify (human command), recorded as advocate-attested |
+| Limitation | The computation: every input date, every excluded period, the rule and its source | Confirm (human command) |
+| Blockers | Masking blockers and filing-compliance defects with their rules and sources | Open the affected paragraph |
+| Catch rates | Each gate's catch rate on the planted-defect corpus, by version | Open each miss |
+
 ## Rules
 
 1. **Extraction.** K03 finds every citation span in the draft. Any text matching the loose patterns (`INSC`, `SCC`, `AIR`, `SCR`, `v.`, `vs`, `versus`, `Civil Appeal No`, `SLP`) that the validator does not parse becomes a review item (L-02). K04 finds every statutory reference. K05 takes the Notebook's court-portal items.
@@ -106,6 +117,8 @@ P3, P4, RQ-08, RQ-09, RQ-11, RQ-12, RQ-14, RQ-15, RQ-17, RQ-34, RQ-55, RQ-60, X-
 | K-AC-18 | A faithful conversion of the fixture petition passes the conversion check and PDF/A validation. | [AUTO] |
 | K-AC-15 | The filing-defects rule pack correctly reflects the Registry's current list. | [HUMAN] (legal review per rule pack version) |
 | K-AC-16 | Limitation computation is correct on twenty lawyer-checked scenarios. | [AUTO+HUMAN] |
+| K-AC-19 | Every verification record opens its raw `ulos` JSON and its verification proof. | [AUTO] |
+| K-AC-20 | The gate state view lists every item producing each state. | [AUTO] |
 
 ## Edge cases
 

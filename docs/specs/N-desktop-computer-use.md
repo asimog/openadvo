@@ -8,7 +8,7 @@ Letting the agent operate applications outside our window, such as Word when ins
 
 ## Decisions implemented
 
-RQ-73 (order of surfaces), X-04 (Word is a fidelity oracle, never the record), OQ-03.
+RQ-73 (order of surfaces), X-04 (Word is a fidelity oracle, never the record), OQ-03, P9.
 
 ## Depends on
 
@@ -38,6 +38,13 @@ RQ-73 (order of surfaces), X-04 (Word is a fidelity oracle, never the record), O
 | `oa desktop apps` | query | The target app registry with per-app quirks |
 | `oa word render <docx> --out <pdf>` | internal | Word through COM, for the fidelity oracle |
 
+## GUI
+
+| View | Shows | The advocate can |
+|---|---|---|
+| Desktop actions | Every desktop action with the application, the element reference, the masked screenshot and the result | Open the masked screenshot |
+| Allow list | The per-application allow list (firm layer) | Change it |
+
 ## Rules
 
 1. The order of surfaces is UI Automation, then vision (N02). Vision acts only after UI Automation reports no usable element.
@@ -57,6 +64,7 @@ RQ-73 (order of surfaces), X-04 (Word is a fidelity oracle, never the record), O
 | N-AC-04 | `oa word render` produces a PDF used by the fidelity oracle, and never a revision unless asked. | [AUTO] |
 | N-AC-05 | Pointing at a paragraph in our viewer with the overlay gives the agent its anchor. | [AUTO] |
 | N-AC-06 | The agent's operation of Word is reliable enough for advocates to trust it. | [HUMAN] |
+| N-AC-07 | Every desktop action appears in the desktop actions view with its element reference and masked screenshot. | [AUTO] |
 
 ## Edge cases
 

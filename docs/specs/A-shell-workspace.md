@@ -1,6 +1,6 @@
 # A. Shell and workspace
 
-Components: A01 to A15. See [README](README.md) for tags and conventions.
+Components: A01 to A17. See [README](README.md) for tags and conventions.
 
 ## Purpose
 
@@ -8,7 +8,7 @@ The window the advocate lives in, and the folders a matter lives in. The shell p
 
 ## Decisions implemented
 
-P1, RQ-25, RQ-37, RQ-38, RQ-68, RQ-70, RQ-73, RQ-87, RQ-88, C-1, X-10, X-12, X-22.
+P1, RQ-25, RQ-37, RQ-38, RQ-68, RQ-70, RQ-73, RQ-87, RQ-88, C-1, X-10, X-12, X-22, P9, M-01, M-02, M-03, M-04, M-16.
 
 ## Depends on
 
@@ -42,6 +42,24 @@ P1, RQ-25, RQ-37, RQ-38, RQ-68, RQ-70, RQ-73, RQ-87, RQ-88, C-1, X-10, X-12, X-2
 | `oa pane list` / `oa pane focus <pane>` / `oa layout save <name>` | query, internal | Pane and layout control |
 | `oa inbox list [--kind <k>]` | query | The review inbox (A08) |
 | `oa settings get <key>` / `oa settings set <key> <value>` | query, internal | Firm preference layer only. The legal layer is not settable (A10) |
+| `oa-shell [--gallery <view>]` | separate executable | The window, or one view in its fixture states with no kernel |
+
+## GUI
+
+The shell is the GUI for every group. This group owns the frame the other groups' views live in.
+
+| View | Shows | The advocate can |
+|---|---|---|
+| Matters browser (A04) | Every matter with title, client, stage, archived and removed state, folder presence | Open, create, rename, archive; show removed |
+| Matter overview | Identity (Petitioner v. Respondent, impugned judgment, case number, CNR, stage), missing values marked missing, folder tree with counts | Jump to any section of the matter |
+| Pane layout (A02) | Up to three or more splits, scaled to the monitor, with back and forward history | Split, move, close panes; save the layout per matter |
+| Command bar (A09) | Commands, matters and records, ranked by frecency | Run any registered command; open any record |
+| Review inbox (A08) | One queue split into Signal (needs a decision or blocks a gate) and Noise (information) | Move with `j` and `k`, open with Enter, archive Noise with `e` |
+| Jobs | Every long job with progress, status and cancel | Cancel a running job |
+| Settings (A10) | The firm layer, editable, and the legal layer, read only, each value with its source | Change firm preferences |
+| Status bar | Kernel connection, the origin the kernel decided, health of every supervised process | Open the services view |
+| Inspector (A16) | For any item: raw JSON, ledger events, links out and in, producing command, origin and actor | Copy the raw record; follow a link |
+| Galleries (A17) | Every view in fixture states, without a kernel | Review visuals and accessibility |
 
 ## Rules
 
@@ -58,6 +76,12 @@ P1, RQ-25, RQ-37, RQ-38, RQ-68, RQ-70, RQ-73, RQ-87, RQ-88, C-1, X-10, X-12, X-2
 11. First run (A15) must complete with no network: workspace root, fonts, OCR models and Chromium are bundled. A provider key may be entered later.
 12. Long jobs (A11) show progress, and cancel reaches the runner (D07), not only the widget.
 13. Text shaping (A13) handles Devanagari, mixed scripts and IME input in every text field and in our viewers.
+14. **Inspector.** Every item in every view opens the Inspector with one action (P9). The Inspector reads only through queries, so it shows what the CLI would show.
+15. **Parity.** Every `query` command in the registry has a registered view. The shell keeps a view registry that the parity test reads.
+16. **Splits.** The layout supports at least three splits at 1920 pixels wide, navigation history per pane, and a saved layout per matter.
+17. **Signal and Noise.** An inbox item is Signal when it needs the advocate to decide or it blocks a gate. Everything else is Noise. The rule is one function, tested.
+18. **Command bar.** It ranks by frecency, and it only issues registered commands. Free text that matches no command is a search, never an action.
+19. **Galleries.** `oa-shell --gallery <view>` renders a view in each fixture state with no kernel.
 
 ## Acceptance criteria
 
@@ -78,6 +102,14 @@ P1, RQ-25, RQ-37, RQ-38, RQ-68, RQ-70, RQ-73, RQ-87, RQ-88, C-1, X-10, X-12, X-2
 | A-AC-13 | Devanagari text with conjuncts renders correctly in the file browser, the inbox and the viewer. | [AUTO+HUMAN] (golden image plus review) |
 | A-AC-14 | Sections 1 to 12 of architecture.md and advocate-workflow.md are identical after heading-level normalisation. | [AUTO] (docs check, X-22) |
 | A-AC-15 | The workspace layout is usable at 125 and 150 percent display scaling. | [HUMAN] |
+| A-AC-16 | Every `query` command in `Request::NAMES` has a registered GUI view. | [AUTO] |
+| A-AC-17 | Every item in every view opens the Inspector, which shows the raw record, its ledger events, links out, backlinks and producing command. | [AUTO] |
+| A-AC-18 | At 1920 pixels the layout holds three splits; back and forward restore the previous pane contents; a saved layout reopens with its matter. | [AUTO] |
+| A-AC-19 | The inbox puts a blocking item in Signal and an informational one in Noise, and can be operated end to end with `j`, `k`, Enter and `e`. | [AUTO] |
+| A-AC-20 | The status bar shows a lost kernel connection within 2 seconds, and shows the origin the kernel decided for this window. | [AUTO] |
+| A-AC-21 | A `human` command in any view is a distinct control naming the decision, never a keyboard shortcut alone or a default button. | [AUTO+HUMAN] |
+| A-AC-22 | Every view renders in every gallery state without a kernel. | [AUTO] |
+| A-AC-23 | An advocate can find any record and inspect its provenance without help. | [HUMAN] |
 
 ## Edge cases
 

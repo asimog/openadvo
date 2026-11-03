@@ -1,6 +1,6 @@
 # C. Kernel
 
-Components: C01 to C16. See [README](README.md) for tags and conventions.
+Components: C01 to C17. See [README](README.md) for tags and conventions.
 
 ## Purpose
 
@@ -8,7 +8,7 @@ The only writer of the canonical record. The kernel validates every proposal, co
 
 ## Decisions implemented
 
-P2, RQ-05, RQ-11, RQ-24, RQ-26, RQ-27, RQ-30, RQ-31, RQ-36, RQ-40, RQ-42, RQ-46, RQ-47, RQ-69, RQ-71, X-15, X-19, L-16.
+P2, RQ-05, RQ-11, RQ-24, RQ-26, RQ-27, RQ-30, RQ-31, RQ-36, RQ-40, RQ-42, RQ-46, RQ-47, RQ-69, RQ-71, X-15, X-19, L-16, P9, M-05.
 
 ## Depends on
 
@@ -44,6 +44,20 @@ P2, RQ-05, RQ-11, RQ-24, RQ-26, RQ-27, RQ-30, RQ-31, RQ-36, RQ-40, RQ-42, RQ-46,
 | `oa audit rejected [--since <t>]` | query | The rejected-write audit table (C13) |
 | `oa rules pin` / `oa rules adopt <version>` | query, internal | Shows the pinned rule pack, adopts a new one at a stage boundary |
 | `oa trace <anchor>` | query | The provenance chain from an anchor back to blob, page and region |
+| `oa inspect <id>` | query | Any record with the ledger events that touched it and its links in and out |
+| `oa links out <id>` / `oa links in <id>` | query | What a record references, and what references it (C17) |
+
+## GUI
+
+| View | Shows | The advocate can |
+|---|---|---|
+| Ledger timeline | Every event of the matter with sequence, time, actor, origin, command and body, and the hash chain state | Verify the chain; see the first break highlighted |
+| Evidence | Every source document with its origins, capture record, blob hash and whether the bytes are present | Open the bytes; inspect each origin |
+| Draft history | The revision graph of each draft, every revision with author and note, checkpoints marked, the head marked | Checkpoint, restore, open any revision in the Changes viewer (J15) |
+| Approvals board | Each gate, the revision each approval was for, stale approvals shown apart | Decide a pending approval (human command) |
+| Rejected writes | The audit table with actor, origin, command and reason | Filter and export |
+| Trace | The provenance chain from any anchor to blob, page and region | Open each link in the chain |
+| Links | For any record, its links out and its backlinks (C17) | Follow either direction |
 
 ## Rules
 
@@ -64,6 +78,8 @@ P2, RQ-05, RQ-11, RQ-24, RQ-26, RQ-27, RQ-30, RQ-31, RQ-36, RQ-40, RQ-42, RQ-46,
 15. **Outbox.** Every committed event is delivered to subscribers (panes, workers, observers) at least once, in sequence. Subscribers are idempotent by sequence number. The ledger is the record and the outbox is delivery.
 16. **Bitemporal edges.** C16 stores valid time and record time on derived relations. They are rebuildable from the ledger.
 17. **Time.** Record times come from the kernel clock in UTC. A clock that moves backwards does not reorder events, because order is the sequence number.
+18. **Link index (C17).** Every reference written through C01 also records a link row, derived in the same transaction. `oa links out <id>` and `oa links in <id>` answer both directions for every record kind. The index rebuilds from the ledger.
+19. **Inspectable record.** For any record id, `oa inspect <id>` returns the record, the ledger events whose body names it, and its links in and out. The GUI Inspector uses this query.
 
 ## Acceptance criteria
 
@@ -85,6 +101,11 @@ P2, RQ-05, RQ-11, RQ-24, RQ-26, RQ-27, RQ-30, RQ-31, RQ-36, RQ-40, RQ-42, RQ-46,
 | C-AC-14 | `oa trace` on a petition paragraph anchor returns event, page, line, blob hash and original filename. | [AUTO] |
 | C-AC-15 | A disk-full error during a blob write leaves no evidence entry pointing at a partial blob. | [AUTO] |
 | C-AC-16 | A legal reviewer reading `oa ledger tail` for a matter can reconstruct who approved what and when. | [HUMAN] |
+| C-AC-17 | The ledger timeline marks the first bad sequence number when the chain is broken. | [AUTO] |
+| C-AC-18 | The draft history shows every revision ever committed, including those a restore went past. | [AUTO] |
+| C-AC-19 | The approvals board shows an approval given on a non-head revision as stale. | [AUTO] |
+| C-AC-20 | `oa inspect` on any record lists the ledger events that touched it. | [AUTO] |
+| C-AC-21 | `oa links in` on an evidence entry lists every revision, verification and Notebook item that references it, and the index rebuilt from the ledger gives the same answer. | [AUTO] |
 
 ## Edge cases
 

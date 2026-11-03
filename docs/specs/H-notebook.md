@@ -8,7 +8,7 @@ The integrated matter record the advocate and agent work through. Eight sections
 
 ## Decisions implemented
 
-RQ-06, RQ-23, RQ-45, RQ-61, RQ-62, L-05, H-12.
+RQ-06, RQ-23, RQ-45, RQ-61, RQ-62, L-05, H-12, P9.
 
 ## Depends on
 
@@ -44,6 +44,17 @@ RQ-06, RQ-23, RQ-45, RQ-61, RQ-62, L-05, H-12.
 | `oa notebook ready` | query | The readiness condition and what blocks it |
 | `oa notebook conflicts` | query | Date, party and amount conflicts |
 
+## GUI
+
+| View | Shows | The advocate can |
+|---|---|---|
+| Notebook pane (A05) | The eight sections with counts of candidate, confirmed, disputed and excluded items | Filter, open any item |
+| Factual Matrix | Each event with date, date type, source, method, uncertainty, conflicts and confirmation | Confirm a fact (human command) |
+| Chronology | The dated events per view, with excluded items hidden and a "show excluded" switch | Exclude or restore an event or a category |
+| Conflicts | Each conflict with every anchor involved | Open each source side by side |
+| Readiness | Ready, or the exact list of what blocks readiness | Open each blocker |
+| Trace | The chain extract, line, page, source hash, original file for any item | Open each step |
+
 ## Rules
 
 1. **Item kinds.** Each section has its own item kind with a schema (H01). Every item carries its anchors, its origin, its extraction method, its status and its record version.
@@ -73,6 +84,9 @@ RQ-06, RQ-23, RQ-45, RQ-61, RQ-62, L-05, H-12.
 | H-AC-08 | A correction leaves the earlier version readable through `oa notebook item <id> --version <n>`. | [AUTO] |
 | H-AC-09 | The impugned order record round-trips to the portal's lower-court search and finds the same case on the fixture portal. | [AUTO] |
 | H-AC-10 | For a real matter, the procedural history and Factual Matrix match what a lawyer reconstructs by hand. | [HUMAN] |
+| H-AC-11 | The readiness view lists each blocking job and review item, and each opens its item. | [AUTO] |
+| H-AC-12 | Every item opens its source peek in one action and its trace chain in one more. | [AUTO] |
+| H-AC-13 | Excluded events are shown under "show excluded" and are never missing from the Factual Matrix. | [AUTO] |
 
 ## Edge cases
 

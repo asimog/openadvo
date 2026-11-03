@@ -8,7 +8,7 @@ Agent-operated, advocate-authorised filing. The agent prepares the payload and o
 
 ## Decisions implemented
 
-RQ-14, RQ-30, RQ-33, RQ-36, X-19, X-24, L-01, L-04, L-13, H-09.
+RQ-14, RQ-30, RQ-33, RQ-36, X-19, X-24, L-01, L-04, L-13, H-09, P9.
 
 ## Depends on
 
@@ -38,6 +38,14 @@ RQ-14, RQ-30, RQ-33, RQ-36, X-19, X-24, L-01, L-04, L-13, H-09.
 | `oa filing execute <payload> --token <t>` | external | Operates the portal in the filing profile |
 | `oa filing status <payload>` | query | `prepared`, `confirmed_1`, `confirmed_2`, `executing`, `submitted`, `rejected_by_portal`, `unknown`, `reconciled` |
 | `oa filing reconcile <payload>` | external | Checks the portal for evidence of an earlier submission |
+
+## GUI
+
+| View | Shows | The advocate can |
+|---|---|---|
+| Filing | The state machine, the payload with every document hash and page count, the destination and declarations | Prepare; confirm twice (human commands); execute |
+| Confirmation | Exactly what is being confirmed: destination, documents, declarations, action, payload hash | Confirm or cancel |
+| Outcome | The acknowledgement text and hash, the diary number, any defects, the token state | Reconcile an `unknown` filing |
 
 ## Rules
 
@@ -69,6 +77,7 @@ RQ-14, RQ-30, RQ-33, RQ-36, X-19, X-24, L-01, L-04, L-13, H-09.
 | L-AC-13 | `oa filing prepare` refuses a PDF/A whose conversion check failed or was not run. | [AUTO] |
 | L-AC-11 | The confirmation screens make the destination, documents and declarations unmistakable. | [HUMAN] |
 | L-AC-12 | One real filing on the live e-filing portal completes with the acknowledgement captured. | [HUMAN] (release check) |
+| L-AC-14 | The filing view shows the state, both confirmations with time and gesture, the token state, and the acknowledgement text and hash. | [AUTO] |
 
 ## Edge cases
 

@@ -31,6 +31,10 @@ C-4, C-5, RQ-70.
 | R03 | Identity and tenancy | One owner. The owner field exists on every record from day one |
 | R04 | Durable engine interface | The local runner with intent rows and the effect ledger (D07) |
 
+## GUI
+
+None. The seams are internal and have no view of their own.
+
 ## Rules
 
 1. Domain code depends on the traits, never on `rusqlite` or file paths directly. A build check enforces it.

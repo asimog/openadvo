@@ -8,7 +8,7 @@ The one way anything drives the application. The agent, the tests, scripts and a
 
 ## Decisions implemented
 
-P1, RQ-02, RQ-73, RQ-74, RQ-75, C-1, X-19.
+P1, RQ-02, RQ-73, RQ-74, RQ-75, C-1, X-19, P9.
 
 ## Depends on
 
@@ -43,6 +43,15 @@ The CLI is `oa`. Every group's spec lists its own subcommands. This group adds:
 | `oa browser ...` | see M | CDP-backed browser commands (B07) |
 | `oa desktop ...` | see N | Desktop driver commands (B06) |
 
+## GUI
+
+| View | Shows | The advocate or engineer can |
+|---|---|---|
+| Command console | A form for any command, generated from the protocol schema, with the JSON request and the JSON response | Issue any command, exactly as `oa call` would |
+| Command stream | Every command and refusal as it happens: name, class, origin decided by the kernel, idempotency key, result | Filter by origin, class or matter; open any entry in the Inspector |
+| Pane state | The semantic model of any pane (B03): visible anchors, selection, scroll, page | Compare what a pane shows with what the agent is told it shows |
+| Audit | Accepted commands and refused writes (B08) | Export as JSON lines |
+
 ## Rules
 
 1. One schema defines every command and query: name, class, request type, response type, error codes, idempotency requirement. The schema is generated from Rust types and checked into the repository.
@@ -55,6 +64,8 @@ The CLI is `oa`. Every group's spec lists its own subcommands. This group adds:
 8. Every accepted command and every refusal lands in the ledger or the rejected-write audit table with actor, origin, command, idempotency key and result (B08).
 9. Errors are typed. Every error has a code from the error catalogue, a message and, where relevant, the review item it created.
 10. The protocol is versioned. A client with an incompatible major version is refused at handshake with a clear error.
+11. **One schema, two front ends.** The command console builds its forms from the same schema `oa schema` prints. A field the schema does not define cannot be sent.
+12. **The stream shows the decided origin.** The command stream shows the origin the kernel recorded, not the one the client claimed.
 
 ## Acceptance criteria
 
@@ -71,6 +82,9 @@ The CLI is `oa`. Every group's spec lists its own subcommands. This group adds:
 | B-AC-09 | `--json` output on every command parses as JSON lines with no extra stdout text. | [AUTO] |
 | B-AC-10 | A recorded session replayed through the protocol reproduces the same pane states and ledger events (the swap drill harness, RQ-07). | [AUTO] |
 | B-AC-11 | An engineer can diagnose a broken pane using only `oa pane state`, `oa watch` and `oa audit`. | [HUMAN] |
+| B-AC-12 | The command console can issue every command in the registry from a form generated from the schema. | [AUTO] |
+| B-AC-13 | The command stream shows a harness connection that claimed `cli` as `harness`. | [AUTO] |
+| B-AC-14 | Every pane's semantic model is viewable in its Inspector. | [AUTO] |
 
 ## Edge cases
 

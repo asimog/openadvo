@@ -8,7 +8,7 @@ The small amount of firm-level data that ties matters together: contacts, organi
 
 ## Decisions implemented
 
-RQ-87 (a new client needs a confirmation), RQ-31 (the timeline reads the ledger, never the session store).
+RQ-87 (a new client needs a confirmation), RQ-31 (the timeline reads the ledger, never the session store), P9.
 
 ## Depends on
 
@@ -36,6 +36,13 @@ RQ-87 (a new client needs a confirmation), RQ-31 (the timeline reads the ledger,
 | `oa timeline <matter|contact>` | query | Activity built from the ledger |
 | `oa correspondence log <matter> --kind <k> --summary <s>` | internal | Logs a call, meeting or letter |
 
+## GUI
+
+| View | Shows | The advocate can |
+|---|---|---|
+| Contacts | Contacts and organisations, each with every matter and role | Add, edit, open a matter |
+| Timeline | A matter's or contact's activity, built from the ledger | Open each event |
+
 ## Rules
 
 1. A party in a matter is a reference to a contact, plus a role and the name as it appears in the record. The display name and the record name may differ, and both are kept.
@@ -51,6 +58,7 @@ RQ-87 (a new client needs a confirmation), RQ-31 (the timeline reads the ledger,
 | O-AC-02 | A party whose record name differs from the contact name keeps both and shows both. | [AUTO] |
 | O-AC-03 | No command in this group makes a network request. | [AUTO] (egress test) |
 | O-AC-04 | The contact and party views are what an advocate's office expects. | [HUMAN] |
+| O-AC-05 | A contact page lists every matter and role, and the timeline opens each event in the Inspector. | [AUTO] |
 
 ## Edge cases
 

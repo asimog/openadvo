@@ -38,6 +38,7 @@ The practical test is that an agent has no runtime of its own. If a design gives
 - The matter is a folder. Matter creation is the workspace component.
 - Evidence is immutable, the Notebook is never written by an editor, drafts live in their own store.
 - No workflow cluster. Durability comes from a local runner with an intent log.
+- Everything is inspectable: every view opens any item in the Inspector, and every query has a view (P9).
 - Licence position is not a constraint right now.
 
 ## The app in one picture
@@ -74,20 +75,22 @@ Two rules decide most of the work. The kernel is the only writer of the record. 
 | ID | Component | Verdict | Built on, or why |
 |---|---|---|---|
 | A01 | Window, event loop, render backend | VENDOR | `winit` and `egui`, current upstream, refreshed at a pinned interval |
-| A02 | Pane layout: docks, tabs, splitters, saved layouts per matter | BUILD | One layout model. Panes register; they do not own geometry |
+| A02 | Pane layout: three or more splits, tabs, navigation history, saved layouts per matter | BUILD | One layout model. Panes register; they do not own geometry |
 | A03 | Workspace and matter creation: create, open, rename, archive, template folders | BUILD | Matter is a directory plus a registry row. See the disk layout below |
 | A04 | File browser: tree, list, breadcrumb, details pane, inline preview, drag out | BUILD | The primary screen. Everything reachable from the filesystem is reachable here |
 | A05 | Notebook pane | BUILD | Sectioned view over notebook records, with source peek |
 | A06 | Viewer pane host: slots, split, tabs, sync scroll | BUILD | Holds our viewer, the hosted apps, and later anything else |
 | A07 | Agent pane: transcript, streaming, tool cards, plan, inline approvals | BUILD | The second screen the advocate lives in |
-| A08 | Review inbox: disputes, conflicts, unresolved citations, filing defects, missing documents | BUILD | One queue. No issue may exist only in a log |
-| A09 | Command palette, keymap, shortcuts, undo scope | BUILD | No global undo across panes. Each pane owns its own |
+| A08 | Review inbox: disputes, conflicts, unresolved citations, filing defects, missing documents, runs waiting on the advocate | BUILD | One queue, split into Signal and Noise, keyboard first. No issue may exist only in a log |
+| A09 | Command bar, keymap, shortcuts, undo scope | BUILD | Commands, matters and records ranked by frecency. No global undo across panes |
 | A10 | Settings and profiles: models, OCR engines, rule packs, confidentiality, providers | BUILD | Two layers, firm preferences and a non-patchable legal layer |
 | A11 | Long jobs: progress, cancellation, retry, resume markers | BUILD | Cancellation reaches the runner, not only the widget |
 | A12 | Voice input: capture, VAD, ASR, legal-term normaliser | BUILD, one DEPEND | Local ASR. Voice cannot authorise a filing |
 | A13 | Typography and text: Devanagari, legal faces, bidi, IME | BUILD | Our viewer needs real shaping. egui's default text path is not enough for documents |
 | A14 | Accessibility tree for our widgets | BUILD | AccessKit through egui-winit. Canvas content is exposed through B03, not as thousands of nodes |
 | A15 | First run: workspace root, provider key, OCR models, fonts | BUILD | Installs and starts with no network. Capture, research, model calls and verification need one |
+| A16 | Inspector drawer: raw record, ledger events, links out and in, producing command, origin | BUILD | Every item in every view opens it (P9) |
+| A17 | View galleries: every view in fixture states, no kernel | BUILD | Visual and accessibility review. Pattern from the Macro reference (REF) |
 
 ## B. Control surface: how the agent sees and drives the app
 
@@ -124,6 +127,7 @@ The panes are painted, so they have no useful accessibility children. This group
 | C14 | Rule packs and profiles: versioned, sourced, non-patchable legal layer | BUILD | Firm preferences patch on top and cannot override it |
 | C15 | Outbox and event fan-out to panes, workers and observers | BUILD | The ledger is the record, the outbox is delivery |
 | C16 | Bitemporal edges | BUILD | Valid time and record time. Derived, rebuildable |
+| C17 | Link index: every reference also recorded as a link, answered in both directions | BUILD | Backlinks for every record. Derived, rebuildable |
 
 ## D. Harness
 
@@ -146,6 +150,8 @@ The panes are painted, so they have no useful accessibility children. This group
 | D15 | Process supervisor: spawn, handshake, health, restart budget, cancel, typed stdio or pipe | BUILD | Every HOST and every capability process lives under this |
 | D16 | Metering: tokens, cost, wall time per run | BUILD | Shown in D17 and in the run inspector |
 | D17 | Model trace store: request, response, tool calls, timings | BUILD | The record behind replay and after-the-fact review |
+| D18 | Session lease and fence | BUILD | A presumed-dead harness can never append again |
+| D19 | Tool-result limit and paging | BUILD | The model sees a preview; the session store and the GUI keep the whole result |
 
 ## E. Stores
 
@@ -246,6 +252,7 @@ The panes are painted, so they have no useful accessibility children. This group
 | J12 | Fidelity oracle: Word, hosted editor, our renderer, diffed page by page | BUILD | The upgrade gate for J02 to J06 |
 | J13 | Filing PDF/A: the approved DOCX rendered by the DOCX engine, assembled with annexures, page labels, bookmarks, index | DEPEND | `typst` only for generated pages such as the index, a PDF assembly crate, PDF/A conversion. One production path |
 | J14 | Printing | DEPEND | System spooler |
+| J15 | Changes viewer: any two revisions by paragraph id, review notes anchored | BUILD | One viewer for agent proposals, WordCraft saves and restores |
 
 ## K. Verification adapter
 

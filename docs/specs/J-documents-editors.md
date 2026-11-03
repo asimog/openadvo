@@ -1,6 +1,6 @@
 # J. Documents, viewers and editors
 
-Components: J01 to J14. See [README](README.md) for tags and conventions.
+Components: J01 to J15. See [README](README.md) for tags and conventions.
 
 ## Purpose
 
@@ -8,7 +8,7 @@ Showing documents and editing drafts. Our own lightweight PDF viewer, document v
 
 ## Decisions implemented
 
-RQ-27, RQ-72, RQ-77, RQ-78, RQ-79, RQ-82, C-2, C-3, C-7, X-01, X-04, X-20, L-09, H-02, H-03, H-08.
+RQ-27, RQ-72, RQ-77, RQ-78, RQ-79, RQ-82, C-2, C-3, C-7, X-01, X-04, X-20, L-09, H-02, H-03, H-08, P9, M-14, M-15.
 
 ## Depends on
 
@@ -58,6 +58,18 @@ RQ-27, RQ-72, RQ-77, RQ-78, RQ-79, RQ-82, C-2, C-3, C-7, X-01, X-04, X-20, L-09,
 | `oa fidelity check <rev>` | query | The fidelity oracle (J12) |
 | `wordcraft --headless` | separate executable | WordCraft's engine as a pipe server, runnable alone for tests |
 
+## GUI
+
+| View | Shows | The advocate can |
+|---|---|---|
+| PDF viewer (J01) | Pages, text layer, anchor highlights, disputed tokens | Select, search, point the agent at a region |
+| Document viewer (J02) | Paragraphs by id with their event and authority ids | Open the sources of any sentence |
+| Edit surface (J03) | Pending proposals as marked changes against their paragraphs | Accept or reject (human command) |
+| Changes viewer (J15) | Any two revisions diffed by paragraph id: agent proposals, WordCraft saves, restores. Review notes hang under their paragraphs | Add review notes; send a note to the agent when the agent capability is granted |
+| WordCraft pane (J05) | The hosted editor, reparented | Edit freely |
+| Fidelity report (J12) | Page-by-page differences between renderers | Open each difference |
+| Conversion report | The conversion check, paragraph by paragraph, and the PDF/A validation | Open a failing paragraph in both forms |
+
 ## Rules
 
 1. **Anchors.** A draft anchor is the revision hash, a DOCX paragraph id and an optional character range. A generated paragraph gets its id at generation and keeps it across every edit. A paragraph created by the advocate in WordCraft gets an id from WordCraft.
@@ -74,6 +86,10 @@ RQ-27, RQ-72, RQ-77, RQ-78, RQ-79, RQ-82, C-2, C-3, C-7, X-01, X-04, X-20, L-09,
 12. **Conversion only from an approved, clear revision.** `oa filing pdf` refuses a revision that is not the approved head or whose gates are not clear.
 13. **The PDF is never edited.** No component, including PdfCraft, opens the filing PDF for editing. Any change goes back to the DOCX as a new revision, which must be verified, approved and converted again.
 14. **Conversion record.** Each conversion writes a record linking the approved DOCX revision hash, the renderer and its version, the PDF/A hash and the page count. The conversion check (K) runs on it.
+15. **Stable ids on every block.** The DOCX engine gives every block, not only paragraphs, a stable id (tables, rows, cells, list items, footnotes), and anchors may point at any of them.
+16. **Uninterpreted XML is preserved.** Any part of a DOCX the engine does not interpret is written back byte-identical. A save never drops content the engine did not understand.
+17. **Corpus regression.** `wordcraft --headless corpus <dir>` opens, edits one paragraph, saves and re-opens every DOCX in a corpus of real petitions and court documents, and reports every lost id or changed byte outside the edited paragraph.
+18. **One Changes viewer (J15).** Every diff between revisions is shown by the one viewer. It is read only unless the view is given the agent capability, which enables sending a review note to the agent.
 
 ## Acceptance criteria
 
@@ -98,6 +114,10 @@ RQ-27, RQ-72, RQ-77, RQ-78, RQ-79, RQ-82, C-2, C-3, C-7, X-01, X-04, X-20, L-09,
 | J-AC-19 | Every conversion record links a DOCX revision hash to a PDF/A hash, and the PDF/A hash equals the file on disk. | [AUTO] |
 | J-AC-15 | Typing, IME input and spell check in hosted WordCraft feel native to an advocate. | [HUMAN] |
 | J-AC-16 | The filing PDF looks like a properly prepared Supreme Court paper book. | [HUMAN] |
+| J-AC-20 | The one Changes viewer shows agent proposals, WordCraft saves and restores, each with its author. | [AUTO] |
+| J-AC-21 | A review note anchored to a paragraph stays attached to that paragraph id in later revisions. | [AUTO] |
+| J-AC-22 | The conversion report shows a failing paragraph from the DOCX and from the PDF/A side by side. | [AUTO] |
+| J-AC-23 | The corpus regression reports no lost block id and no changed byte outside the edited paragraph on the fixture corpus. | [AUTO] |
 
 ## Edge cases
 

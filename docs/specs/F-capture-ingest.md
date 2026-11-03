@@ -8,7 +8,7 @@ Getting files into a matter with their provenance intact. Capture retrieves or i
 
 ## Decisions implemented
 
-RQ-23, RQ-41, RQ-45, RQ-50, RQ-57, RQ-61, RQ-64, X-05, X-23, L-07, H-01, H-14.
+RQ-23, RQ-41, RQ-45, RQ-50, RQ-57, RQ-61, RQ-64, X-05, X-23, L-07, H-01, H-14, P9.
 
 ## Depends on
 
@@ -45,6 +45,16 @@ RQ-23, RQ-41, RQ-45, RQ-50, RQ-57, RQ-61, RQ-64, X-05, X-23, L-07, H-01, H-14.
 | `oa ingest status [--doc <id>]` | query | Per-file job state |
 | `oa codebook show <scheme>` | query | A court codebook with its list version |
 
+## GUI
+
+| View | Shows | The advocate can |
+|---|---|---|
+| Capture queue | Pending captures, CAPTCHA and login waits, failures with reasons | Bring the browser to the front for a wait; retry a failure |
+| Inbox triage | Every unclassified file with origin, format, readability and proposed class | Confirm or change the class; associate with the record |
+| Capture record | URL, final URL, time, hash, browser profile and the recorded gesture | Re-open the source URL in the visible browser |
+| Duplicates | Possible duplicates of each of the three kinds, side by side | Confirm or reject a same-text duplicate |
+| Adapter health | Each portal adapter's contract-test and runtime health state | Fall back to a manual capture |
+
 ## Rules
 
 1. **Two paths, one queue.** Import and capture both produce an evidence entry and an ingestion job. The job is identical regardless of origin (workflow details A).
@@ -77,6 +87,9 @@ RQ-23, RQ-41, RQ-45, RQ-50, RQ-57, RQ-61, RQ-64, X-05, X-23, L-07, H-01, H-14.
 | F-AC-10 | Two scans with the same OCR text produce a possible-duplicate review item and are both kept. | [AUTO] |
 | F-AC-11 | A case type code from the portal round-trips: stored, displayed with its verbatim label, and sent back to the portal search unchanged. | [AUTO] |
 | F-AC-12 | Capture against the live portal for three real cases produces correct documents. | [HUMAN] (release check) |
+| F-AC-13 | Every evidence entry's Inspector shows its capture record and the hash of its bytes. | [AUTO] |
+| F-AC-14 | A CAPTCHA wait appears in the capture queue within 1 second and its action focuses the browser. | [AUTO] |
+| F-AC-15 | A degraded adapter shows a banner in the capture queue and Signal in the inbox. | [AUTO] |
 
 ## Edge cases
 

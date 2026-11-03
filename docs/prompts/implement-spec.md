@@ -24,7 +24,7 @@ DEPENDENCIES
 Where a dependency is not built yet, put a trait at the boundary and a minimal implementation behind it, and list it in your report as a stub. Do not implement another group's rules inside this group.
 
 HOW TO WORK
-- CLI first. Every command in the spec's CLI table is an `oa` subcommand before any pane exists. `--json` gives one JSON object per line on stdout and nothing else. Use the exit codes in docs/specs/README.md.
+- CLI first. Every command in the spec's CLI table is an `oa` subcommand before any pane exists. The spec's GUI section comes after its commands, and follows the GUI conventions in docs/specs/README.md: every query has a view, and every item opens the Inspector. `--json` gives one JSON object per line on stdout and nothing else. Use the exit codes in docs/specs/README.md.
 - Every command has exactly one class: query, internal, external or human. internal and external commands take an idempotency key. human commands are refused on harness connections.
 - Rules in the spec are normative. Each numbered rule must be traceable to code and, where it is testable, to a test.
 - Every [AUTO] acceptance criterion in scope gets an automated test whose name contains the criterion id, for example `a_ac_01_create_order_survives_kill`.
@@ -87,7 +87,7 @@ DEPENDENCIES
 Where a dependency is not built yet, put a trait at the boundary and a minimal implementation behind it, and list it in your report as a stub. Do not implement another group's rules inside this group.
 
 HOW TO WORK
-- CLI first. Every command in the spec's CLI table is an `oa` subcommand before any pane exists. `--json` gives one JSON object per line on stdout and nothing else. Use the exit codes in docs/specs/README.md.
+- CLI first. Every command in the spec's CLI table is an `oa` subcommand before any pane exists. The spec's GUI section comes after its commands, and follows the GUI conventions in docs/specs/README.md: every query has a view, and every item opens the Inspector. `--json` gives one JSON object per line on stdout and nothing else. Use the exit codes in docs/specs/README.md.
 - Every command has exactly one class: query, internal, external or human. internal and external commands take an idempotency key. human commands are refused on harness connections.
 - Rules in the spec are normative. Each numbered rule must be traceable to code and, where it is testable, to a test.
 - Every [AUTO] acceptance criterion in scope gets an automated test whose name contains the criterion id, for example `a_ac_01_create_order_survives_kill`.

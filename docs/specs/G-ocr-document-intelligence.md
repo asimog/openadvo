@@ -8,7 +8,7 @@ Turning each source document into text the rest of the system can point at, with
 
 ## Decisions implemented
 
-RQ-22, RQ-23, RQ-82, RQ-84, RQ-85, C-8, P7, L-06, L-15, H-07, H-10.
+RQ-22, RQ-23, RQ-82, RQ-84, RQ-85, C-8, P7, L-06, L-15, H-07, H-10, P9.
 
 ## Depends on
 
@@ -42,6 +42,15 @@ RQ-22, RQ-23, RQ-82, RQ-84, RQ-85, C-8, P7, L-06, L-15, H-07, H-10.
 | `oa extract entities <doc>` | query | Dates, case numbers, CNRs, parties, amounts, provisions, citations, negations with anchors |
 | `oa ocr engines` | query | Engine versions, model hashes, health |
 | `ocr-tesseract` / `ocr-paddle` | separate executables | Each reads a raster on stdin or by path and writes structured output. Runnable alone for testing |
+
+## GUI
+
+| View | Shows | The advocate can |
+|---|---|---|
+| OCR review (G11) | The page image region, both readings, the tokens that disagree highlighted by class | Decide a dispute or enter a typed copy (human commands) |
+| Pipeline | Each document's state, its pages, and its dispute count | Re-run OCR on pages |
+| Line inspector | Line hash, raster hash, boxes, both readings, each confidence, engine and model versions, normalisation version | Compare readings |
+| Engines | Both engines' health and versions, and the gold-set accuracy of the current versions | Open the gold-set report |
 
 ## Rules
 
@@ -77,6 +86,8 @@ RQ-22, RQ-23, RQ-82, RQ-84, RQ-85, C-8, P7, L-06, L-15, H-07, H-10.
 | G-AC-13 | The gold set critical-token accuracy is reported per engine and for the agreed output, and CI fails on regression. | [AUTO] |
 | G-AC-14 | A 1,500 page scanned record completes without exhausting memory, processing pages in bounded batches. | [AUTO] |
 | G-AC-15 | The review screen shows the page image region, both readings and the decision actions in one view, and a decision is one action. | [AUTO+HUMAN] |
+| G-AC-16 | The line inspector shows both readings, both confidences, both engine versions and the normalisation version. | [AUTO] |
+| G-AC-17 | Every disputed token is highlighted in the viewer and links to its review item. | [AUTO] |
 
 ## Edge cases
 
