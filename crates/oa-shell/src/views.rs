@@ -42,6 +42,9 @@ pub enum ViewId {
     WordCraft,
     Fidelity,
     Conversion,
+    Browser,
+    Downloads,
+    Egress,
 }
 
 pub struct ViewDef {
@@ -256,6 +259,30 @@ pub const REGISTRY: &[ViewDef] = &[
         key: "conversion",
         title: "Conversion report",
         covers: &["filing.conversions"],
+    },
+    ViewDef {
+        id: ViewId::Browser,
+        key: "browser",
+        title: "Browser",
+        covers: &[
+            "browser.state",
+            "browser.attachments",
+            "browser.extract",
+            "browser.dom",
+            "browser.screenshot",
+        ],
+    },
+    ViewDef {
+        id: ViewId::Downloads,
+        key: "downloads",
+        title: "Downloads",
+        covers: &["browser.downloads"],
+    },
+    ViewDef {
+        id: ViewId::Egress,
+        key: "egress",
+        title: "Egress log",
+        covers: &["browser.egress"],
     },
 ];
 
@@ -1780,6 +1807,9 @@ fn typical(view: ViewId, n: usize, disputed: bool) -> Table {
         | ViewId::WordCraft
         | ViewId::Fidelity
         | ViewId::Conversion => crate::docviews::typical(view, M, n, disputed),
+        ViewId::Browser | ViewId::Downloads | ViewId::Egress => {
+            crate::browserviews::typical(view, n, disputed)
+        }
         ViewId::Overview | ViewId::Inspector => Table::new(view, &["Field", "Value"], Vec::new(), "Select a matter."),
     }
 }

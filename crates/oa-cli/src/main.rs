@@ -147,6 +147,11 @@ enum Command {
         #[arg(long)]
         filter: Option<String>,
     },
+    /// The browser: one process per profile (matter:<id>, filing, agent).
+    /// Profiles live as long as the kernel: use --connect to a running
+    /// kernel to keep them between commands
+    #[command(subcommand)]
+    Browser(BrowserCmd),
     /// The harness tool registry
     #[command(subcommand)]
     Tools(harness_cmds::ToolsCmd),
@@ -749,6 +754,77 @@ enum FidelityCmd {
 }
 
 #[derive(Subcommand)]
+enum BrowserCmd {
+    /// Navigate in a profile. A download is intercepted, hashed and routed to
+    /// the matter inbox with a capture record
+    Open {
+        url: String,
+        /// matter:<id>, filing or agent (default: matter:<--matter>)
+        #[arg(long)]
+        profile: Option<String>,
+        /// The matter a download from the filing or agent profile goes to
+        #[arg(long)]
+        matter: Option<String>,
+    },
+    /// Profiles, processes, tabs, URL, title and load state
+    State {
+        #[arg(long)]
+        profile: Option<String>,
+    },
+    /// DOM content for a selector (tag, #id, .class, tag.class)
+    Dom {
+        selector: String,
+        #[arg(long)]
+        profile: Option<String>,
+    },
+    /// Main text, links and tables, labelled untrusted, with URL and time
+    Extract {
+        #[arg(long)]
+        profile: Option<String>,
+    },
+    /// A PNG of the page, only when the DOM has no answer
+    Screenshot {
+        #[arg(long)]
+        profile: Option<String>,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    /// Let the agent drive the visible browser for a matter (human only)
+    Attach {
+        #[arg(value_parser = ["agent"])]
+        who: String,
+        /// matter:<id>
+        #[arg(long)]
+        to: String,
+    },
+    /// Revoke the agent's attachment
+    Detach {
+        #[arg(value_parser = ["agent"])]
+        who: String,
+    },
+    /// Attachments of the agent to visible profiles, active and past
+    Attachments,
+    /// Intercepted downloads with hashes and capture records
+    Downloads {
+        #[arg(long)]
+        matter: Option<String>,
+    },
+    /// Every connection per profile, allowed or refused
+    Egress {
+        #[arg(long)]
+        profile: Option<String>,
+        /// Only refused connections
+        #[arg(long)]
+        refused: bool,
+    },
+    /// Open DevTools in a profile (refused in the filing profile)
+    Devtools {
+        #[arg(long)]
+        profile: String,
+    },
+}
+
+#[derive(Subcommand)]
 enum PdfCmd {
     /// A working copy of a PDF for PdfCraft
     OpenEditor {
@@ -1282,6 +1358,41 @@ fn request(cmd: Command) -> Result<Request, OaError> {
             matter: m.matter,
             target,
         },
+        Command::Browser(b) => match b {
+            BrowserCmd::Open {
+                url,
+                profile,
+                matter,
+            } => {
+                let profile = match (profile, &matter) {
+                    (Some(p), _) => p,
+                    (None, Some(m)) => format!("matter:{m}"),
+                    (None, None) => {
+                        return Err(OaError::new(
+                            ErrorCode::Usage,
+                            "pass --profile matter:<id>, filing or agent, or --matter <id>",
+                        ))
+                    }
+                };
+                Request::BrowserOpen {
+                    profile,
+                    url,
+                    matter,
+                }
+            }
+            BrowserCmd::State { profile } => Request::BrowserState { profile },
+            BrowserCmd::Dom { selector, profile } => Request::BrowserDom { profile, selector },
+            BrowserCmd::Extract { profile } => Request::BrowserExtract { profile },
+            BrowserCmd::Screenshot { profile, .. } => Request::BrowserScreenshot { profile },
+            BrowserCmd::Attach { to, .. } => Request::BrowserAttach {
+                matter: to.strip_prefix("matter:").unwrap_or(&to).to_string(),
+            },
+            BrowserCmd::Detach { .. } => Request::BrowserDetach,
+            BrowserCmd::Attachments => Request::BrowserAttachments,
+            BrowserCmd::Downloads { matter } => Request::BrowserDownloads { matter },
+            BrowserCmd::Egress { profile, refused } => Request::BrowserEgress { profile, refused },
+            BrowserCmd::Devtools { profile } => Request::BrowserDevtools { profile },
+        },
         Command::Approval(a) => match a {
             ApprovalCmd::Request { m, gate, target } => Request::ApprovalRequest {
                 matter: m.matter,
@@ -1435,15 +1546,42 @@ fn run(cli: Cli) -> Result<Vec<Value>, OaError> {
         | Command::Filing(FilingCmd::Pdf { out, .. }) => out.clone(),
         _ => None,
     };
+    let shot = match &cli.command {
+        Command::Browser(BrowserCmd::Screenshot { out, .. }) => Some(out.clone()),
+        _ => None,
+    };
     let req = request(cli.command)?;
     let name = req.name();
-    let values = if cli.connect {
+    let mut values = if cli.connect {
         PipeClient::connect(&app, Origin::Cli)?.call(key, req)?
     } else {
         InProcess::new(kernel(&app), Origin::Cli).call(key, req)?
     };
+    if let Some(path) = shot {
+        write_screenshot(&mut values, &path)?;
+    }
     documents_outcome(name, &values, out.as_deref(), cli.json)?;
     Ok(values)
+}
+
+/// `oa browser screenshot --out`: the PNG goes to the file, its path to stdout.
+fn write_screenshot(values: &mut [Value], path: &Path) -> Result<(), OaError> {
+    use base64::Engine;
+    let Some(v) = values.first_mut() else {
+        return Ok(());
+    };
+    let png = base64::engine::general_purpose::STANDARD
+        .decode(v["png"].as_str().unwrap_or_default())
+        .map_err(|e| OaError::new(ErrorCode::Internal, format!("a malformed screenshot: {e}")))?;
+    std::fs::write(path, &png).map_err(|e| {
+        OaError::new(
+            ErrorCode::Unavailable,
+            format!("could not write {}: {e}", path.display()),
+        )
+    })?;
+    v["png"] = Value::Null;
+    v["out"] = Value::String(path.display().to_string());
+    Ok(())
 }
 
 /// Spec J commands whose result is a file or a negative check: copy the PDF

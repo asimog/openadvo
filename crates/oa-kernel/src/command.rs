@@ -496,6 +496,46 @@ pub enum Request {
         kinds: Vec<String>,
         filter: Option<String>,
     },
+
+    /// Navigates in a profile (spec M). A download is intercepted and routed
+    /// to the matter inbox: the profile's matter, or `matter` for the filing
+    /// and agent profiles.
+    #[serde(rename = "browser.open")]
+    BrowserOpen {
+        profile: String,
+        url: String,
+        matter: Option<String>,
+    },
+    #[serde(rename = "browser.state")]
+    BrowserState { profile: Option<String> },
+    #[serde(rename = "browser.dom")]
+    BrowserDom {
+        profile: Option<String>,
+        selector: String,
+    },
+    /// Main text, links and tables, labelled untrusted, with URL and time.
+    #[serde(rename = "browser.extract")]
+    BrowserExtract { profile: Option<String> },
+    #[serde(rename = "browser.screenshot")]
+    BrowserScreenshot { profile: Option<String> },
+    /// Lets the agent drive the matter's visible browser. Human only (RQ-81).
+    #[serde(rename = "browser.attach")]
+    BrowserAttach { matter: String },
+    #[serde(rename = "browser.detach")]
+    BrowserDetach,
+    #[serde(rename = "browser.attachments")]
+    BrowserAttachments,
+    #[serde(rename = "browser.downloads")]
+    BrowserDownloads { matter: Option<String> },
+    /// The egress log: every connection per profile, allowed or refused.
+    #[serde(rename = "browser.egress")]
+    BrowserEgress {
+        profile: Option<String>,
+        refused: bool,
+    },
+    /// Opens DevTools for a profile. Refused in the filing profile (M05).
+    #[serde(rename = "browser.devtools")]
+    BrowserDevtools { profile: String },
 }
 
 impl Request {
@@ -590,6 +630,17 @@ impl Request {
         "find",
         "settings.list",
         "approval.list",
+        "browser.open",
+        "browser.state",
+        "browser.dom",
+        "browser.extract",
+        "browser.screenshot",
+        "browser.attach",
+        "browser.detach",
+        "browser.attachments",
+        "browser.downloads",
+        "browser.egress",
+        "browser.devtools",
     ];
 
     /// Every `query` class command. The shell's view registry must cover each
@@ -641,6 +692,13 @@ impl Request {
         "find",
         "settings.list",
         "approval.list",
+        "browser.state",
+        "browser.dom",
+        "browser.extract",
+        "browser.screenshot",
+        "browser.attachments",
+        "browser.downloads",
+        "browser.egress",
     ];
 
     /// The class of a command by wire name. Used by the tool registry, which
@@ -662,8 +720,11 @@ impl Request {
                 | "notebook.date_anchor"
                 | "draft.accept"
                 | "draft.reject"
+                | "browser.attach"
         ) {
             CommandClass::Human
+        } else if name == "browser.open" {
+            CommandClass::External
         } else {
             CommandClass::Internal
         })
@@ -759,6 +820,17 @@ impl Request {
             Request::Find { .. } => "find",
             Request::SettingsList => "settings.list",
             Request::ApprovalList { .. } => "approval.list",
+            Request::BrowserOpen { .. } => "browser.open",
+            Request::BrowserState { .. } => "browser.state",
+            Request::BrowserDom { .. } => "browser.dom",
+            Request::BrowserExtract { .. } => "browser.extract",
+            Request::BrowserScreenshot { .. } => "browser.screenshot",
+            Request::BrowserAttach { .. } => "browser.attach",
+            Request::BrowserDetach => "browser.detach",
+            Request::BrowserAttachments => "browser.attachments",
+            Request::BrowserDownloads { .. } => "browser.downloads",
+            Request::BrowserEgress { .. } => "browser.egress",
+            Request::BrowserDevtools { .. } => "browser.devtools",
         }
     }
 
@@ -809,7 +881,15 @@ impl Request {
             | Request::LinksIn { .. }
             | Request::Find { .. }
             | Request::SettingsList
-            | Request::ApprovalList { .. } => CommandClass::Query,
+            | Request::ApprovalList { .. }
+            | Request::BrowserState { .. }
+            | Request::BrowserDom { .. }
+            | Request::BrowserExtract { .. }
+            | Request::BrowserScreenshot { .. }
+            | Request::BrowserAttachments
+            | Request::BrowserDownloads { .. }
+            | Request::BrowserEgress { .. } => CommandClass::Query,
+            Request::BrowserOpen { .. } => CommandClass::External,
             Request::MatterConfirm { .. }
             | Request::ApprovalDecide { .. }
             | Request::OcrDecide { .. }
@@ -818,7 +898,8 @@ impl Request {
             | Request::NotebookSkip { .. }
             | Request::NotebookDateAnchor { .. }
             | Request::DraftAccept { .. }
-            | Request::DraftReject { .. } => CommandClass::Human,
+            | Request::DraftReject { .. }
+            | Request::BrowserAttach { .. } => CommandClass::Human,
             Request::WorkspaceInit { .. }
             | Request::MatterCreate { .. }
             | Request::MatterOpen { .. }
@@ -851,7 +932,9 @@ impl Request {
             | Request::DraftRender { .. }
             | Request::FilingPdf { .. }
             | Request::PdfOpenEditor { .. }
-            | Request::ApprovalRequest { .. } => CommandClass::Internal,
+            | Request::ApprovalRequest { .. }
+            | Request::BrowserDetach
+            | Request::BrowserDevtools { .. } => CommandClass::Internal,
         }
     }
 
@@ -923,12 +1006,15 @@ impl Request {
             | Request::ApprovalList { matter }
             | Request::LinksOut { matter, .. }
             | Request::LinksIn { matter, .. }
-            | Request::RulesPin { matter } => Some(matter),
+            | Request::RulesPin { matter }
+            | Request::BrowserAttach { matter } => Some(matter),
             Request::AuditRejected { matter }
             | Request::EvidenceImport { matter, .. }
             | Request::OcrDisputes { matter, .. }
             | Request::OcrPipeline { matter }
-            | Request::Find { matter, .. } => matter.as_deref(),
+            | Request::Find { matter, .. }
+            | Request::BrowserOpen { matter, .. }
+            | Request::BrowserDownloads { matter } => matter.as_deref(),
             Request::CodebookShow { .. }
             | Request::CaptureStatus
             | Request::IngestStatus { .. }

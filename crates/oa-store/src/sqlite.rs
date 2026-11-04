@@ -73,6 +73,26 @@ const FIRM_MIGRATIONS: &[&str] = &[
         command TEXT NOT NULL, idempotency_key TEXT, matter TEXT
     );
 "#,
+    r#"
+    CREATE TABLE browser_egress (
+        id TEXT PRIMARY KEY, at TEXT NOT NULL, profile TEXT NOT NULL,
+        url TEXT NOT NULL, host TEXT NOT NULL, initiator TEXT NOT NULL,
+        kind TEXT NOT NULL, allowed INTEGER NOT NULL, reason TEXT NOT NULL,
+        status INTEGER, error TEXT
+    );
+    CREATE TABLE browser_downloads (
+        id TEXT PRIMARY KEY, at TEXT NOT NULL, profile TEXT NOT NULL,
+        url TEXT NOT NULL, final_url TEXT NOT NULL, file_name TEXT NOT NULL,
+        content_type TEXT NOT NULL, sha256 TEXT NOT NULL, size INTEGER NOT NULL,
+        matter TEXT, evidence_id TEXT, capture_id TEXT,
+        status TEXT NOT NULL, detail TEXT
+    );
+    CREATE TABLE browser_attachments (
+        id TEXT PRIMARY KEY, profile TEXT NOT NULL,
+        attached_at TEXT NOT NULL, attached_by TEXT NOT NULL,
+        detached_at TEXT, detached_by TEXT
+    );
+"#,
 ];
 
 const MATTER_MIGRATIONS: &[&str] = &[
@@ -830,6 +850,121 @@ impl FirmStore for SqliteFirm {
                     command: r.get(3)?,
                     idempotency_key: r.get(4)?,
                     matter: r.get(5)?,
+                })
+            },
+        )
+    }
+
+    fn insert_egress(&self, rows: &[EgressRow]) -> StoreResult<()> {
+        let tx = self.conn.unchecked_transaction().map_err(err)?;
+        for e in rows {
+            tx.execute(
+                "INSERT INTO browser_egress (id, at, profile, url, host, initiator, kind, allowed, reason, status, error)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                params![e.id, e.at, e.profile, e.url, e.host, e.initiator, e.kind, e.allowed, e.reason, e.status, e.error],
+            )
+            .map_err(err)?;
+        }
+        tx.commit().map_err(err)
+    }
+
+    fn egress(&self) -> StoreResult<Vec<EgressRow>> {
+        many(
+            &self.conn,
+            "SELECT id, at, profile, url, host, initiator, kind, allowed, reason, status, error
+             FROM browser_egress ORDER BY rowid",
+            params![],
+            |r| {
+                Ok(EgressRow {
+                    id: r.get(0)?,
+                    at: r.get(1)?,
+                    profile: r.get(2)?,
+                    url: r.get(3)?,
+                    host: r.get(4)?,
+                    initiator: r.get(5)?,
+                    kind: r.get(6)?,
+                    allowed: r.get(7)?,
+                    reason: r.get(8)?,
+                    status: r.get(9)?,
+                    error: r.get(10)?,
+                })
+            },
+        )
+    }
+
+    fn insert_download(&self, d: &DownloadRow) -> StoreResult<()> {
+        self.conn
+            .execute(
+                "INSERT INTO browser_downloads (id, at, profile, url, final_url, file_name, content_type, sha256, size, matter, evidence_id, capture_id, status, detail)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+                params![d.id, d.at, d.profile, d.url, d.final_url, d.file_name, d.content_type, d.sha256, d.size, d.matter, d.evidence_id, d.capture_id, d.status, d.detail],
+            )
+            .map(|_| ())
+            .map_err(err)
+    }
+
+    fn downloads(&self) -> StoreResult<Vec<DownloadRow>> {
+        many(
+            &self.conn,
+            "SELECT id, at, profile, url, final_url, file_name, content_type, sha256, size, matter, evidence_id, capture_id, status, detail
+             FROM browser_downloads ORDER BY rowid",
+            params![],
+            |r| {
+                Ok(DownloadRow {
+                    id: r.get(0)?,
+                    at: r.get(1)?,
+                    profile: r.get(2)?,
+                    url: r.get(3)?,
+                    final_url: r.get(4)?,
+                    file_name: r.get(5)?,
+                    content_type: r.get(6)?,
+                    sha256: r.get(7)?,
+                    size: r.get(8)?,
+                    matter: r.get(9)?,
+                    evidence_id: r.get(10)?,
+                    capture_id: r.get(11)?,
+                    status: r.get(12)?,
+                    detail: r.get(13)?,
+                })
+            },
+        )
+    }
+
+    fn insert_attachment(&self, a: &AttachmentRow) -> StoreResult<()> {
+        self.conn
+            .execute(
+                "INSERT INTO browser_attachments (id, profile, attached_at, attached_by, detached_at, detached_by)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![a.id, a.profile, a.attached_at, a.attached_by, a.detached_at, a.detached_by],
+            )
+            .map(|_| ())
+            .map_err(err)
+    }
+
+    fn end_attachment(&self, at: &str, by: &str) -> StoreResult<bool> {
+        self.conn
+            .execute(
+                "UPDATE browser_attachments SET detached_at = ?1, detached_by = ?2 WHERE detached_at IS NULL",
+                params![at, by],
+            )
+            .map(|n| n > 0)
+            .map_err(err)
+    }
+
+    fn attachments(&self) -> StoreResult<Vec<AttachmentRow>> {
+        many(
+            &self.conn,
+            "SELECT id, profile, attached_at, attached_by, detached_at, detached_by
+             FROM browser_attachments ORDER BY rowid",
+            params![],
+            |r| {
+                Ok(AttachmentRow {
+                    id: r.get(0)?,
+                    profile: r.get(1)?,
+                    attached_at: r.get(2)?,
+                    attached_by: r.get(3)?,
+                    detached_at: r.get(4)?,
+                    detached_by: r.get(5)?,
                 })
             },
         )

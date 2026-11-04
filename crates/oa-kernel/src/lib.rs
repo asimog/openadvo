@@ -7,6 +7,7 @@
 //! connections (spec C rule 12).
 
 mod approvals;
+mod browser;
 mod capture;
 mod command;
 mod documents;
@@ -81,6 +82,8 @@ pub struct Kernel {
     hooks: Hooks,
     /// One writer at a time (spec B edge case: the kernel serialises).
     writer: Mutex<()>,
+    /// The browser supervisor and its profile processes (spec M).
+    browser: Mutex<browser::BrowserState>,
 }
 
 pub(crate) fn store_err(e: StoreError) -> OaError {
@@ -103,11 +106,14 @@ pub(crate) fn io_err(context: &str, e: std::io::Error) -> OaError {
 
 impl Kernel {
     pub fn new(app_data: impl Into<PathBuf>, stores: Arc<dyn StoreFactory>, hooks: Hooks) -> Self {
+        let app_data = app_data.into();
+        let sup = oa_browser::Supervisor::new(hooks.browser.clone(), app_data.join("browser"));
         Kernel {
-            app_data: app_data.into(),
+            app_data,
             stores,
             hooks,
             writer: Mutex::new(()),
+            browser: browser::BrowserState::new(sup),
         }
     }
 
@@ -217,6 +223,31 @@ impl Kernel {
                 self.capture_commit(ctx, &matter, &capture).map(one)
             }
             Request::CaptureStatus => self.capture_status(),
+            Request::BrowserOpen {
+                profile,
+                url,
+                matter,
+            } => self
+                .browser_open(ctx, &profile, &url, matter.as_deref())
+                .map(one),
+            Request::BrowserState { profile } => self.browser_state_query(profile.as_deref()),
+            Request::BrowserDom { profile, selector } => self
+                .browser_dom(ctx, profile.as_deref(), &selector)
+                .map(one),
+            Request::BrowserExtract { profile } => {
+                self.browser_extract(ctx, profile.as_deref()).map(one)
+            }
+            Request::BrowserScreenshot { profile } => {
+                self.browser_screenshot(ctx, profile.as_deref()).map(one)
+            }
+            Request::BrowserAttach { matter } => self.browser_attach(ctx, &matter).map(one),
+            Request::BrowserDetach => self.browser_detach(ctx).map(one),
+            Request::BrowserAttachments => self.browser_attachments(),
+            Request::BrowserDownloads { matter } => self.browser_downloads(matter.as_deref()),
+            Request::BrowserEgress { profile, refused } => {
+                self.browser_egress(profile.as_deref(), refused)
+            }
+            Request::BrowserDevtools { profile } => self.browser_devtools(ctx, &profile).map(one),
             Request::IngestStatus { doc } => self.ingest_status(doc.as_deref()),
             Request::EvidenceDuplicates { matter } => self.evidence_duplicates(&matter),
             Request::CodebookShow { scheme } => self.codebook_show(&scheme).map(one),

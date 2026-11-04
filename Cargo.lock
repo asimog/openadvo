@@ -2090,6 +2090,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "oa-browser"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "chrono",
+ "hex",
+ "image",
+ "oa-capture",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "ulid",
+]
+
+[[package]]
 name = "oa-capture"
 version = "0.1.0"
 dependencies = [
@@ -2104,6 +2120,7 @@ dependencies = [
 name = "oa-cli"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "clap",
  "oa-client",
  "oa-control",
@@ -2178,6 +2195,7 @@ dependencies = [
  "base64",
  "chrono",
  "hex",
+ "oa-browser",
  "oa-capture",
  "oa-docs",
  "oa-notebook",
@@ -2250,6 +2268,8 @@ dependencies = [
 name = "oa-shell"
 version = "0.1.0"
 dependencies = [
+ "base64",
+ "chrono",
  "eframe",
  "image",
  "oa-client",

@@ -1,0 +1,25 @@
+[package]
+name = "oa-browser"
+description = "The browser (spec M): profiles, egress policy, page extraction, the profile process protocol, the per-profile supervisor and download interception. The profile process is a stub behind a real process boundary until CEF and Chromium are vendored"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+oa-capture.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+hex.workspace = true
+base64.workspace = true
+chrono.workspace = true
+ulid.workspace = true
+image.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[[bin]]
+name = "oa-browser-profile"
+path = "src/bin/oa-browser-profile.rs"

@@ -96,6 +96,9 @@ pub struct Hooks {
     pub docx: Arc<dyn DocxEngine>,
     /// K's draft checks, which J calls before conversion and on it.
     pub checks: Arc<dyn DraftChecks>,
+    /// Starts browser profile processes (spec M): `oa-browser-profile`
+    /// beside the running executable by default.
+    pub browser: Arc<dyn oa_browser::Launcher>,
 }
 
 impl Default for Hooks {
@@ -106,6 +109,7 @@ impl Default for Hooks {
             grants: Arc::new(StepOneGrants),
             docx: Arc::new(ProcessEngine::beside_current_exe()),
             checks: Arc::new(VerifyChecks),
+            browser: Arc::new(oa_browser::ProcessLauncher::beside_current_exe()),
         }
     }
 }

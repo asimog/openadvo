@@ -605,3 +605,137 @@ fn j_cli_documents_commands_through_the_binary() {
     );
     assert_eq!(pdfcraft.status.code(), Some(2));
 }
+
+/// Drives spec M through the binary against a served kernel, so each profile
+/// is a real `oa-browser-profile` process that outlives one `oa` call.
+#[test]
+fn m_cli_browser_commands_through_a_served_kernel() {
+    use std::io::{Read, Write};
+    let oa_exe = std::path::PathBuf::from(env!("CARGO_BIN_EXE_oa"));
+    let profile_exe = oa_exe.with_file_name(format!(
+        "oa-browser-profile{}",
+        std::env::consts::EXE_SUFFIX
+    ));
+    assert!(
+        profile_exe.is_file(),
+        "build the workspace first: {} is missing",
+        profile_exe.display()
+    );
+    // A local page and a PDF.
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            let Ok(mut stream) = stream else { continue };
+            let mut buf = [0u8; 2048];
+            let n = stream.read(&mut buf).unwrap_or(0);
+            let pdf = String::from_utf8_lossy(&buf[..n]).contains("GET /order.pdf");
+            let (ct, body): (&str, &[u8]) = if pdf {
+                ("application/pdf", b"%PDF-1.4\n%%EOF\n")
+            } else {
+                (
+                    "text/html",
+                    b"<html><title>Listing</title><body><p id='n'>Order list</p></body></html>",
+                )
+            };
+            let _ = write!(
+                stream,
+                "HTTP/1.0 200 OK\r\nContent-Type: {ct}\r\nContent-Length: {}\r\n\r\n",
+                body.len()
+            );
+            let _ = stream.write_all(body);
+        }
+    });
+    let url = |path: &str| format!("http://127.0.0.1:{port}{path}");
+
+    let tmp = tempfile::tempdir().unwrap();
+    let app = tmp.path().join("app");
+    let mut server = Command::new(&oa_exe)
+        .arg("--app-data")
+        .arg(&app)
+        .args(["kernel", "serve"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let connect = |args: &[&str]| {
+        let mut all = vec!["--connect"];
+        all.extend_from_slice(args);
+        oa(&app, &all)
+    };
+    let root = tmp.path().join("root");
+    let init = connect(&["workspace", "init", root.to_str().unwrap()]);
+    assert!(
+        init.status.success(),
+        "{}",
+        String::from_utf8_lossy(&init.stderr)
+    );
+    let id = lines(&connect(&["matter", "create", "--title", "Rao"]))[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let profile = format!("matter:{id}");
+
+    let opened = connect(&["browser", "open", &url("/case"), "--matter", &id]);
+    assert_eq!(
+        opened.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&opened.stderr)
+    );
+    assert_eq!(lines(&opened)[0]["title"], "Listing");
+
+    let state = lines(&connect(&["browser", "state", "--profile", &profile]));
+    assert_eq!(state[0]["state"], "running");
+    assert!(
+        state[0]["pid"].as_u64().is_some(),
+        "a real process: {}",
+        state[0]
+    );
+    assert_eq!(state[0]["tabs"][0]["title"], "Listing");
+
+    let dom = lines(&connect(&["browser", "dom", "#n"]));
+    assert_eq!(dom[0]["matches"][0]["text"], "Order list");
+    let extract = lines(&connect(&["browser", "extract"]));
+    assert_eq!(extract[0]["label"], "untrusted");
+
+    let png = tmp.path().join("shot.png");
+    let shot = connect(&["browser", "screenshot", "--out", png.to_str().unwrap()]);
+    assert_eq!(shot.status.code(), Some(0));
+    assert!(std::fs::read(&png).unwrap().starts_with(b"\x89PNG"));
+    assert!(lines(&shot)[0]["png"].is_null(), "the PNG is not printed");
+
+    let dl = lines(&connect(&[
+        "browser",
+        "open",
+        &url("/order.pdf"),
+        "--matter",
+        &id,
+    ]));
+    assert_eq!(dl[0]["download"]["status"], "routed");
+    let downloads = lines(&connect(&["browser", "downloads"]));
+    assert_eq!(downloads.len(), 1);
+    assert_eq!(downloads[0]["sha256"], dl[0]["download"]["sha256"]);
+
+    // Refusals use exit 3; the egress log records them.
+    let refused = connect(&[
+        "browser",
+        "open",
+        "https://efiling.sci.gov.in/",
+        "--profile",
+        "agent",
+    ]);
+    assert_eq!(refused.status.code(), Some(3));
+    let devtools = connect(&["browser", "devtools", "--profile", "filing"]);
+    assert_eq!(devtools.status.code(), Some(3));
+    let log = lines(&connect(&["browser", "egress", "--refused"]));
+    assert!(log.iter().any(|e| e["host"] == "efiling.sci.gov.in"));
+    // Attaching needs a person at the terminal; without one it is not confirmed.
+    let attach = connect(&["browser", "attach", "agent", "--to", &profile]);
+    assert_eq!(attach.status.code(), Some(3));
+    assert!(lines(&connect(&["browser", "attachments"])).is_empty());
+
+    let _ = server.kill();
+    let _ = server.wait();
+}

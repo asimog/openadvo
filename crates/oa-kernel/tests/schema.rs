@@ -437,6 +437,29 @@ fn samples() -> Vec<Request> {
             kinds: vec!["evidence".into()],
             filter: Some("origin:x".into()),
         },
+        Request::BrowserOpen {
+            profile: "agent".into(),
+            url: "https://www.sci.gov.in/".into(),
+            matter: Some(m()),
+        },
+        Request::BrowserState { profile: None },
+        Request::BrowserDom {
+            profile: Some("filing".into()),
+            selector: "#main".into(),
+        },
+        Request::BrowserExtract { profile: None },
+        Request::BrowserScreenshot { profile: None },
+        Request::BrowserAttach { matter: m() },
+        Request::BrowserDetach,
+        Request::BrowserAttachments,
+        Request::BrowserDownloads { matter: None },
+        Request::BrowserEgress {
+            profile: Some("agent".into()),
+            refused: true,
+        },
+        Request::BrowserDevtools {
+            profile: "filing".into(),
+        },
     ]
 }
 

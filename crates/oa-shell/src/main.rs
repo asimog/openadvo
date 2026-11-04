@@ -8,6 +8,7 @@
 //! fixture state with no kernel (A17).
 
 mod bar;
+mod browserviews;
 mod conn;
 mod docviews;
 mod gallery;
@@ -122,6 +123,9 @@ struct App {
 
     bar_open: bool,
     bar_text: String,
+    browser_url: String,
+    browser_profile: String,
+    browser_selector: String,
     frecency: bar::Frecency,
 
     setting_key: String,
@@ -162,6 +166,9 @@ impl App {
             inspector_error: None,
             bar_open: false,
             bar_text: String::new(),
+            browser_url: String::new(),
+            browser_profile: String::new(),
+            browser_selector: String::new(),
             frecency: load_frecency(&app),
             setting_key: String::new(),
             setting_value: String::new(),
@@ -711,6 +718,37 @@ impl App {
                     Err(e) => Self::fail(view, &e),
                 }
             }),
+            ViewId::Browser => {
+                let states = self.q(Request::BrowserState { profile: None });
+                let attachments = self.q(Request::BrowserAttachments).unwrap_or_default();
+                let page_text = self
+                    .q(Request::BrowserExtract {
+                        profile: page.arg.clone(),
+                    })
+                    .ok()
+                    .and_then(|mut v| v.pop());
+                Content::Table(match states {
+                    Ok(v) => browserviews::browser_pane_table(&v, &attachments, page_text.as_ref()),
+                    Err(e) => Self::fail(view, &e),
+                })
+            }
+            ViewId::Downloads => Content::Table(
+                match self.q(Request::BrowserDownloads {
+                    matter: page.arg.clone(),
+                }) {
+                    Ok(v) => browserviews::downloads_table(&v),
+                    Err(e) => Self::fail(view, &e),
+                },
+            ),
+            ViewId::Egress => Content::Table(
+                match self.q(Request::BrowserEgress {
+                    profile: None,
+                    refused: false,
+                }) {
+                    Ok(v) => browserviews::egress_table(&v, page.arg.as_deref()),
+                    Err(e) => Self::fail(view, &e),
+                },
+            ),
             ViewId::Entities => self.ocr_doc_view(view, page, |id, doc| {
                 match self.q(Request::ExtractEntities {
                     matter: id.to_string(),
@@ -1326,8 +1364,149 @@ impl App {
             ViewId::EditSurface | ViewId::Changes | ViewId::WordCraft => {
                 self.document_extras(ui, view)
             }
+            ViewId::Browser => self.browser_extras(ui),
+            ViewId::Egress => {
+                ui.separator();
+                ui.horizontal(|ui| {
+                    ui.label("Filter by profile:");
+                    let mut profiles =
+                        vec![None, Some("agent".to_string()), Some("filing".to_string())];
+                    if let Some(m) = &self.selected {
+                        profiles.push(Some(format!("matter:{m}")));
+                    }
+                    for p in profiles {
+                        let label = p.clone().unwrap_or_else(|| "all".into());
+                        if ui.button(label).clicked() {
+                            self.navigate(ViewId::Egress, p);
+                        }
+                    }
+                });
+            }
             _ => {}
         }
+    }
+
+    /// The browser pane controls: navigate, read the DOM, save a screenshot,
+    /// and attach or detach the agent. Attaching is a human command, named in
+    /// full and never the default action (README GUI convention 4).
+    fn browser_extras(&mut self, ui: &mut egui::Ui) {
+        ui.separator();
+        ui.horizontal(|ui| {
+            if self.browser_profile.is_empty() {
+                if let Some(m) = &self.selected {
+                    self.browser_profile = format!("matter:{m}");
+                }
+            }
+            ui.add(
+                egui::TextEdit::singleline(&mut self.browser_profile)
+                    .hint_text("matter:<id>, filing or agent")
+                    .desired_width(220.0),
+            );
+            ui.add(
+                egui::TextEdit::singleline(&mut self.browser_url)
+                    .hint_text("http://...")
+                    .desired_width(320.0),
+            );
+            if ui.button("Open").clicked() {
+                let req = Request::BrowserOpen {
+                    profile: self.browser_profile.clone(),
+                    url: self.browser_url.clone(),
+                    matter: self.selected.clone(),
+                };
+                if let Some(v) = self.act(req) {
+                    let v = v.first().cloned().unwrap_or_default();
+                    self.status = match v["download"]["status"].as_str() {
+                        Some(st) => format!("Download {st}: {}", v["download"]["sha256"]),
+                        None => format!("Opened {}", v["final_url"].as_str().unwrap_or_default()),
+                    };
+                    self.reload_panes();
+                }
+            }
+        });
+        ui.horizontal(|ui| {
+            ui.add(
+                egui::TextEdit::singleline(&mut self.browser_selector)
+                    .hint_text("selector: tag, #id, .class")
+                    .desired_width(220.0),
+            );
+            if ui.button("Read the DOM").clicked() {
+                let req = Request::BrowserDom {
+                    profile: Some(self.browser_profile.clone()).filter(|p| !p.is_empty()),
+                    selector: self.browser_selector.clone(),
+                };
+                self.status = match self.q(req) {
+                    Ok(v) => {
+                        let m = &v.first().cloned().unwrap_or_default()["matches"];
+                        format!(
+                            "{} match(es); first: {}",
+                            m.as_array().map(Vec::len).unwrap_or(0),
+                            m[0]["text"].as_str().unwrap_or("-")
+                        )
+                    }
+                    Err(e) => format!("{}: {}", e.code.as_str(), e.message),
+                };
+            }
+            if ui.button("Save a screenshot").clicked() {
+                let req = Request::BrowserScreenshot {
+                    profile: Some(self.browser_profile.clone()).filter(|p| !p.is_empty()),
+                };
+                self.status = match self.q(req) {
+                    Ok(v) => {
+                        use base64::Engine;
+                        let png = base64::engine::general_purpose::STANDARD
+                            .decode(
+                                v.first()
+                                    .and_then(|x| x["png"].as_str())
+                                    .unwrap_or_default(),
+                            )
+                            .unwrap_or_default();
+                        let dir = self.app.join("browser").join("screenshots");
+                        let path = dir.join(format!("{}.png", now_ms()));
+                        match std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(&path, png))
+                        {
+                            Ok(()) => format!("Saved {}", path.display()),
+                            Err(e) => format!("could not save the screenshot: {e}"),
+                        }
+                    }
+                    Err(e) => format!("{}: {}", e.code.as_str(), e.message),
+                };
+            }
+        });
+        let attached = self
+            .q(Request::BrowserAttachments)
+            .ok()
+            .and_then(|a| browserviews::attached_profile(&a));
+        ui.horizontal(|ui| match (&attached, &self.selected) {
+            (Some(profile), _) => {
+                if ui
+                    .button(format!("Detach the agent from {profile}"))
+                    .clicked()
+                    && self.act(Request::BrowserDetach).is_some()
+                {
+                    self.status = "The agent is detached.".into();
+                    self.reload_panes();
+                }
+            }
+            (None, Some(m)) => {
+                let m = m.clone();
+                if ui
+                    .button(format!(
+                        "Let the agent drive the visible browser for matter:{m}"
+                    ))
+                    .clicked()
+                    && self.act(Request::BrowserAttach { matter: m }).is_some()
+                {
+                    self.status = "The agent is attached. Detach it here at any time.".into();
+                    self.reload_panes();
+                }
+            }
+            (None, None) => {
+                ui.label(
+                    egui::RichText::new("Select a matter to attach the agent to its browser.")
+                        .weak(),
+                );
+            }
+        });
     }
 
     /// The spec J controls: accept or reject a proposal (human commands,

@@ -95,6 +95,16 @@ pub trait FirmStore: Send {
 
     fn log_command(&self, row: &CommandLogRow) -> StoreResult<()>;
     fn commands(&self) -> StoreResult<Vec<CommandLogRow>>;
+
+    /// The browser's egress log, oldest first (spec M).
+    fn insert_egress(&self, rows: &[EgressRow]) -> StoreResult<()>;
+    fn egress(&self) -> StoreResult<Vec<EgressRow>>;
+    fn insert_download(&self, row: &DownloadRow) -> StoreResult<()>;
+    fn downloads(&self) -> StoreResult<Vec<DownloadRow>>;
+    fn insert_attachment(&self, row: &AttachmentRow) -> StoreResult<()>;
+    /// Ends the active attachment, if any. Returns whether one was ended.
+    fn end_attachment(&self, at: &str, by: &str) -> StoreResult<bool>;
+    fn attachments(&self) -> StoreResult<Vec<AttachmentRow>>;
 }
 
 /// One matter workspace's canonical record (spec C rules 1 and 3).

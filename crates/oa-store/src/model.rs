@@ -364,6 +364,55 @@ pub enum MatterWrite {
     },
 }
 
+/// One connection a browser profile made or refused (spec M, the egress log).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EgressRow {
+    pub id: String,
+    pub at: String,
+    pub profile: String,
+    pub url: String,
+    pub host: String,
+    pub initiator: String,
+    pub kind: String,
+    pub allowed: bool,
+    pub reason: String,
+    pub status: Option<i64>,
+    pub error: Option<String>,
+}
+
+/// One intercepted download (M rule 5, F06): its hash from the bytes on
+/// disk, and where it was routed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DownloadRow {
+    pub id: String,
+    pub at: String,
+    pub profile: String,
+    pub url: String,
+    pub final_url: String,
+    pub file_name: String,
+    pub content_type: String,
+    pub sha256: String,
+    pub size: i64,
+    pub matter: Option<String>,
+    pub evidence_id: Option<String>,
+    pub capture_id: Option<String>,
+    /// routed, or unrouted when there was no matter to route to.
+    pub status: String,
+    pub detail: Option<String>,
+}
+
+/// The agent's attachment to a visible profile (RQ-81). Active while
+/// `detached_at` is empty.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AttachmentRow {
+    pub id: String,
+    pub profile: String,
+    pub attached_at: String,
+    pub attached_by: String,
+    pub detached_at: Option<String>,
+    pub detached_by: Option<String>,
+}
+
 /// An accepted command, for the control audit (spec B rule 8).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandLogRow {

@@ -417,3 +417,115 @@ The kill tests and the loop conformance fixtures pass with the workspace. The
   items (L-02). Row 1 of 5.3 and rule 9 disagree on an unattested amended
   section (OQ-09 says legal review). And rule 5's automatic re-run on every new
   revision has no named trigger.
+
+
+# Build report: spec M, the browser
+
+Build step 4 for M, on top of the Spec K skeleton commit 3159515. New crate
+`oa-browser` (pure logic, the profile process protocol, the supervisor, F's
+`BrowserPort` over a supervised profile, and the `oa-browser-profile`
+executable), a `firm.db` migration (`browser_egress`, `browser_downloads`,
+`browser_attachments`), the kernel module `browser.rs`, `oa browser ...`, and
+three shell views. 274 tests pass (238 before).
+
+Each profile (`matter:<id>`, `filing`, `agent`) runs as its own
+`oa-browser-profile` process, started by the kernel's supervisor (D15) with its
+own folder. The agent's folder is fresh for each process and deleted when it
+stops. Chromium (CEF) is not vendored: the profile process is a stub behind the
+real process boundary, as `oa-ocr` does for its engines. It has a real cookie
+jar, a real network stack (plain HTTP over TCP), the egress check before any
+socket opens, and download interception to disk. It does not render, run
+scripts or speak TLS.
+
+## Acceptance criteria in scope
+
+| ID | Test | Result |
+|---|---|---|
+| M-AC-01 | `m_ac_01_killing_the_agent_process_leaves_the_visible_and_filing_profiles_running` (oa-browser, real processes), `m_ac_01_killing_the_agent_leaves_the_visible_and_filing_profiles_running` (kernel) | pass |
+| M-AC-02 | `m_ac_02_the_agent_profile_has_no_cookies_from_a_matter_login` (real processes; the server sees no cookie from the agent, and the agent folder is gone after the run) | pass |
+| M-AC-03 | `m_ac_03_the_filing_portal_is_refused_to_the_agent_even_when_allow_listed` (egress), `m_ac_03_the_agent_profile_is_refused_the_filing_portal_even_when_allow_listed` (supervisor, before any process starts), `m_ac_03_the_agent_navigating_to_the_e_filing_portal_is_refused_and_logged` (kernel) | pass |
+| M-AC-04 | `m_ac_04_attach_from_a_harness_connection_is_refused` (kernel; also: unattached, the agent cannot drive a matter profile, and never the filing profile) | pass |
+| M-AC-05 | `m_ac_05_a_download_in_every_profile_is_hashed_from_the_bytes_on_disk` (real processes), `m_ac_05_a_download_in_any_profile_reaches_the_inbox_with_the_hash_of_the_bytes_on_disk` (kernel: evidence, capture record and blob on disk) | pass |
+| M-AC-06 | `m_ac_06_extraction_is_labelled_untrusted_with_url_and_time` (page), `m_ac_06_extracted_text_carries_an_untrusted_label_url_and_time` (kernel) | pass |
+| M-AC-07 | `m_ac_07_an_empty_or_missing_allow_list_denies_everything` (egress), `m_ac_07_with_the_allow_list_empty_the_agent_profile_makes_no_network_request` (real processes against a recording server, and kernel) | pass |
+| M-AC-08 | `m_ac_08_the_filing_launch_plan_disallows_devtools` (the Chromium policy), `m_ac_08_devtools_cannot_be_opened_in_the_filing_profile` (supervisor and the process itself, and kernel) | pass |
+| M-AC-09 | none | [HUMAN] |
+| M-AC-10 | `m_ac_10_every_agent_connection_is_logged_with_refused_ones_marked` (real processes), `m_ac_10_the_egress_log_shows_every_agent_connection_with_refused_ones_marked` (kernel), `m_ac_10_the_egress_view_marks_refused_connections_and_filters_by_profile` (shell) | pass |
+
+Also: `m_cli_browser_commands_through_a_served_kernel` drives every
+`oa browser` subcommand through the binary against `oa kernel serve`, with real
+profile processes; `f_capture_driver_runs_through_a_supervised_profile` runs
+F's `CaptureDriver` through a real profile process (the recorded listing, three
+orders through the interceptor, the CAPTCHA handoff, and the headless agent
+refusing focus); `an_unavailable_browser_reports_dependency_unavailable` and
+`a_missing_profile_executable_is_an_honest_unavailable` cover the failure mode.
+
+## Views in scope
+
+| View | Covers | Screenshot | Checked | Seen wrong |
+|---|---|---|---|---|
+| Browser | `browser.state`, `browser.attachments`, `browser.extract`, `browser.dom`, `browser.screenshot` | `target/screenshots/gallery-browser.png` | one row per profile with state, URL and title; page text rows muted and marked untrusted; amber banner while the agent is attached; crashed agent in red; stub banner naming CEF as not vendored; empty, loading, error states | At quarter width the Detail column (pid, DevTools off) is clipped. A full pane shows it. |
+| Downloads | `browser.downloads` | `target/screenshots/gallery-downloads.png` | IST time, profile, file, short hash, bytes, capture record, status; unrouted row amber with its reason; a routed row opens its evidence entry | The unrouted reason is clipped at quarter width. Fixture hashes first rendered as zeros; fixed. |
+| Egress log | `browser.egress` | `target/screenshots/gallery-egress.png` | refused rows red with the reason (H-15 for the e-filing host), "3 refused connections" banner, filter buttons by profile | Full matter ids pushed Reason off screen; matter profiles now show `matter:..` and the id tail. The Inspector has the full id. |
+
+The screenshots are galleries (fixtures, no kernel). No live-window capture was
+taken in this step. The DOM, screenshot, Open and attach controls are under
+the Browser pane (`browser_extras`) and were not clicked.
+
+## [HUMAN] criteria still needing a person
+
+- M-AC-09: the embedded browser behaves like a normal browser for portal use,
+  file pickers and print. Not possible until CEF is vendored.
+- The human gesture "Let the agent drive the visible browser for matter:<id>"
+  and "Detach the agent from ..." in the Browser pane, and the attachment
+  banner in a live window. From the CLI, `oa browser attach agent --to
+  matter:<id>` asks at the terminal (H-09) and is not confirmed without one.
+- F-AC-12 (still open from F): capture against the live portal needs https,
+  which needs CEF.
+- Keyboard-only operation of the three views (README GUI convention 5).
+
+## Stubs and the group that replaces each
+
+| Stub | Replaced by |
+|---|---|
+| `oa-browser-profile`: plain HTTP over TCP, no TLS, no rendering, no scripts. https answers `dependency_unavailable` (exit 5) | M, once Q vendors Chromium (CEF) and `agent-browser` |
+| Browser pane shows profile state and the extracted page text, not the page; reparenting into the pane with position, size, DPI and focus (M02, H-08) is not built | M's CEF host, with Q |
+| `browser.screenshot` returns a stub raster (one bar per text line) | CEF |
+| Capture exclusion (M10): the screenshot comes from the profile process and never contains shell overlays, but no window is excluded from OS capture yet | M's CEF host and A (overlay windows) |
+| Credentials: `CredentialStore` and the autofill policy (visible profiles only, M08) exist; no keychain backend and no command to save a login | E (E07, the OS keychain) |
+| `browser.open` is external but there is no outbox; the effect is recorded in the egress log and the command audit | C and L (the outbox) |
+| The agent's run ends only when its process stops; `Kernel::browser_end_agent_run` is the seam | D (the harness calls it at run end) |
+| Kernel tests use `InProcessLauncher`, the same handler in process; the process boundary is tested in `oa-browser` and `oa-cli` | none |
+| F's fixture `BrowserPort` remains as a test double in `oa-capture`; the real port is `oa_browser::SupervisedPort` | done here |
+
+## Open questions hit
+
+None. No OQ-xx decision was needed.
+
+## Spec issues
+
+- The GUI table has an Egress log view, but the CLI table has no query for it.
+  Added `oa browser egress [--profile <p>] [--refused]` (query).
+- Rule 9 and M-AC-08 need a way to ask for DevTools. Added
+  `oa browser devtools --profile <p>` (internal), refused in the filing
+  profile by the supervisor and by the process.
+- The pane banner needs the attachment state. Added
+  `oa browser attachments` (query).
+- `browser.open` is `external` and "goes through the outbox", which does not
+  exist yet (see stubs).
+- Rule 5 routes every download to "the matter inbox", but the filing and agent
+  profiles have no matter. `browser.open` takes `--matter`; without one the
+  download is hashed, listed as `unrouted`, and gets no evidence entry.
+- The Purpose says the agent operates the filing profile under the advocate's
+  confirmations. Spec L builds those confirmations, so until then the harness
+  is refused in the filing profile.
+- `--profile` is optional in the CLI table with no default. The harness
+  defaults to `agent`; the advocate to the profile last opened.
+- An attached agent in a matter profile is held to the matter's allow list.
+  Only the advocate's own navigation goes beyond it ("allow list per matter
+  plus the advocate's own navigation").
+- Rule 7 (deny by default, a missing flag fails safe) does not say who may
+  change an allow list. `settings.set` on `browser.allow.*` is refused to the
+  harness and audited, so the agent cannot widen its own egress.
+- Downloads from a browser are captured with the new origin `browser`, added
+  to F's known capture origins.

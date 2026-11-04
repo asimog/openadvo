@@ -15,7 +15,13 @@ use crate::matters::safe_file_name;
 use crate::records::{blob_path, put_blob, Live};
 use crate::{rejected, store_err, Ctx, Kernel};
 
-const KNOWN_ORIGINS: &[&str] = &["court_portal", "india_code", "email", "advocate_import"];
+const KNOWN_ORIGINS: &[&str] = &[
+    "court_portal",
+    "india_code",
+    "email",
+    "advocate_import",
+    "browser",
+];
 
 pub(crate) fn capture_json(c: &CaptureRow) -> Value {
     json!({

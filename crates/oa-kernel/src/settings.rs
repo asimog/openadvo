@@ -78,6 +78,16 @@ impl Kernel {
                 format!("{key:?} is not a valid key: use lowercase dotted words"),
             ));
         }
+        if key.starts_with("browser.allow") && ctx.origin == oa_types::Origin::Harness {
+            let reason = "the agent cannot change a browser allow list (M09)";
+            self.audit_firm(
+                ctx,
+                "settings.set",
+                reason,
+                format!("{key}={value}").as_bytes(),
+            )?;
+            return Err(OaError::new(ErrorCode::WriteRefused, reason));
+        }
         self.firm()?
             .set_setting(key, value, &oa_types::now_utc())
             .map_err(store_err)?;
