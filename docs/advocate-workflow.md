@@ -1,8 +1,6 @@
-# Open Advocate — End-to-End Advocate Workflow
+# Open Advocate: the advocate workflow
 
-The settled architecture decisions are canonical in [architecture.md](architecture.md). This document states the intended end-to-end advocate workflow. Supplemental requirements appear after the workflow details.
-
-Sections 1 to 12 are identical to sections 1 to 12 of [architecture.md](architecture.md), including the amendments of 4 November 2026 listed there. Every design question is settled in [decisions.md](decisions.md).
+This document is the one description of the end-to-end workflow the product serves, from instruction to a filing-ready Special Leave Petition. It states what the advocate experiences, not how the system is built. The system shape is in [architecture.md](architecture.md), and every settled decision is in [decisions.md](decisions.md), which governs where this document disagrees.
 
 ## 1. The objective: From instruction to filing-ready SLP
 
@@ -609,7 +607,7 @@ Filing is agent-operated, not agent-authorised. The agent can prepare and execut
 
 ## Important workflow details that should not be lost
 
-These are specific operational details from your original working notes. Some are already covered by your settled decisions, but the earlier flow did not preserve all of them.
+These operational details belong to the workflow and must survive into the built system.
 
 ### A. Capture and ingestion are separate
 
@@ -669,7 +667,7 @@ The second chain can evolve as the legal record and ontology develop. The first 
 
 ## Supplemental requirements
 
-These requirements come from the supplemental notes. Items 9 to 13 have a fuller treatment in the workflow details above.
+Items 9 to 13 are treated in full in the workflow details above.
 
 1. Whole-application agent operation through chat and voice.
 2. Shared resource identity and provenance across all capabilities.

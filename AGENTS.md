@@ -12,15 +12,15 @@ Open Advocate is an agent-operated litigation workspace for Indian advocates, bu
 
 ## Read only what the task needs
 
-The docs are about 300 KB. Loading all of them fills the context with material the task does not use, and the parts that matter get lost. Follow this order and stop as soon as you have what you need.
+Loading all the docs fills the context with material the task does not use, and the parts that matter get lost. Follow this order and stop as soon as you have what you need.
 
 1. **Find the component group.** Every task belongs to one or more groups, A to R, or U for the validator. The ids are in `docs/component-map.md` (for example `G07`, `K14`). Use grep for the id, and do not read the whole map.
-2. **Read `docs/specs/README.md`.** It is short and holds the conventions every spec shares: command classes, CLI output and exit codes, identifiers, time and test tags.
-3. **Read the one spec for your group**, in `docs/specs/`. It is written to be implemented on its own. Read a second spec only when yours names it under "Depends on" and you need its interface.
-4. **Look up decisions by id, do not read the whole file.** Each spec lists the decision ids it implements (`RQ-xx`, `X-xx`, `H-xx`, `L-xx`, `OQ-xx`, `P1` to `P8`). Grep `docs/decisions.md` for those ids. Read `docs/decisions.md` section 3 (terms) once per session.
-5. **Read `docs/architecture.md` only for cross-group work**, and then only the section you need ("The settled design", "Brain, hands and session", or a workflow section).
+2. **Read `docs/specs/README.md`.** It holds the build order and the conventions every spec shares: command classes, CLI output and exit codes, identifiers, time, the five test kinds and their status words, and the GUI conventions.
+3. **Read the one spec for your group**, in `docs/specs/`. Its status line and the status column of its tests say what is done and what remains. Read a second spec only when yours names it under "Depends on" and you need its interface.
+4. **Look up decisions by id, do not read the whole file.** Each spec lists the decision ids it implements (`RQ-xx`, `X-xx`, `H-xx`, `L-xx`, `OQ-xx`, `PH-xx`, `P1` to `P9`). Grep `docs/decisions.md` for those ids. Read `docs/decisions.md` section 3 (terms) once per session.
+5. **Read `docs/architecture.md` only for cross-group work**, and then only the section you need (processes, storage, the window, the build order). The advocate's workflow is in `docs/advocate-workflow.md`; read the section you need.
 6. **Read `docs/ULOSarchitecture.md` only for group U or K**, the validator and the verification adapter.
-7. **Do not read `docs/report.md`** unless the user asks why a decision was made. It is the question history, and its recommendations are not the design.
+7. **Do not read `docs/archive/`** unless the user asks why a decision was made. It holds the question history and the phase 1 build reports, and governs nothing.
 
 Other habits that keep the context clean:
 
@@ -32,18 +32,20 @@ Other habits that keep the context clean:
 
 ## Which document wins
 
-`docs/decisions.md` governs. Then the spec for the group. Then `docs/architecture.md` and `docs/component-map.md`. `docs/ULOSarchitecture.md` governs the standard. `docs/report.md` governs nothing. If two documents disagree, stop and tell the user. Do not pick one silently.
+`docs/decisions.md` governs. Then the spec for the group. Then `docs/architecture.md`, `docs/component-map.md` and `docs/advocate-workflow.md`. `docs/ULOSarchitecture.md` governs the standard. `docs/archive/` governs nothing. If two documents disagree, stop and tell the user. Do not pick one silently.
 
 ## Rules every change must keep
 
 These are settled. Do not trade them away to make something work.
 
 - **Stack.** Rust. egui and winit for the shell. No Tauri, no TypeScript, no Electron.
-- **CLI first.** Every capability is a set of typed control commands, usable from the `oa` CLI before it has a pane. Panes are clients of the same protocol.
+- **CLI first.** Every capability is a set of typed control commands, usable from the `oa` CLI before it has a view. The window is a client of the same protocol and depends on `oa-protocol`, never on the kernel.
 - **The kernel is the only writer** of canonical state. The harness and every capability propose through the kernel's single commit path.
 - **Human-only commands.** Approvals, filing confirmations, review-item skips, OCR decisions, typed copies, voice and limitation confirmations, attestations and browser attachment are `human` class. The kernel refuses them from the harness. Never add a path that lets the agent issue one.
 - **One validator.** `ulos` is a separate binary, deterministic, with no model. Verification records come only from it. The verification adapter holds no check code. Only the Supreme Court portal, through `ulos`, verifies a citation. The AWS catalogue is outside the standard, for research and the quick check only.
 - **Separate processes.** The harness, each OCR engine, each browser profile, WordCraft, PdfCraft and `ulos` run as their own supervised processes.
+- **Full integration.** Production uses the real vendored dependency. A stand-in exists only as a test double in tests, behind a seam with a real adapter. Never ship a stub.
+- **The window.** A collapsible left pane, the chat pane (the one orchestrator), and the view pane with one to three splits. No status bar. Every view draws through the UI module, and every human-class control through its human control.
 - **DOCX, then PDF/A.** Drafting and verification happen on DOCX. The approved DOCX is converted to PDF/A for filing, the conversion is checked against the DOCX, and the PDF is never edited.
 - **Everything is inspectable.** Every query command has a GUI view, and every item in a view opens the Inspector. A new query without a view, or a view item the Inspector cannot open, is not done (P9, docs/specs/README.md "GUI conventions").
 - **Honest states.** Never show `verified` for anything the validator did not verify. Never retry an external effect whose outcome is `unknown` before reconciling it.
@@ -51,15 +53,17 @@ These are settled. Do not trade them away to make something work.
 
 ## Tests
 
-- Every `[AUTO]` acceptance criterion in a spec gets an automated test whose name contains the criterion id, for example `g_ac_03_date_digit_mismatch_disputes`.
+- Every test row in a spec (acceptance, GUI, visual, end to end, contract) gets a test whose name contains its id in snake case, for example `g_ac_03_date_digit_mismatch_disputes` or `a_gui_01_collapsing_the_view_pane`.
+- A row is `done` only when its test passes against the real dependency. Update the row's status, and the spec's status line, in the same change as the code.
 - List the `[HUMAN]` criteria a change touches in its summary, so a person can review them.
 - Never weaken, skip or delete a test, loosen a threshold, or add a suppression to get to green. If a test is wrong, say so and ask.
-- Kill tests, the loop conformance fixtures and the `ulos` conformance suite are release gates. Run them for any change in groups C, D, K, L or U.
+- Kill tests, the loop conformance fixtures and every contract test are release gates. Run them for any change in groups C, D, G, J, K, L, M or Q.
 
 ## Changing the docs
 
 - A design change goes into `docs/decisions.md` first, then into the spec and the other docs it touches, in the same change.
-- Sections 1 to 12 of `docs/architecture.md` and `docs/advocate-workflow.md` must stay identical. Edit both or neither.
+- One copy of each fact. The workflow lives only in `docs/advocate-workflow.md`, the build order only in `docs/architecture.md` and `docs/specs/README.md`, and status only in the specs.
+- Docs state the current design. Do not write what changed, when, or why into a doc; that goes in `decisions.tsv` and the commit message.
 - Do not settle an open question (`OQ-xx`) on your own. Code against its working decision, and tell the user when the code depends on it.
 - Keep ids stable. New items take the next free id. Never renumber.
 - No em dashes, no curly quotes.

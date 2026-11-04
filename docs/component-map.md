@@ -1,6 +1,6 @@
 # Component map
 
-Status: settled map, updated 4 November 2026. This is the parts list for one Rust desktop application. Every choice in it is settled in [decisions.md](decisions.md), which governs where this map disagrees. Each group has an implementation spec in [specs/](specs/README.md).
+Status: phase 2 parts list. This is the parts list for one Rust desktop application. Every choice in it is settled in [decisions.md](decisions.md), which governs where this map disagrees. Each group has an implementation spec in [specs/](specs/README.md).
 
 ## Verdicts
 
@@ -28,7 +28,7 @@ The practical test is that an agent has no runtime of its own. If a design gives
 ## Decisions this map encodes
 
 - CLI first. Every capability is a set of control commands, usable from `oa` before it has a pane.
-- Pane UI is ours, against current upstream egui and winit.
+- The window is ours, against current upstream egui and winit: a collapsible left pane, the chat pane for the orchestrator, and the view pane with one to three splits. It depends on the contract crate, never on the kernel.
 - A lightweight document viewer and a lightweight PDF viewer come first, and they are the agent's anchor surface. The full editor is WordCraft.
 - WordCraft and PdfCraft are vendored into our tree from their own forks, keep their own storage, and run as hosted processes reparented into our panes. They never own the record.
 - DOCX is the working format of every draft. Filings are PDF/A.
@@ -46,14 +46,14 @@ The practical test is that an agent has no runtime of its own. If a design gives
 ```
 advocate
   |
-shell  winit + egui, our panes
+window  winit + egui: left pane, chat pane, view pane
   |-- workspace      files, matters, folders          A
   |-- notebook       facts, dates, issues, authorities H
   |-- viewer         our lightweight PDF and DOCX     J
   |-- editor         our lightweight edit surface     J
   |-- hosted         WordCraft, PdfCraft, Word        J N
   |-- browser        Chromium, child window           M
-  |-- agent          chat, plan, tools, approvals     D
+  |-- chat           the orchestrator: plan, tools    D
   |
 control surface  typed commands and queries, one protocol, two front ends   B
   |
@@ -75,12 +75,12 @@ Two rules decide most of the work. The kernel is the only writer of the record. 
 | ID | Component | Verdict | Built on, or why |
 |---|---|---|---|
 | A01 | Window, event loop, render backend | VENDOR | `winit` and `egui`, current upstream, refreshed at a pinned interval |
-| A02 | Pane layout: three or more splits, tabs, navigation history, saved layouts per matter | BUILD | One layout model. Panes register; they do not own geometry |
+| A02 | View pane layout: one to three splits, navigation history per split, saved screens per matter | BUILD | One screen model (PH-04). Views register; they do not own geometry |
 | A03 | Workspace and matter creation: create, open, rename, archive, template folders | BUILD | Matter is a directory plus a registry row. See the disk layout below |
 | A04 | File browser: tree, list, breadcrumb, details pane, inline preview, drag out | BUILD | The primary screen. Everything reachable from the filesystem is reachable here |
 | A05 | Notebook pane | BUILD | Sectioned view over notebook records, with source peek |
-| A06 | Viewer pane host: slots, split, tabs, sync scroll | BUILD | Holds our viewer, the hosted apps, and later anything else |
-| A07 | Agent pane: transcript, streaming, tool cards, plan, inline approvals | BUILD | The second screen the advocate lives in |
+| A06 | View host: splits holding our viewers, the hosted apps and the browser | BUILD | Hosted windows are reparented into a split |
+| A07 | Chat pane: the orchestrator's transcript, streaming, tool cards, plan, gates waiting on the advocate | BUILD | The middle region; the rightmost when the view pane is collapsed |
 | A08 | Review inbox: disputes, conflicts, unresolved citations, filing defects, missing documents, runs waiting on the advocate | BUILD | One queue, split into Signal and Noise, keyboard first. No issue may exist only in a log |
 | A09 | Command bar, keymap, shortcuts, undo scope | BUILD | Commands, matters and records ranked by frecency. No global undo across panes |
 | A10 | Settings and profiles: models, OCR engines, rule packs, confidentiality, providers | BUILD | Two layers, firm preferences and a non-patchable legal layer |
@@ -90,7 +90,8 @@ Two rules decide most of the work. The kernel is the only writer of the record. 
 | A14 | Accessibility tree for our widgets | BUILD | AccessKit through egui-winit. Canvas content is exposed through B03, not as thousands of nodes |
 | A15 | First run: workspace root, provider key, OCR models, fonts | BUILD | Installs and starts with no network. Capture, research, model calls and verification need one |
 | A16 | Inspector drawer: raw record, ledger events, links out and in, producing command, origin | BUILD | Every item in every view opens it (P9) |
-| A17 | View galleries: every view in fixture states, no kernel | BUILD | Visual and accessibility review. Pattern from the Macro reference (REF) |
+| A17 | View galleries: every view in fixture states, no kernel | BUILD | Visual tests and accessibility review. Pattern from the Macro reference (REF) |
+| A18 | UI module: theme tokens, table, widgets, the human control, the frame | BUILD | One small internal module; no third-party widget kit (PH-10) |
 
 ## B. Control surface: how the agent sees and drives the app
 
@@ -98,9 +99,9 @@ The panes are painted, so they have no useful accessibility children. This group
 
 | ID | Component | Verdict | Built on, or why |
 |---|---|---|---|
-| B01 | Control protocol: typed commands, typed queries, one schema, local socket or named pipe | BUILD | The only channel the agent uses for app state and actions |
+| B01 | Control protocol: typed commands, typed queries, one schema, a local named pipe; the contract types in `oa-protocol` | BUILD | The only channel the agent and the window use. The kernel decides each connection's origin (PH-01, PH-03) |
 | B02 | Control CLI: `oa` binary over the same protocol | BUILD | CLI first: every capability ships here before its pane. Human debugging, scripted tests, and the agent's shell. Human-class commands are refused to the harness and need OS user presence from the CLI |
-| B03 | Pane semantic models: workspace, notebook, viewer, editor publish queryable state with anchor ids | BUILD | What the pane shows is a query. Selection, scroll, page, paragraph and visible text are all typed answers |
+| B03 | Screen model: the window publishes its screen with visible anchors, selection, scroll, page and paragraph | BUILD | What the window shows is a query |
 | B04 | Viewport snapshot: raster plus text plus anchor rectangles for what is on screen | BUILD | The fallback for a vision model, and the fixture for visual tests |
 | B05 | Tool binding: every control command is a registered tool with a side-effect class | BUILD | One registry. The UI calls the same commands |
 | B06 | Desktop driver for other applications: UIA first, vision second | VENDOR | `agent-desktop`, for Word, portals, anything outside our window |
@@ -336,12 +337,13 @@ The application side of verification. The checks themselves are done by the `ulo
 
 | ID | Component | Verdict | Built on, or why |
 |---|---|---|---|
-| Q01 | Installer: signed, per user or per machine, offline capable | BUILD | Size is not a constraint |
+| Q01 | Installer: signed, per user or per machine, installs with no network | BUILD | Size is not a constraint |
 | Q02 | Updater: staged, signed, rollback | BUILD | Two files and a signature check is enough |
-| Q03 | Bundled assets: Chromium, OCR models, fonts, tokenisers, data | BUILD | Hashed and versioned like code |
-| Q04 | CI: build matrix, fixtures, conformance, replay | BUILD | The upgrade gates live here |
+| Q03 | Bundled assets: engines, models, fonts, tokenisers, rule packs, codebooks | BUILD | Hashed and versioned like code |
+| Q04 | CI: build matrix, every test kind, release gates, docs checks | BUILD | The upgrade gates live here |
 | Q05 | Crash handling: dump, safe restart, resume | BUILD | Recovery is a feature |
 | Q06 | Telemetry off, provable | BUILD | An egress test in CI |
+| Q08 | Vendored tree: pdfium, Tesseract, PaddleOCR, fonts, Chromium, WordCraft, PdfCraft, `docx-rs`, veraPDF, the embedding model, each with contract tests | VENDOR | Order fixed by PH-06 |
 | Q07 | Network-required behaviour: no offline mode. Reading, review and drafting work without a network, and unreachable sources give `unresolved`, which blocks | BUILD | `unresolved`, never `verified` |
 
 ## R. Cloud seams
@@ -381,9 +383,9 @@ The parts that touch two areas, and the calls that stop them diverging.
 
 **One validator.** `ulos` is the only producer of verification records. K builds its input and maps its output, and holds no check code. Research Studio (I) assesses support, voice and treatment in its own vocabulary and never produces `verified`.
 
-## Calls I would make differently
+## Calls adopted
 
-Eight places where the obvious stack is not the one I would build, and why. All eight are adopted ([decisions.md](decisions.md) section 4).
+Eight places where the obvious stack is not the one built here, and why. They are decisions C-1 to C-8 in [decisions.md](decisions.md) section 4.
 
 **egui can expose an accessibility tree after all.** The earlier assumption was that an immediate-mode app is invisible to automation. egui depends on accesskit and egui-winit ships the platform adapter, so UIA can see our standard widgets. The correct design is still a control protocol for canvas content, but accessibility is no longer a dead end, and screen readers become reachable.
 
@@ -425,18 +427,7 @@ The rule is simple. Anything a court or a client handed us is under `blobs` and 
 
 ## Build order
 
-Every step lands as `oa` commands first, then its pane.
-
-1. Workspace, kernel skeleton, ledger, stores, as `oa` commands. Kill the process mid-write and prove nothing duplicates. Then the file browser.
-2. Control protocol, the full `oa` CLI surface, and the harness as a child process. Every later pane is a client of the protocol from birth.
-3. Lightweight PDF viewer over pdfium, with anchors, plus the viewer query model.
-4. Capture from the Supreme Court portal through the browser pane, with download hashing, capture records and the inbox.
-5. OCR with both engines as separate processes, the line model, the agreement engine, the review screen.
-6. Notebook: procedural history, factual matrix, chronology, readiness.
-7. The WordCraft spike: prove paragraph ids survive, headless edits, render to PDF (H-02, H-03). Then the lightweight document viewer and edit surface, and draft generation to DOCX.
-8. The `ulos` validator and its conformance suite, then the verification adapter, on real citations and one real capture. Research Studio alongside.
-9. Hosted WordCraft, then hosted PdfCraft, through J07 and J08.
-10. Filing last, with the two confirmations and a fake portal for the duplicate test.
+The build order is in [architecture.md](architecture.md) and, per group, in [specs/README.md](specs/README.md).
 
 ## Open questions
 

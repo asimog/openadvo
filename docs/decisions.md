@@ -1,8 +1,18 @@
 # Settled design decisions
 
-Status: decision record, 4 November 2026. This file settles every question in [report.md](report.md) (RQ-01 to RQ-88) and adopts the "Calls I would make differently" in [component-map.md](component-map.md). Where any other document disagrees with this file, this file governs, and the other document is a defect to fix.
+Status: decision record, phase 2. This file settles the design questions RQ-01 to RQ-88 and the phase 2 decisions PH-01 onward. Where any other document disagrees with this file, this file governs, and the other document is a defect to fix.
 
-The component specs that implement these decisions are in [specs/](specs/README.md). The architecture that carries them is [architecture.md](architecture.md). The standard is [ULOSarchitecture.md](ULOSarchitecture.md).
+Document order, highest first:
+
+| Document | Role |
+|---|---|
+| decisions.md (this file) | What is settled, and the open questions. |
+| [specs/](specs/README.md) | One implementation contract per component group, with its tests and their status. |
+| [architecture.md](architecture.md) | The system shape: principles, processes, storage, the window, the build order. |
+| [component-map.md](component-map.md) | The parts list, by component id. |
+| [advocate-workflow.md](advocate-workflow.md) | The end-to-end workflow the product serves, in the advocate's terms. |
+| [ULOSarchitecture.md](ULOSarchitecture.md) | The standard. It governs the standard and nothing else. |
+| [archive/](archive/) | The question history and the phase 1 build reports. They govern nothing and are not read during implementation. |
 
 ## 1. How to read this file
 
@@ -12,10 +22,11 @@ Every decision has a status.
 |---|---|
 | **User** | Settled by the user's comments of 4 November 2026. |
 | **Kept** | The user did not comment. The report's recommendation is adopted as written, after a check that it does not conflict with a User decision. |
-| **Map** | Adopted from the component map's "Calls I would make differently". |
+| **Map** | Adopted from the component map's "Calls adopted". |
 | **Closed** | The question no longer exists. |
 | **Deferred** | Not needed before code. Revisit when the named trigger happens. |
 | **Confirm** | The user's comment needed interpretation. The working decision stands and code may proceed, but the interpretation is listed in section 11 for the user to confirm. |
+| **Phase 2** | Settled by the user at the start of phase 2. Listed in section 12. |
 
 ## 2. Foundation principles
 
@@ -24,7 +35,7 @@ These nine principles come out of the decisions below. Each one is cross-cutting
 | ID | Principle | Source |
 |---|---|---|
 | P1 | **CLI first.** Every capability is usable from a command line before it has a pane. Two binaries: `oa` drives the application through the control protocol, and `ulos` is the independent validator. Output is JSON on request, exit codes are fixed, and commands compose in a shell. Panes are clients of the same protocol. | User, "the whole product should be CLI first", RQ-74 |
-| P2 | **The kernel writes the record.** The harness and every capability propose. Only the kernel commits canonical state. | architecture.md section 12, RQ-05 |
+| P2 | **The kernel writes the record.** The harness and every capability propose. Only the kernel commits canonical state. | advocate-workflow.md section 12, RQ-05 |
 | P3 | **One validator, deterministic, separate.** Verification is done by the `ulos` CLI, a separate binary with no model and no access to the harness. The application's verification adapter builds the input and maps the output. It does not re-implement checks. The AWS catalogue is outside the standard: Research Studio and the quick check may use it, and it never verifies. | RQ-08, RQ-09, RQ-43, RQ-44, OQ-02 |
 | P4 | **Verification is mandatory and online.** There is no offline mode. A source that cannot be reached yields `unresolved`, and `unresolved` blocks. | RQ-14, RQ-37 |
 | P5 | **Only court public records are verified.** Client-supplied files are tagged `client_supplied` and are never put through a verifier. | RQ-45, RQ-61 |
@@ -63,6 +74,11 @@ The docs used several words in two senses. These are the meanings from now on. E
 | **Filing confirmation** | One of the two deliberate confirmations before a filing action, bound to the payload hash by a single-use token. | An approval |
 | **Portal** | The Supreme Court of India website, its case status, judgments search and lower-court search. | The e-filing portal, which is named "e-filing portal" wherever meant |
 | **Canonical ledger** | The append-only, hash-chained record in `matter.db`, owned by the kernel. The audit record. | The harness session store |
+| **Left pane** | The collapsible pane at the left edge of the window: matters, the open matter's sections, the review inbox, and connection and process health (PH-05). | A status bar, which does not exist |
+| **Chat pane** | The orchestrator conversation (A07). It sits between the left pane and the view pane, and becomes the rightmost pane when the view pane is collapsed (PH-05). | A second agent |
+| **View pane** | The pane that takes most of the window and shows what is being worked on: a table view, the document viewer, the edit surface, a hosted editor, the browser or a files view. It holds one to three splits (PH-05). | The Inspector |
+| **Screen** | The data the window draws: the open matter, which panes are collapsed, and what each view split shows. Navigation history and saved layouts are lists of screens (PH-04). | Canonical state, which the window never holds |
+| **Test double** | A stand-in for a dependency, used only in tests, behind a seam that has a real adapter in production. A production build refuses test doubles (PH-06). | A stub, which phase 2 removes |
 | **Harness session store** | Harness-local, durable state per matter workspace (`harness/session.db`): turns, effect intents, model traces. Needed for recovery. Not canonical. | The ledger, and disposable development traces |
 
 ## 4. Component map calls adopted
@@ -341,7 +357,7 @@ Consequences for the components: J04, J05 and J13 (one DOCX engine, conversion a
 | X-19 | Map B02 makes the `oa` CLI "the agent's shell". Approvals and filing confirmations must be human. If the agent can run `oa`, it can run `oa filing confirm`. | Human-gesture commands are a separate command class. They are refused on any connection that originates from the harness, and from the CLI they require an operating-system user-presence prompt raised by the kernel process. See L-01 and H-09. |
 | X-20 | Map J03 called the lightweight edit surface "the agent's editing interface". RQ-78 adds a full editor. | Both. The agent proposes edits against anchors on our surface. Each accepted edit becomes a DOCX revision through the DOCX engine. The advocate edits freely in WordCraft. |
 | X-21 | Map F04 and I06 assumed Central Acts only. RQ-56 says any Act. | Any Act in India Code. |
-| X-22 | architecture.md sections 1 to 12 duplicate advocate-workflow.md sections 1 to 12. Two copies drift. | Both are amended identically in this pass, and an automated check compares them (A-AC-14 in [specs/A](specs/A-shell-workspace.md)). |
+| X-22 | architecture.md sections 1 to 12 duplicated advocate-workflow.md sections 1 to 12. Two copies drift. | One copy. The workflow lives only in advocate-workflow.md, and architecture.md links to it (PH-08). A docs check fails if architecture.md carries a workflow section (A-AC-14). |
 | X-23 | ULOS-N used the source value `party_supplied`. RQ-61 uses "supplied by client". | `client_supplied` everywhere. |
 | X-24 | RQ-14 blocks the AI-use disclosure document. Nothing said the filing package requires it. | The filing package requires the disclosure document, as a product rule, so blocking it blocks filing. OQ-06 asks the user to confirm. |
 
@@ -437,7 +453,7 @@ Each is now specified in the spec named.
 
 ## 11. Open questions
 
-These remain. None blocks the build order's first four steps. Each says what the working decision is.
+These remain. Each says what the working decision is.
 
 | ID | Question | Working decision until answered |
 |---|---|---|
@@ -456,22 +472,28 @@ These remain. None blocks the build order's first four steps. Each says what the
 | OQ-13 | Which email providers does the connector support first? | One IMAP-compatible path, read only. |
 | OQ-14 | May client text be sent to remote model providers at all, and under which confidentiality labels? | Per-matter setting, default allowed for providers the advocate configured, refused for matters labelled restricted. |
 | OQ-15 | Settled with OQ-02. What is the source of Research Studio's judgment search index? | Judgments the matter has captured, plus the AWS catalogue. Research results are never verification. |
+| OQ-16 | The visual design of the window: palette, type, spacing, icons, and whether open documents get workspace tabs. | The region model in PH-05 is settled. The look uses the theme tokens of spec A with neutral defaults. No workspace tabs. |
+| OQ-17 | Where does an unresolved critical OCR dispute block? Candidate: the harness context marks disputed spans, and a draft paragraph anchored to a disputed span blocks approval of that revision. | The harness context marks every disputed span as disputed (D). The approval gate does not yet block on it. Revisit before K is integrated. |
 
-## 12. Changes made to the other documents in this pass
+## 12. Phase 2 decisions
 
-| Document | Change |
-|---|---|
-| [architecture.md](architecture.md) | Preamble rewritten with a table of every amendment. Sections 3, 7B, 7E, 8, 9A, 9B, 9E and the section 9 outcome amended. The verification-outcome and specialist-agent requirements, the integration proof, the Unix philosophy CLI paragraph, the two logs, and the ULOS section updated. New section "The settled design" with principles, process topology, storage and human-only commands. |
-| [advocate-workflow.md](advocate-workflow.md) | The same amendments to sections 1 to 12, word for word. The paragraphs that followed section 12 now sit under a "Workflow principles" heading, unchanged, so sections 1 to 12 match architecture.md exactly. |
-| [component-map.md](component-map.md) | Verdicts and rows updated to the decisions, "Nine" corrected to eight, the disk layout and build order updated, the open-questions pointer moved here. |
-| [ULOSarchitecture.md](ULOSarchitecture.md) | Rewritten for four functions (L, C, CI, N), four outcomes, one source, client-supplied tagging, any India Code Act and the conditional amendment check. |
-| [report.md](report.md) | Marked as the question history. Its recommendations are the pre-decision positions, and this file governs. |
-| [specs/](specs/README.md) | New. One spec per component group, plus the validator. |
-| [specs/](specs/README.md), later on 4 November 2026 | Every spec gained a GUI section and inspectability criteria (P9). Specs A, C, D, E and J gained the section 13 ideas. |
+| ID | Decision | Spec |
+|---|---|---|
+| PH-01 | **The kernel decides the origin from the connecting process.** A pipe connection is never `capture` or `test`. `capture` exists only inside the kernel process, for the browser supervisor. A connection is `ui` only when the connecting process image is the installed `oa-shell` executable beside the kernel's own executable. Any other claim of `ui` is recorded as `cli`, which keeps the user-presence prompt (H-09). A process in the harness job is `harness` whatever it claims. The harness job kills its processes when the job closes. | [B](specs/B-control-surface-cli.md) |
+| PH-02 | **One kernel per application data folder.** `oa` connects to a serving kernel when one answers. It starts an in-process kernel only when none is serving. A second kernel on the same folder refuses to start. Matter writes take the SQLite write lock at the start of the transaction. | [B](specs/B-control-surface-cli.md), [C](specs/C-kernel.md), [E](specs/E-stores.md) |
+| PH-03 | **The control contract is its own crate.** The request and reply types, command classes, input types and the list of query names live in `oa-protocol`. The window and the client library depend on it and not on the kernel. A build check fails if `oa-shell` depends on `oa-kernel`, `oa-store` or `rusqlite`. | [B](specs/B-control-surface-cli.md), [A](specs/A-shell-workspace.md) |
+| PH-04 | **The window draws a screen.** One data shape, the screen, says what the window shows. Navigation history, saved layouts per matter and gallery fixtures are screens. The window derives everything it draws from the screen and from query results. | [A](specs/A-shell-workspace.md) |
+| PH-05 | **The window has three regions and no status bar.** From left to right: the left pane (collapsible), the chat pane (the orchestrator), and the view pane (most of the width, one to three splits). Collapsing the view pane makes the chat pane the rightmost pane. Collapsing the left pane gives its width to the others. The Inspector is a drawer over the view pane. Connection and process health sit in the left pane header. The visual design is OQ-16. | [A](specs/A-shell-workspace.md), [D](specs/D-harness.md) |
+| PH-06 | **Full integration, no stubs.** Every production path uses the real dependency. A stand-in is allowed only as a test double behind a seam that has a real adapter, and a production build refuses it. Vendoring order: pdfium, then Tesseract and PaddleOCR, each with contract tests; then the document viewers; then Chromium; then WordCraft, PdfCraft, the DOCX writer and the PDF/A validator. | [Q](specs/Q-build-ship.md), [G](specs/G-ocr-document-intelligence.md), [J](specs/J-documents-editors.md), [M](specs/M-browser.md) |
+| PH-07 | **The validator comes last.** `ulos` is built in its own repository. The verification adapter (K) and filing (L) are integrated after every other group. Until then every verification state is `unavailable`, which blocks, and nothing is shown as verified. | [K](specs/K-verification-adapter.md), [L](specs/L-filing.md), [U](specs/U-ulos-validator.md) |
+| PH-08 | **One copy of each fact.** The document order is the table at the top of this file. The workflow exists only in advocate-workflow.md. Build status lives in the specs, next to each test. The question history and the phase 1 build reports are archived. | [specs/README.md](specs/README.md) |
+| PH-09 | **Five kinds of test, each with a status.** Every spec lists its acceptance criteria, GUI tests, visual tests, end-to-end tests and, for a vendored dependency, contract tests, each marked `done` or `remaining`. A criterion is `done` only when its test passes against the real dependency. | [specs/README.md](specs/README.md) |
+| PH-10 | **One internal UI module.** The window draws through its own small module of theme tokens and widgets. No third-party widget kit is a dependency. Tables use virtualised rows. GUI tests drive views by AccessKit role and name. | [A](specs/A-shell-workspace.md) |
+| PH-11 | **DOCX is in the first release.** The DOCX working format, the hosted WordCraft editor and PDF/A filing are first-release scope. | [J](specs/J-documents-editors.md) |
 
 ## 13. Ideas adopted from the Macro reference
 
-On 4 November 2026 the Macro workspace (a copy at `C:\dev\.devereferences\macro-2026.11.2.1`) was studied for workspace, UI and agent flow. Macro is AGPLv3, so it is a design reference only (verdict REF). No code is taken, and no file of it may be copied into this repository.
+The Macro workspace was studied for workspace, UI and agent flow. Macro is AGPLv3, so it is a design reference only (verdict REF). No code is taken, and no file of it may be copied into this repository.
 
 | ID | Idea in the reference | Adopted as | Spec |
 |---|---|---|---|
@@ -484,12 +506,12 @@ On 4 November 2026 the Macro workspace (a copy at `C:\dev\.devereferences\macro-
 | M-07 | A runtime forwarding a user's prompt can never use that identity to approve its own permission. Human approvals are absent from the agent's tools. | Confirms rule 4 of spec B and X-19. A forwarded instruction cannot claim the advocate asked for something. | [D](specs/D-harness.md) |
 | M-08 | Recovery revokes an abandoned runtime's claim by incrementing a fence, so the old actor can never append again. | Session lease and fence (D18). | [D](specs/D-harness.md) |
 | M-09 | One tool result never crowds the model out: the model sees a preview and a paging tool, while the log keeps the whole result. | Tool-result limit and paging (D19). | [D](specs/D-harness.md) |
-| M-10 | A view of sessions waiting on their owner: blocked on an interaction, or stalled. | "Waiting on you" in the agent pane and as Signal in the inbox. | [D](specs/D-harness.md) |
+| M-10 | A view of sessions waiting on their owner: blocked on an interaction, or stalled. | "Waiting on you" in the chat pane and as Signal in the inbox. | [D](specs/D-harness.md) |
 | M-11 | Durable action history: evidence that an instruction reached the session, and how it ended, separate from the transcript. | The session store records each instruction's delivery and outcome. | [D](specs/D-harness.md) |
 | M-12 | Lifecycle facts (opened, turn started, turn ended, waiting) are published apart from the commands that drive a session. | The outbox carries lifecycle facts on their own topic. | [D](specs/D-harness.md) |
 | M-13 | Memory stored as plain markdown the user can read, export and correct. | Matter memory: the orchestrator's notes are a markdown file the advocate can read and edit, with every edit attributed. | [D](specs/D-harness.md) |
 | M-14 | A from-scratch DOCX engine with stable ids on every block, that writes back any XML it does not interpret unchanged, and a corpus CLI. | Requirements on the WordCraft engine (J05): stable ids on every block, uninterpreted XML preserved, and a corpus regression run. These sharpen H-02. | [J](specs/J-documents-editors.md) |
 | M-15 | One shared Changes viewer for pull requests, agent sessions and previews, with review notes anchored under lines, read only unless the host grants the agent capability. | One Changes viewer (J15) for agent proposals, WordCraft saves and restores, with notes anchored to paragraph ids. | [J](specs/J-documents-editors.md) |
-| M-16 | A development status bar and a hotkey debugger. | The status bar shows connection, decided origin and the health of every supervised process. | [A](specs/A-shell-workspace.md) |
+| M-16 | A development status bar and a hotkey debugger. | Superseded by PH-05: there is no status bar. Connection, the decided origin and the health of every supervised process show in the left pane header and open the services view. | [A](specs/A-shell-workspace.md) |
 
 Ideas studied and not adopted: CRDT live collaboration (one advocate, one machine), team-level nightly memory across users (no multi-user scope yet), channels and email sending (spec O has no sending path), and hosted model routing (D03 keeps the router local).

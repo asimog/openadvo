@@ -1,6 +1,8 @@
 # L. Filing
 
-Components: L01 to L04. See [README](README.md) for tags and conventions.
+Components: L01 to L04. Conventions, test kinds and status words are in the [README](README.md).
+
+**Status:** not started. Integrated last (step 11), after K, the C outbox and the M filing profile.
 
 ## Purpose
 
@@ -16,9 +18,6 @@ RQ-14, RQ-30, RQ-33, RQ-36, X-19, X-24, L-01, L-04, L-13, H-09, P9.
 - C (approvals, the filing payload store, tokens, the disclosure builder).
 - J13 (the PDF/A filing document).
 - M (the visible browser filing profile; never the agent's own browser).
-
-## Assumptions
-
 - The e-filing portal requires the advocate's login and may present a CAPTCHA.
 - The portal returns an acknowledgement, a diary number, an error or nothing.
 
@@ -60,24 +59,45 @@ RQ-14, RQ-30, RQ-33, RQ-36, X-19, X-24, L-01, L-04, L-13, H-09, P9.
 9. **Uncertain result.** A timeout, a crash mid-submit, or an unrecognised response is `unknown`. Before any new attempt, `oa filing reconcile` checks the portal for the submission (by diary search or the e-filing dashboard). A new attempt needs a new token (L04).
 10. **Honesty.** A submission is shown as successful only when the portal's acknowledgement is recorded. An attempted browser action is never shown as success.
 
-## Acceptance criteria
+## Tests
 
-| ID | Criterion | Test |
+### Acceptance criteria
+
+| ID | Criterion | Check | Status |
+|---|---|---|---|
+| L-AC-01 | `oa filing confirm` on a harness connection is refused, for both steps. | [AUTO] | remaining |
+| L-AC-02 | Both confirmations within one gesture (a double click) record one confirmation only. | [AUTO] | remaining |
+| L-AC-03 | Changing one byte of a payload document after confirmation voids the token, and execution is refused. | [AUTO] | remaining |
+| L-AC-04 | A spent token cannot be reused. | [AUTO] | remaining |
+| L-AC-05 | The ledger shows both confirmation events before the effect intent for every filing. | [AUTO] | remaining |
+| L-AC-06 | Against the fake portal, a crash after submit yields `unknown`. Reconcile finds the submission, and no second submission is made. | [AUTO] | remaining |
+| L-AC-07 | Against the fake portal, a crash before submit yields `unknown`. Reconcile finds nothing, and a new attempt requires new confirmations. | [AUTO] | remaining |
+| L-AC-08 | `oa filing prepare` refuses while one citation is unattested `unresolved`. | [AUTO] | remaining |
+| L-AC-09 | The disclosure document lists attestations separately from validator outcomes. | [AUTO] | remaining |
+| L-AC-10 | A voice command for a confirmation is refused. | [AUTO] | remaining |
+| L-AC-11 | The confirmation screens make the destination, documents and declarations unmistakable. | [HUMAN] | remaining |
+| L-AC-12 | One real filing on the live e-filing portal completes with the acknowledgement captured. | [HUMAN] (release check) | remaining |
+| L-AC-13 | `oa filing prepare` refuses a PDF/A whose conversion check failed or was not run. | [AUTO] | remaining |
+| L-AC-14 | The filing view shows the state, both confirmations with time and gesture, the token state, and the acknowledgement text and hash. | [AUTO] | remaining |
+
+### GUI tests
+
+| ID | Behaviour | Status |
 |---|---|---|
-| L-AC-01 | `oa filing confirm` on a harness connection is refused, for both steps. | [AUTO] |
-| L-AC-02 | Both confirmations within one gesture (a double click) record one confirmation only. | [AUTO] |
-| L-AC-03 | Changing one byte of a payload document after confirmation voids the token, and execution is refused. | [AUTO] |
-| L-AC-04 | A spent token cannot be reused. | [AUTO] |
-| L-AC-05 | The ledger shows both confirmation events before the effect intent for every filing. | [AUTO] |
-| L-AC-06 | Against the fake portal, a crash after submit yields `unknown`. Reconcile finds the submission, and no second submission is made. | [AUTO] |
-| L-AC-07 | Against the fake portal, a crash before submit yields `unknown`. Reconcile finds nothing, and a new attempt requires new confirmations. | [AUTO] |
-| L-AC-08 | `oa filing prepare` refuses while one citation is unattested `unresolved`. | [AUTO] |
-| L-AC-09 | The disclosure document lists attestations separately from validator outcomes. | [AUTO] |
-| L-AC-10 | A voice command for a confirmation is refused. | [AUTO] |
-| L-AC-13 | `oa filing prepare` refuses a PDF/A whose conversion check failed or was not run. | [AUTO] |
-| L-AC-11 | The confirmation screens make the destination, documents and declarations unmistakable. | [HUMAN] |
-| L-AC-12 | One real filing on the live e-filing portal completes with the acknowledgement captured. | [HUMAN] (release check) |
-| L-AC-14 | The filing view shows the state, both confirmations with time and gesture, the token state, and the acknowledgement text and hash. | [AUTO] |
+| L-GUI-01 | Each confirmation draws through the human control, names the destination and the payload hash, and two clicks within one gesture record one confirmation. | remaining |
+| L-GUI-02 | An `unknown` filing offers reconcile and never a retry. | remaining |
+
+### Visual tests
+
+| ID | Snapshot | Status |
+|---|---|---|
+| L-VIS-01 | Filing views in their six gallery states, including `unknown` and `rejected_by_portal`. | remaining |
+
+### End-to-end tests
+
+| ID | Flow | Status |
+|---|---|---|
+| L-E2E-01 | Against the fake e-filing portal over HTTPS in the real filing profile: prepare, confirm twice from the window, execute, capture the acknowledgement; then kill during a second filing and reconcile without a duplicate. | remaining |
 
 ## Edge cases
 
@@ -93,11 +113,6 @@ RQ-14, RQ-30, RQ-33, RQ-36, X-19, X-24, L-01, L-04, L-13, H-09, P9.
 | Browser crash mid-submit | `unknown`, reconcile required. |
 | Acknowledgement not parseable | `unknown` with the raw response stored, reconcile required. |
 | Approval lapsed while in flight | `unknown`, reconcile required (RQ-30). |
-
-## Observable outcomes
-
-- The filing view shows the state machine, every confirmation with time and gesture, the token state, and the recorded acknowledgement.
-- `oa filing status --json` gives the same.
 
 ## Open questions
 

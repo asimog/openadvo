@@ -1,6 +1,8 @@
 # K. Verification adapter
 
-Components: K01 to K14. See [README](README.md) for tags and conventions.
+Components: K01 to K14. Conventions, test kinds and status words are in the [README](README.md).
+
+**Status:** a skeleton only. Every check reports `unavailable`, every revision is blocked, and nothing is shown as verified. Integrated at step 10, after `ulos` publishes its conformance suite (PH-07).
 
 ## Purpose
 
@@ -17,9 +19,6 @@ P3, P4, RQ-08, RQ-09, RQ-11, RQ-12, RQ-14, RQ-15, RQ-17, RQ-34, RQ-55, RQ-60, X-
 - H (facts, dates, impugned order, Notebook items).
 - J (draft paragraphs and anchors).
 - I (voice, treatment, adverse-authority review states feed gate mapping).
-
-## Assumptions
-
 - `ulos` is installed beside `oa` with a known binary hash per release.
 - The Supreme Court Registry's filing-defects list is available as a sourced, versioned document (H-05).
 
@@ -95,30 +94,52 @@ P3, P4, RQ-08, RQ-09, RQ-11, RQ-12, RQ-14, RQ-15, RQ-17, RQ-34, RQ-55, RQ-60, X-
 19. **Verdict UI.** From any badge the advocate reaches the source passage in at most two actions. The UI says what was not checked and why.
 20. **Measurement.** Each gate has a catch rate on the planted-defect corpus, reported per gate version (RQ-15).
 
-## Acceptance criteria
+## Tests
 
-| ID | Criterion | Test |
+### Acceptance criteria
+
+| ID | Criterion | Check | Status |
+|---|---|---|---|
+| K-AC-01 | The adapter crate contains no citation, legislation or Notebook check logic: a check fails if it depends on the validator's check modules. | [AUTO] | remaining |
+| K-AC-02 | A verification record with an unknown binary hash is refused. | [AUTO] | remaining |
+| K-AC-03 | A production build refuses a record whose endpoint is a fixture source. | [AUTO] | remaining |
+| K-AC-04 | Editing one paragraph re-runs only the checks whose targets are in that paragraph, and the old records stay bound to the old revision. | [AUTO] | remaining |
+| K-AC-05 | One `unresolved` citation puts the draft in "Blocked pending source verification" and the disclosure builder refuses. After `oa verify attest`, the item is attested, the outcome still reads `unresolved`, and the block lifts. | [AUTO] | remaining |
+| K-AC-06 | `oa verify attest` from a harness connection is refused. | [AUTO] | remaining |
+| K-AC-07 | The string "(2019) 5 SCC 1" with no INSC form produces `unresolved` with `insc_required`. | [AUTO] | remaining |
+| K-AC-08 | "AIR 1973 SC 1461" garbled to "AlR l973 SC 146l" produces a review item from the loose pattern. | [AUTO] | remaining |
+| K-AC-09 | A factual sentence linked to an event whose text lacks the sentence's date fails the factual check. | [AUTO] | remaining |
+| K-AC-10 | The mapping function is tested on every combination of outcome and review-item kind, and its primary state follows the precedence. | [AUTO] (exhaustive table) | remaining |
+| K-AC-11 | Limitation confirmation records the hash of the inputs shown, and changing an input after confirmation voids it. | [AUTO] | remaining |
+| K-AC-12 | A matter with a sexual-offence category and a victim name in the draft blocks export. | [AUTO] | remaining |
+| K-AC-13 | Each planted defect in the corpus is caught by its gate, and the catch rate is reported. | [AUTO] | remaining |
+| K-AC-14 | From any badge the source passage opens in at most two control actions. | [AUTO] | remaining |
+| K-AC-15 | The filing-defects rule pack correctly reflects the Registry's current list. | [HUMAN] (legal review per rule pack version) | remaining |
+| K-AC-16 | Limitation computation is correct on twenty lawyer-checked scenarios. | [AUTO+HUMAN] | remaining |
+| K-AC-17 | A renderer fixture that drops one paragraph, or changes one digit, fails the conversion check naming the paragraph id. | [AUTO] | remaining |
+| K-AC-18 | A faithful conversion of the fixture petition passes the conversion check and PDF/A validation. | [AUTO] | remaining |
+| K-AC-19 | Every verification record opens its raw `ulos` JSON and its verification proof. | [AUTO] | remaining |
+| K-AC-20 | The gate state view lists every item producing each state. | [AUTO] | remaining |
+
+### GUI tests
+
+| ID | Behaviour | Status |
 |---|---|---|
-| K-AC-01 | The adapter crate contains no citation, legislation or Notebook check logic: a check fails if it depends on the validator's check modules. | [AUTO] |
-| K-AC-02 | A verification record with an unknown binary hash is refused. | [AUTO] |
-| K-AC-03 | A production build refuses a record whose endpoint is a fixture source. | [AUTO] |
-| K-AC-04 | Editing one paragraph re-runs only the checks whose targets are in that paragraph, and the old records stay bound to the old revision. | [AUTO] |
-| K-AC-05 | One `unresolved` citation puts the draft in "Blocked pending source verification" and the disclosure builder refuses. After `oa verify attest`, the item is attested, the outcome still reads `unresolved`, and the block lifts. | [AUTO] |
-| K-AC-06 | `oa verify attest` from a harness connection is refused. | [AUTO] |
-| K-AC-07 | The string "(2019) 5 SCC 1" with no INSC form produces `unresolved` with `insc_required`. | [AUTO] |
-| K-AC-08 | "AIR 1973 SC 1461" garbled to "AlR l973 SC 146l" produces a review item from the loose pattern. | [AUTO] |
-| K-AC-09 | A factual sentence linked to an event whose text lacks the sentence's date fails the factual check. | [AUTO] |
-| K-AC-10 | The mapping function is tested on every combination of outcome and review-item kind, and its primary state follows the precedence. | [AUTO] (exhaustive table) |
-| K-AC-11 | Limitation confirmation records the hash of the inputs shown, and changing an input after confirmation voids it. | [AUTO] |
-| K-AC-12 | A matter with a sexual-offence category and a victim name in the draft blocks export. | [AUTO] |
-| K-AC-13 | Each planted defect in the corpus is caught by its gate, and the catch rate is reported. | [AUTO] |
-| K-AC-14 | From any badge the source passage opens in at most two control actions. | [AUTO] |
-| K-AC-17 | A renderer fixture that drops one paragraph, or changes one digit, fails the conversion check naming the paragraph id. | [AUTO] |
-| K-AC-18 | A faithful conversion of the fixture petition passes the conversion check and PDF/A validation. | [AUTO] |
-| K-AC-15 | The filing-defects rule pack correctly reflects the Registry's current list. | [HUMAN] (legal review per rule pack version) |
-| K-AC-16 | Limitation computation is correct on twenty lawyer-checked scenarios. | [AUTO+HUMAN] |
-| K-AC-19 | Every verification record opens its raw `ulos` JSON and its verification proof. | [AUTO] |
-| K-AC-20 | The gate state view lists every item producing each state. | [AUTO] |
+| K-GUI-01 | Attest draws through the human control naming the record, and returns `verify.attest`. | remaining |
+| K-GUI-02 | From any gate badge, the source passage opens in a view pane split in at most two actions. | remaining |
+
+### Visual tests
+
+| ID | Snapshot | Status |
+|---|---|---|
+| K-VIS-01 | Every verification view in its six gallery states, with `verified`, `failed`, `unresolved`, `not_applicable`, advocate-attested and `unavailable` each in its own treatment. | remaining |
+
+### End-to-end tests
+
+| ID | Flow | Status |
+|---|---|---|
+| K-E2E-01 | Verify a draft citing three real judgments and one Act section with the installed `ulos` against recorded court sources: records bind to the revision hash, one planted wrong year fails, and the gate states match. | remaining |
+| K-E2E-02 | With the network disabled, every source-dependent check is `unresolved` with `source_unreachable`, and the draft stays blocked. | remaining |
 
 ## Edge cases
 
@@ -135,12 +156,6 @@ P3, P4, RQ-08, RQ-09, RQ-11, RQ-12, RQ-14, RQ-15, RQ-17, RQ-34, RQ-55, RQ-60, X-
 | `ulos` crashes | The run is `raised`, no records are written, and the draft stays in its previous gate state with a notice. |
 | `ulos` reports `source_unreachable` | Recorded as `unresolved`, which blocks. No retry loop hides it. |
 | A source is reachable but slow | Bounded by the per-check timeout, then `unresolved` with `source_unreachable`. |
-
-## Observable outcomes
-
-- The verification pane lists every check with its outcome, reason, source, and the revision it judged.
-- The gate state is shown with every item that produces it.
-- `oa verify status --json` gives the same picture to the CLI.
 
 ## Open questions
 

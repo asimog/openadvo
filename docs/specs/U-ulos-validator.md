@@ -1,6 +1,8 @@
 # U. The `ulos` validator CLI
 
-Components: the standard's reference CLI, with the conformance suite (map K11 and K12). See [README](README.md) for tags and conventions.
+Components: the standard's reference CLI, with the conformance suite (map K11 and K12). Conventions, test kinds and status words are in the [README](README.md).
+
+**Status:** built in its own repository (`ulosadvo`), where its tests and their status live. This spec is the contract the verification adapter (K) codes against. Integrated at step 10 (PH-07).
 
 ## Purpose
 
@@ -14,9 +16,6 @@ P3, P4, RQ-08, RQ-09, RQ-10, RQ-12, RQ-20, RQ-21, RQ-43, RQ-44, RQ-48, RQ-51, RQ
 
 - Court sources only: the Supreme Court portal, India Code. Nothing in the application.
 - A captured portal session supplied by the caller when a lookup needs a solved CAPTCHA (H-01).
-
-## Assumptions
-
 - The standard and the validator are ours and simulated: no court standard or court validator exists. The checks run against real court sources (RQ-44, RQ-08).
 - All Supreme Court judgments carry INSC neutral citations (RQ-21).
 - India Code flags amended sections (RQ-55).
@@ -69,26 +68,28 @@ None. `ulos` is a command-line program with no SDK and no window (RQ-43). Its re
 15. **Normalisation for quotes.** Unicode NFC, whitespace collapse, line-end hyphen join, straight and curly quote equivalence, Devanagari digits to ASCII. The normalisation version is in the record.
 16. **Same names, different cases.** Party match alone never resolves a citation. The INSC citation is the key, and parties and date are checks on it.
 
-## Acceptance criteria
+## Tests
 
-| ID | Criterion | Test |
-|---|---|---|
-| U-AC-01 | Every conformance suite passes: CT-L1, CT-L2, CT-C1, CT-C2, CT-CI1, CT-CI2, CT-N1, CT-N2, CT-N3, CT-S1, CT-S2. | [AUTO] |
-| U-AC-02 | No output, in any mode, contains an outcome word outside the four. | [AUTO] |
-| U-AC-03 | A non-existent INSC serial on a reachable fixture portal is `failed` with `not_on_court_record`. The same citation with the portal unreachable is `unresolved` with `source_unreachable`. | [AUTO] |
-| U-AC-04 | A citation with the right INSC and wrong parties is `failed` with `party_mismatch`. | [AUTO] |
-| U-AC-05 | A pinpoint in a headnote is `failed` with `in_reporter_block`. A misquote is `failed` with `quote_not_found`. | [AUTO] |
-| U-AC-06 | A paragraph number that is OCR-disputed in the source is `unresolved` with `source_text_disputed`. | [AUTO] |
-| U-AC-07 | A State Act section in India Code verifies the same way as a Central Act section. | [AUTO] |
-| U-AC-08 | An amended section is `unresolved` with `amended_point_in_time`. An unamended section is `verified`. | [AUTO] |
-| U-AC-09 | A `client_supplied` item in a Notebook bundle is `not_applicable` with `client_supplied`. | [AUTO] |
-| U-AC-10 | A release build rejects `--fixtures` and lists no fixture source in `ulos sources`. | [AUTO] |
-| U-AC-11 | Two runs on the same inputs produce identical records apart from attempt times. | [AUTO] |
-| U-AC-12 | An egress test shows connections only to enabled source endpoints, and none to the AWS catalogue. | [AUTO] |
-| U-AC-13 | Every record validates against the JSON Schema. | [AUTO] |
-| U-AC-14 | The hash profile test vectors produce the same digests in the CLI and in an independent reference script. | [AUTO] |
-| U-AC-15 | India Code returning an unknown response shape yields `unresolved` with `source_unreachable` and a schema-change note, never a guess. | [AUTO] |
-| U-AC-16 | Running `ulos` against ten real citations and five real Acts gives results a lawyer agrees with. | [HUMAN] (release check) |
+### Acceptance criteria
+
+| ID | Criterion | Check | Status |
+|---|---|---|---|
+| U-AC-01 | Every conformance suite passes: CT-L1, CT-L2, CT-C1, CT-C2, CT-CI1, CT-CI2, CT-N1, CT-N2, CT-N3, CT-S1, CT-S2. | [AUTO] | in ulosadvo |
+| U-AC-02 | No output, in any mode, contains an outcome word outside the four. | [AUTO] | in ulosadvo |
+| U-AC-03 | A non-existent INSC serial on a reachable fixture portal is `failed` with `not_on_court_record`. The same citation with the portal unreachable is `unresolved` with `source_unreachable`. | [AUTO] | in ulosadvo |
+| U-AC-04 | A citation with the right INSC and wrong parties is `failed` with `party_mismatch`. | [AUTO] | in ulosadvo |
+| U-AC-05 | A pinpoint in a headnote is `failed` with `in_reporter_block`. A misquote is `failed` with `quote_not_found`. | [AUTO] | in ulosadvo |
+| U-AC-06 | A paragraph number that is OCR-disputed in the source is `unresolved` with `source_text_disputed`. | [AUTO] | in ulosadvo |
+| U-AC-07 | A State Act section in India Code verifies the same way as a Central Act section. | [AUTO] | in ulosadvo |
+| U-AC-08 | An amended section is `unresolved` with `amended_point_in_time`. An unamended section is `verified`. | [AUTO] | in ulosadvo |
+| U-AC-09 | A `client_supplied` item in a Notebook bundle is `not_applicable` with `client_supplied`. | [AUTO] | in ulosadvo |
+| U-AC-10 | A release build rejects `--fixtures` and lists no fixture source in `ulos sources`. | [AUTO] | in ulosadvo |
+| U-AC-11 | Two runs on the same inputs produce identical records apart from attempt times. | [AUTO] | in ulosadvo |
+| U-AC-12 | An egress test shows connections only to enabled source endpoints, and none to the AWS catalogue. | [AUTO] | in ulosadvo |
+| U-AC-13 | Every record validates against the JSON Schema. | [AUTO] | in ulosadvo |
+| U-AC-14 | The hash profile test vectors produce the same digests in the CLI and in an independent reference script. | [AUTO] | in ulosadvo |
+| U-AC-15 | India Code returning an unknown response shape yields `unresolved` with `source_unreachable` and a schema-change note, never a guess. | [AUTO] | in ulosadvo |
+| U-AC-16 | Running `ulos` against ten real citations and five real Acts gives results a lawyer agrees with. | [HUMAN] (release check) | in ulosadvo |
 
 ## Edge cases
 
@@ -105,10 +106,6 @@ None. `ulos` is a command-line program with no SDK and no window (RQ-43). Its re
 | Portal or India Code unreachable | `unresolved` with `source_unreachable`, exit 3. |
 | Malformed bundle | Exit 2, `schema_invalid`, no records written. |
 | Internal error | Exit 10, no partial records. |
-
-## Observable outcomes
-
-- A JSON line per record on stdout, a human summary on stderr, and the exit code in [README](README.md).
 
 ## Open questions
 

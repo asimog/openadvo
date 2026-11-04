@@ -3,17 +3,18 @@ use std::fs;
 use oa_repo_checks::{repo_root, workflow_sections};
 
 #[test]
-fn a_ac_14_workflow_sections_1_to_12_are_identical() {
+fn a_ac_14_the_workflow_exists_in_one_document_only() {
     let root = repo_root();
-    let arch = fs::read_to_string(root.join("docs/architecture.md")).unwrap();
     let flow = fs::read_to_string(root.join("docs/advocate-workflow.md")).unwrap();
-    let a = workflow_sections(&arch).expect("architecture.md has sections 1 to 12");
     let w = workflow_sections(&flow).expect("advocate-workflow.md has sections 1 to 12");
-    assert!(!a.is_empty());
-    if let Some((i, (x, y))) = a.iter().zip(&w).enumerate().find(|(_, (x, y))| x != y) {
-        panic!("line {i} differs:\n architecture.md:      {x}\n advocate-workflow.md: {y}");
+    assert!(!w.is_empty());
+    for doc in ["docs/architecture.md", "docs/component-map.md", "docs/decisions.md"] {
+        let text = fs::read_to_string(root.join(doc)).unwrap();
+        assert!(
+            workflow_sections(&text).is_none(),
+            "{doc} carries a copy of the workflow; it lives only in advocate-workflow.md (X-22)"
+        );
     }
-    assert_eq!(a.len(), w.len(), "one document has extra lines at the end");
 }
 
 #[test]

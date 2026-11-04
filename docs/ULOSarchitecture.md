@@ -1,6 +1,6 @@
 # ULOS: the minimal standard and its validator CLI
 
-Status: architecture, updated 4 November 2026 to the settled decisions in [decisions.md](decisions.md). It defines the standard we build, the four functions it performs, the objects it needs and the outcome vocabulary.
+Status: the standard, aligned with the settled decisions in [decisions.md](decisions.md). It defines the standard we build, the four functions it performs, the objects it needs and the outcome vocabulary.
 
 The canonical product docs are [architecture.md](architecture.md) and [advocate-workflow.md](advocate-workflow.md). They are the source of truth for the application. This document is the source of truth for the standard. The CLI's behaviour as a program is specified in [specs/U-ulos-validator.md](specs/U-ulos-validator.md).
 
@@ -268,4 +268,4 @@ These are deliberate omissions. The application keeps its own model of each.
 
 ## 10. Decisions and open questions
 
-The questions that shaped this standard were RQ-43 to RQ-67 in [report.md](report.md). They are settled in [decisions.md](decisions.md) section 5, groups H to L. The question still open that touches the standard is OQ-04 (the `01-01-1900` placeholder). When one is decided, record it in [decisions.md](decisions.md) and update the affected section here.
+The questions that shaped this standard were RQ-43 to RQ-67 in [archive/report.md](archive/report.md). They are settled in [decisions.md](decisions.md) section 5, groups H to L. The question still open that touches the standard is OQ-04 (the `01-01-1900` placeholder). When one is decided, record it in [decisions.md](decisions.md) and update the affected section here.
