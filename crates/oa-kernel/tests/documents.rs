@@ -787,3 +787,19 @@ fn the_fidelity_check_compares_the_engine_with_the_viewer_and_says_word_is_absen
     assert_eq!(r["renderers"][2]["renderer"], "word");
     assert!(r["renderers"][2]["pages"].is_null());
 }
+
+#[test]
+fn the_deferred_verification_adapter_blocks_conversion_and_never_verifies() {
+    let f = fx_with(Arc::new(oa_kernel::VerifyChecks));
+    let (_, rev) = f.new_draft();
+    f.approve(&rev);
+    let e = f.filing(&rev).unwrap_err();
+    assert_eq!(e.code, ErrorCode::CheckFailed);
+    assert!(
+        e.message.contains("Blocked pending source verification"),
+        "{}",
+        e.message
+    );
+    assert!(e.message.contains("deferred"), "{}", e.message);
+    assert_eq!(f.filings_on_disk(), 0);
+}

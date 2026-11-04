@@ -353,3 +353,67 @@ an `authorities` list for I to fill.
   ICC output profile. Neither is in the tree, so J-AC-09 is partial.
 - The acceptance table lists J-AC-15 and J-AC-16 after J-AC-19. The ids are fine;
   the order is only cosmetic.
+
+# Build report: spec K, verification adapter (minimal skeleton, deferred)
+
+The adapter is deferred until the ULOS standard and its `ulos` validator
+(`C:\dev\ulosadvo`, built separately) are ready. This step adds only a skeleton:
+the `oa-verify` crate with the ULOS vocabulary (the four outcomes, the six gate
+states, the ULOS checks) and one narrow seam, `Validator::verify(bundle)`, whose
+only implementation, `Deferred`, answers `Unavailable`. The kernel's
+`VerifyChecks` replaces `StubDraftChecks` as the default `DraftChecks`: every
+revision is "Blocked pending source verification" with the deferral reason, so
+`oa filing pdf` refuses, and the conversion comparison stays J's. Nothing
+produces `verified`. No store table, kernel command, CLI command or view was
+added, so A-AC-16 parity is unchanged. 238 tests pass (236 before).
+
+## Acceptance criteria
+
+All K criteria are deferred until ulosadvo is ready. None is faked.
+
+| ID | Status |
+|---|---|
+| K-AC-01 to K-AC-14, K-AC-17 to K-AC-20 [AUTO] | Deferred until ulosadvo is ready |
+| K-AC-15 [HUMAN] | Deferred until ulosadvo is ready |
+| K-AC-16 [AUTO+HUMAN] | Deferred until ulosadvo is ready |
+
+Tests added: `oa-verify` `the_deferred_adapter_is_unavailable_and_blocks`, and
+`oa-kernel` `the_deferred_verification_adapter_blocks_conversion_and_never_verifies`.
+
+## Views
+
+None. The skeleton adds no query command.
+
+## [HUMAN] criteria touched
+
+None. K-AC-15 and K-AC-16 wait for the adapter.
+
+## Stubs and the group that replaces each
+
+| Stub | Replaced by |
+|---|---|
+| `oa_verify::Deferred` (every check unavailable) | K, once spec U's `ulos` is ready |
+| `oa_kernel::VerifyChecks` (every revision blocked) | K's gate mapping (K08) |
+| No Research Studio states (I) | I, then K |
+
+## Release gates
+
+The kill tests and the loop conformance fixtures pass with the workspace. The
+`ulos` conformance suite does not exist yet (ulosadvo has no tests).
+
+## Notes for when K resumes
+
+- A fuller implementation was drafted and set aside, not committed: extraction,
+  the gate mapping, admission by binary hash and source stamp, limitation, the
+  planted-defect corpus and recorded `ulos` runs.
+- `ulos` today: `verify-citation` works against fixtures. `verify`,
+  `verify-legislation` and `verify-notebook` say "not implemented". When a
+  citation is not in the fixtures, `ulos` returns `failed` with the source
+  stamped `supreme_court_portal, attempted: false`. That record should name the
+  fixture source it actually consulted.
+- The ULOS `verificationBundle` schema has one target and a list of requests,
+  with no anchors, so K will need its own map from requests to paragraph anchors.
+- Spec issues found: decisions 5.3 gives no gate state for loose-pattern review
+  items (L-02). Row 1 of 5.3 and rule 9 disagree on an unattested amended
+  section (OQ-09 says legal review). And rule 5's automatic re-run on every new
+  revision has no named trigger.

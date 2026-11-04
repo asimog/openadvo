@@ -1,0 +1,10 @@
+[package]
+name = "oa-verify"
+description = "The verification adapter (spec K), minimal skeleton: the types and the narrow validator seam that point at the ULOS standard (docs/ULOSarchitecture.md, the ulos CLI in ulosadvo). Deferred until the standard is ready; it holds no check code and never yields verified"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true

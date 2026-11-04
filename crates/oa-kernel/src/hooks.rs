@@ -105,7 +105,7 @@ impl Default for Hooks {
             presence: Arc::new(NobodyPresent),
             grants: Arc::new(StepOneGrants),
             docx: Arc::new(ProcessEngine::beside_current_exe()),
-            checks: Arc::new(StubDraftChecks),
+            checks: Arc::new(VerifyChecks),
         }
     }
 }
@@ -142,6 +142,26 @@ pub struct StubDraftChecks;
 impl DraftChecks for StubDraftChecks {
     fn blockers(&self, _input: &CheckInput) -> Vec<GateBlocker> {
         Vec::new()
+    }
+
+    fn conversion(&self, paragraphs: &[Block], pdf_body: &[String]) -> Vec<ParaCheck> {
+        oa_docs::conversion::compare(paragraphs, pdf_body)
+    }
+}
+
+/// Spec K's checks while the adapter is deferred until the ULOS standard is
+/// ready: no revision has a verification record, so every revision is
+/// blocked pending source verification (P4), and conversion keeps J's
+/// paragraph comparison.
+pub struct VerifyChecks;
+
+impl DraftChecks for VerifyChecks {
+    fn blockers(&self, _input: &CheckInput) -> Vec<GateBlocker> {
+        let (state, reason) = oa_verify::deferred_gate();
+        vec![GateBlocker {
+            gate: state.label().to_string(),
+            detail: reason.to_string(),
+        }]
     }
 
     fn conversion(&self, paragraphs: &[Block], pdf_body: &[String]) -> Vec<ParaCheck> {

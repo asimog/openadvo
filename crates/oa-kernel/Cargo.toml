@@ -13,6 +13,7 @@ oa-capture.workspace = true
 oa-ocr.workspace = true
 oa-notebook.workspace = true
 oa-docs.workspace = true
+oa-verify.workspace = true
 chrono.workspace = true
 base64.workspace = true
 hex.workspace = true

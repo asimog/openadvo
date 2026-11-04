@@ -8,6 +8,7 @@ members = [
     "crates/oa-ocr",
     "crates/oa-notebook",
     "crates/oa-docs",
+    "crates/oa-verify",
     "crates/oa-store",
     "crates/oa-kernel",
     "crates/oa-protocol",
@@ -32,6 +33,7 @@ oa-capture = { path = "crates/oa-capture" }
 oa-ocr = { path = "crates/oa-ocr" }
 oa-notebook = { path = "crates/oa-notebook" }
 oa-docs = { path = "crates/oa-docs" }
+oa-verify = { path = "crates/oa-verify" }
 oa-store = { path = "crates/oa-store" }
 oa-kernel = { path = "crates/oa-kernel" }
 oa-client = { path = "crates/oa-client" }

@@ -44,7 +44,7 @@ pub use command::{
 pub use find::KINDS as FIND_KINDS;
 pub use hooks::{
     CheckInput, DraftChecks, FaultHook, GateBlocker, GrantPolicy, Hooks, NoFaults, NobodyPresent,
-    PresencePrompt, Step, StepOneGrants, StubDraftChecks,
+    PresencePrompt, Step, StepOneGrants, StubDraftChecks, VerifyChecks,
 };
 pub use layout::{Manifest, MANIFEST, STAGING, SUBDIRS};
 pub use ledger::{verify_chain, ChainBreak};

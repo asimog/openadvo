@@ -2184,6 +2184,7 @@ dependencies = [
  "oa-ocr",
  "oa-store",
  "oa-types",
+ "oa-verify",
  "rusqlite",
  "schemars",
  "serde",
@@ -2276,6 +2277,13 @@ dependencies = [
  "serde_json",
  "thiserror 1.0.69",
  "ulid",
+]
+
+[[package]]
+name = "oa-verify"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
