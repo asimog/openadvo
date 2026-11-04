@@ -180,6 +180,62 @@ pub struct ApprovalRow {
     pub decided_by: Option<String>,
 }
 
+/// A capture record (spec F rule 4). Created only by the browser supervisor
+/// and committed by the kernel; the hash equals the blob hash.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CaptureRow {
+    pub id: String,
+    pub evidence_id: Option<String>,
+    pub url: String,
+    pub final_url: String,
+    pub captured_at: String,
+    pub blob: Option<String>,
+    pub profile: String,
+    pub gesture: String,
+    pub portal_date: Option<String>,
+    pub adapter: String,
+    pub status: String,
+    pub reason: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// Per-file ingestion state (spec F). Independent of how the file arrived.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IngestRow {
+    pub id: String,
+    pub evidence_id: String,
+    pub status: String,
+    pub format: String,
+    pub readability: String,
+    pub proposed_class: String,
+    pub text_fingerprint: Option<String>,
+    pub duplicate_of: Option<String>,
+    pub message: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// A court codebook list with its version (spec F rule 10, RQ-50).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CodebookRow {
+    pub scheme: String,
+    pub version: String,
+    /// Canonical JSON array of `{scheme, code, label}`.
+    pub codes: String,
+    pub updated_at: String,
+}
+
+/// A portal adapter's contract and runtime health (spec F rule 12).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdapterHealthRow {
+    pub adapter: String,
+    pub contract_state: String,
+    pub runtime_state: String,
+    pub detail: Option<String>,
+    pub checked_at: String,
+}
+
 /// A row written in the same transaction as a ledger event (spec C rule 1).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MatterWrite {
@@ -203,6 +259,20 @@ pub enum MatterWrite {
         reason: String,
         decided_at: String,
         decided_by: String,
+    },
+    InsertCapture(CaptureRow),
+    InsertIngest(IngestRow),
+    UpdateCaptureStatus {
+        id: String,
+        status: String,
+        reason: Option<String>,
+        updated_at: String,
+    },
+    SetIngestText {
+        id: String,
+        text_fingerprint: String,
+        duplicate_of: Option<String>,
+        updated_at: String,
     },
 }
 

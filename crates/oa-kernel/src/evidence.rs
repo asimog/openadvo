@@ -5,6 +5,7 @@ use oa_store::{EvidenceRow, MatterWrite, OriginRow};
 use oa_types::{ErrorCode, OaError};
 use serde_json::{json, Value};
 
+use crate::capture::{capture_blob_path, capture_json, ingest_json, ingest_row_for};
 use crate::command::Attachment;
 use crate::hooks::Step;
 use crate::matters::safe_file_name;
@@ -19,6 +20,8 @@ const KNOWN_ORIGINS: &[&str] = &["court_portal", "india_code", "email", "advocat
 const CONNECTION_ORIGINS: &[&str] = &["advocate_import"];
 
 pub(crate) fn evidence_json(live: &Live, row: &EvidenceRow, origins: &[OriginRow]) -> Value {
+    let capture = live.store.capture_by_evidence(&row.id).ok().flatten();
+    let ingest = live.store.ingest_by_evidence(&row.id).ok().flatten();
     json!({
         "id": row.id,
         "original_name": row.original_name,
@@ -32,6 +35,9 @@ pub(crate) fn evidence_json(live: &Live, row: &EvidenceRow, origins: &[OriginRow
             "original_name": o.original_name,
             "added_at": o.added_at,
         })).collect::<Vec<_>>(),
+        "capture": capture.as_ref().map(capture_json),
+        "capture_blob_path": capture.as_ref().and_then(|c| capture_blob_path(live, c)),
+        "ingest": ingest.as_ref().map(ingest_json),
     })
 }
 
@@ -73,12 +79,26 @@ impl Kernel {
                 original_name: name.clone(),
                 added_at: now,
             };
+            let mut writes = vec![MatterWrite::AddOrigin(origin_row)];
+            if live
+                .store
+                .ingest_by_evidence(&existing.id)
+                .map_err(store_err)?
+                .is_none()
+            {
+                writes.push(MatterWrite::InsertIngest(ingest_row_for(
+                    &existing.id,
+                    &name,
+                    &file.bytes,
+                    &oa_types::now_utc(),
+                )));
+            }
             self.commit_event(
                 &live,
                 ctx,
                 "evidence.origin_added",
                 json!({ "evidence": existing.id, "origin": origin, "original_name": name }),
-                &[MatterWrite::AddOrigin(origin_row)],
+                &writes,
             )?;
             let origins = live.store.origins(&existing.id).map_err(store_err)?;
             let mut out = evidence_json(&live, &existing, &origins);
@@ -100,6 +120,7 @@ impl Kernel {
             original_name: name.clone(),
             added_at: now,
         };
+        let ingest = ingest_row_for(&row.id, &name, &file.bytes, &oa_types::now_utc());
         self.commit_event(
             &live,
             ctx,
@@ -114,6 +135,7 @@ impl Kernel {
             &[
                 MatterWrite::InsertEvidence(row.clone()),
                 MatterWrite::AddOrigin(origin_row.clone()),
+                MatterWrite::InsertIngest(ingest),
             ],
         )?;
         let mut out = evidence_json(&live, &row, &[origin_row]);

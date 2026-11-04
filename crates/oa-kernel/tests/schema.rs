@@ -3,13 +3,46 @@
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-use oa_kernel::{Attachment, ClientSpec, Request};
+use oa_kernel::{
+    AdapterHealthInput, Attachment, CaptureInput, ClientSpec, CodebookInput, CourtCodeInput,
+    Request,
+};
 use serde_json::Value;
 
 fn att() -> Attachment {
     Attachment {
         file_name: "a.docx".into(),
         bytes: vec![0, 1, 2, 255],
+    }
+}
+
+fn capture() -> CaptureInput {
+    CaptureInput {
+        file: Some(att()),
+        origin: "court_portal".into(),
+        url: "https://sc.example/case".into(),
+        final_url: "https://sc.example/case".into(),
+        captured_at: "2026-11-04T00:00:00.000Z".into(),
+        profile: "portal".into(),
+        gesture: "click:download".into(),
+        portal_date: Some("2024-03-01".into()),
+        adapter: "supreme_court_case_status".into(),
+        status: "completed".into(),
+        reason: None,
+        health: Some(AdapterHealthInput {
+            contract_state: "healthy".into(),
+            runtime_state: "healthy".into(),
+            detail: None,
+        }),
+        codebook: Some(CodebookInput {
+            scheme: "supreme_court:list-2024-03".into(),
+            version: "2024-03".into(),
+            codes: vec![CourtCodeInput {
+                scheme: "supreme_court:list-2024-03".into(),
+                code: "WP".into(),
+                label: "Writ Petition (Civil)".into(),
+            }],
+        }),
     }
 }
 
@@ -68,6 +101,28 @@ fn samples() -> Vec<Request> {
             matter: m(),
             id: "e".into(),
         },
+        Request::EvidenceImport {
+            matter: Some(m()),
+            files: vec![att()],
+        },
+        Request::IngestSetText {
+            matter: m(),
+            evidence: "e".into(),
+            text: "order".into(),
+        },
+        Request::CaptureCommit {
+            matter: m(),
+            capture: Box::new(capture()),
+        },
+        Request::CaptureStatus,
+        Request::IngestStatus {
+            doc: Some("e".into()),
+        },
+        Request::EvidenceDuplicates { matter: m() },
+        Request::CodebookShow {
+            scheme: "supreme_court:list-2024-03".into(),
+        },
+        Request::AdapterHealth,
         Request::DraftCreate {
             matter: m(),
             title: "D".into(),

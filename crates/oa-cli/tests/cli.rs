@@ -162,6 +162,33 @@ fn b_ac_02_oa_connect_talks_to_a_served_kernel_and_oa_call_matches_the_subcomman
 }
 
 #[test]
+fn f_cli_import_ingest_status_and_codebook_show() {
+    let tmp = tempfile::tempdir().unwrap();
+    let app = tmp.path().join("app");
+    let root = tmp.path().join("root");
+    oa(&app, &["workspace", "init", root.to_str().unwrap()]);
+    let id = lines(&oa(&app, &["matter", "create", "--title", "Capture"]))[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let file = tmp.path().join("order.pdf");
+    std::fs::write(&file, b"%PDF-1.7\n%%EOF\n").unwrap();
+    let imported = lines(&oa(
+        &app,
+        &["import", file.to_str().unwrap(), "--matter", &id],
+    ));
+    assert_eq!(imported[0]["ingest"]["format"], "pdf");
+    let ingest = lines(&oa(&app, &["ingest", "status"]));
+    assert_eq!(ingest.len(), 1);
+    assert_eq!(ingest[0]["matter"], id);
+    let queue = lines(&oa(&app, &["capture", "status"]));
+    assert!(queue.is_empty(), "no capture has been recorded");
+    let missing = oa(&app, &["codebook", "show", "supreme_court"]);
+    assert_eq!(missing.status.code(), Some(2));
+    assert_eq!(lines(&missing)[0]["error"]["code"], "not_found");
+}
+
+#[test]
 fn d_cli_agent_run_uses_harness_origin_policy_and_records_effects() {
     let tmp = tempfile::tempdir().unwrap();
     let app = tmp.path().join("app");

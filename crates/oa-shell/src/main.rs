@@ -245,6 +245,11 @@ impl App {
             rejected: self
                 .q(Request::AuditRejected { matter: None })
                 .unwrap_or_default(),
+            captures: self.q(Request::CaptureStatus).unwrap_or_default(),
+            ingests: self
+                .q(Request::IngestStatus { doc: None })
+                .unwrap_or_default(),
+            adapters: self.q(Request::AdapterHealth).unwrap_or_default(),
             ..inbox::Sources::default()
         };
         for m in &self.matters {
@@ -259,6 +264,12 @@ impl App {
             if removed {
                 continue;
             }
+            src.duplicates.extend(
+                self.q(Request::EvidenceDuplicates { matter: id.clone() })
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|d| (id.clone(), d)),
+            );
             for a in self
                 .q(Request::ApprovalList { matter: id.clone() })
                 .unwrap_or_default()
@@ -476,6 +487,45 @@ impl App {
             ViewId::Inspector => Content::Table(Table {
                 state: ViewState::Empty("Click any row to inspect it.".into()),
                 ..Table::loading(view)
+            }),
+            ViewId::CaptureQueue => {
+                let captures = self.q(Request::CaptureStatus).unwrap_or_default();
+                let adapters = self.q(Request::AdapterHealth).unwrap_or_default();
+                Content::Table(views::capture_queue_table(&captures, &adapters))
+            }
+            ViewId::IngestTriage => {
+                Content::Table(match self.q(Request::IngestStatus { doc: None }) {
+                    Ok(v) => views::ingest_table(&v),
+                    Err(e) => Self::fail(view, &e),
+                })
+            }
+            ViewId::Duplicates => self.matter_scoped(view, |id| {
+                match self.q(Request::EvidenceDuplicates {
+                    matter: id.to_string(),
+                }) {
+                    Ok(v) => views::duplicates_table(&v),
+                    Err(e) => Self::fail(view, &e),
+                }
+            }),
+            ViewId::Codebook => {
+                let scheme = page
+                    .arg
+                    .clone()
+                    .unwrap_or_else(|| "supreme_court".to_string());
+                match self.q(Request::CodebookShow { scheme }) {
+                    Ok(v) => Content::Table(views::codebook_table(&v)),
+                    Err(e) if e.code == oa_types::ErrorCode::NotFound => Content::Table(Table {
+                        state: ViewState::Empty(
+                            "No codebook has been captured for that scheme.".into(),
+                        ),
+                        ..Table::loading(view)
+                    }),
+                    Err(e) => Content::Table(Self::fail(view, &e)),
+                }
+            }
+            ViewId::AdapterHealth => Content::Table(match self.q(Request::AdapterHealth) {
+                Ok(v) => views::adapter_health_table(&v),
+                Err(e) => Self::fail(view, &e),
             }),
         }
     }

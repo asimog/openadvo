@@ -11,6 +11,7 @@ use oa_types::{ErrorCode, OaError};
 use serde_json::{json, Value};
 
 use crate::approvals::approval_json;
+use crate::capture::capture_json;
 use crate::drafts::{draft_json, revision_json};
 use crate::evidence::evidence_json;
 use crate::records::{event_json, Live};
@@ -51,6 +52,10 @@ pub fn edges(events: &[LedgerEvent]) -> Vec<Edge> {
         };
         match e.command.as_str() {
             "evidence.added" => add(s(&body, "evidence"), s(&body, "blob")),
+            "capture.committed" => {
+                add(s(&body, "capture"), s(&body, "evidence"));
+                add(s(&body, "capture"), s(&body, "blob"));
+            }
             "draft.created" => {
                 add(s(&body, "draft"), s(&body, "revision"));
                 add(s(&body, "revision"), s(&body, "draft"));
@@ -122,6 +127,9 @@ impl Kernel {
         if let Some(r) = st.evidence(id).map_err(store_err)? {
             let origins = st.origins(id).map_err(store_err)?;
             return Ok(("evidence", evidence_json(live, &r, &origins)));
+        }
+        if let Some(c) = st.capture(id).map_err(store_err)? {
+            return Ok(("capture", capture_json(&c)));
         }
         if let Some(d) = st.draft(id).map_err(store_err)? {
             return Ok(("draft", draft_json(&d)));

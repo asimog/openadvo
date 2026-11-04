@@ -2080,6 +2080,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "oa-capture"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "oa-types",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "oa-cli"
 version = "0.1.0"
 dependencies = [
@@ -2138,6 +2149,7 @@ version = "0.1.0"
 dependencies = [
  "base64",
  "hex",
+ "oa-capture",
  "oa-store",
  "oa-types",
  "rusqlite",

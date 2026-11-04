@@ -59,6 +59,13 @@ pub trait RegistryStore: Send {
     fn request_cancel(&self, id: &str, at: &str) -> StoreResult<bool>;
     fn job(&self, id: &str) -> StoreResult<Option<JobRow>>;
     fn jobs(&self) -> StoreResult<Vec<JobRow>>;
+
+    fn codebook(&self, scheme: &str) -> StoreResult<Option<CodebookRow>>;
+    fn codebooks(&self) -> StoreResult<Vec<CodebookRow>>;
+    fn upsert_codebook(&self, row: &CodebookRow) -> StoreResult<()>;
+    fn adapter_health(&self, adapter: &str) -> StoreResult<Option<AdapterHealthRow>>;
+    fn adapters(&self) -> StoreResult<Vec<AdapterHealthRow>>;
+    fn upsert_adapter_health(&self, row: &AdapterHealthRow) -> StoreResult<()>;
 }
 
 /// Firm-level data that cannot be rebuilt from folders (spec O): the
@@ -118,6 +125,14 @@ pub trait MatterStore: Send {
 
     fn approval(&self, id: &str) -> StoreResult<Option<ApprovalRow>>;
     fn approvals(&self) -> StoreResult<Vec<ApprovalRow>>;
+
+    fn capture(&self, id: &str) -> StoreResult<Option<CaptureRow>>;
+    fn capture_by_evidence(&self, evidence_id: &str) -> StoreResult<Option<CaptureRow>>;
+    fn captures(&self) -> StoreResult<Vec<CaptureRow>>;
+    fn ingest(&self, id: &str) -> StoreResult<Option<IngestRow>>;
+    fn ingest_by_evidence(&self, evidence_id: &str) -> StoreResult<Option<IngestRow>>;
+    fn ingests(&self) -> StoreResult<Vec<IngestRow>>;
+    fn ingests_with_text(&self, fingerprint: &str) -> StoreResult<Vec<IngestRow>>;
 
     fn record_rejected(&self, rejected: &RejectedWrite) -> StoreResult<()>;
     fn rejected(&self) -> StoreResult<Vec<RejectedWrite>>;

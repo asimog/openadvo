@@ -36,6 +36,14 @@ pub struct Sources {
     pub broken_chains: Vec<(String, i64)>,
     /// (matter id, evidence id, name)
     pub missing_bytes: Vec<(String, String, String)>,
+    /// Capture queue rows, each with its matter.
+    pub captures: Vec<Value>,
+    /// Ingest rows, each with its matter.
+    pub ingests: Vec<Value>,
+    /// Adapter health rows.
+    pub adapters: Vec<Value>,
+    /// (matter id, duplicate row)
+    pub duplicates: Vec<(String, Value)>,
 }
 
 fn id_of(v: &Value) -> String {
@@ -116,6 +124,98 @@ pub fn build(src: &Sources) -> Vec<InboxItem> {
                 matter: matter.clone(),
                 id: id.clone(),
             },
+        });
+    }
+    for c in &src.captures {
+        let status = c["status"].as_str().unwrap_or_default();
+        let matter = c["matter"].as_str().unwrap_or_default().to_string();
+        let id = id_of(c);
+        if status == "captcha_pending" {
+            items.push(InboxItem {
+                key: format!("captcha:{id}"),
+                kind: "captcha_wait",
+                summary: format!(
+                    "CAPTCHA wait: {}",
+                    c["url"].as_str().unwrap_or("the portal")
+                ),
+                detail: "The visible browser is focused; solve it there. The agent never types into a CAPTCHA.".into(),
+                needs_decision: true,
+                blocks_gate: false,
+                subject: Subject::Record { matter, id },
+            });
+        } else if status == "failed" {
+            items.push(InboxItem {
+                key: format!("capture:{id}"),
+                kind: "capture_failed",
+                summary: format!(
+                    "Capture failed: {}",
+                    c["reason"].as_str().unwrap_or("unknown reason")
+                ),
+                detail: c["url"].as_str().unwrap_or_default().to_string(),
+                needs_decision: true,
+                blocks_gate: false,
+                subject: Subject::Record { matter, id },
+            });
+        }
+    }
+    for i in &src.ingests {
+        let readability = i["readability"].as_str().unwrap_or_default();
+        if readability == "encrypted" || readability == "corrupt" || readability == "unsupported" {
+            let matter = i["matter"].as_str().unwrap_or_default().to_string();
+            let evidence = i["evidence_id"].as_str().unwrap_or_default().to_string();
+            items.push(InboxItem {
+                key: format!("ingest:{evidence}"),
+                kind: "format_problem",
+                summary: format!("Format problem: {readability}"),
+                detail: i["message"].as_str().unwrap_or_default().to_string(),
+                needs_decision: true,
+                blocks_gate: false,
+                subject: Subject::Record {
+                    matter,
+                    id: evidence,
+                },
+            });
+        }
+    }
+    for a in &src.adapters {
+        let runtime = a["runtime_state"].as_str().unwrap_or_default();
+        if runtime == "degraded" {
+            items.push(InboxItem {
+                key: format!("adapter:{}", a["adapter"].as_str().unwrap_or_default()),
+                kind: "adapter_degraded",
+                summary: format!(
+                    "Portal adapter degraded: {}",
+                    a["adapter"].as_str().unwrap_or("unknown")
+                ),
+                detail: a["detail"].as_str().unwrap_or_default().to_string(),
+                needs_decision: true,
+                blocks_gate: false,
+                subject: Subject::Raw(a.clone()),
+            });
+        }
+    }
+    for (matter, d) in &src.duplicates {
+        let names = d["items"]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .map(|i| i["name"].as_str().unwrap_or_default())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            })
+            .unwrap_or_default();
+        items.push(InboxItem {
+            key: format!(
+                "duplicate:{}:{}",
+                matter,
+                d["fingerprint"].as_str().unwrap_or_default()
+            ),
+            kind: "possible_duplicate",
+            summary: "Possible duplicate: the same text after OCR".into(),
+            detail: names,
+            needs_decision: true,
+            blocks_gate: false,
+            subject: Subject::Raw(d.clone()),
         });
     }
     for (i, r) in src.rejected.iter().enumerate() {
@@ -280,6 +380,21 @@ mod tests {
             inbox.key(Key::J);
         }
         assert_eq!(inbox.selected, 2);
+    }
+
+    #[test]
+    fn f_ac_15_a_degraded_adapter_is_signal_in_the_inbox() {
+        let items = build(&Sources {
+            adapters: vec![serde_json::json!({
+                "adapter": "supreme_court_case_status",
+                "runtime_state": "degraded",
+                "detail": "the case-status page shape changed",
+            })],
+            ..Sources::default()
+        });
+        let adapter = items.iter().find(|i| i.kind == "adapter_degraded").unwrap();
+        assert!(is_signal(adapter));
+        assert!(adapter.summary.contains("supreme_court_case_status"));
     }
 
     #[test]

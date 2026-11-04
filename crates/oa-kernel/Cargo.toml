@@ -9,6 +9,7 @@ publish.workspace = true
 [dependencies]
 oa-types.workspace = true
 oa-store.workspace = true
+oa-capture.workspace = true
 base64.workspace = true
 hex.workspace = true
 schemars.workspace = true

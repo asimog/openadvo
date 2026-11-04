@@ -41,6 +41,47 @@ pub struct Attachment {
     pub bytes: Vec<u8>,
 }
 
+/// One court code as the portal issues it, with the label verbatim.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct CourtCodeInput {
+    pub scheme: String,
+    pub code: String,
+    pub label: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct CodebookInput {
+    pub scheme: String,
+    pub version: String,
+    pub codes: Vec<CourtCodeInput>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct AdapterHealthInput {
+    pub contract_state: String,
+    pub runtime_state: String,
+    pub detail: Option<String>,
+}
+
+/// What the browser supervisor hands the kernel for one capture. The file is
+/// absent when the capture is still waiting for a CAPTCHA or login.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct CaptureInput {
+    pub file: Option<Attachment>,
+    pub origin: String,
+    pub url: String,
+    pub final_url: String,
+    pub captured_at: String,
+    pub profile: String,
+    pub gesture: String,
+    pub portal_date: Option<String>,
+    pub adapter: String,
+    pub status: String,
+    pub reason: Option<String>,
+    pub health: Option<AdapterHealthInput>,
+    pub codebook: Option<CodebookInput>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "command", content = "input")]
 pub enum Request {
@@ -98,6 +139,36 @@ pub enum Request {
         file: Attachment,
         origin: String,
     },
+    /// `oa import`: one or more files into a matter's evidence and ingest queue.
+    #[serde(rename = "evidence.import")]
+    EvidenceImport {
+        matter: Option<String>,
+        files: Vec<Attachment>,
+    },
+    /// Ingestion receives the OCR text and compares fingerprints (spec G hands
+    /// this to spec F).
+    #[serde(rename = "ingest.set_text")]
+    IngestSetText {
+        matter: String,
+        evidence: String,
+        text: String,
+    },
+    /// The browser supervisor's capture record. Refused from any other origin.
+    #[serde(rename = "capture.commit")]
+    CaptureCommit {
+        matter: String,
+        capture: Box<CaptureInput>,
+    },
+    #[serde(rename = "capture.status")]
+    CaptureStatus,
+    #[serde(rename = "ingest.status")]
+    IngestStatus { doc: Option<String> },
+    #[serde(rename = "evidence.duplicates")]
+    EvidenceDuplicates { matter: String },
+    #[serde(rename = "codebook.show")]
+    CodebookShow { scheme: String },
+    #[serde(rename = "adapter.health")]
+    AdapterHealth,
     #[serde(rename = "evidence.list")]
     EvidenceList { matter: String },
     #[serde(rename = "evidence.show")]
@@ -201,6 +272,14 @@ impl Request {
         "audit.rejected",
         "audit.commands",
         "evidence.add",
+        "evidence.import",
+        "ingest.set_text",
+        "capture.commit",
+        "capture.status",
+        "ingest.status",
+        "evidence.duplicates",
+        "codebook.show",
+        "adapter.health",
         "evidence.list",
         "evidence.show",
         "draft.create",
@@ -235,6 +314,11 @@ impl Request {
         "audit.commands",
         "evidence.list",
         "evidence.show",
+        "capture.status",
+        "ingest.status",
+        "evidence.duplicates",
+        "codebook.show",
+        "adapter.health",
         "draft.list",
         "draft.log",
         "draft.show",
@@ -284,6 +368,14 @@ impl Request {
             Request::AuditRejected { .. } => "audit.rejected",
             Request::AuditCommands => "audit.commands",
             Request::EvidenceAdd { .. } => "evidence.add",
+            Request::EvidenceImport { .. } => "evidence.import",
+            Request::IngestSetText { .. } => "ingest.set_text",
+            Request::CaptureCommit { .. } => "capture.commit",
+            Request::CaptureStatus => "capture.status",
+            Request::IngestStatus { .. } => "ingest.status",
+            Request::EvidenceDuplicates { .. } => "evidence.duplicates",
+            Request::CodebookShow { .. } => "codebook.show",
+            Request::AdapterHealth => "adapter.health",
             Request::EvidenceList { .. } => "evidence.list",
             Request::EvidenceShow { .. } => "evidence.show",
             Request::DraftCreate { .. } => "draft.create",
@@ -318,6 +410,11 @@ impl Request {
             | Request::AuditCommands
             | Request::EvidenceList { .. }
             | Request::EvidenceShow { .. }
+            | Request::CaptureStatus
+            | Request::IngestStatus { .. }
+            | Request::EvidenceDuplicates { .. }
+            | Request::CodebookShow { .. }
+            | Request::AdapterHealth
             | Request::DraftList { .. }
             | Request::DraftLog { .. }
             | Request::DraftShow { .. }
@@ -340,6 +437,9 @@ impl Request {
             | Request::SettingsSet { .. }
             | Request::JobCancel { .. }
             | Request::EvidenceAdd { .. }
+            | Request::EvidenceImport { .. }
+            | Request::IngestSetText { .. }
+            | Request::CaptureCommit { .. }
             | Request::DraftCreate { .. }
             | Request::DraftCommit { .. }
             | Request::DraftCheckpoint { .. }
@@ -358,6 +458,9 @@ impl Request {
             Request::LedgerTail { matter, .. }
             | Request::LedgerVerify { matter }
             | Request::EvidenceAdd { matter, .. }
+            | Request::IngestSetText { matter, .. }
+            | Request::CaptureCommit { matter, .. }
+            | Request::EvidenceDuplicates { matter }
             | Request::EvidenceList { matter }
             | Request::EvidenceShow { matter, .. }
             | Request::DraftCreate { matter, .. }
@@ -375,7 +478,13 @@ impl Request {
             | Request::LinksOut { matter, .. }
             | Request::LinksIn { matter, .. }
             | Request::RulesPin { matter } => Some(matter),
-            Request::AuditRejected { matter } | Request::Find { matter, .. } => matter.as_deref(),
+            Request::AuditRejected { matter }
+            | Request::EvidenceImport { matter, .. }
+            | Request::Find { matter, .. } => matter.as_deref(),
+            Request::CodebookShow { .. }
+            | Request::CaptureStatus
+            | Request::IngestStatus { .. }
+            | Request::AdapterHealth => None,
             _ => None,
         }
     }

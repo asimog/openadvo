@@ -16,6 +16,7 @@ fn author(ctx: &Ctx) -> (&'static str, &'static str) {
     match ctx.origin {
         Origin::Harness => ("agent", "agent"),
         Origin::Test => ("test", "test"),
+        Origin::Capture => ("browser_supervisor", "capture"),
         Origin::Ui | Origin::Cli => ("advocate", "advocate"),
     }
 }

@@ -7,6 +7,7 @@
 //! connections (spec C rule 12).
 
 mod approvals;
+mod capture;
 mod command;
 mod drafts;
 mod evidence;
@@ -33,7 +34,10 @@ use oa_store::{
 use oa_types::{CommandClass, ErrorCode, OaError, Origin};
 use serde_json::Value;
 
-pub use command::{Attachment, ClientSpec, Request};
+pub use command::{
+    AdapterHealthInput, Attachment, CaptureInput, ClientSpec, CodebookInput, CourtCodeInput,
+    Request,
+};
 pub use find::KINDS as FIND_KINDS;
 pub use hooks::{
     FaultHook, GrantPolicy, Hooks, NoFaults, NobodyPresent, PresencePrompt, Step, StepOneGrants,
@@ -108,6 +112,18 @@ impl Kernel {
     }
 
     pub fn dispatch(&self, ctx: &Ctx, req: Request) -> Result<Vec<Value>, OaError> {
+        if matches!(req, Request::CaptureCommit { .. }) && ctx.origin != Origin::Capture {
+            self.audit_firm(
+                ctx,
+                req.name(),
+                "capture records are created only by the browser supervisor",
+                b"",
+            )?;
+            return Err(OaError::new(
+                ErrorCode::WriteRefused,
+                "capture.commit is accepted only from the browser supervisor",
+            ));
+        }
         match req.class() {
             CommandClass::Internal | CommandClass::External if ctx.key.is_none() => {
                 return Err(OaError::new(
@@ -183,6 +199,24 @@ impl Kernel {
                 file,
                 origin,
             } => self.evidence_add(ctx, &matter, &file, &origin).map(one),
+            Request::EvidenceImport { matter, files } => {
+                self.evidence_import(ctx, matter.as_deref(), &files)
+            }
+            Request::IngestSetText {
+                matter,
+                evidence,
+                text,
+            } => self
+                .ingest_set_text(ctx, &matter, &evidence, &text)
+                .map(one),
+            Request::CaptureCommit { matter, capture } => {
+                self.capture_commit(ctx, &matter, &capture).map(one)
+            }
+            Request::CaptureStatus => self.capture_status(),
+            Request::IngestStatus { doc } => self.ingest_status(doc.as_deref()),
+            Request::EvidenceDuplicates { matter } => self.evidence_duplicates(&matter),
+            Request::CodebookShow { scheme } => self.codebook_show(&scheme).map(one),
+            Request::AdapterHealth => self.adapter_health(),
             Request::EvidenceList { matter } => self.evidence_list(&matter),
             Request::EvidenceShow { matter, id } => self.evidence_show(&matter, &id).map(one),
             Request::DraftCreate {

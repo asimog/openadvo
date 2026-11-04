@@ -19,6 +19,11 @@ pub enum ViewId {
     Settings,
     Search,
     Inspector,
+    CaptureQueue,
+    IngestTriage,
+    Duplicates,
+    Codebook,
+    AdapterHealth,
 }
 
 pub struct ViewDef {
@@ -95,6 +100,36 @@ pub const REGISTRY: &[ViewDef] = &[
         key: "inspector",
         title: "Inspector",
         covers: &["inspect", "links.out", "links.in"],
+    },
+    ViewDef {
+        id: ViewId::CaptureQueue,
+        key: "capture-queue",
+        title: "Capture queue",
+        covers: &["capture.status"],
+    },
+    ViewDef {
+        id: ViewId::IngestTriage,
+        key: "ingest",
+        title: "Inbox triage",
+        covers: &["ingest.status"],
+    },
+    ViewDef {
+        id: ViewId::Duplicates,
+        key: "duplicates",
+        title: "Duplicates",
+        covers: &["evidence.duplicates"],
+    },
+    ViewDef {
+        id: ViewId::Codebook,
+        key: "codebook",
+        title: "Court codebook",
+        covers: &["codebook.show"],
+    },
+    ViewDef {
+        id: ViewId::AdapterHealth,
+        key: "adapters",
+        title: "Adapter health",
+        covers: &["adapter.health"],
     },
 ];
 
@@ -217,6 +252,11 @@ fn s(v: &Value, key: &str) -> String {
 fn short(hash: &str) -> String {
     let h = hash.strip_prefix("sha256:").unwrap_or(hash);
     h.chars().take(10).collect()
+}
+
+fn short_url(url: &str) -> String {
+    let u = url.strip_prefix("https://").unwrap_or(url);
+    u.chars().take(42).collect()
 }
 
 fn rec(matter: &str, id: String) -> Subject {
@@ -528,6 +568,204 @@ pub fn search_table(values: &[Value]) -> Table {
     )
 }
 
+/// The capture queue: pending captures, CAPTCHA waits and failures. A degraded
+/// adapter is a visible banner (F-AC-15).
+pub fn capture_queue_table(captures: &[Value], adapters: &[Value]) -> Table {
+    let rows = captures
+        .iter()
+        .map(|c| {
+            let matter = s(c, "matter");
+            let id = s(c, "id");
+            let status = s(c, "status");
+            let subject = if matter.is_empty() {
+                Subject::Raw(c.clone())
+            } else {
+                Subject::Record {
+                    matter: matter.clone(),
+                    id: id.clone(),
+                }
+            };
+            Row {
+                cells: vec![
+                    short(&id),
+                    status.clone(),
+                    short_url(&s(c, "url")),
+                    s(c, "reason"),
+                ],
+                subject,
+                tone: match status.as_str() {
+                    "failed" | "abandoned" => Tone::Bad,
+                    "captcha_pending" | "login_pending" | "pending" => Tone::Warn,
+                    "completed" => Tone::Good,
+                    _ => Tone::Normal,
+                },
+            }
+        })
+        .collect();
+    let mut t = Table::new(
+        ViewId::CaptureQueue,
+        &["Capture", "Status", "URL", "Reason"],
+        rows,
+        "The capture queue is empty.",
+    );
+    if let Some(a) = adapters
+        .iter()
+        .find(|a| s(a, "runtime_state") == "degraded")
+    {
+        t.banner = Some((
+            Tone::Bad,
+            format!(
+                "Adapter {} is degraded: {}. Use a manual capture in the visible browser.",
+                s(a, "adapter"),
+                s(a, "detail")
+            ),
+        ));
+    }
+    t
+}
+
+pub fn ingest_table(values: &[Value]) -> Table {
+    let rows = values
+        .iter()
+        .map(|i| {
+            let readability = s(i, "readability");
+            let status = s(i, "status");
+            let matter = s(i, "matter");
+            let evidence = s(i, "evidence_id");
+            Row {
+                cells: vec![
+                    short(&evidence),
+                    s(i, "format"),
+                    readability.clone(),
+                    status.clone(),
+                    s(i, "message"),
+                ],
+                subject: Subject::Record {
+                    matter,
+                    id: evidence,
+                },
+                tone: if status == "blocked"
+                    || matches!(
+                        readability.as_str(),
+                        "encrypted" | "corrupt" | "unsupported"
+                    ) {
+                    Tone::Bad
+                } else if status == "pending" || status == "running" {
+                    Tone::Warn
+                } else {
+                    Tone::Normal
+                },
+            }
+        })
+        .collect();
+    Table::new(
+        ViewId::IngestTriage,
+        &["Document", "Format", "Readability", "Status", "Message"],
+        rows,
+        "No files are waiting to be ingested.",
+    )
+}
+
+pub fn duplicates_table(values: &[Value]) -> Table {
+    let rows = values
+        .iter()
+        .map(|d| {
+            let names = d["items"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default()
+                .iter()
+                .map(|i| s(i, "name"))
+                .collect::<Vec<_>>();
+            Row {
+                cells: vec![
+                    s(d, "kind"),
+                    short(&s(d, "fingerprint")),
+                    names.first().cloned().unwrap_or_default(),
+                    names.get(1).cloned().unwrap_or_default(),
+                ],
+                subject: Subject::Raw(d.clone()),
+                tone: Tone::Warn,
+            }
+        })
+        .collect();
+    Table::new(
+        ViewId::Duplicates,
+        &["Kind", "Text fingerprint", "First", "Second"],
+        rows,
+        "No possible duplicates.",
+    )
+}
+
+pub fn codebook_table(values: &[Value]) -> Table {
+    let mut rows = Vec::new();
+    for book in values {
+        let scheme = s(book, "scheme");
+        let version = s(book, "version");
+        for code in book["codes"].as_array().cloned().unwrap_or_default() {
+            rows.push(Row {
+                cells: vec![
+                    scheme.clone(),
+                    version.clone(),
+                    s(&code, "code"),
+                    s(&code, "label"),
+                ],
+                subject: Subject::Raw(json!({
+                    "scheme": s(&code, "scheme"),
+                    "code": s(&code, "code"),
+                    "label": s(&code, "label"),
+                    "version": version,
+                })),
+                tone: Tone::Normal,
+            });
+        }
+    }
+    Table::new(
+        ViewId::Codebook,
+        &["Scheme", "List version", "Code", "Label"],
+        rows,
+        "No codebook has been captured yet.",
+    )
+}
+
+pub fn adapter_health_table(values: &[Value]) -> Table {
+    let rows = values
+        .iter()
+        .map(|a| {
+            let runtime = s(a, "runtime_state");
+            Row {
+                cells: vec![
+                    s(a, "adapter"),
+                    s(a, "contract_state"),
+                    runtime.clone(),
+                    s(a, "detail"),
+                ],
+                subject: Subject::Raw(a.clone()),
+                tone: match runtime.as_str() {
+                    "degraded" => Tone::Bad,
+                    "captcha_pending" => Tone::Warn,
+                    "healthy" => Tone::Good,
+                    _ => Tone::Normal,
+                },
+            }
+        })
+        .collect();
+    let mut t = Table::new(
+        ViewId::AdapterHealth,
+        &["Adapter", "Contract", "Runtime", "Detail"],
+        rows,
+        "No adapter health has been recorded.",
+    );
+    if values.iter().any(|a| s(a, "runtime_state") == "degraded") {
+        t.banner = Some((
+            Tone::Bad,
+            "At least one adapter is degraded. A manual capture still produces a capture record."
+                .into(),
+        ));
+    }
+    t
+}
+
 /// Rule-pin facts for the overview (`rules.pin`).
 pub fn overview_lines(matter: &Value, pin: &Value) -> Vec<(String, String)> {
     let get = |v: &Value, k: &str| {
@@ -639,6 +877,83 @@ fn typical(view: ViewId, n: usize, disputed: bool) -> Table {
                 .map(|i| json!({ "kind": if i % 2 == 0 { "evidence" } else { "draft" }, "id": format!("X{i}"), "matter": M, "title": format!("Result {i}"), "snippet": "order dated 3 March" }))
                 .collect::<Vec<_>>(),
         ),
+        ViewId::CaptureQueue => capture_queue_table(
+            &(0..n)
+                .map(|i| {
+                    json!({
+                        "id": format!("C{i}"),
+                        "matter": M,
+                        "status": if disputed && i == 0 { "failed" } else if i % 3 == 0 { "captcha_pending" } else { "pending" },
+                        "url": format!("https://sc.example/case/{i}"),
+                        "adapter": "supreme_court_case_status",
+                        "reason": if disputed && i == 0 { "adapter_degraded" } else { "" },
+                    })
+                })
+                .collect::<Vec<_>>(),
+            &if n == 0 {
+                Vec::new()
+            } else if disputed {
+                vec![json!({ "adapter": "supreme_court_case_status", "contract_state": "failed", "runtime_state": "degraded", "detail": "the case-status page shape changed" })]
+            } else {
+                vec![json!({ "adapter": "supreme_court_case_status", "contract_state": "healthy", "runtime_state": "healthy", "detail": "" })]
+            },
+        ),
+        ViewId::IngestTriage => ingest_table(
+            &(0..n)
+                .map(|i| {
+                    let encrypted = disputed && i == 0;
+                    json!({
+                        "id": format!("I{i}"),
+                        "matter": M,
+                        "evidence_id": format!("E{i}"),
+                        "format": if encrypted { "pdf" } else { "docx" },
+                        "readability": if encrypted { "encrypted" } else { "readable" },
+                        "status": if encrypted { "blocked" } else if i % 2 == 0 { "pending" } else { "done" },
+                        "proposed_class": "order",
+                        "message": if encrypted { "encrypted; no ingestion beyond hashing" } else { "" },
+                    })
+                })
+                .collect::<Vec<_>>(),
+        ),
+        ViewId::Duplicates => duplicates_table(
+            &(0..n)
+                .map(|i| {
+                    json!({
+                        "matter": M,
+                        "kind": "same_text",
+                        "fingerprint": format!("sha256:{:064x}", i),
+                        "items": [
+                            { "evidence": format!("E{i}a"), "name": format!("scan-a-{i}.pdf") },
+                            { "evidence": format!("E{i}b"), "name": format!("scan-b-{i}.pdf") },
+                        ],
+                    })
+                })
+                .collect::<Vec<_>>(),
+        ),
+        ViewId::Codebook if n == 0 => codebook_table(&[]),
+        ViewId::Codebook => codebook_table(&[json!({
+            "scheme": "supreme_court:list-2024-03",
+            "version": "2024-03",
+            "codes": (0..n).map(|i| json!({
+                "scheme": "supreme_court:list-2024-03",
+                "code": if i == 0 { "WP" } else { "SLP" },
+                "label": if i == 0 { "Writ Petition (Civil)" } else { "Special Leave Petition (Civil)" },
+            })).collect::<Vec<_>>(),
+        })]),
+        ViewId::AdapterHealth if n == 0 => adapter_health_table(&[]),
+        ViewId::AdapterHealth => adapter_health_table(
+            &(0..n)
+                .map(|i| {
+                    json!({
+                        "adapter": format!("adapter-{i}"),
+                        "contract_state": if disputed && i == 0 { "failed" } else { "healthy" },
+                        "runtime_state": if disputed && i == 0 { "degraded" } else { "healthy" },
+                        "detail": if disputed && i == 0 { "the case-status page shape changed" } else { "" },
+                        "checked_at": "2026-11-04T09:00:00.000Z",
+                    })
+                })
+                .collect::<Vec<_>>(),
+        ),
         ViewId::Overview | ViewId::Inspector => Table::new(view, &["Field", "Value"], Vec::new(), "Select a matter."),
     }
 }
@@ -739,6 +1054,21 @@ mod tests {
         let t = fixture(ViewId::Approvals, GalleryState::Disputed);
         assert!(t.rows.iter().any(|r| r.cells[2].contains("STALE")));
         assert!(t.rows.iter().any(|r| r.tone == Tone::Warn));
+    }
+
+    #[test]
+    fn f_ac_15_a_degraded_adapter_is_a_banner_in_the_capture_queue() {
+        let t = fixture(ViewId::CaptureQueue, GalleryState::Disputed);
+        assert!(t.banner.is_some());
+        assert!(t.banner.unwrap().1.contains("degraded"));
+        assert!(t.rows.iter().any(|r| r.cells[1] == "failed"));
+    }
+
+    #[test]
+    fn f_ac_11_the_codebook_view_shows_the_verbatim_label() {
+        let t = fixture(ViewId::Codebook, GalleryState::Typical);
+        assert_eq!(t.rows[0].cells[2], "WP");
+        assert_eq!(t.rows[0].cells[3], "Writ Petition (Civil)");
     }
 
     #[test]

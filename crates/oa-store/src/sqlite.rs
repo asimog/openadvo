@@ -11,7 +11,8 @@ pub const REGISTRY_FILE: &str = "registry.db";
 pub const FIRM_FILE: &str = "firm.db";
 pub const MATTER_FILE: &str = "matter.db";
 
-const REGISTRY_MIGRATIONS: &[&str] = &[r#"
+const REGISTRY_MIGRATIONS: &[&str] = &[
+    r#"
     CREATE TABLE matters (
         id TEXT PRIMARY KEY,
         path TEXT NOT NULL,
@@ -32,7 +33,23 @@ const REGISTRY_MIGRATIONS: &[&str] = &[r#"
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
     );
-"#];
+"#,
+    r#"
+    CREATE TABLE codebooks (
+        scheme TEXT PRIMARY KEY,
+        version TEXT NOT NULL,
+        codes TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+    CREATE TABLE adapter_health (
+        adapter TEXT PRIMARY KEY,
+        contract_state TEXT NOT NULL,
+        runtime_state TEXT NOT NULL,
+        detail TEXT,
+        checked_at TEXT NOT NULL
+    );
+"#,
+];
 
 const FIRM_MIGRATIONS: &[&str] = &[
     r#"
@@ -142,6 +159,40 @@ const MATTER_MIGRATIONS: &[&str] = &[
         BEGIN SELECT RAISE(ABORT, 'the ledger is append only'); END;
     CREATE TRIGGER ledger_no_delete BEFORE DELETE ON ledger
         BEGIN SELECT RAISE(ABORT, 'the ledger is append only'); END;
+"#,
+    r#"
+    CREATE TABLE captures (
+        id TEXT PRIMARY KEY,
+        evidence_id TEXT REFERENCES evidence(id),
+        url TEXT NOT NULL,
+        final_url TEXT NOT NULL,
+        captured_at TEXT NOT NULL,
+        blob TEXT,
+        profile TEXT NOT NULL,
+        gesture TEXT NOT NULL,
+        portal_date TEXT,
+        adapter TEXT NOT NULL,
+        status TEXT NOT NULL,
+        reason TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+    CREATE INDEX captures_status ON captures(status);
+    CREATE TABLE ingest (
+        id TEXT PRIMARY KEY,
+        evidence_id TEXT NOT NULL REFERENCES evidence(id),
+        status TEXT NOT NULL,
+        format TEXT NOT NULL,
+        readability TEXT NOT NULL,
+        proposed_class TEXT NOT NULL,
+        text_fingerprint TEXT,
+        duplicate_of TEXT,
+        message TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+    CREATE INDEX ingest_evidence ON ingest(evidence_id);
+    CREATE INDEX ingest_text ON ingest(text_fingerprint);
 "#,
 ];
 
@@ -263,6 +314,25 @@ fn job_row(r: &Row) -> rusqlite::Result<JobRow> {
         message: r.get(6)?,
         created_at: r.get(7)?,
         updated_at: r.get(8)?,
+    })
+}
+
+fn codebook_row(r: &Row) -> rusqlite::Result<CodebookRow> {
+    Ok(CodebookRow {
+        scheme: r.get(0)?,
+        version: r.get(1)?,
+        codes: r.get(2)?,
+        updated_at: r.get(3)?,
+    })
+}
+
+fn adapter_row(r: &Row) -> rusqlite::Result<AdapterHealthRow> {
+    Ok(AdapterHealthRow {
+        adapter: r.get(0)?,
+        contract_state: r.get(1)?,
+        runtime_state: r.get(2)?,
+        detail: r.get(3)?,
+        checked_at: r.get(4)?,
     })
 }
 
@@ -428,6 +498,75 @@ impl RegistryStore for SqliteRegistry {
             .map_err(err)?;
         let rows = stmt.query_map([], job_row).map_err(err)?;
         rows.collect::<Result<_, _>>().map_err(err)
+    }
+
+    fn codebook(&self, scheme: &str) -> StoreResult<Option<CodebookRow>> {
+        one(
+            &self.conn,
+            "SELECT scheme, version, codes, updated_at FROM codebooks WHERE scheme = ?1",
+            params![scheme],
+            codebook_row,
+        )
+    }
+
+    fn codebooks(&self) -> StoreResult<Vec<CodebookRow>> {
+        many(
+            &self.conn,
+            "SELECT scheme, version, codes, updated_at FROM codebooks ORDER BY scheme",
+            params![],
+            codebook_row,
+        )
+    }
+
+    fn upsert_codebook(&self, row: &CodebookRow) -> StoreResult<()> {
+        self.conn
+            .execute(
+                "INSERT INTO codebooks (scheme, version, codes, updated_at)
+                 VALUES (?1, ?2, ?3, ?4)
+                 ON CONFLICT(scheme) DO UPDATE SET version = ?2, codes = ?3, updated_at = ?4",
+                params![row.scheme, row.version, row.codes, row.updated_at],
+            )
+            .map(|_| ())
+            .map_err(err)
+    }
+
+    fn adapter_health(&self, adapter: &str) -> StoreResult<Option<AdapterHealthRow>> {
+        one(
+            &self.conn,
+            "SELECT adapter, contract_state, runtime_state, detail, checked_at
+             FROM adapter_health WHERE adapter = ?1",
+            params![adapter],
+            adapter_row,
+        )
+    }
+
+    fn adapters(&self) -> StoreResult<Vec<AdapterHealthRow>> {
+        many(
+            &self.conn,
+            "SELECT adapter, contract_state, runtime_state, detail, checked_at
+             FROM adapter_health ORDER BY adapter",
+            params![],
+            adapter_row,
+        )
+    }
+
+    fn upsert_adapter_health(&self, row: &AdapterHealthRow) -> StoreResult<()> {
+        self.conn
+            .execute(
+                "INSERT INTO adapter_health (adapter, contract_state, runtime_state, detail, checked_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5)
+                 ON CONFLICT(adapter) DO UPDATE SET contract_state = ?2, runtime_state = ?3,
+                     detail = ?4, checked_at = ?5",
+                params![
+                    row.adapter,
+                    row.contract_state,
+                    row.runtime_state,
+                    row.detail,
+                    row.checked_at
+                ],
+            )
+            .map(|_| ())
+            .map_err(err)
     }
 }
 
@@ -894,6 +1033,69 @@ impl MatterStore for SqliteMatter {
         )
     }
 
+    fn capture(&self, id: &str) -> StoreResult<Option<CaptureRow>> {
+        one(
+            &self.conn,
+            &format!("SELECT {CAPTURE_COLS} FROM captures WHERE id = ?1"),
+            params![id],
+            capture_row,
+        )
+    }
+
+    fn capture_by_evidence(&self, evidence_id: &str) -> StoreResult<Option<CaptureRow>> {
+        one(
+            &self.conn,
+            &format!("SELECT {CAPTURE_COLS} FROM captures WHERE evidence_id = ?1 ORDER BY created_at DESC LIMIT 1"),
+            params![evidence_id],
+            capture_row,
+        )
+    }
+
+    fn captures(&self) -> StoreResult<Vec<CaptureRow>> {
+        many(
+            &self.conn,
+            &format!("SELECT {CAPTURE_COLS} FROM captures ORDER BY created_at, id"),
+            params![],
+            capture_row,
+        )
+    }
+
+    fn ingest(&self, id: &str) -> StoreResult<Option<IngestRow>> {
+        one(
+            &self.conn,
+            &format!("SELECT {INGEST_COLS} FROM ingest WHERE id = ?1"),
+            params![id],
+            ingest_row,
+        )
+    }
+
+    fn ingest_by_evidence(&self, evidence_id: &str) -> StoreResult<Option<IngestRow>> {
+        one(
+            &self.conn,
+            &format!("SELECT {INGEST_COLS} FROM ingest WHERE evidence_id = ?1 ORDER BY created_at DESC LIMIT 1"),
+            params![evidence_id],
+            ingest_row,
+        )
+    }
+
+    fn ingests(&self) -> StoreResult<Vec<IngestRow>> {
+        many(
+            &self.conn,
+            &format!("SELECT {INGEST_COLS} FROM ingest ORDER BY created_at, id"),
+            params![],
+            ingest_row,
+        )
+    }
+
+    fn ingests_with_text(&self, fingerprint: &str) -> StoreResult<Vec<IngestRow>> {
+        many(
+            &self.conn,
+            &format!("SELECT {INGEST_COLS} FROM ingest WHERE text_fingerprint = ?1 ORDER BY created_at, id"),
+            params![fingerprint],
+            ingest_row,
+        )
+    }
+
     fn record_rejected(&self, r: &RejectedWrite) -> StoreResult<()> {
         insert_rejected(&self.conn, r)
     }
@@ -931,6 +1133,8 @@ const EVIDENCE_COLS: &str = "id, original_name, primary_origin, blob, size, crea
 const REVISION_COLS: &str = "hash, draft_id, parents, author_kind, author, blob, note, created_at";
 const APPROVAL_COLS: &str =
     "id, gate, target, requested_at, requested_by, decision, reason, decided_at, decided_by";
+const CAPTURE_COLS: &str = "id, evidence_id, url, final_url, captured_at, blob, profile, gesture, portal_date, adapter, status, reason, created_at, updated_at";
+const INGEST_COLS: &str = "id, evidence_id, status, format, readability, proposed_class, text_fingerprint, duplicate_of, message, created_at, updated_at";
 
 fn evidence_row(r: &Row) -> rusqlite::Result<EvidenceRow> {
     Ok(EvidenceRow {
@@ -985,6 +1189,41 @@ fn approval_row(r: &Row) -> rusqlite::Result<ApprovalRow> {
         reason: r.get(6)?,
         decided_at: r.get(7)?,
         decided_by: r.get(8)?,
+    })
+}
+
+fn capture_row(r: &Row) -> rusqlite::Result<CaptureRow> {
+    Ok(CaptureRow {
+        id: r.get(0)?,
+        evidence_id: r.get(1)?,
+        url: r.get(2)?,
+        final_url: r.get(3)?,
+        captured_at: r.get(4)?,
+        blob: r.get(5)?,
+        profile: r.get(6)?,
+        gesture: r.get(7)?,
+        portal_date: r.get(8)?,
+        adapter: r.get(9)?,
+        status: r.get(10)?,
+        reason: r.get(11)?,
+        created_at: r.get(12)?,
+        updated_at: r.get(13)?,
+    })
+}
+
+fn ingest_row(r: &Row) -> rusqlite::Result<IngestRow> {
+    Ok(IngestRow {
+        id: r.get(0)?,
+        evidence_id: r.get(1)?,
+        status: r.get(2)?,
+        format: r.get(3)?,
+        readability: r.get(4)?,
+        proposed_class: r.get(5)?,
+        text_fingerprint: r.get(6)?,
+        duplicate_of: r.get(7)?,
+        message: r.get(8)?,
+        created_at: r.get(9)?,
+        updated_at: r.get(10)?,
     })
 }
 
@@ -1102,6 +1341,86 @@ fn apply(tx: &Connection, w: &MatterWrite) -> StoreResult<()> {
                     "approval {id} is already decided or does not exist"
                 )))
             }
+        }
+        MatterWrite::InsertCapture(c) => done(tx.execute(
+            &format!(
+                "INSERT INTO captures ({CAPTURE_COLS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)"
+            ),
+            params![
+                c.id,
+                c.evidence_id,
+                c.url,
+                c.final_url,
+                c.captured_at,
+                c.blob,
+                c.profile,
+                c.gesture,
+                c.portal_date,
+                c.adapter,
+                c.status,
+                c.reason,
+                c.created_at,
+                c.updated_at
+            ],
+        )),
+        MatterWrite::InsertIngest(i) => done(tx.execute(
+            &format!(
+                "INSERT INTO ingest ({INGEST_COLS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)"
+            ),
+            params![
+                i.id,
+                i.evidence_id,
+                i.status,
+                i.format,
+                i.readability,
+                i.proposed_class,
+                i.text_fingerprint,
+                i.duplicate_of,
+                i.message,
+                i.created_at,
+                i.updated_at
+            ],
+        )),
+        MatterWrite::UpdateCaptureStatus {
+            id,
+            status,
+            reason,
+            updated_at,
+        } => {
+            let n = tx
+                .execute(
+                    "UPDATE captures SET status = ?2, reason = ?3, updated_at = ?4 WHERE id = ?1",
+                    params![id, status, reason, updated_at],
+                )
+                .map_err(err)?;
+            if n == 0 {
+                return Err(StoreError::new(
+                    StoreErrorKind::NotFound,
+                    format!("no capture {id}"),
+                ));
+            }
+            Ok(())
+        }
+        MatterWrite::SetIngestText {
+            id,
+            text_fingerprint,
+            duplicate_of,
+            updated_at,
+        } => {
+            let n = tx
+                .execute(
+                    "UPDATE ingest SET text_fingerprint = ?2, duplicate_of = ?3, updated_at = ?4
+                     WHERE id = ?1",
+                    params![id, text_fingerprint, duplicate_of, updated_at],
+                )
+                .map_err(err)?;
+            if n == 0 {
+                return Err(StoreError::new(
+                    StoreErrorKind::NotFound,
+                    format!("no ingest job {id}"),
+                ));
+            }
+            Ok(())
         }
     }
 }

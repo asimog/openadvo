@@ -17,6 +17,9 @@ pub enum Origin {
     Cli,
     Harness,
     Test,
+    /// The browser supervisor's download interceptor. Never produced by the
+    /// control pipe, so a capture record cannot be claimed by a client (F-AC-03).
+    Capture,
 }
 
 impl Origin {
@@ -26,6 +29,7 @@ impl Origin {
             Origin::Cli => "cli",
             Origin::Harness => "harness",
             Origin::Test => "test",
+            Origin::Capture => "capture",
         }
     }
 
@@ -34,6 +38,7 @@ impl Origin {
         match self {
             Origin::Harness => "agent",
             Origin::Test => "test",
+            Origin::Capture => "browser_supervisor",
             Origin::Ui | Origin::Cli => "advocate",
         }
     }

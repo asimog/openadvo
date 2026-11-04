@@ -64,6 +64,21 @@ enum Command {
     /// Source documents
     #[command(subcommand)]
     Evidence(EvidenceCmd),
+    /// Import files or a folder into a matter's evidence and ingest queue
+    Import {
+        paths: Vec<PathBuf>,
+        #[arg(long)]
+        matter: Option<String>,
+    },
+    /// Capture queue: pending captures, CAPTCHA waits and failures
+    #[command(subcommand)]
+    Capture(CaptureCmd),
+    /// Per-file ingestion state
+    #[command(subcommand)]
+    Ingest(IngestCmd),
+    /// Court codebooks
+    #[command(subcommand)]
+    Codebook(CodebookCmd),
     /// Drafts and their revisions
     #[command(subcommand)]
     Draft(DraftCmd),
@@ -252,6 +267,32 @@ enum EvidenceCmd {
         m: MatterArg,
         id: String,
     },
+    /// Possible duplicates of the same text after OCR
+    Duplicates {
+        #[command(flatten)]
+        m: MatterArg,
+    },
+}
+
+#[derive(Subcommand)]
+enum CaptureCmd {
+    /// Pending captures, CAPTCHA waits and failures
+    Status,
+}
+
+#[derive(Subcommand)]
+enum IngestCmd {
+    /// Per-file job state, optionally for one document
+    Status {
+        #[arg(long)]
+        doc: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum CodebookCmd {
+    /// A court codebook with its list version
+    Show { scheme: String },
 }
 
 #[derive(Subcommand)]
@@ -406,6 +447,49 @@ fn attachment(path: &Path) -> Result<Attachment, OaError> {
     })
 }
 
+/// `oa import` accepts files and folders; a folder is walked in path order so
+/// the same import gives the same order every time.
+fn files_in(path: &Path) -> Result<Vec<PathBuf>, OaError> {
+    if path.is_file() {
+        return Ok(vec![path.to_path_buf()]);
+    }
+    if !path.is_dir() {
+        return Err(OaError::new(
+            ErrorCode::Usage,
+            format!("{} is not a file or folder", path.display()),
+        ));
+    }
+    let mut files = Vec::new();
+    let mut pending = vec![path.to_path_buf()];
+    while let Some(dir) = pending.pop() {
+        let mut entries: Vec<PathBuf> = std::fs::read_dir(&dir)
+            .map_err(|e| OaError::new(ErrorCode::Usage, format!("{}: {e}", dir.display())))?
+            .flatten()
+            .map(|e| e.path())
+            .collect();
+        entries.sort();
+        for entry in entries {
+            if entry.is_dir() {
+                pending.push(entry);
+            } else if entry.is_file() {
+                files.push(entry);
+            }
+        }
+    }
+    files.sort();
+    Ok(files)
+}
+
+fn import_attachments(paths: &[PathBuf]) -> Result<Vec<Attachment>, OaError> {
+    let mut out = Vec::new();
+    for path in paths {
+        for file in files_in(path)? {
+            out.push(attachment(&file)?);
+        }
+    }
+    Ok(out)
+}
+
 fn kernel(app: &Path) -> Kernel {
     let hooks = Hooks {
         presence: Arc::new(TerminalPresence),
@@ -472,7 +556,15 @@ fn request(cmd: Command) -> Result<Request, OaError> {
                 matter: m.matter,
                 id,
             },
+            EvidenceCmd::Duplicates { m } => Request::EvidenceDuplicates { matter: m.matter },
         },
+        Command::Import { paths, matter } => Request::EvidenceImport {
+            matter,
+            files: import_attachments(&paths)?,
+        },
+        Command::Capture(CaptureCmd::Status) => Request::CaptureStatus,
+        Command::Ingest(IngestCmd::Status { doc }) => Request::IngestStatus { doc },
+        Command::Codebook(CodebookCmd::Show { scheme }) => Request::CodebookShow { scheme },
         Command::Draft(d) => match d {
             DraftCmd::Create { m, title, from } => Request::DraftCreate {
                 matter: m.matter,
