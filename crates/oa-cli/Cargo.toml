@@ -19,6 +19,7 @@ oa-protocol.workspace = true
 oa-harness.workspace = true
 oa-session.workspace = true
 oa-ocr.workspace = true
+oa-notebook.workspace = true
 clap.workspace = true
 serde_json.workspace = true
 

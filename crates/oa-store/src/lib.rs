@@ -137,6 +137,12 @@ pub trait MatterStore: Send {
     fn ocr_document(&self, doc: &str) -> StoreResult<Option<OcrDocumentRow>>;
     fn ocr_documents(&self) -> StoreResult<Vec<OcrDocumentRow>>;
 
+    /// Every version of every Notebook item.
+    fn notebook_items(&self) -> StoreResult<Vec<NotebookItemRow>>;
+    fn notebook_review(&self) -> StoreResult<Vec<NotebookReviewRow>>;
+    fn notebook_exclusions(&self) -> StoreResult<Vec<NotebookExclusionRow>>;
+    fn notebook_meta(&self, key: &str) -> StoreResult<Option<String>>;
+
     fn record_rejected(&self, rejected: &RejectedWrite) -> StoreResult<()>;
     fn rejected(&self) -> StoreResult<Vec<RejectedWrite>>;
 }

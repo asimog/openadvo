@@ -250,6 +250,42 @@ pub struct OcrDocumentRow {
     pub updated_at: String,
 }
 
+/// One version of a Notebook item (spec H rules 1 and 12). Versions are
+/// append-only; the JSON `data` column is the whole item.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NotebookItemRow {
+    pub id: String,
+    pub version: i64,
+    pub section: String,
+    pub kind: String,
+    pub status: String,
+    pub component: String,
+    pub data: String,
+    pub created_at: String,
+}
+
+/// A Notebook review item: a conflict or a date question (spec H rules 7
+/// and 10).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NotebookReviewRow {
+    pub id: String,
+    pub kind: String,
+    pub key: String,
+    pub state: String,
+    pub data: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// An event or category hidden in one view (spec H rule 6).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NotebookExclusionRow {
+    pub view: String,
+    pub target_kind: String,
+    pub target: String,
+    pub created_at: String,
+}
+
 /// A row written in the same transaction as a ledger event (spec C rule 1).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MatterWrite {
@@ -289,6 +325,19 @@ pub enum MatterWrite {
         updated_at: String,
     },
     UpsertOcrDocument(OcrDocumentRow),
+    /// Refused with `Conflict` if that version exists.
+    InsertNotebookItem(NotebookItemRow),
+    UpsertNotebookReview(NotebookReviewRow),
+    AddNotebookExclusion(NotebookExclusionRow),
+    RemoveNotebookExclusion {
+        view: String,
+        target_kind: String,
+        target: String,
+    },
+    SetNotebookMeta {
+        key: String,
+        value: String,
+    },
 }
 
 /// An accepted command, for the control audit (spec B rule 8).

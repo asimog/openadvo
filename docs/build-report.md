@@ -131,3 +131,102 @@ yet.
   queue of their own. The inbox reads open disputes directly.
 - Real engines (vendored Tesseract and PaddleOCR), pdfium rasterising and the
   gold set run in CI are still to come (spec Q builds them).
+
+
+# Build report: spec H, the Notebook
+
+Build step 6, on top of the G review commit 051c43f. Nothing is committed.
+New crate `oa-notebook` (pure logic), a `matter.db` migration, the kernel
+module `notebook.rs`, `oa notebook ...` and `oa trace`, and six shell views.
+
+## Acceptance criteria in scope
+
+| ID | Test | Result | Note |
+|---|---|---|---|
+| H-AC-01 | `h_ac_01_every_item_in_the_fixture_matter_has_an_anchor_resolving_to_a_blob_region`, `h_ac_01_an_unresolved_anchor_is_refused_and_audited` | pass | |
+| H-AC-02 | `h_ac_02_a_client_item_is_tagged_and_never_in_the_ulos_n_bundle` (kernel), `h_ac_02_client_items_never_enter_the_ulos_n_bundle` (oa-notebook), `h_ac_02_a_client_item_shows_supplied_by_client_and_never_verified` (shell) | pass | K builds the real bundle; it must use `oa_notebook::ulos_n_bundle`. |
+| H-AC-03 | `h_ac_03_excluding_an_event_leaves_it_in_other_views_and_in_the_facts`, `h_ac_03_*` (oa-notebook) | pass | |
+| H-AC-04 | `h_ac_04_two_documents_with_different_dates_for_one_order_raise_one_conflict`, `h_ac_04_*` (oa-notebook) | pass | |
+| H-AC-05 | `h_ac_05_ready_is_false_while_a_job_runs_or_a_review_item_is_open` | pass | |
+| H-AC-06 | `h_ac_06_skip_and_confirm_from_a_harness_connection_are_refused` | pass | Also covers `notebook.confirm` and `notebook.date_anchor`. |
+| H-AC-07 | `h_ac_07_the_list_of_dates_leaves_out_disputed_inferred_unconfirmed_and_unresolved_dates`, `h_ac_07_*` (oa-notebook) | pass | Tested on the eligibility filter (`--for-prose`). The generator is J10. |
+| H-AC-08 | `h_ac_08_a_correction_leaves_the_earlier_version_readable` | pass | |
+| H-AC-09 | `h_ac_09_the_impugned_order_round_trips_to_the_lower_court_search`, `h_ac_09_*` (oa-notebook) | pass | Against a fixture page added in this step (stub). |
+| H-AC-10 | none | [HUMAN] | |
+| H-AC-11 | `h_ac_11_each_readiness_blocker_opens_its_item` (kernel and shell) | pass | |
+| H-AC-12 | `h_ac_12_every_item_opens_its_source_peek_and_its_trace_chain` (kernel), `h_ac_12_every_item_row_opens_its_peek_and_then_its_trace` (shell) | pass | The peek is the Inspector record with the anchor region. The highlighted raster region is J's viewer. |
+| H-AC-13 | `h_ac_13_excluded_events_show_under_show_excluded_and_stay_in_the_facts` (kernel), `h_ac_13_*` (oa-notebook, shell) | pass | |
+
+G criteria closed end to end through H:
+
+| ID | Test | Result |
+|---|---|---|
+| G-AC-05 | `g_ac_05_a_party_name_one_character_apart_is_a_dispute_end_to_end` | pass. Parties from the Notebook are passed to `agree` in `ocr.run` and to entity extraction. |
+| G-AC-07 | `g_ac_07_a_disputed_date_cannot_be_confirmed_until_the_dispute_is_decided` | pass. Confirm is refused and audited, and a correction cannot clear the dispute. |
+| G-AC-10 | `g_ac_10_portal_date_anchors_relative_dates_and_no_anchor_asks_once_per_file` | pass. The header date, then the portal date, then the advocate's answer. One question per file. |
+
+Also `h_cli_notebook_commands_after_ocr` (oa-cli) drives every `oa notebook`
+subcommand except `propose` and `correct` through the binary.
+
+## Views in scope
+
+| View | Covers | Screenshot | Checked | Seen wrong |
+|---|---|---|---|---|
+| Notebook | `notebook.show`, `notebook.item` | `target/screenshots/gallery-notebook.png` | counts per section, item rows with Court portal or Supplied by client, disputed in red, missing CNR banner, empty, loading and error states | none |
+| Factual Matrix | `notebook.facts` | `target/screenshots/gallery-facts.png` | date, date type, event, source, method; OCR-disputed row red, confirmed green | At gallery quarter width, the Uncertainty, Conflicts and Status columns are clipped and the table scrolls. A full pane shows them. |
+| Chronology | `notebook.chronology` | `target/screenshots/gallery-chronology.png` | view banner, excluded row muted and marked "excluded from synopsis" | The status text of the excluded row is clipped at quarter width. |
+| Conflicts | `notebook.conflicts` | `target/screenshots/gallery-conflicts.png` | open red, resolved green, both sources listed | none |
+| Readiness | `notebook.ready` | `target/screenshots/gallery-readiness.png` | "Not ready: N blockers" banner, one row per job, ingest, review item and OCR dispute; ready state | none |
+| Trace | `trace` | `target/screenshots/gallery-trace.png` | extract, line, page, source hash, original file per anchor; unresolved anchor in red | none |
+
+The screenshots are galleries (fixtures, no kernel). No live-window capture was
+taken in this step.
+
+## [HUMAN] criteria still needing a person
+
+- H-AC-10: on a real matter, does the procedural history and Factual Matrix
+  match what a lawyer reconstructs by hand?
+- The human gestures in the window: "Confirm fact dated ..." on the Factual
+  Matrix, "Skip review item: ..." with a reason on Readiness, exclude and restore
+  on the Chronology, "Open each source side by side" on Conflicts. These were not
+  clicked in this session.
+- Keyboard-only operation of the new views (README GUI convention 5).
+
+## Stubs and the group that replaces each
+
+- Lower-court search: a fixture page and `search_lower_court` in `oa-capture`.
+  Replaced by the portal adapter (M, with F's contract).
+- Source peek: the Inspector record, which carries the anchor's page, line and
+  box. The highlighted raster region comes with J's viewer.
+- ULOS-N bundle: `oa_notebook::ulos_n_bundle` filters the court-portal
+  component. K builds the real bundle (`oa verify notebook`) and U verifies it.
+- List of Dates: H supplies the eligible events (`--for-prose`). The generator
+  is J10.
+- Writers: only the rules extraction writer (`notebook.extract`) and the generic
+  `notebook.propose` exist. Procedural-history, authority and work-product
+  writers come with I (research) and the portal adapter (M). No model-assisted
+  candidates yet.
+
+## Open questions hit
+
+- OQ-04: dates that are not ISO, including the `01-01-1900` placeholder, are
+  kept verbatim and sort after real dates. The placeholder is never used as a
+  date anchor.
+
+## Spec issues
+
+- The CLI table has no writer or correction commands, but rules 3 and 12 need
+  them, and G rule 8 needs a way to record the advocate's date answer. Added
+  `notebook.propose`, `notebook.extract`, `notebook.correct` and the human
+  command `notebook.date_anchor`.
+- Rule 11 names `oa trace`, which spec C lists with C-AC-14 on a petition
+  paragraph anchor. Here `trace` takes a Notebook item id. Draft paragraph
+  anchors wait for J.
+- Rule 1 says one item kind per section, but H must hold the parties, and the
+  impugned order has no anchor. Parties are a second kind in procedural history.
+  The impugned order is a matter-level record.
+- The `--status disputed` filter treats disputed as a status. It is derived
+  here, not stored, so deciding the OCR dispute clears it with no Notebook
+  write.
+- F's ingest rows never leave `pending`. Readiness treats a document with an
+  OCR record or text as ingested. F should move the row on when ingestion ends.

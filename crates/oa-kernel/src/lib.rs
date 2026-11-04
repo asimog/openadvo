@@ -18,6 +18,7 @@ mod layout;
 mod ledger;
 mod links;
 mod matters;
+mod notebook;
 mod ocr;
 mod paths;
 mod records;
@@ -245,6 +246,70 @@ impl Kernel {
                 .map(one),
             Request::ExtractEntities { matter, doc } => self.extract_entities(&matter, &doc),
             Request::OcrEngines => self.ocr_engines(),
+            Request::NotebookShow { matter, section } => {
+                self.notebook_show(&matter, section.as_deref()).map(one)
+            }
+            Request::NotebookItem {
+                matter,
+                id,
+                version,
+            } => self.notebook_item(&matter, &id, version).map(one),
+            Request::NotebookFacts { matter, status } => {
+                self.notebook_facts(&matter, status.as_deref())
+            }
+            Request::NotebookChronology {
+                matter,
+                view,
+                show_excluded,
+                for_prose,
+            } => self.notebook_chronology(&matter, view.as_deref(), show_excluded, for_prose),
+            Request::NotebookReady { matter } => self.notebook_ready(&matter).map(one),
+            Request::NotebookConflicts { matter } => self.notebook_conflicts(&matter),
+            Request::Trace { matter, id } => self.trace(&matter, &id).map(one),
+            Request::NotebookPropose { matter, item } => {
+                self.notebook_propose(ctx, &matter, &item).map(one)
+            }
+            Request::NotebookExtract { matter, doc } => {
+                self.notebook_extract(ctx, &matter, &doc).map(one)
+            }
+            Request::NotebookCorrect {
+                matter,
+                id,
+                reason,
+                item,
+            } => self
+                .notebook_correct(ctx, &matter, &id, &reason, &item)
+                .map(one),
+            Request::NotebookExclude {
+                matter,
+                view,
+                event,
+                category,
+                restore,
+            } => self
+                .notebook_exclude(
+                    ctx,
+                    &matter,
+                    &view,
+                    event.as_deref(),
+                    category.as_deref(),
+                    restore,
+                )
+                .map(one),
+            Request::NotebookImpugnedSet { matter, order } => {
+                self.notebook_impugned_set(ctx, &matter, &order).map(one)
+            }
+            Request::NotebookConfirm { matter, id } => {
+                self.notebook_confirm(ctx, &matter, &id).map(one)
+            }
+            Request::NotebookSkip {
+                matter,
+                review,
+                reason,
+            } => self.notebook_skip(ctx, &matter, &review, &reason).map(one),
+            Request::NotebookDateAnchor { matter, doc, date } => self
+                .notebook_date_anchor(ctx, &matter, &doc, &date)
+                .map(one),
             Request::EvidenceList { matter } => self.evidence_list(&matter),
             Request::EvidenceShow { matter, id } => self.evidence_show(&matter, &id).map(one),
             Request::DraftCreate {

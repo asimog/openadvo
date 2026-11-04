@@ -2109,6 +2109,7 @@ dependencies = [
  "oa-control",
  "oa-harness",
  "oa-kernel",
+ "oa-notebook",
  "oa-ocr",
  "oa-protocol",
  "oa-session",
@@ -2159,8 +2160,10 @@ name = "oa-kernel"
 version = "0.1.0"
 dependencies = [
  "base64",
+ "chrono",
  "hex",
  "oa-capture",
+ "oa-notebook",
  "oa-ocr",
  "oa-store",
  "oa-types",
@@ -2171,6 +2174,18 @@ dependencies = [
  "sha2",
  "tempfile",
  "ulid",
+]
+
+[[package]]
+name = "oa-notebook"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "oa-capture",
+ "oa-ocr",
+ "schemars",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

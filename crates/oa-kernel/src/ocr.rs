@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::command::{OcrEngineHealthInput, OcrRunInput};
+use crate::records::Live;
 use crate::{store_err, Ctx, Kernel};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,8 +103,8 @@ impl OcrData {
     }
 
     /// The line's text with decided disputes applied, and the byte spans of
-    /// tokens still under open dispute (G rule 6).
-    fn effective_text(&self, line: &LineRecord) -> (String, Vec<(usize, usize)>) {
+    /// tokens still under open dispute with the dispute's id (G rule 6).
+    fn effective_text(&self, line: &LineRecord) -> (String, Vec<(usize, usize, String)>) {
         let mut text = String::new();
         let mut open = Vec::new();
         for (i, token) in line.canonical_text.split(' ').enumerate() {
@@ -124,12 +125,36 @@ impl OcrData {
             }
             let start = text.len();
             text.push_str(chosen);
-            if dispute.is_some_and(|d| d.state == "open") {
-                open.push((start, text.len()));
+            if let Some(d) = dispute.filter(|d| d.state == "open") {
+                open.push((start, text.len(), d.id.clone()));
             }
         }
         (text, open)
     }
+}
+
+/// One OCR line's effective text, its entities and its open dispute spans.
+pub(crate) struct LineEntities {
+    pub text: String,
+    pub entities: Vec<oa_ocr::Entity>,
+    pub open: Vec<(usize, usize, String)>,
+}
+
+/// A resolved anchor: the current line it lands on, or the whole page.
+pub(crate) struct ResolvedLine {
+    pub line: Option<u32>,
+    pub line_hash: Option<String>,
+    pub text: Option<String>,
+    pub rect: Rect,
+}
+
+/// `YYYY-MM-DD`, or the portal's `DD-MM-YYYY`. The `01-01-1900` placeholder
+/// is no date (OQ-04: it is never used as an anchor).
+pub(crate) fn parse_date(d: &str) -> Option<chrono::NaiveDate> {
+    chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d")
+        .or_else(|_| chrono::NaiveDate::parse_from_str(d, "%d-%m-%Y"))
+        .ok()
+        .filter(|d| d.format("%Y").to_string() != "1900")
 }
 
 fn missing_reading() -> Reading {
@@ -212,6 +237,83 @@ fn engine_health_row(h: &OcrEngineHealthInput) -> AdapterHealthRow {
 }
 
 impl Kernel {
+    /// Open OCR dispute ids across the matter's documents.
+    pub(crate) fn open_dispute_ids(live: &Live) -> Result<Vec<(String, String)>, OaError> {
+        let mut out = Vec::new();
+        for row in live.store.ocr_documents().map_err(store_err)? {
+            let data = parse_data(&row)?;
+            out.extend(
+                data.disputes
+                    .iter()
+                    .filter(|d| d.state == "open")
+                    .map(|d| (d.id.clone(), d.doc.clone())),
+            );
+        }
+        Ok(out)
+    }
+
+    /// Resolves an anchor on a document's OCR record: the page must exist, and
+    /// a line hash must be a current line, a superseded one, or mapped to one
+    /// (G rule 10). A writer's unresolved anchor is refused.
+    pub(crate) fn resolve_anchor(
+        live: &Live,
+        doc: &str,
+        page: u32,
+        line_hash: Option<&str>,
+    ) -> Result<ResolvedLine, String> {
+        let row = live
+            .store
+            .ocr_document(doc)
+            .map_err(|e| e.message)?
+            .ok_or_else(|| format!("document {doc} has no OCR record to anchor on"))?;
+        let data = parse_data(&row).map_err(|e| e.message)?;
+        let Some(p) = data.pages.iter().find(|p| p.page == page) else {
+            return Err(format!("document {doc} has no page {page}"));
+        };
+        let Some(hash) = line_hash else {
+            return Ok(ResolvedLine {
+                line: None,
+                line_hash: None,
+                text: None,
+                rect: Rect::new(0.0, 0.0, p.width, p.height),
+            });
+        };
+        let current = data.line_map.get(hash).map(String::as_str).unwrap_or(hash);
+        let found = data
+            .lines
+            .iter()
+            .find(|l| l.line_hash == current)
+            .or_else(|| data.superseded.iter().find(|l| l.line_hash == hash));
+        match found {
+            Some(l) if l.page == page => Ok(ResolvedLine {
+                line: Some(l.line),
+                line_hash: Some(l.line_hash.clone()),
+                text: Some(data.effective_text(l).0),
+                rect: l.rect,
+            }),
+            Some(l) => Err(format!(
+                "line {hash} is on page {}, not page {page}",
+                l.page
+            )),
+            None => Err(format!("line {hash} is not in the OCR record of {doc}")),
+        }
+    }
+
+    /// The first line of a document's first page, for a source-document
+    /// item's anchor.
+    pub(crate) fn first_line(live: &Live, doc: &str) -> Result<Option<(u32, String)>, OaError> {
+        let Some(row) = live.store.ocr_document(doc).map_err(store_err)? else {
+            return Ok(None);
+        };
+        let data = parse_data(&row)?;
+        Ok(data
+            .lines
+            .iter()
+            .min_by_key(|l| (l.page, l.line))
+            .map(|l| (l.page, l.line_hash.clone()))
+            .or_else(|| data.pages.first().map(|p| (p.page, String::new()))))
+    }
+
     pub(crate) fn ocr_run(
         &self,
         ctx: &Ctx,
@@ -255,6 +357,8 @@ impl Kernel {
             .map_err(store_err)?
             .map(|row| parse_data(&row).map(|data| (row.created_at, data)))
             .transpose()?;
+        // The matter's parties make their names critical tokens (G-AC-05).
+        let parties = self.notebook_parties(&live)?;
         let mut lines = Vec::new();
         let mut disputes = Vec::new();
         for ((page, line), mut readings) in grouped {
@@ -268,7 +372,7 @@ impl Kernel {
                 None => missing_reading(),
             };
             let rect = a.words.first().map(|w| w.rect).unwrap_or_else(Rect::zero);
-            let record = agree(page, line, rect, a, b, &[]);
+            let record = agree(page, line, rect, a, b, &parties);
             for d in &record.disputed {
                 let carried = previous.as_ref().and_then(|(_, p)| {
                     p.disputes.iter().find(|o| {
@@ -630,13 +734,40 @@ impl Kernel {
 
     pub(crate) fn extract_entities(&self, matter: &str, doc: &str) -> Result<Vec<Value>, OaError> {
         let live = self.live(matter)?;
+        let (lines, _) = self.entity_lines(&live, doc)?;
+        let mut out = Vec::new();
+        for l in lines {
+            for entity in l.entities {
+                let disputed = l
+                    .open
+                    .iter()
+                    .any(|(start, end, _)| entity.start < *end && *start < entity.end);
+                let mut v = serde_json::to_value(entity).unwrap_or(Value::Null);
+                v["doc"] = json!(doc);
+                v["disputed"] = json!(disputed);
+                out.push(v);
+            }
+        }
+        Ok(out)
+    }
+
+    /// Every line's entities, with the matter's parties and the document's
+    /// date anchor (RQ-23), and the questions the dates raise.
+    pub(crate) fn entity_lines(
+        &self,
+        live: &Live,
+        doc: &str,
+    ) -> Result<(Vec<LineEntities>, Vec<String>), OaError> {
         let row = live
             .store
             .ocr_document(doc)
             .map_err(store_err)?
             .ok_or_else(|| OaError::new(ErrorCode::NotFound, format!("no OCR run for {doc}")))?;
         let data = parse_data(&row)?;
+        let parties = self.notebook_parties(live)?;
+        let anchor = self.document_date_anchor(live, doc, &data)?;
         let mut out = Vec::new();
+        let mut questions = Vec::new();
         for line in &data.lines {
             let line_ref = LineRef {
                 page: line.page,
@@ -645,18 +776,45 @@ impl Kernel {
                 rect: line.rect,
             };
             let (text, open) = data.effective_text(line);
-            let extraction = extract_entities(&text, line_ref, &[], &DateAnchor::default());
-            for entity in extraction.entities {
-                let disputed = open
-                    .iter()
-                    .any(|(start, end)| entity.start < *end && *start < entity.end);
-                let mut v = serde_json::to_value(entity).unwrap_or(Value::Null);
-                v["doc"] = json!(doc);
-                v["disputed"] = json!(disputed);
-                out.push(v);
-            }
+            let extraction = extract_entities(&text, line_ref, &parties, &anchor);
+            questions.extend(extraction.questions);
+            out.push(LineEntities {
+                text,
+                entities: extraction.entities,
+                open,
+            });
         }
-        Ok(out)
+        questions.dedup();
+        Ok((out, questions))
+    }
+
+    /// The header date of the document, else the portal's date for it, unless
+    /// the advocate has answered (RQ-23, G rule 8).
+    fn document_date_anchor(
+        &self,
+        live: &Live,
+        doc: &str,
+        data: &OcrData,
+    ) -> Result<DateAnchor, OaError> {
+        let mut first_page: Vec<&LineRecord> = data.lines.iter().filter(|l| l.page == 1).collect();
+        first_page.sort_by_key(|l| l.line);
+        // A line with an open dispute cannot anchor other dates: the disputed
+        // date would spread into every relative date (G-AC-07).
+        let texts: Vec<String> = first_page
+            .iter()
+            .map(|l| data.effective_text(l))
+            .filter(|(_, open)| open.is_empty())
+            .map(|(text, _)| text)
+            .collect();
+        let header = oa_notebook::header_date(texts.iter().map(String::as_str));
+        let portal = live
+            .store
+            .capture_by_evidence(doc)
+            .map_err(store_err)?
+            .and_then(|c| c.portal_date)
+            .and_then(|d| parse_date(&d));
+        let answer = self.notebook_date_answer(live, doc)?;
+        Ok(oa_notebook::date_anchor(header, portal, answer))
     }
 
     pub(crate) fn ocr_engines(&self) -> Result<Vec<Value>, OaError> {

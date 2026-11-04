@@ -192,6 +192,93 @@ fn samples() -> Vec<Request> {
             doc: "e".into(),
         },
         Request::OcrEngines,
+        Request::NotebookShow {
+            matter: m(),
+            section: Some("factual_matrix".into()),
+        },
+        Request::NotebookItem {
+            matter: m(),
+            id: "i".into(),
+            version: Some(1),
+        },
+        Request::NotebookFacts {
+            matter: m(),
+            status: Some("disputed".into()),
+        },
+        Request::NotebookChronology {
+            matter: m(),
+            view: Some("synopsis".into()),
+            show_excluded: true,
+            for_prose: false,
+        },
+        Request::NotebookReady { matter: m() },
+        Request::NotebookConflicts { matter: m() },
+        Request::Trace {
+            matter: m(),
+            id: "i".into(),
+        },
+        Request::NotebookPropose {
+            matter: m(),
+            item: Box::new(oa_notebook::ItemInput {
+                kind: "source_document".into(),
+                description: "order".into(),
+                method: "test".into(),
+                anchors: vec![oa_notebook::NoteAnchor {
+                    doc: "e".into(),
+                    page: 1,
+                    line: Some(0),
+                    line_hash: Some("sha256:l".into()),
+                    rect: Some(Rect::new(0.0, 0.0, 1.0, 1.0)),
+                    start: None,
+                    end: None,
+                }],
+                ..oa_notebook::ItemInput::default()
+            }),
+        },
+        Request::NotebookExtract {
+            matter: m(),
+            doc: "e".into(),
+        },
+        Request::NotebookCorrect {
+            matter: m(),
+            id: "i".into(),
+            reason: "typo".into(),
+            item: Box::default(),
+        },
+        Request::NotebookExclude {
+            matter: m(),
+            view: "synopsis".into(),
+            event: Some("i".into()),
+            category: None,
+            restore: false,
+        },
+        Request::NotebookImpugnedSet {
+            matter: m(),
+            order: oa_notebook::ImpugnedOrder {
+                court_type: "HC".into(),
+                state: "27".into(),
+                bench: "1".into(),
+                case_type: "WP".into(),
+                number: "1234".into(),
+                year: "2018".into(),
+                order_date: "2019-03-12".into(),
+                cnr: None,
+            },
+        },
+        Request::NotebookConfirm {
+            matter: m(),
+            id: "i".into(),
+        },
+        Request::NotebookSkip {
+            matter: m(),
+            review: "r".into(),
+            reason: "not material".into(),
+        },
+        Request::NotebookDateAnchor {
+            matter: m(),
+            doc: "e".into(),
+            date: "2019-03-12".into(),
+        },
         Request::DraftCreate {
             matter: m(),
             title: "D".into(),

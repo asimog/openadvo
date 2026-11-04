@@ -29,6 +29,12 @@ pub enum ViewId {
     OcrLines,
     OcrEngines,
     Entities,
+    Notebook,
+    Facts,
+    Chronology,
+    Conflicts,
+    Readiness,
+    Trace,
 }
 
 pub struct ViewDef {
@@ -165,6 +171,42 @@ pub const REGISTRY: &[ViewDef] = &[
         key: "entities",
         title: "Entities",
         covers: &["extract.entities"],
+    },
+    ViewDef {
+        id: ViewId::Notebook,
+        key: "notebook",
+        title: "Notebook",
+        covers: &["notebook.show", "notebook.item"],
+    },
+    ViewDef {
+        id: ViewId::Facts,
+        key: "facts",
+        title: "Factual Matrix",
+        covers: &["notebook.facts"],
+    },
+    ViewDef {
+        id: ViewId::Chronology,
+        key: "chronology",
+        title: "Chronology",
+        covers: &["notebook.chronology"],
+    },
+    ViewDef {
+        id: ViewId::Conflicts,
+        key: "conflicts",
+        title: "Conflicts",
+        covers: &["notebook.conflicts"],
+    },
+    ViewDef {
+        id: ViewId::Readiness,
+        key: "readiness",
+        title: "Readiness",
+        covers: &["notebook.ready"],
+    },
+    ViewDef {
+        id: ViewId::Trace,
+        key: "trace",
+        title: "Trace",
+        covers: &["trace"],
     },
 ];
 
@@ -986,6 +1028,379 @@ pub fn entities_table(values: &[Value]) -> Table {
     )
 }
 
+fn nb_date(v: &Value) -> String {
+    let d = s(v, "date");
+    match s(v, "date_end") {
+        e if e.is_empty() => d,
+        e => format!("{d} to {e}"),
+    }
+}
+
+fn nb_tone(v: &Value) -> Tone {
+    match s(v, "shown_status").as_str() {
+        "disputed" => Tone::Bad,
+        "confirmed" => Tone::Good,
+        _ => Tone::Normal,
+    }
+}
+
+/// Where an item came from, with its component tag (spec H rule 2). A
+/// client file is "Supplied by client", never "verified" or "unverifiable".
+fn nb_source(v: &Value) -> String {
+    let a = &v["anchors"][0];
+    format!(
+        "{} p{} | {}",
+        short(&s(a, "doc")),
+        s(a, "page"),
+        s(v, "component_label")
+    )
+}
+
+fn clip(text: &str, n: usize) -> String {
+    if text.chars().count() <= n {
+        text.to_string()
+    } else {
+        format!("{}...", text.chars().take(n).collect::<String>())
+    }
+}
+
+/// The Notebook pane (A05): each section's counts, or one section's items
+/// when `section` names it.
+pub fn notebook_table(matter: &str, show: &Value, section: Option<&str>) -> Table {
+    let mut t = match section {
+        None => {
+            let rows = show["counts"]
+                .as_array()
+                .map(Vec::as_slice)
+                .unwrap_or_default()
+                .iter()
+                .map(|c| Row {
+                    cells: vec![
+                        s(c, "title"),
+                        s(c, "total"),
+                        s(c, "candidate"),
+                        s(c, "confirmed"),
+                        s(c, "disputed"),
+                        s(c, "excluded"),
+                    ],
+                    subject: Subject::Raw(c.clone()),
+                    tone: if c["disputed"].as_u64().unwrap_or(0) > 0 {
+                        Tone::Bad
+                    } else {
+                        Tone::Normal
+                    },
+                })
+                .collect();
+            Table::new(
+                ViewId::Notebook,
+                &[
+                    "Section",
+                    "Items",
+                    "Candidate",
+                    "Confirmed",
+                    "Disputed",
+                    "Excluded",
+                ],
+                rows,
+                "No Notebook for this matter yet.",
+            )
+        }
+        Some(_) => {
+            let review = show["review"]
+                .as_array()
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            let mut rows: Vec<Row> = show["items"]
+                .as_array()
+                .map(Vec::as_slice)
+                .unwrap_or_default()
+                .iter()
+                .map(|i| Row {
+                    cells: vec![
+                        s(i, "kind"),
+                        clip(&s(i, "description"), 70),
+                        nb_date(i),
+                        s(i, "shown_status"),
+                        nb_source(i),
+                    ],
+                    subject: rec(matter, s(i, "id")),
+                    tone: nb_tone(i),
+                })
+                .collect();
+            rows.extend(review.iter().map(|r| Row {
+                cells: vec![
+                    format!("review: {}", s(r, "kind")),
+                    clip(&s(r, "summary"), 70),
+                    String::new(),
+                    s(r, "state"),
+                    String::new(),
+                ],
+                subject: rec(matter, s(r, "id")),
+                tone: if s(r, "state") == "open" {
+                    Tone::Warn
+                } else {
+                    Tone::Muted
+                },
+            }));
+            Table::new(
+                ViewId::Notebook,
+                &["Kind", "Description", "Date", "Status", "Source"],
+                rows,
+                "No items in this section.",
+            )
+        }
+    };
+    let missing: Vec<String> = show["missing"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    if !missing.is_empty() {
+        t.banner = Some((
+            Tone::Warn,
+            format!("Impugned order: missing {}", missing.join(", ")),
+        ));
+    }
+    t
+}
+
+/// The Factual Matrix (H04): date, date type, source, method, uncertainty,
+/// conflicts and confirmation.
+pub fn facts_table(matter: &str, values: &[Value]) -> Table {
+    let rows = values
+        .iter()
+        .map(|f| {
+            let ocr = f["open_ocr_disputes"].as_array().map(Vec::len).unwrap_or(0);
+            let conflicts = f["conflicts"].as_array().map(Vec::len).unwrap_or(0);
+            let uncertainty = match (s(f, "date_type").as_str(), ocr) {
+                (_, n) if n > 0 => "OCR disputed".to_string(),
+                ("explicit", _) => "certain".to_string(),
+                (other, _) => other.to_string(),
+            };
+            Row {
+                cells: vec![
+                    nb_date(f),
+                    s(f, "date_type"),
+                    clip(&s(f, "description"), 60),
+                    nb_source(f),
+                    s(f, "method"),
+                    uncertainty,
+                    if conflicts == 0 {
+                        "-".into()
+                    } else {
+                        format!("{conflicts} open")
+                    },
+                    s(f, "shown_status"),
+                ],
+                subject: rec(matter, s(f, "id")),
+                tone: nb_tone(f),
+            }
+        })
+        .collect();
+    Table::new(
+        ViewId::Facts,
+        &[
+            "Date",
+            "Date type",
+            "Event",
+            "Source",
+            "Method",
+            "Uncertainty",
+            "Conflicts",
+            "Status",
+        ],
+        rows,
+        "No facts yet. Run `oa notebook extract` on an OCR'd document.",
+    )
+}
+
+/// The chronology of one view, excluded events marked when shown (H05).
+pub fn chronology_table(matter: &str, view: &str, values: &[Value]) -> Table {
+    let rows = values
+        .iter()
+        .map(|e| {
+            let excluded = e["excluded"].as_bool().unwrap_or(false);
+            Row {
+                cells: vec![
+                    nb_date(e),
+                    clip(&s(e, "description"), 60),
+                    s(e, "category"),
+                    nb_source(e),
+                    if excluded {
+                        format!("excluded from {view}")
+                    } else {
+                        s(e, "shown_status")
+                    },
+                ],
+                subject: rec(matter, s(e, "id")),
+                tone: if excluded { Tone::Muted } else { nb_tone(e) },
+            }
+        })
+        .collect();
+    let mut t = Table::new(
+        ViewId::Chronology,
+        &["Date", "Event", "Category", "Source", "Status"],
+        rows,
+        "No dated events in this view.",
+    );
+    t.banner = Some((Tone::Normal, format!("View: {view}")));
+    t
+}
+
+/// Each conflict with every anchor involved (H09).
+pub fn conflicts_table(values: &[Value]) -> Table {
+    let rows = values
+        .iter()
+        .map(|c| {
+            let sources: Vec<String> = c["anchors"]
+                .as_array()
+                .map(Vec::as_slice)
+                .unwrap_or_default()
+                .iter()
+                .map(|a| format!("{} p{}", short(&s(a, "doc")), s(a, "page")))
+                .collect();
+            let state = s(c, "state");
+            Row {
+                cells: vec![
+                    s(c, "kind"),
+                    clip(&s(c, "summary"), 70),
+                    sources.join(", "),
+                    state.clone(),
+                ],
+                subject: Subject::Raw(c.clone()),
+                tone: match state.as_str() {
+                    "open" => Tone::Bad,
+                    "skipped" => Tone::Warn,
+                    _ => Tone::Good,
+                },
+            }
+        })
+        .collect();
+    Table::new(
+        ViewId::Conflicts,
+        &["Kind", "Conflict", "Sources", "State"],
+        rows,
+        "No conflicts: no two sources disagree on a date, party or amount.",
+    )
+}
+
+/// Ready, or the exact list of what blocks readiness (H07).
+pub fn readiness_table(matter: &str, ready: &Value) -> Table {
+    let blockers = ready["blockers"]
+        .as_array()
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    let rows = blockers
+        .iter()
+        .map(|b| {
+            let kind = s(b, "kind");
+            Row {
+                cells: vec![kind.clone(), s(b, "label")],
+                subject: match kind.as_str() {
+                    "review_item" | "ingest" => rec(matter, s(b, "id")),
+                    _ => Subject::Raw(b.clone()),
+                },
+                tone: Tone::Bad,
+            }
+        })
+        .collect();
+    let mut t = Table::new(
+        ViewId::Readiness,
+        &["Blocker", "What blocks readiness"],
+        rows,
+        "Nothing blocks the Notebook.",
+    );
+    t.banner = Some(if ready["ready"].as_bool().unwrap_or(false) {
+        (
+            Tone::Good,
+            "Ready: no ingestion is queued or running and every review item is resolved or skipped."
+                .into(),
+        )
+    } else {
+        (
+            Tone::Bad,
+            format!(
+                "Not ready: {} blocker{}. Readiness is a milestone, not a lock.",
+                blockers.len(),
+                if blockers.len() == 1 { "" } else { "s" }
+            ),
+        )
+    });
+    t
+}
+
+/// The chain from an item to its original file (spec H rule 11).
+pub fn trace_table(matter: &str, trace: &Value) -> Table {
+    let mut rows = Vec::new();
+    let chain = trace["chain"]
+        .as_array()
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    for (n, step) in chain.iter().enumerate() {
+        let anchor = format!("{}", n + 1);
+        let bad = step["resolved"] == false;
+        let tone = if bad { Tone::Bad } else { Tone::Normal };
+        let raw = |label: &str, value: String| Row {
+            cells: vec![anchor.clone(), label.to_string(), value],
+            subject: Subject::Raw(step.clone()),
+            tone,
+        };
+        rows.push(raw(
+            "Extract",
+            if bad {
+                format!("unresolved: {}", s(step, "error"))
+            } else {
+                s(step, "extract")
+            },
+        ));
+        rows.push(raw("Line", s(step, "line")));
+        rows.push(raw("Page", s(step, "page")));
+        rows.push(Row {
+            cells: vec![anchor.clone(), "Source hash".into(), s(step, "source_hash")],
+            subject: rec(matter, s(step, "source_hash")),
+            tone,
+        });
+        rows.push(Row {
+            cells: vec![
+                anchor.clone(),
+                "Original file".into(),
+                s(step, "original_file"),
+            ],
+            subject: rec(matter, s(step, "doc")),
+            tone,
+        });
+    }
+    let mut t = Table::new(
+        ViewId::Trace,
+        &["Anchor", "Step", "Value"],
+        rows,
+        "This item has no anchors.",
+    );
+    t.banner = Some((
+        Tone::Normal,
+        format!(
+            "{} | {}",
+            clip(&s(trace, "description"), 80),
+            s(trace, "component_label")
+        ),
+    ));
+    t
+}
+
+/// The item a Notebook, Factual Matrix or Chronology row stands for: its
+/// source peek is the Inspector (one action), its trace this id (one more,
+/// H-AC-12).
+pub fn item_of(row: &Row) -> Option<&str> {
+    match &row.subject {
+        Subject::Record { id, .. } if !row.cells[0].starts_with("review:") => Some(id),
+        _ => None,
+    }
+}
+
 /// Rule-pin facts for the overview (`rules.pin`).
 pub fn overview_lines(matter: &Value, pin: &Value) -> Vec<(String, String)> {
     let get = |v: &Value, k: &str| {
@@ -1246,8 +1661,135 @@ fn typical(view: ViewId, n: usize, disputed: bool) -> Table {
                 })
                 .collect::<Vec<_>>(),
         ),
+        ViewId::Notebook => {
+            let items = nb_items(n, disputed);
+            let show = json!({
+                "counts": if n == 0 { json!([]) } else { json!(nb_counts(&items)) },
+                "items": items,
+                "review": if disputed { json!([{ "id": "R1", "kind": "conflict", "summary": "date conflict on order:WP1234/2018: 2019-03-12 vs 2019-03-13", "state": "open" }]) } else { json!([]) },
+                "missing": if disputed { json!(["cnr"]) } else { json!([]) },
+            });
+            notebook_table(M, &show, (n > 4 || disputed).then_some("factual_matrix"))
+        }
+        ViewId::Facts => facts_table(M, &nb_items(n, disputed)),
+        ViewId::Chronology => {
+            let mut items = nb_items(n, disputed);
+            for (i, v) in items.iter_mut().enumerate() {
+                v["excluded"] = json!(disputed && i == 1);
+            }
+            chronology_table(M, "synopsis", &items)
+        }
+        ViewId::Conflicts => conflicts_table(
+            &(0..n)
+                .map(|i| json!({
+                    "id": format!("R{i}"),
+                    "kind": "conflict",
+                    "summary": format!("date conflict on order:WP{i}/2018: 2019-03-12 vs 2019-03-13"),
+                    "state": if disputed || i % 2 == 0 { "open" } else { "resolved" },
+                    "items": [format!("F{i}a"), format!("F{i}b")],
+                    "anchors": [
+                        { "doc": format!("01J0ORDER{i:03}"), "page": 1 },
+                        { "doc": format!("01J0LETTER{i:03}"), "page": 2 },
+                    ],
+                }))
+                .collect::<Vec<_>>(),
+        ),
+        ViewId::Readiness => readiness_table(
+            M,
+            &json!({
+                "ready": n == 0,
+                "blockers": (0..n).map(|i| match i % 4 {
+                    0 => json!({ "kind": "review_item", "id": format!("R{i}"), "label": "date conflict on order:WP1234/2018: 2019-03-12 vs 2019-03-13" }),
+                    1 => json!({ "kind": "ingest", "id": format!("E{i}"), "label": format!("queued for ingestion: scan-{i}.pdf") }),
+                    2 => json!({ "kind": "job", "id": format!("J{i}"), "label": "ocr.batch running (1/3)" }),
+                    _ => json!({ "kind": "ocr_dispute", "id": format!("D{i}"), "label": "open OCR dispute in 01J0ORDER000" }),
+                }).collect::<Vec<_>>(),
+            }),
+        ),
+        ViewId::Trace => trace_table(
+            M,
+            &json!({
+                "item": "F0",
+                "description": "Order dated 12.03.2019 in W.P. No. 1234/2018",
+                "component_label": "Court portal",
+                "chain": (0..n.min(3)).map(|i| json!({
+                    "extract": "12.03.2019",
+                    "line": i,
+                    "page": 1,
+                    "doc": format!("01J0ORDER{i:03}"),
+                    "source_hash": format!("sha256:{:064x}", i),
+                    "original_file": format!("order-{i}.pdf"),
+                    "resolved": !(disputed && i == 0),
+                    "error": if disputed && i == 0 { json!("line sha256:abc is not in the OCR record") } else { Value::Null },
+                })).collect::<Vec<_>>(),
+            }),
+        ),
         ViewId::Overview | ViewId::Inspector => Table::new(view, &["Field", "Value"], Vec::new(), "Select a matter."),
     }
+}
+
+/// Notebook items for the galleries: court and client sources, an OCR
+/// disputed fact and a confirmed one.
+fn nb_items(n: usize, disputed: bool) -> Vec<Value> {
+    (0..n)
+        .map(|i| {
+            let client = i % 3 == 2;
+            let ocr = disputed && i == 0;
+            json!({
+                "id": format!("F{i}"),
+                "version": 1,
+                "section": "factual_matrix",
+                "kind": "fact",
+                "description": format!("Order dated {:02}.03.2019 in W.P. No. 1234/2018", 1 + i % 28),
+                "date": format!("2019-03-{:02}", 1 + i % 28),
+                "date_type": if i % 5 == 4 { "inferred" } else { "explicit" },
+                "category": if i % 4 == 3 { "payment" } else { "order" },
+                "method": "rules:oa-ocr/extract_entities",
+                "anchors": [{ "doc": format!("01J0DOC{i:03}"), "page": 1 + i % 3, "line_hash": format!("sha256:{:064x}", i) }],
+                "component": if client { "client_supplied" } else { "court_portal" },
+                "component_label": if client { "Supplied by client" } else { "Court portal" },
+                "shown_status": if ocr { "disputed" } else if i % 4 == 1 { "confirmed" } else { "candidate" },
+                "status": if i % 4 == 1 { "confirmed" } else { "candidate" },
+                "disputed": ocr,
+                "open_ocr_disputes": if ocr { json!(["D0"]) } else { json!([]) },
+                "conflicts": if disputed && i == 1 { json!(["R1"]) } else { json!([]) },
+            })
+        })
+        .collect()
+}
+
+fn nb_counts(items: &[Value]) -> Vec<Value> {
+    [
+        ("source_documents", "Source documents"),
+        ("procedural_history", "Procedural history"),
+        ("factual_matrix", "Factual Matrix"),
+        ("chronology", "Chronology"),
+        ("legal_issues", "Legal issues"),
+        ("authorities", "Authorities"),
+        ("work_products", "Work products"),
+        ("review", "Review and verification"),
+    ]
+    .iter()
+    .map(|(key, title)| {
+        let facts = matches!(*key, "factual_matrix" | "chronology");
+        let count = |st: &str| {
+            if facts {
+                items.iter().filter(|i| i["shown_status"] == st).count()
+            } else {
+                0
+            }
+        };
+        json!({
+            "section": key,
+            "title": title,
+            "total": if facts { items.len() } else { 0 },
+            "candidate": count("candidate"),
+            "confirmed": count("confirmed"),
+            "disputed": count("disputed"),
+            "excluded": 0,
+        })
+    })
+    .collect()
 }
 
 /// A view in one gallery state, built with no kernel.
@@ -1388,6 +1930,95 @@ mod tests {
         assert!(t.columns.contains(&"Reading A"));
         assert!(t.columns.contains(&"Reading B"));
         assert!(t.columns.contains(&"State"));
+    }
+
+    #[test]
+    fn h_ac_02_a_client_item_shows_supplied_by_client_and_never_verified() {
+        let t = fixture(ViewId::Facts, GalleryState::Typical);
+        assert!(t.rows[2].cells[3].contains("Supplied by client"));
+        assert!(t.rows[0].cells[3].contains("Court portal"));
+        for r in &t.rows {
+            for c in &r.cells {
+                assert!(!c.to_lowercase().contains("verified"), "{c}");
+            }
+        }
+    }
+
+    #[test]
+    fn h_ac_11_each_readiness_blocker_opens_its_item() {
+        let t = fixture(ViewId::Readiness, GalleryState::Typical);
+        assert_eq!(t.rows.len(), 4);
+        assert!(t.banner.as_ref().unwrap().1.starts_with("Not ready: 4"));
+        for r in &t.rows {
+            match r.cells[0].as_str() {
+                "review_item" | "ingest" => {
+                    assert!(matches!(&r.subject, Subject::Record { id, .. } if !id.is_empty()))
+                }
+                _ => assert!(matches!(&r.subject, Subject::Raw(v) if v["id"].is_string())),
+            }
+        }
+        let ready = fixture(ViewId::Readiness, GalleryState::Empty);
+        assert_eq!(ready.banner.unwrap().0, Tone::Good);
+    }
+
+    #[test]
+    fn h_ac_12_every_item_row_opens_its_peek_and_then_its_trace() {
+        for view in [ViewId::Facts, ViewId::Chronology, ViewId::Notebook] {
+            let t = fixture(view, GalleryState::Large);
+            assert!(!t.rows.is_empty(), "{view:?}");
+            for r in &t.rows {
+                // One action: the Inspector opens the item's record.
+                assert!(matches!(r.subject, Subject::Record { .. }), "{view:?}");
+                // One more: the trace of the same item.
+                assert!(item_of(r).is_some(), "{view:?}");
+            }
+        }
+        let trace = fixture(ViewId::Trace, GalleryState::Typical);
+        let steps: Vec<&str> = trace
+            .rows
+            .iter()
+            .take(5)
+            .map(|r| r.cells[1].as_str())
+            .collect();
+        assert_eq!(
+            steps,
+            ["Extract", "Line", "Page", "Source hash", "Original file"]
+        );
+    }
+
+    #[test]
+    fn h_ac_13_excluded_events_are_marked_under_show_excluded() {
+        let t = fixture(ViewId::Chronology, GalleryState::Disputed);
+        let excluded: Vec<_> = t
+            .rows
+            .iter()
+            .filter(|r| r.cells[4].starts_with("excluded"))
+            .collect();
+        assert_eq!(excluded.len(), 1);
+        assert_eq!(excluded[0].tone, Tone::Muted);
+    }
+
+    #[test]
+    fn h_gui_the_notebook_pane_shows_counts_per_section() {
+        let t = fixture(ViewId::Notebook, GalleryState::Typical);
+        assert_eq!(t.rows.len(), 8);
+        assert_eq!(
+            t.columns,
+            [
+                "Section",
+                "Items",
+                "Candidate",
+                "Confirmed",
+                "Disputed",
+                "Excluded"
+            ]
+        );
+        let d = fixture(ViewId::Notebook, GalleryState::Disputed);
+        assert!(d.banner.unwrap().1.contains("missing cnr"));
+        assert!(d
+            .rows
+            .iter()
+            .any(|r| r.cells[3] == "disputed" && r.tone == Tone::Bad));
     }
 
     #[test]

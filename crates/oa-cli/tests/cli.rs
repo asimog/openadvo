@@ -264,6 +264,116 @@ fn g_cli_ocr_queries_after_a_call() {
 }
 
 #[test]
+fn h_cli_notebook_commands_after_ocr() {
+    let tmp = tempfile::tempdir().unwrap();
+    let app = tmp.path().join("app");
+    let root = tmp.path().join("root");
+    oa(&app, &["workspace", "init", root.to_str().unwrap()]);
+    let id = lines(&oa(&app, &["matter", "create", "--title", "Notebook"]))[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let file = tmp.path().join("order.txt");
+    std::fs::write(&file, b"order").unwrap();
+    let doc = lines(&oa(
+        &app,
+        &["import", file.to_str().unwrap(), "--matter", &id],
+    ))[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let not_ready = oa(&app, &["notebook", "ready", "--matter", &id]);
+    assert_eq!(lines(&not_ready)[0]["ready"], false);
+    let line = "Order dated 12.03.2019 in W.P. No. 1234/2018";
+    let input = serde_json::json!({
+        "matter": id,
+        "doc": doc,
+        "input": {
+            "pages": [{ "page": 1, "raster_hash": "sha256:r", "width": 10.0, "height": 10.0, "dpi": 300, "text_layer": null }],
+            "readings": [
+                { "page": 1, "line": 0, "reading": { "engine": "tesseract", "engine_version": "stub-1.0", "model_hash": "sha256:m", "text": line, "confidence": 0.9, "words": [] } },
+                { "page": 1, "line": 0, "reading": { "engine": "paddle", "engine_version": "stub-1.0", "model_hash": "sha256:m", "text": line, "confidence": 0.9, "words": [] } }
+            ],
+            "engine_health": []
+        }
+    });
+    oa(&app, &["call", "ocr.run", "--input", &input.to_string()]);
+    let extracted = lines(&oa(&app, &["notebook", "extract", "--matter", &id, &doc]));
+    assert_eq!(extracted[0]["added"], 2);
+    let facts = lines(&oa(&app, &["notebook", "facts", "--matter", &id]));
+    assert_eq!(facts.len(), 1);
+    let fact = facts[0]["id"].as_str().unwrap().to_string();
+    let excluded = oa(
+        &app,
+        &[
+            "notebook", "exclude", "--matter", &id, "--view", "synopsis", "--event", &fact,
+        ],
+    );
+    assert!(excluded.status.success());
+    let synopsis = lines(&oa(
+        &app,
+        &[
+            "notebook",
+            "chronology",
+            "--matter",
+            &id,
+            "--view",
+            "synopsis",
+        ],
+    ));
+    assert!(synopsis.is_empty());
+    let shown = lines(&oa(
+        &app,
+        &[
+            "notebook",
+            "chronology",
+            "--matter",
+            &id,
+            "--view",
+            "synopsis",
+            "--show-excluded",
+        ],
+    ));
+    assert_eq!(shown[0]["excluded"], true);
+    let trace = lines(&oa(&app, &["trace", "--matter", &id, &fact]));
+    assert_eq!(trace[0]["chain"][0]["original_file"], "order.txt");
+    let set = lines(&oa(
+        &app,
+        &[
+            "notebook",
+            "impugned",
+            "set",
+            "--matter",
+            &id,
+            "--court-type",
+            "HC",
+            "--state",
+            "27",
+            "--bench",
+            "1",
+            "--case-type",
+            "WP",
+            "--number",
+            "1234",
+            "--year",
+            "2018",
+            "--order-date",
+            "2019-03-12",
+        ],
+    ));
+    assert_eq!(set[0]["missing"][0], "cnr");
+    let show = lines(&oa(&app, &["notebook", "show", "--matter", &id]));
+    assert_eq!(show[0]["counts"].as_array().unwrap().len(), 8);
+    assert!(lines(&oa(&app, &["notebook", "conflicts", "--matter", &id])).is_empty());
+    // A human command with nobody at a terminal is not confirmed.
+    let confirm = oa(&app, &["notebook", "confirm", "--matter", &id, &fact]);
+    assert!(!confirm.status.success());
+    assert_eq!(lines(&confirm)[0]["error"]["code"], "confirmation_denied");
+    let ready = lines(&oa(&app, &["notebook", "ready", "--matter", &id]));
+    assert_eq!(ready[0]["ready"], true, "{:?}", ready[0]);
+}
+
+#[test]
 fn d_cli_agent_run_uses_harness_origin_policy_and_records_effects() {
     let tmp = tempfile::tempdir().unwrap();
     let app = tmp.path().join("app");

@@ -461,6 +461,84 @@ pub fn contract_test(html: &str) -> Result<Vec<PortalOrder>, AdapterError> {
     Ok(orders)
 }
 
+/// Fixture lower-court search results. Stub until the portal adapter (M)
+/// drives the real search; the shape is the facts the search form takes.
+pub const SC_LOWER_COURT: &str = include_str!("../fixtures/sc_lower_court.html");
+
+/// The facts the portal's lower-court search takes (RQ-62). Codes are sent,
+/// never labels.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LowerCourtQuery {
+    pub court_type: String,
+    pub state: String,
+    pub bench: String,
+    pub case_type: String,
+    pub number: String,
+    pub year: String,
+    pub order_date: String,
+    pub cnr: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LowerCourtCase {
+    pub court_type: String,
+    pub state: String,
+    pub bench: String,
+    pub case_type: String,
+    pub number: String,
+    pub year: String,
+    pub order_date: String,
+    pub cnr: Option<String>,
+    pub title: String,
+}
+
+/// Runs a lower-court search against a results page: the rows that match
+/// every fact given, and the CNR when the query has one.
+pub fn search_lower_court(
+    html: &str,
+    query: &LowerCourtQuery,
+) -> Result<Vec<LowerCourtCase>, AdapterError> {
+    if page_kind(html) == PageKind::Captcha {
+        return Err(AdapterError::Captcha);
+    }
+    if !html.contains("id=\"lower-court-results\"") {
+        return Err(AdapterError::Degraded(
+            "the lower-court search page no longer has id=\"lower-court-results\"".into(),
+        ));
+    }
+    let mut out = Vec::new();
+    for fragment in html.split("<tr").skip(1) {
+        let tag = &fragment[..fragment.find('>').unwrap_or(fragment.len())];
+        if !tag.contains("class=\"case\"") {
+            continue;
+        }
+        let get = |n: &str| attr(tag, n).unwrap_or_default();
+        let case = LowerCourtCase {
+            court_type: get("data-court-type"),
+            state: get("data-state"),
+            bench: get("data-bench"),
+            case_type: get("data-case-type"),
+            number: get("data-number"),
+            year: get("data-year"),
+            order_date: get("data-order-date"),
+            cnr: attr(tag, "data-cnr"),
+            title: get("data-title"),
+        };
+        let facts_match = case.court_type == query.court_type
+            && case.state == query.state
+            && case.bench == query.bench
+            && case.case_type == query.case_type
+            && case.number == query.number
+            && case.year == query.year
+            && case.order_date == query.order_date;
+        let cnr_match = query.cnr.is_none() || query.cnr == case.cnr;
+        if facts_match && cnr_match {
+            out.push(case);
+        }
+    }
+    Ok(out)
+}
+
 /// Runtime health from the page that was actually served.
 pub fn health_state(html: &str) -> (&'static str, Option<String>) {
     match page_kind(html) {

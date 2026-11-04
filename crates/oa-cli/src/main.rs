@@ -90,6 +90,15 @@ enum Command {
     /// Entity extraction from an OCR run
     #[command(subcommand)]
     Extract(ExtractCmd),
+    /// The Notebook: sections, facts, chronology, conflicts and readiness
+    #[command(subcommand)]
+    Notebook(NotebookCmd),
+    /// The chain from a Notebook item to its original file
+    Trace {
+        #[command(flatten)]
+        m: MatterArg,
+        id: String,
+    },
     /// Drafts and their revisions
     #[command(subcommand)]
     Draft(DraftCmd),
@@ -370,6 +379,151 @@ enum ExtractCmd {
         m: MatterArg,
         doc: String,
     },
+}
+
+#[derive(Subcommand)]
+enum NotebookCmd {
+    /// One or all sections with their counts
+    Show {
+        #[command(flatten)]
+        m: MatterArg,
+        #[arg(long)]
+        section: Option<String>,
+    },
+    /// One item with its anchors, origin and status
+    Item {
+        #[command(flatten)]
+        m: MatterArg,
+        id: String,
+        #[arg(long)]
+        version: Option<u32>,
+    },
+    /// The Factual Matrix
+    Facts {
+        #[command(flatten)]
+        m: MatterArg,
+        #[arg(long, value_parser = ["candidate", "confirmed", "disputed"])]
+        status: Option<String>,
+    },
+    /// The chronology with exclusions applied by view
+    Chronology {
+        #[command(flatten)]
+        m: MatterArg,
+        #[arg(long)]
+        view: Option<String>,
+        #[arg(long)]
+        show_excluded: bool,
+        /// Only the events a generated List of Dates may state
+        #[arg(long)]
+        for_prose: bool,
+    },
+    /// Hide (or with --restore, show again) an event or category in a view
+    Exclude {
+        #[command(flatten)]
+        m: MatterArg,
+        #[arg(long)]
+        view: String,
+        #[arg(
+            long,
+            conflicts_with = "category",
+            required_unless_present = "category"
+        )]
+        event: Option<String>,
+        #[arg(long)]
+        category: Option<String>,
+        #[arg(long)]
+        restore: bool,
+    },
+    /// Confirm a candidate fact (human command)
+    Confirm {
+        #[command(flatten)]
+        m: MatterArg,
+        fact: String,
+    },
+    /// Skip a review item (human command)
+    Skip {
+        #[command(flatten)]
+        m: MatterArg,
+        review: String,
+        #[arg(long)]
+        reason: String,
+    },
+    /// The impugned order facts
+    #[command(subcommand)]
+    Impugned(ImpugnedCmd),
+    /// The readiness condition and what blocks it
+    Ready {
+        #[command(flatten)]
+        m: MatterArg,
+    },
+    /// Date, party and amount conflicts
+    Conflicts {
+        #[command(flatten)]
+        m: MatterArg,
+    },
+    /// Propose an item from a JSON file (a domain service's writer)
+    Propose {
+        #[command(flatten)]
+        m: MatterArg,
+        #[arg(long, value_name = "FILE")]
+        item: PathBuf,
+    },
+    /// Candidate facts from a document's OCR lines
+    Extract {
+        #[command(flatten)]
+        m: MatterArg,
+        doc: String,
+    },
+    /// A new version of an item, with a reason
+    Correct {
+        #[command(flatten)]
+        m: MatterArg,
+        id: String,
+        #[arg(long)]
+        reason: String,
+        #[arg(long, value_name = "FILE")]
+        item: PathBuf,
+    },
+    /// Answer a document's date question (human command)
+    DateAnchor {
+        #[command(flatten)]
+        m: MatterArg,
+        doc: String,
+        #[arg(long)]
+        date: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum ImpugnedCmd {
+    /// Record the facts the portal's lower-court search uses
+    Set {
+        #[command(flatten)]
+        m: MatterArg,
+        #[arg(long)]
+        court_type: String,
+        #[arg(long)]
+        state: String,
+        #[arg(long)]
+        bench: String,
+        #[arg(long)]
+        case_type: String,
+        #[arg(long)]
+        number: String,
+        #[arg(long)]
+        year: String,
+        #[arg(long)]
+        order_date: String,
+        #[arg(long)]
+        cnr: Option<String>,
+    },
+}
+
+fn item_file(path: &Path) -> Result<Box<oa_notebook::ItemInput>, OaError> {
+    let text = std::fs::read_to_string(path)
+        .map_err(|e| OaError::new(ErrorCode::Usage, format!("{}: {e}", path.display())))?;
+    serde_json::from_str(&text)
+        .map_err(|e| OaError::new(ErrorCode::Usage, format!("{}: {e}", path.display())))
 }
 
 #[derive(Subcommand)]
@@ -685,6 +839,107 @@ fn request(cmd: Command) -> Result<Request, OaError> {
         Command::Extract(ExtractCmd::Entities { m, doc }) => Request::ExtractEntities {
             matter: m.matter,
             doc,
+        },
+        Command::Trace { m, id } => Request::Trace {
+            matter: m.matter,
+            id,
+        },
+        Command::Notebook(n) => match n {
+            NotebookCmd::Show { m, section } => Request::NotebookShow {
+                matter: m.matter,
+                section,
+            },
+            NotebookCmd::Item { m, id, version } => Request::NotebookItem {
+                matter: m.matter,
+                id,
+                version,
+            },
+            NotebookCmd::Facts { m, status } => Request::NotebookFacts {
+                matter: m.matter,
+                status,
+            },
+            NotebookCmd::Chronology {
+                m,
+                view,
+                show_excluded,
+                for_prose,
+            } => Request::NotebookChronology {
+                matter: m.matter,
+                view,
+                show_excluded,
+                for_prose,
+            },
+            NotebookCmd::Exclude {
+                m,
+                view,
+                event,
+                category,
+                restore,
+            } => Request::NotebookExclude {
+                matter: m.matter,
+                view,
+                event,
+                category,
+                restore,
+            },
+            NotebookCmd::Confirm { m, fact } => Request::NotebookConfirm {
+                matter: m.matter,
+                id: fact,
+            },
+            NotebookCmd::Skip { m, review, reason } => Request::NotebookSkip {
+                matter: m.matter,
+                review,
+                reason,
+            },
+            NotebookCmd::Impugned(ImpugnedCmd::Set {
+                m,
+                court_type,
+                state,
+                bench,
+                case_type,
+                number,
+                year,
+                order_date,
+                cnr,
+            }) => Request::NotebookImpugnedSet {
+                matter: m.matter,
+                order: oa_notebook::ImpugnedOrder {
+                    court_type,
+                    state,
+                    bench,
+                    case_type,
+                    number,
+                    year,
+                    order_date,
+                    cnr,
+                },
+            },
+            NotebookCmd::Ready { m } => Request::NotebookReady { matter: m.matter },
+            NotebookCmd::Conflicts { m } => Request::NotebookConflicts { matter: m.matter },
+            NotebookCmd::Propose { m, item } => Request::NotebookPropose {
+                matter: m.matter,
+                item: item_file(&item)?,
+            },
+            NotebookCmd::Extract { m, doc } => Request::NotebookExtract {
+                matter: m.matter,
+                doc,
+            },
+            NotebookCmd::Correct {
+                m,
+                id,
+                reason,
+                item,
+            } => Request::NotebookCorrect {
+                matter: m.matter,
+                id,
+                reason,
+                item: item_file(&item)?,
+            },
+            NotebookCmd::DateAnchor { m, doc, date } => Request::NotebookDateAnchor {
+                matter: m.matter,
+                doc,
+                date,
+            },
         },
         Command::Draft(d) => match d {
             DraftCmd::Create { m, title, from } => Request::DraftCreate {

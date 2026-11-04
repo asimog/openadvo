@@ -206,6 +206,37 @@ const MATTER_MIGRATIONS: &[&str] = &[
     );
     CREATE INDEX ocr_documents_state ON ocr_documents(state);
 "#,
+    r#"
+    CREATE TABLE notebook_items (
+        id TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        section TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        status TEXT NOT NULL,
+        component TEXT NOT NULL,
+        data TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (id, version)
+    );
+    CREATE INDEX notebook_items_section ON notebook_items(section);
+    CREATE TABLE notebook_review (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        key TEXT NOT NULL UNIQUE,
+        state TEXT NOT NULL,
+        data TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+    CREATE TABLE notebook_exclusions (
+        view TEXT NOT NULL,
+        target_kind TEXT NOT NULL,
+        target TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (view, target_kind, target)
+    );
+    CREATE TABLE notebook_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+"#,
 ];
 
 fn err(e: rusqlite::Error) -> StoreError {
@@ -1126,6 +1157,52 @@ impl MatterStore for SqliteMatter {
         )
     }
 
+    fn notebook_items(&self) -> StoreResult<Vec<NotebookItemRow>> {
+        many(
+            &self.conn,
+            &format!(
+                "SELECT {NOTEBOOK_ITEM_COLS} FROM notebook_items ORDER BY created_at, id, version"
+            ),
+            params![],
+            notebook_item_row,
+        )
+    }
+
+    fn notebook_review(&self) -> StoreResult<Vec<NotebookReviewRow>> {
+        many(
+            &self.conn,
+            &format!("SELECT {NOTEBOOK_REVIEW_COLS} FROM notebook_review ORDER BY created_at, id"),
+            params![],
+            notebook_review_row,
+        )
+    }
+
+    fn notebook_exclusions(&self) -> StoreResult<Vec<NotebookExclusionRow>> {
+        many(
+            &self.conn,
+            "SELECT view, target_kind, target, created_at FROM notebook_exclusions
+             ORDER BY view, target_kind, target",
+            params![],
+            |r| {
+                Ok(NotebookExclusionRow {
+                    view: r.get(0)?,
+                    target_kind: r.get(1)?,
+                    target: r.get(2)?,
+                    created_at: r.get(3)?,
+                })
+            },
+        )
+    }
+
+    fn notebook_meta(&self, key: &str) -> StoreResult<Option<String>> {
+        one(
+            &self.conn,
+            "SELECT value FROM notebook_meta WHERE key = ?1",
+            params![key],
+            |r| r.get(0),
+        )
+    }
+
     fn record_rejected(&self, r: &RejectedWrite) -> StoreResult<()> {
         insert_rejected(&self.conn, r)
     }
@@ -1166,6 +1243,8 @@ const APPROVAL_COLS: &str =
 const CAPTURE_COLS: &str = "id, evidence_id, url, final_url, captured_at, blob, profile, gesture, portal_date, adapter, status, reason, created_at, updated_at";
 const INGEST_COLS: &str = "id, evidence_id, status, format, readability, proposed_class, text_fingerprint, duplicate_of, message, created_at, updated_at";
 const OCR_DOCUMENT_COLS: &str = "doc, state, page_count, disputes, data, created_at, updated_at";
+const NOTEBOOK_ITEM_COLS: &str = "id, version, section, kind, status, component, data, created_at";
+const NOTEBOOK_REVIEW_COLS: &str = "id, kind, key, state, data, created_at, updated_at";
 
 fn evidence_row(r: &Row) -> rusqlite::Result<EvidenceRow> {
     Ok(EvidenceRow {
@@ -1264,6 +1343,31 @@ fn ocr_document_row(r: &Row) -> rusqlite::Result<OcrDocumentRow> {
         state: r.get(1)?,
         page_count: r.get(2)?,
         disputes: r.get(3)?,
+        data: r.get(4)?,
+        created_at: r.get(5)?,
+        updated_at: r.get(6)?,
+    })
+}
+
+fn notebook_item_row(r: &Row) -> rusqlite::Result<NotebookItemRow> {
+    Ok(NotebookItemRow {
+        id: r.get(0)?,
+        version: r.get(1)?,
+        section: r.get(2)?,
+        kind: r.get(3)?,
+        status: r.get(4)?,
+        component: r.get(5)?,
+        data: r.get(6)?,
+        created_at: r.get(7)?,
+    })
+}
+
+fn notebook_review_row(r: &Row) -> rusqlite::Result<NotebookReviewRow> {
+    Ok(NotebookReviewRow {
+        id: r.get(0)?,
+        kind: r.get(1)?,
+        key: r.get(2)?,
+        state: r.get(3)?,
         data: r.get(4)?,
         created_at: r.get(5)?,
         updated_at: r.get(6)?,
@@ -1480,6 +1584,55 @@ fn apply(tx: &Connection, w: &MatterWrite) -> StoreResult<()> {
                 o.created_at,
                 o.updated_at
             ],
+        )),
+        MatterWrite::InsertNotebookItem(i) => tx
+            .execute(
+                &format!(
+                    "INSERT INTO notebook_items ({NOTEBOOK_ITEM_COLS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
+                ),
+                params![
+                    i.id,
+                    i.version,
+                    i.section,
+                    i.kind,
+                    i.status,
+                    i.component,
+                    i.data,
+                    i.created_at
+                ],
+            )
+            .map(|_| ())
+            .map_err(|e| {
+                if is_constraint(&e) {
+                    conflict(format!("notebook item {} version {} exists", i.id, i.version))
+                } else {
+                    err(e)
+                }
+            }),
+        MatterWrite::UpsertNotebookReview(r) => done(tx.execute(
+            &format!(
+                "INSERT INTO notebook_review ({NOTEBOOK_REVIEW_COLS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                 ON CONFLICT(id) DO UPDATE SET state = ?4, data = ?5, updated_at = ?7"
+            ),
+            params![r.id, r.kind, r.key, r.state, r.data, r.created_at, r.updated_at],
+        )),
+        MatterWrite::AddNotebookExclusion(x) => done(tx.execute(
+            "INSERT OR IGNORE INTO notebook_exclusions (view, target_kind, target, created_at)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![x.view, x.target_kind, x.target, x.created_at],
+        )),
+        MatterWrite::RemoveNotebookExclusion {
+            view,
+            target_kind,
+            target,
+        } => done(tx.execute(
+            "DELETE FROM notebook_exclusions WHERE view = ?1 AND target_kind = ?2 AND target = ?3",
+            params![view, target_kind, target],
+        )),
+        MatterWrite::SetNotebookMeta { key, value } => done(tx.execute(
+            "INSERT INTO notebook_meta (key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = ?2",
+            params![key, value],
         )),
     }
 }

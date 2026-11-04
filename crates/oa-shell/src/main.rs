@@ -126,6 +126,10 @@ struct App {
     setting_key: String,
     setting_value: String,
     decision_reason: String,
+
+    chrono_view: String,
+    chrono_show_excluded: bool,
+    skip_reason: String,
 }
 
 impl App {
@@ -158,6 +162,9 @@ impl App {
             setting_key: String::new(),
             setting_value: String::new(),
             decision_reason: String::new(),
+            chrono_view: "synopsis".into(),
+            chrono_show_excluded: false,
+            skip_reason: String::new(),
         };
         me.reconnect();
         me
@@ -564,6 +571,74 @@ impl App {
                 Ok(v) => views::ocr_engines_table(&v),
                 Err(e) => Self::fail(view, &e),
             }),
+            ViewId::Notebook => self.matter_scoped(view, |id| {
+                match self.q(Request::NotebookShow {
+                    matter: id.to_string(),
+                    section: page.arg.clone(),
+                }) {
+                    Ok(mut v) => {
+                        views::notebook_table(id, &v.pop().unwrap_or_default(), page.arg.as_deref())
+                    }
+                    Err(e) => Self::fail(view, &e),
+                }
+            }),
+            ViewId::Facts => self.matter_scoped(view, |id| {
+                match self.q(Request::NotebookFacts {
+                    matter: id.to_string(),
+                    status: None,
+                }) {
+                    Ok(v) => views::facts_table(id, &v),
+                    Err(e) => Self::fail(view, &e),
+                }
+            }),
+            ViewId::Chronology => self.matter_scoped(view, |id| {
+                let name = page.arg.clone().unwrap_or_else(|| "default".into());
+                match self.q(Request::NotebookChronology {
+                    matter: id.to_string(),
+                    view: Some(name.clone()),
+                    show_excluded: self.chrono_show_excluded,
+                    for_prose: false,
+                }) {
+                    Ok(v) => views::chronology_table(id, &name, &v),
+                    Err(e) => Self::fail(view, &e),
+                }
+            }),
+            ViewId::Conflicts => self.matter_scoped(view, |id| {
+                match self.q(Request::NotebookConflicts {
+                    matter: id.to_string(),
+                }) {
+                    Ok(v) => views::conflicts_table(&v),
+                    Err(e) => Self::fail(view, &e),
+                }
+            }),
+            ViewId::Readiness => self.matter_scoped(view, |id| {
+                match self.q(Request::NotebookReady {
+                    matter: id.to_string(),
+                }) {
+                    Ok(mut v) => views::readiness_table(id, &v.pop().unwrap_or_default()),
+                    Err(e) => Self::fail(view, &e),
+                }
+            }),
+            ViewId::Trace => {
+                let Some(item) = page.arg.clone().filter(|a| !a.is_empty()) else {
+                    return Content::Table(Table {
+                        state: ViewState::Empty(
+                            "Select an item in the Notebook, Factual Matrix or Chronology and choose Trace."
+                                .into(),
+                        ),
+                        ..Table::loading(view)
+                    });
+                };
+                self.matter_scoped(view, |id| {
+                    match self.q(Request::Trace {
+                        matter: id.to_string(),
+                        id: item,
+                    }) {
+                        Ok(mut v) => views::trace_table(id, &v.pop().unwrap_or_default()),
+                        Err(e) => Self::fail(view, &e),
+                    }
+                })
+            }
             ViewId::Entities => self.ocr_doc_view(view, page, |id, doc| {
                 match self.q(Request::ExtractEntities {
                     matter: id.to_string(),
@@ -1137,7 +1212,218 @@ impl App {
                     }
                 });
             }
+            ViewId::Notebook
+            | ViewId::Facts
+            | ViewId::Chronology
+            | ViewId::Conflicts
+            | ViewId::Readiness => self.notebook_extras(ui, view),
             _ => {}
+        }
+    }
+
+    /// The focused pane's selected row, if its view is `view`.
+    fn selected_row(&self, view: ViewId) -> Option<views::Row> {
+        let i = self.layout.focused;
+        if self.layout.panes[i].page.view != view {
+            return None;
+        }
+        let sel = self.panes[i].selected?;
+        let Content::Table(t) = &self.panes[i].content else {
+            return None;
+        };
+        t.rows.get(sel).cloned()
+    }
+
+    /// The Notebook views' controls: section filter, trace, confirm,
+    /// exclusion, skip and side-by-side sources (spec H GUI).
+    fn notebook_extras(&mut self, ui: &mut egui::Ui, view: ViewId) {
+        let Some(matter) = self.selected.clone() else {
+            return;
+        };
+        if view == ViewId::Notebook {
+            ui.separator();
+            ui.horizontal_wrapped(|ui| {
+                ui.label("Section:");
+                if ui.button("All sections").clicked() {
+                    self.navigate(ViewId::Notebook, None);
+                }
+                for key in [
+                    "source_documents",
+                    "procedural_history",
+                    "factual_matrix",
+                    "chronology",
+                    "legal_issues",
+                    "authorities",
+                    "work_products",
+                    "review",
+                ] {
+                    if ui.button(key.replace('_', " ")).clicked() {
+                        self.navigate(ViewId::Notebook, Some(key.to_string()));
+                    }
+                }
+            });
+        }
+        if view == ViewId::Chronology {
+            ui.separator();
+            ui.horizontal(|ui| {
+                ui.label("View:");
+                ui.add(egui::TextEdit::singleline(&mut self.chrono_view).desired_width(160.0));
+                if ui.button("Show this view").clicked() {
+                    let v = self.chrono_view.trim().to_string();
+                    self.navigate(ViewId::Chronology, (!v.is_empty()).then_some(v));
+                }
+                if ui
+                    .checkbox(&mut self.chrono_show_excluded, "Show excluded")
+                    .changed()
+                {
+                    self.reload_panes();
+                }
+            });
+        }
+        let Some(row) = self.selected_row(view) else {
+            return;
+        };
+        if view == ViewId::Readiness {
+            let views::Subject::Record { id, .. } = &row.subject else {
+                return;
+            };
+            if row.cells[0] != "review_item" {
+                return;
+            }
+            let (id, label) = (id.clone(), row.cells[1].clone());
+            ui.separator();
+            ui.label(
+                egui::RichText::new(format!(
+                    "Skip review item \"{label}\". This records your decision."
+                ))
+                .strong(),
+            );
+            ui.add(
+                egui::TextEdit::singleline(&mut self.skip_reason).hint_text("Reason (required)"),
+            );
+            let ready = !self.skip_reason.trim().is_empty();
+            if ui
+                .add_enabled(
+                    ready,
+                    egui::Button::new(format!("Skip review item: {label}")),
+                )
+                .clicked()
+            {
+                let reason = std::mem::take(&mut self.skip_reason);
+                if self
+                    .act(Request::NotebookSkip {
+                        matter,
+                        review: id,
+                        reason,
+                    })
+                    .is_some()
+                {
+                    self.refresh();
+                }
+            }
+            return;
+        }
+        if view == ViewId::Conflicts {
+            let views::Subject::Raw(c) = &row.subject else {
+                return;
+            };
+            let items: Vec<String> = c["items"]
+                .as_array()
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|i| i.as_str().map(str::to_string))
+                        .collect()
+                })
+                .unwrap_or_default();
+            ui.separator();
+            if ui.button("Open each source side by side").clicked() {
+                for item in items {
+                    if self.layout.split(ViewId::Trace, self.width) {
+                        let f = self.layout.focused;
+                        self.layout.panes[f].page.arg = Some(item);
+                    }
+                }
+                self.sync_panes();
+                self.reload_panes();
+            }
+            return;
+        }
+        let Some(item) = views::item_of(&row).map(str::to_string) else {
+            return;
+        };
+        ui.separator();
+        ui.horizontal_wrapped(|ui| {
+            if ui.button("Trace this item").clicked() {
+                self.navigate(ViewId::Trace, Some(item.clone()));
+            }
+            if view == ViewId::Chronology {
+                let name = self.layout.panes[self.layout.focused]
+                    .page
+                    .arg
+                    .clone()
+                    .unwrap_or_else(|| "default".into());
+                let excluded = row.cells[4].starts_with("excluded");
+                let category = row.cells[2].clone();
+                let label = if excluded {
+                    format!("Restore to view {name}")
+                } else {
+                    format!("Exclude from view {name}")
+                };
+                if ui.button(label).clicked()
+                    && self
+                        .act(Request::NotebookExclude {
+                            matter: matter.clone(),
+                            view: name.clone(),
+                            event: Some(item.clone()),
+                            category: None,
+                            restore: excluded,
+                        })
+                        .is_some()
+                {
+                    self.reload_panes();
+                }
+                if !category.is_empty()
+                    && ui
+                        .button(format!("Exclude category {category} from view {name}"))
+                        .clicked()
+                    && self
+                        .act(Request::NotebookExclude {
+                            matter: matter.clone(),
+                            view: name,
+                            event: None,
+                            category: Some(category),
+                            restore: false,
+                        })
+                        .is_some()
+                {
+                    self.reload_panes();
+                }
+            }
+        });
+        if view == ViewId::Facts && row.cells[7] != "confirmed" {
+            let (date, event) = (row.cells[0].clone(), row.cells[2].clone());
+            if row.cells[5] == "OCR disputed" {
+                ui.label(
+                    egui::RichText::new(
+                        "This date rests on an open OCR dispute. Decide it in OCR review before confirming.",
+                    )
+                    .weak(),
+                );
+                return;
+            }
+            ui.label(
+                egui::RichText::new(format!(
+                    "Confirm the fact dated {date}: \"{event}\". This records your decision."
+                ))
+                .strong(),
+            );
+            if ui.button(format!("Confirm fact dated {date}")).clicked()
+                && self
+                    .act(Request::NotebookConfirm { matter, id: item })
+                    .is_some()
+            {
+                self.refresh();
+            }
         }
     }
 

@@ -1,0 +1,15 @@
+[package]
+name = "oa-notebook"
+description = "The Notebook (spec H): sections and item kinds, chronology and view exclusions, conflict detection, readiness, prose-eligible dates, the ULOS-N component filter and the impugned order. Pure logic: no kernel, no store"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+oa-ocr.workspace = true
+oa-capture.workspace = true
+chrono.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true

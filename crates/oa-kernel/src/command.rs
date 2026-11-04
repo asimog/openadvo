@@ -4,6 +4,7 @@
 
 use std::path::PathBuf;
 
+use oa_notebook::{ImpugnedOrder, ItemInput};
 use oa_ocr::Reading;
 use oa_types::CommandClass;
 use schemars::JsonSchema;
@@ -243,6 +244,80 @@ pub enum Request {
     ExtractEntities { matter: String, doc: String },
     #[serde(rename = "ocr.engines")]
     OcrEngines,
+    #[serde(rename = "notebook.show")]
+    NotebookShow {
+        matter: String,
+        section: Option<String>,
+    },
+    #[serde(rename = "notebook.item")]
+    NotebookItem {
+        matter: String,
+        id: String,
+        version: Option<u32>,
+    },
+    #[serde(rename = "notebook.facts")]
+    NotebookFacts {
+        matter: String,
+        status: Option<String>,
+    },
+    #[serde(rename = "notebook.chronology")]
+    NotebookChronology {
+        matter: String,
+        view: Option<String>,
+        show_excluded: bool,
+        /// Only the events a generated List of Dates may state (H rule 8).
+        for_prose: bool,
+    },
+    #[serde(rename = "notebook.ready")]
+    NotebookReady { matter: String },
+    #[serde(rename = "notebook.conflicts")]
+    NotebookConflicts { matter: String },
+    #[serde(rename = "trace")]
+    Trace { matter: String, id: String },
+    /// A domain service's proposal (H02). The kernel resolves its anchors.
+    #[serde(rename = "notebook.propose")]
+    NotebookPropose {
+        matter: String,
+        item: Box<ItemInput>,
+    },
+    /// The extraction writer over one document's OCR lines.
+    #[serde(rename = "notebook.extract")]
+    NotebookExtract { matter: String, doc: String },
+    #[serde(rename = "notebook.correct")]
+    NotebookCorrect {
+        matter: String,
+        id: String,
+        reason: String,
+        item: Box<ItemInput>,
+    },
+    #[serde(rename = "notebook.exclude")]
+    NotebookExclude {
+        matter: String,
+        view: String,
+        event: Option<String>,
+        category: Option<String>,
+        restore: bool,
+    },
+    #[serde(rename = "notebook.impugned_set")]
+    NotebookImpugnedSet {
+        matter: String,
+        order: ImpugnedOrder,
+    },
+    #[serde(rename = "notebook.confirm")]
+    NotebookConfirm { matter: String, id: String },
+    #[serde(rename = "notebook.skip")]
+    NotebookSkip {
+        matter: String,
+        review: String,
+        reason: String,
+    },
+    /// The advocate's answer to a document's date question (RQ-23).
+    #[serde(rename = "notebook.date_anchor")]
+    NotebookDateAnchor {
+        matter: String,
+        doc: String,
+        date: String,
+    },
     #[serde(rename = "evidence.list")]
     EvidenceList { matter: String },
     #[serde(rename = "evidence.show")]
@@ -362,6 +437,21 @@ impl Request {
         "ocr.typed_copy",
         "extract.entities",
         "ocr.engines",
+        "notebook.show",
+        "notebook.item",
+        "notebook.facts",
+        "notebook.chronology",
+        "notebook.ready",
+        "notebook.conflicts",
+        "trace",
+        "notebook.propose",
+        "notebook.extract",
+        "notebook.correct",
+        "notebook.exclude",
+        "notebook.impugned_set",
+        "notebook.confirm",
+        "notebook.skip",
+        "notebook.date_anchor",
         "evidence.list",
         "evidence.show",
         "draft.create",
@@ -406,6 +496,13 @@ impl Request {
         "ocr.disputes",
         "extract.entities",
         "ocr.engines",
+        "notebook.show",
+        "notebook.item",
+        "notebook.facts",
+        "notebook.chronology",
+        "notebook.ready",
+        "notebook.conflicts",
+        "trace",
         "draft.list",
         "draft.log",
         "draft.show",
@@ -429,7 +526,13 @@ impl Request {
             CommandClass::Query
         } else if matches!(
             name,
-            "matter.confirm" | "approval.decide" | "ocr.decide" | "ocr.typed_copy"
+            "matter.confirm"
+                | "approval.decide"
+                | "ocr.decide"
+                | "ocr.typed_copy"
+                | "notebook.confirm"
+                | "notebook.skip"
+                | "notebook.date_anchor"
         ) {
             CommandClass::Human
         } else {
@@ -474,6 +577,21 @@ impl Request {
             Request::OcrTypedCopy { .. } => "ocr.typed_copy",
             Request::ExtractEntities { .. } => "extract.entities",
             Request::OcrEngines => "ocr.engines",
+            Request::NotebookShow { .. } => "notebook.show",
+            Request::NotebookItem { .. } => "notebook.item",
+            Request::NotebookFacts { .. } => "notebook.facts",
+            Request::NotebookChronology { .. } => "notebook.chronology",
+            Request::NotebookReady { .. } => "notebook.ready",
+            Request::NotebookConflicts { .. } => "notebook.conflicts",
+            Request::Trace { .. } => "trace",
+            Request::NotebookPropose { .. } => "notebook.propose",
+            Request::NotebookExtract { .. } => "notebook.extract",
+            Request::NotebookCorrect { .. } => "notebook.correct",
+            Request::NotebookExclude { .. } => "notebook.exclude",
+            Request::NotebookImpugnedSet { .. } => "notebook.impugned_set",
+            Request::NotebookConfirm { .. } => "notebook.confirm",
+            Request::NotebookSkip { .. } => "notebook.skip",
+            Request::NotebookDateAnchor { .. } => "notebook.date_anchor",
             Request::EvidenceList { .. } => "evidence.list",
             Request::EvidenceShow { .. } => "evidence.show",
             Request::DraftCreate { .. } => "draft.create",
@@ -518,6 +636,13 @@ impl Request {
             | Request::OcrDisputes { .. }
             | Request::ExtractEntities { .. }
             | Request::OcrEngines
+            | Request::NotebookShow { .. }
+            | Request::NotebookItem { .. }
+            | Request::NotebookFacts { .. }
+            | Request::NotebookChronology { .. }
+            | Request::NotebookReady { .. }
+            | Request::NotebookConflicts { .. }
+            | Request::Trace { .. }
             | Request::DraftList { .. }
             | Request::DraftLog { .. }
             | Request::DraftShow { .. }
@@ -532,7 +657,10 @@ impl Request {
             Request::MatterConfirm { .. }
             | Request::ApprovalDecide { .. }
             | Request::OcrDecide { .. }
-            | Request::OcrTypedCopy { .. } => CommandClass::Human,
+            | Request::OcrTypedCopy { .. }
+            | Request::NotebookConfirm { .. }
+            | Request::NotebookSkip { .. }
+            | Request::NotebookDateAnchor { .. } => CommandClass::Human,
             Request::WorkspaceInit { .. }
             | Request::MatterCreate { .. }
             | Request::MatterOpen { .. }
@@ -547,6 +675,11 @@ impl Request {
             | Request::IngestSetText { .. }
             | Request::CaptureCommit { .. }
             | Request::OcrRun { .. }
+            | Request::NotebookPropose { .. }
+            | Request::NotebookExtract { .. }
+            | Request::NotebookCorrect { .. }
+            | Request::NotebookExclude { .. }
+            | Request::NotebookImpugnedSet { .. }
             | Request::DraftCreate { .. }
             | Request::DraftCommit { .. }
             | Request::DraftCheckpoint { .. }
@@ -572,6 +705,21 @@ impl Request {
             | Request::OcrDecide { matter, .. }
             | Request::OcrTypedCopy { matter, .. }
             | Request::ExtractEntities { matter, .. }
+            | Request::NotebookShow { matter, .. }
+            | Request::NotebookItem { matter, .. }
+            | Request::NotebookFacts { matter, .. }
+            | Request::NotebookChronology { matter, .. }
+            | Request::NotebookReady { matter }
+            | Request::NotebookConflicts { matter }
+            | Request::Trace { matter, .. }
+            | Request::NotebookPropose { matter, .. }
+            | Request::NotebookExtract { matter, .. }
+            | Request::NotebookCorrect { matter, .. }
+            | Request::NotebookExclude { matter, .. }
+            | Request::NotebookImpugnedSet { matter, .. }
+            | Request::NotebookConfirm { matter, .. }
+            | Request::NotebookSkip { matter, .. }
+            | Request::NotebookDateAnchor { matter, .. }
             | Request::EvidenceDuplicates { matter }
             | Request::EvidenceList { matter }
             | Request::EvidenceShow { matter, .. }
