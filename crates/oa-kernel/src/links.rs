@@ -85,7 +85,8 @@ pub fn edges(events: &[LedgerEvent]) -> Vec<Edge> {
             }
             // Notebook writes list their item-to-document and review-to-item
             // links (spec H rule 11).
-            c if c.starts_with("notebook.") => {
+            // Notebook writes and the spec J events list their links.
+            _ if body["links"].is_array() => {
                 for l in body["links"].as_array().into_iter().flatten() {
                     add(s(l, "from"), s(l, "to"));
                 }
@@ -175,6 +176,9 @@ impl Kernel {
             }
         }
         if let Some(found) = Self::notebook_record(live, id)? {
+            return Ok(found);
+        }
+        if let Some(found) = Self::doc_record_of(live, id)? {
             return Ok(found);
         }
         if let Some(e) = st.evidence_by_blob(id).map_err(store_err)? {

@@ -102,6 +102,23 @@ enum Command {
     /// Drafts and their revisions
     #[command(subcommand)]
     Draft(DraftCmd),
+    /// Open a revision, a conversion or an evidence document in our viewer
+    View {
+        #[command(flatten)]
+        m: MatterArg,
+        target: String,
+        #[arg(long)]
+        page: Option<u32>,
+    },
+    /// The filing PDF/A and its conversion records
+    #[command(subcommand)]
+    Filing(FilingCmd),
+    /// The fidelity oracle
+    #[command(subcommand)]
+    Fidelity(FidelityCmd),
+    /// PDFs for PdfCraft (never the filing PDF)
+    #[command(subcommand)]
+    Pdf(PdfCmd),
     /// Gates and approvals
     #[command(subcommand)]
     Approval(ApprovalCmd),
@@ -578,6 +595,167 @@ enum DraftCmd {
         #[arg(long)]
         checkpoint: String,
     },
+    /// Generate the first revision from a template
+    New {
+        #[command(flatten)]
+        m: MatterArg,
+        #[arg(long)]
+        title: String,
+        #[arg(long, default_value = "slp")]
+        template: String,
+        /// Fill the List of Dates and Synopsis from the Notebook
+        #[arg(long)]
+        from_notebook: bool,
+    },
+    /// Paragraph ids, styles, text and sources from the DOCX engine
+    Paragraphs {
+        #[command(flatten)]
+        m: MatterArg,
+        rev: String,
+    },
+    /// Propose a replacement for one paragraph
+    Propose {
+        #[command(flatten)]
+        m: MatterArg,
+        draft: String,
+        #[arg(long)]
+        para: String,
+        #[arg(long)]
+        replace: String,
+        #[arg(long)]
+        reason: Option<String>,
+        /// The agent turn, for the revision's author
+        #[arg(long)]
+        turn: Option<String>,
+    },
+    /// Pending proposals (the edit surface)
+    Proposals {
+        #[command(flatten)]
+        m: MatterArg,
+        #[arg(long)]
+        draft: Option<String>,
+        /// Every proposal, decided ones too
+        #[arg(long)]
+        all: bool,
+    },
+    /// Accept a proposal (a human decision)
+    Accept {
+        #[command(flatten)]
+        m: MatterArg,
+        proposal: String,
+    },
+    /// Reject a proposal (a human decision)
+    Reject {
+        #[command(flatten)]
+        m: MatterArg,
+        proposal: String,
+        #[arg(long)]
+        reason: Option<String>,
+    },
+    /// Revert one agent edit as a new revision
+    Revert {
+        #[command(flatten)]
+        m: MatterArg,
+        draft: String,
+        #[arg(long)]
+        rev: String,
+    },
+    /// Open the head in hosted WordCraft on a working copy
+    OpenEditor {
+        #[command(flatten)]
+        m: MatterArg,
+        draft: String,
+    },
+    /// The editor session: working copy, unimported save, autosave
+    EditorStatus {
+        #[command(flatten)]
+        m: MatterArg,
+        draft: String,
+    },
+    /// Capture WordCraft's saved bytes (or its autosave) as a new revision
+    ImportWorkingCopy {
+        #[command(flatten)]
+        m: MatterArg,
+        draft: String,
+        #[arg(long)]
+        autosave: bool,
+    },
+    /// Paragraph-level diff by paragraph id
+    Diff {
+        #[command(flatten)]
+        m: MatterArg,
+        a: String,
+        b: String,
+    },
+    /// Every revision against its parent, with authors and notes
+    Changes {
+        #[command(flatten)]
+        m: MatterArg,
+        draft: String,
+    },
+    /// A review note anchored to a paragraph
+    Note {
+        #[command(flatten)]
+        m: MatterArg,
+        draft: String,
+        #[arg(long)]
+        rev: String,
+        #[arg(long)]
+        para: String,
+        #[arg(long)]
+        text: String,
+        #[arg(long)]
+        to_agent: bool,
+    },
+    /// Render a revision to PDF through the DOCX engine
+    Render {
+        #[command(flatten)]
+        m: MatterArg,
+        rev: String,
+        #[arg(long, value_name = "PDF")]
+        out: Option<PathBuf>,
+    },
+}
+
+#[derive(Subcommand)]
+enum FilingCmd {
+    /// Build the filing PDF/A from the approved head (exit 1 when refused or
+    /// when the conversion check fails)
+    Pdf {
+        #[command(flatten)]
+        m: MatterArg,
+        rev: String,
+        #[arg(long, value_name = "PDFA")]
+        out: Option<PathBuf>,
+        /// Evidence ids to annex, in order; repeatable
+        #[arg(long = "annex")]
+        annexures: Vec<String>,
+    },
+    /// Every conversion record with its check and validation
+    Conversions {
+        #[command(flatten)]
+        m: MatterArg,
+    },
+}
+
+#[derive(Subcommand)]
+enum FidelityCmd {
+    /// Compare renderers page by page (exit 1 above the threshold)
+    Check {
+        #[command(flatten)]
+        m: MatterArg,
+        rev: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum PdfCmd {
+    /// A working copy of a PDF for PdfCraft
+    OpenEditor {
+        #[command(flatten)]
+        m: MatterArg,
+        target: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -983,6 +1161,126 @@ fn request(cmd: Command) -> Result<Request, OaError> {
                 draft,
                 checkpoint,
             },
+            DraftCmd::New {
+                m,
+                title,
+                template,
+                from_notebook,
+            } => Request::DraftNew {
+                matter: m.matter,
+                title,
+                template,
+                from_notebook,
+            },
+            DraftCmd::Paragraphs { m, rev } => Request::DraftParagraphs {
+                matter: m.matter,
+                rev,
+            },
+            DraftCmd::Propose {
+                m,
+                draft,
+                para,
+                replace,
+                reason,
+                turn,
+            } => Request::DraftPropose {
+                matter: m.matter,
+                draft,
+                para,
+                replace,
+                reason,
+                turn,
+            },
+            DraftCmd::Proposals { m, draft, all } => Request::DraftProposals {
+                matter: m.matter,
+                draft,
+                all,
+            },
+            DraftCmd::Accept { m, proposal } => Request::DraftAccept {
+                matter: m.matter,
+                proposal,
+            },
+            DraftCmd::Reject {
+                m,
+                proposal,
+                reason,
+            } => Request::DraftReject {
+                matter: m.matter,
+                proposal,
+                reason,
+            },
+            DraftCmd::Revert { m, draft, rev } => Request::DraftRevert {
+                matter: m.matter,
+                draft,
+                rev,
+            },
+            DraftCmd::OpenEditor { m, draft } => Request::DraftOpenEditor {
+                matter: m.matter,
+                draft,
+            },
+            DraftCmd::EditorStatus { m, draft } => Request::DraftEditorStatus {
+                matter: m.matter,
+                draft,
+            },
+            DraftCmd::ImportWorkingCopy { m, draft, autosave } => Request::DraftImportWorkingCopy {
+                matter: m.matter,
+                draft,
+                autosave,
+            },
+            DraftCmd::Diff { m, a, b } => Request::DraftDiff {
+                matter: m.matter,
+                a,
+                b,
+            },
+            DraftCmd::Changes { m, draft } => Request::DraftChanges {
+                matter: m.matter,
+                draft,
+            },
+            DraftCmd::Note {
+                m,
+                draft,
+                rev,
+                para,
+                text,
+                to_agent,
+            } => Request::DraftNote {
+                matter: m.matter,
+                draft,
+                rev,
+                para,
+                text,
+                to_agent,
+            },
+            DraftCmd::Render { m, rev, out: _ } => Request::DraftRender {
+                matter: m.matter,
+                rev,
+            },
+        },
+        Command::View { m, target, page } => Request::View {
+            matter: m.matter,
+            target,
+            page,
+        },
+        Command::Filing(f) => match f {
+            FilingCmd::Pdf {
+                m,
+                rev,
+                out: _,
+                annexures,
+            } => Request::FilingPdf {
+                matter: m.matter,
+                rev,
+                annexures,
+            },
+            FilingCmd::Conversions { m } => Request::FilingConversions { matter: m.matter },
+        },
+        Command::Fidelity(FidelityCmd::Check { m, rev }) => Request::FidelityCheck {
+            matter: m.matter,
+            rev,
+        },
+        Command::Pdf(PdfCmd::OpenEditor { m, target }) => Request::PdfOpenEditor {
+            matter: m.matter,
+            target,
         },
         Command::Approval(a) => match a {
             ApprovalCmd::Request { m, gate, target } => Request::ApprovalRequest {
@@ -1132,12 +1430,56 @@ fn run(cli: Cli) -> Result<Vec<Value>, OaError> {
         _ => {}
     }
     let key = cli.idempotency_key.or_else(|| Some(oa_types::new_key()));
+    let out = match &cli.command {
+        Command::Draft(DraftCmd::Render { out, .. })
+        | Command::Filing(FilingCmd::Pdf { out, .. }) => out.clone(),
+        _ => None,
+    };
     let req = request(cli.command)?;
-    if cli.connect {
-        PipeClient::connect(&app, Origin::Cli)?.call(key, req)
+    let name = req.name();
+    let values = if cli.connect {
+        PipeClient::connect(&app, Origin::Cli)?.call(key, req)?
     } else {
-        InProcess::new(kernel(&app), Origin::Cli).call(key, req)
+        InProcess::new(kernel(&app), Origin::Cli).call(key, req)?
+    };
+    documents_outcome(name, &values, out.as_deref(), cli.json)?;
+    Ok(values)
+}
+
+/// Spec J commands whose result is a file or a negative check: copy the PDF
+/// to `--out`, and exit 1 when a conversion or fidelity check failed.
+fn documents_outcome(
+    name: &str,
+    values: &[Value],
+    out: Option<&Path>,
+    json: bool,
+) -> Result<(), OaError> {
+    let Some(v) = values.first() else {
+        return Ok(());
+    };
+    if let Some(out) = out {
+        let from = v["path"].as_str().unwrap_or_default();
+        std::fs::copy(from, out).map_err(|e| {
+            OaError::new(
+                ErrorCode::Unavailable,
+                format!("could not write {}: {e}", out.display()),
+            )
+        })?;
+        eprintln!("wrote {}", out.display());
     }
+    let failed = match name {
+        "filing.pdf" => v["state"] == "failed",
+        "fidelity.check" => v["passed"] == false,
+        _ => false,
+    };
+    if failed {
+        println!("{}", if json { v.to_string() } else { human(v) });
+        return Err(OaError::new(
+            ErrorCode::CheckFailed,
+            format!("{name}: the check failed; the record is above"),
+        ));
+    }
+    Ok(())
 }
 
 fn client(app: &Path, connect: bool) -> Result<Box<dyn Client>, OaError> {

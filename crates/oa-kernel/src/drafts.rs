@@ -1,7 +1,7 @@
 //! The draft store (spec C rules 7 and 8): DOCX revisions in a DAG, heads
 //! moved by compare-and-swap, named checkpoints, restore as a new revision.
-//! Nothing is ever deleted. Reverting one agent edit needs the DOCX engine
-//! (spec J) and is not here yet.
+//! Nothing is ever deleted. Reverting one agent edit goes through the DOCX
+//! engine and lives in `documents.rs` (spec J).
 
 use oa_store::{CheckpointRow, DraftRow, MatterWrite, RevisionRow};
 use oa_types::{ErrorCode, OaError, Origin};
@@ -12,7 +12,7 @@ use crate::ledger::{canonical, sha256_hex};
 use crate::records::{blob_path, put_blob, Live};
 use crate::{store_err, Ctx, Kernel};
 
-fn author(ctx: &Ctx) -> (&'static str, &'static str) {
+pub(crate) fn author(ctx: &Ctx) -> (&'static str, &'static str) {
     match ctx.origin {
         Origin::Harness => ("agent", "agent"),
         Origin::Test => ("test", "test"),
@@ -29,6 +29,19 @@ fn revision(
     note: Option<String>,
 ) -> RevisionRow {
     let (author_kind, author) = author(ctx);
+    revision_by(author_kind, author, draft_id, parents, blob, note)
+}
+
+/// A revision with a named author: an accepted proposal keeps the agent's
+/// configuration and turn, a WordCraft save is authored by WordCraft (J).
+pub(crate) fn revision_by(
+    author_kind: &str,
+    author: &str,
+    draft_id: &str,
+    parents: &[String],
+    blob: String,
+    note: Option<String>,
+) -> RevisionRow {
     let created_at = oa_types::now_utc();
     let parents = canonical(&json!(parents));
     let hash = sha256_hex(
@@ -74,7 +87,7 @@ pub(crate) fn draft_json(d: &DraftRow) -> Value {
 }
 
 impl Kernel {
-    fn draft_row(live: &Live, draft: &str) -> Result<DraftRow, OaError> {
+    pub(crate) fn draft_row(live: &Live, draft: &str) -> Result<DraftRow, OaError> {
         live.store
             .draft(draft)
             .map_err(store_err)?

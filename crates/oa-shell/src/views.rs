@@ -35,6 +35,13 @@ pub enum ViewId {
     Conflicts,
     Readiness,
     Trace,
+    Viewer,
+    Document,
+    EditSurface,
+    Changes,
+    WordCraft,
+    Fidelity,
+    Conversion,
 }
 
 pub struct ViewDef {
@@ -208,6 +215,48 @@ pub const REGISTRY: &[ViewDef] = &[
         title: "Trace",
         covers: &["trace"],
     },
+    ViewDef {
+        id: ViewId::Viewer,
+        key: "viewer",
+        title: "Viewer",
+        covers: &["view"],
+    },
+    ViewDef {
+        id: ViewId::Document,
+        key: "document",
+        title: "Document viewer",
+        covers: &["draft.paragraphs"],
+    },
+    ViewDef {
+        id: ViewId::EditSurface,
+        key: "edit-surface",
+        title: "Edit surface",
+        covers: &["draft.proposals"],
+    },
+    ViewDef {
+        id: ViewId::Changes,
+        key: "changes",
+        title: "Changes",
+        covers: &["draft.changes", "draft.diff"],
+    },
+    ViewDef {
+        id: ViewId::WordCraft,
+        key: "wordcraft",
+        title: "WordCraft",
+        covers: &["draft.editor_status"],
+    },
+    ViewDef {
+        id: ViewId::Fidelity,
+        key: "fidelity",
+        title: "Fidelity report",
+        covers: &["fidelity.check"],
+    },
+    ViewDef {
+        id: ViewId::Conversion,
+        key: "conversion",
+        title: "Conversion report",
+        covers: &["filing.conversions"],
+    },
 ];
 
 pub fn def(id: ViewId) -> &'static ViewDef {
@@ -278,7 +327,7 @@ pub struct Table {
 }
 
 impl Table {
-    fn new(view: ViewId, columns: &[&'static str], rows: Vec<Row>, empty: &str) -> Self {
+    pub(crate) fn new(view: ViewId, columns: &[&'static str], rows: Vec<Row>, empty: &str) -> Self {
         let state = if rows.is_empty() {
             ViewState::Empty(empty.to_string())
         } else {
@@ -318,7 +367,7 @@ impl Table {
     }
 }
 
-fn s(v: &Value, key: &str) -> String {
+pub(crate) fn s(v: &Value, key: &str) -> String {
     match &v[key] {
         Value::String(t) => t.clone(),
         Value::Null => String::new(),
@@ -326,7 +375,7 @@ fn s(v: &Value, key: &str) -> String {
     }
 }
 
-fn short(hash: &str) -> String {
+pub(crate) fn short(hash: &str) -> String {
     let h = hash.strip_prefix("sha256:").unwrap_or(hash);
     h.chars().take(10).collect()
 }
@@ -336,7 +385,7 @@ fn short_url(url: &str) -> String {
     u.chars().take(42).collect()
 }
 
-fn rec(matter: &str, id: String) -> Subject {
+pub(crate) fn rec(matter: &str, id: String) -> Subject {
     Subject::Record {
         matter: matter.to_string(),
         id,
@@ -1056,7 +1105,7 @@ fn nb_source(v: &Value) -> String {
     )
 }
 
-fn clip(text: &str, n: usize) -> String {
+pub(crate) fn clip(text: &str, n: usize) -> String {
     if text.chars().count() <= n {
         text.to_string()
     } else {
@@ -1724,6 +1773,13 @@ fn typical(view: ViewId, n: usize, disputed: bool) -> Table {
                 })).collect::<Vec<_>>(),
             }),
         ),
+        ViewId::Viewer
+        | ViewId::Document
+        | ViewId::EditSurface
+        | ViewId::Changes
+        | ViewId::WordCraft
+        | ViewId::Fidelity
+        | ViewId::Conversion => crate::docviews::typical(view, M, n, disputed),
         ViewId::Overview | ViewId::Inspector => Table::new(view, &["Field", "Value"], Vec::new(), "Select a matter."),
     }
 }
@@ -1810,6 +1866,54 @@ pub fn fixture(view: ViewId, state: GalleryState) -> Table {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn j_ac_20_the_changes_viewer_shows_each_kind_of_change_with_its_author() {
+        let t = fixture(ViewId::Changes, GalleryState::Typical);
+        let kinds: Vec<(&str, &str)> = t
+            .rows
+            .iter()
+            .filter(|r| r.cells[1] != "review note")
+            .map(|r| (r.cells[1].as_str(), r.cells[2].as_str()))
+            .collect();
+        for want in [
+            ("proposal", "agent:turn-7"),
+            ("wordcraft_save", "wordcraft"),
+            ("restore (head)", "advocate"),
+        ] {
+            assert!(kinds.contains(&want), "{want:?} in {kinds:?}");
+        }
+        assert!(t.rows.iter().any(|r| r.cells[1] == "review note"));
+        assert!(t.all_rows_inspectable());
+    }
+
+    #[test]
+    fn j_ac_22_the_conversion_report_shows_a_failing_paragraph_from_both_sides() {
+        let t = fixture(ViewId::Conversion, GalleryState::Disputed);
+        let bad: Vec<&Row> = t.rows.iter().filter(|r| r.cells[1] == "changed").collect();
+        assert_eq!(bad.len(), 1);
+        assert_eq!(bad[0].tone, Tone::Bad);
+        assert!(bad[0].cells[2].contains('\u{20b9}'));
+        assert!(bad[0].cells[3].contains("?5,00,000"));
+        let (tone, banner) = t.banner.clone().unwrap();
+        assert_eq!(tone, Tone::Bad);
+        assert!(banner.contains("not for filing"));
+        assert!(
+            banner.contains("veraPDF not vendored"),
+            "the stub validator is named"
+        );
+    }
+
+    #[test]
+    fn j_gui_an_unreadable_revision_and_a_hosting_fallback_say_so() {
+        let t = crate::docviews::viewer_table(
+            M,
+            &json!({ "kind": "docx", "state": "unreadable", "reason": "not a ZIP package" }),
+        );
+        assert!(matches!(&t.state, ViewState::Error(m) if m.contains("not a ZIP")));
+        let w = fixture(ViewId::WordCraft, GalleryState::Disputed);
+        assert!(w.banner.unwrap().1.contains("own window"));
+    }
 
     #[test]
     fn a_ac_16_every_query_command_has_a_registered_view() {

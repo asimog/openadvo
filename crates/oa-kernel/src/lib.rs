@@ -9,6 +9,7 @@
 mod approvals;
 mod capture;
 mod command;
+mod documents;
 mod drafts;
 mod evidence;
 mod find;
@@ -42,7 +43,8 @@ pub use command::{
 };
 pub use find::KINDS as FIND_KINDS;
 pub use hooks::{
-    FaultHook, GrantPolicy, Hooks, NoFaults, NobodyPresent, PresencePrompt, Step, StepOneGrants,
+    CheckInput, DraftChecks, FaultHook, GateBlocker, GrantPolicy, Hooks, NoFaults, NobodyPresent,
+    PresencePrompt, Step, StepOneGrants, StubDraftChecks,
 };
 pub use layout::{Manifest, MANIFEST, STAGING, SUBDIRS};
 pub use ledger::{verify_chain, ChainBreak};
@@ -341,6 +343,102 @@ impl Kernel {
             } => self
                 .draft_restore(ctx, &matter, &draft, &checkpoint)
                 .map(one),
+            Request::View {
+                matter,
+                target,
+                page,
+            } => self.view(&matter, &target, page).map(one),
+            Request::DraftNew {
+                matter,
+                title,
+                template,
+                from_notebook,
+            } => self
+                .draft_new(ctx, &matter, &title, &template, from_notebook)
+                .map(one),
+            Request::DraftParagraphs { matter, rev } => {
+                self.draft_paragraphs(&matter, &rev).map(one)
+            }
+            Request::DraftPropose {
+                matter,
+                draft,
+                para,
+                replace,
+                reason,
+                turn,
+            } => self
+                .draft_propose(
+                    ctx,
+                    &matter,
+                    documents::ProposeArgs {
+                        draft,
+                        para,
+                        replace,
+                        reason,
+                        turn,
+                    },
+                )
+                .map(one),
+            Request::DraftProposals { matter, draft, all } => {
+                self.draft_proposals(&matter, draft.as_deref(), all)
+            }
+            Request::DraftAccept { matter, proposal } => {
+                self.draft_accept(ctx, &matter, &proposal).map(one)
+            }
+            Request::DraftReject {
+                matter,
+                proposal,
+                reason,
+            } => self.draft_reject(ctx, &matter, &proposal, reason).map(one),
+            Request::DraftRevert { matter, draft, rev } => {
+                self.draft_revert(ctx, &matter, &draft, &rev).map(one)
+            }
+            Request::DraftOpenEditor { matter, draft } => {
+                self.draft_open_editor(ctx, &matter, &draft).map(one)
+            }
+            Request::DraftEditorStatus { matter, draft } => {
+                self.draft_editor_status(&matter, &draft).map(one)
+            }
+            Request::DraftImportWorkingCopy {
+                matter,
+                draft,
+                autosave,
+            } => self
+                .draft_import_working_copy(ctx, &matter, &draft, autosave)
+                .map(one),
+            Request::DraftDiff { matter, a, b } => self.draft_diff(&matter, &a, &b).map(one),
+            Request::DraftChanges { matter, draft } => self.draft_changes(&matter, &draft).map(one),
+            Request::DraftNote {
+                matter,
+                draft,
+                rev,
+                para,
+                text,
+                to_agent,
+            } => self
+                .draft_note(
+                    ctx,
+                    &matter,
+                    &documents::NoteArgs {
+                        draft,
+                        rev,
+                        para,
+                        text,
+                        to_agent,
+                    },
+                )
+                .map(one),
+            Request::DraftRender { matter, rev } => self.draft_render(ctx, &matter, &rev).map(one),
+            Request::FilingPdf {
+                matter,
+                rev,
+                annexures,
+            } => self.filing_pdf(ctx, &matter, &rev, &annexures).map(one),
+            Request::FilingConversions { matter } => self.filing_conversions(&matter),
+            Request::FidelityCheck { matter, rev } => self.fidelity_check(&matter, &rev).map(one),
+            Request::PdfOpenEditor { matter, target } => {
+                self.pdf_open_editor(ctx, &matter, &target).map(one)
+            }
             Request::ApprovalRequest {
                 matter,
                 gate,

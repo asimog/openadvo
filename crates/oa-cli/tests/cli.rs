@@ -471,3 +471,137 @@ fn d_cli_tools_list_marks_human_commands_as_not_callable() {
     let pb = lines(&oa(&app, &["playbook", "show", "slp"]));
     assert_eq!(pb[0]["stages"].as_array().unwrap().len(), 10);
 }
+
+/// Drives spec J through the binary. The DOCX engine is the `wordcraft`
+/// executable beside `oa`, built with the workspace.
+#[test]
+fn j_cli_documents_commands_through_the_binary() {
+    let oa_exe = std::path::PathBuf::from(env!("CARGO_BIN_EXE_oa"));
+    let wordcraft = oa_exe.with_file_name(format!("wordcraft{}", std::env::consts::EXE_SUFFIX));
+    assert!(
+        wordcraft.is_file(),
+        "build the workspace first: {} is missing",
+        wordcraft.display()
+    );
+    let tmp = tempfile::tempdir().unwrap();
+    let app = tmp.path().join("app");
+    let root = tmp.path().join("root");
+    oa(&app, &["workspace", "init", root.to_str().unwrap()]);
+    let id = lines(&oa(&app, &["matter", "create", "--title", "Rao v. State"]))[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let m = ["--matter", id.as_str()];
+    let new = oa(
+        &app,
+        &[&["draft", "new"][..], &m, &["--title", "SLP"]].concat(),
+    );
+    assert!(
+        new.status.success(),
+        "{}",
+        String::from_utf8_lossy(&new.stderr)
+    );
+    let new = lines(&new);
+    let draft = new[0]["draft"]["id"].as_str().unwrap().to_string();
+    let rev = new[0]["revision"]["hash"].as_str().unwrap().to_string();
+
+    let paras = lines(&oa(
+        &app,
+        &[&["draft", "paragraphs"][..], &m, &[&rev]].concat(),
+    ));
+    let para = paras[0]["paragraphs"][4]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let proposed = lines(&oa(
+        &app,
+        &[
+            &["draft", "propose"][..],
+            &m,
+            &[&draft, "--para", &para, "--replace", "A tighter synopsis."],
+        ]
+        .concat(),
+    ));
+    let proposal = proposed[0]["id"].as_str().unwrap().to_string();
+    let pending = lines(&oa(&app, &[&["draft", "proposals"][..], &m].concat()));
+    assert_eq!(pending.len(), 1);
+    // A human command with nobody at a terminal is not confirmed.
+    let accept = oa(&app, &[&["draft", "accept"][..], &m, &[&proposal]].concat());
+    assert_eq!(accept.status.code(), Some(3));
+
+    let note = oa(
+        &app,
+        &[
+            &["draft", "note"][..],
+            &m,
+            &[&draft, "--rev", &rev, "--para", &para, "--text", "Check"],
+        ]
+        .concat(),
+    );
+    assert!(note.status.success());
+    let changes = lines(&oa(
+        &app,
+        &[&["draft", "changes"][..], &m, &[&draft]].concat(),
+    ));
+    assert_eq!(changes[0]["notes"].as_array().unwrap().len(), 1);
+    let diff = oa(&app, &[&["draft", "diff"][..], &m, &[&rev, &rev]].concat());
+    assert!(lines(&diff)[0]["changes"].as_array().unwrap().is_empty());
+
+    let pdf = tmp.path().join("render.pdf");
+    let render = oa(
+        &app,
+        &[
+            &["draft", "render"][..],
+            &m,
+            &[&rev, "--out", pdf.to_str().unwrap()],
+        ]
+        .concat(),
+    );
+    assert!(
+        render.status.success(),
+        "{}",
+        String::from_utf8_lossy(&render.stderr)
+    );
+    assert!(std::fs::read(&pdf).unwrap().starts_with(b"%PDF-"));
+
+    let fidelity = oa(&app, &[&["fidelity", "check"][..], &m, &[&rev]].concat());
+    assert_eq!(fidelity.status.code(), Some(0));
+    let view = lines(&oa(&app, &[&["view"][..], &m, &[&rev]].concat()));
+    assert_eq!(view[0]["kind"], "docx");
+
+    let editor = lines(&oa(
+        &app,
+        &[&["draft", "open-editor"][..], &m, &[&draft]].concat(),
+    ));
+    assert!(editor[0]["working"].is_string());
+    let status = lines(&oa(
+        &app,
+        &[&["draft", "editor-status"][..], &m, &[&draft]].concat(),
+    ));
+    assert_eq!(status[0]["state"], "open");
+    let import = lines(&oa(
+        &app,
+        &[&["draft", "import-working-copy"][..], &m, &[&draft]].concat(),
+    ));
+    assert_eq!(import[0]["outcome"], "unchanged");
+
+    let filing_out = tmp.path().join("filing.pdf");
+    let filing = oa(
+        &app,
+        &[
+            &["filing", "pdf"][..],
+            &m,
+            &[&rev, "--out", filing_out.to_str().unwrap()],
+        ]
+        .concat(),
+    );
+    assert_eq!(filing.status.code(), Some(1), "unapproved: refused");
+    assert!(!filing_out.exists());
+    let conversions = lines(&oa(&app, &[&["filing", "conversions"][..], &m].concat()));
+    assert!(conversions.is_empty());
+    let pdfcraft = oa(
+        &app,
+        &[&["pdf", "open-editor"][..], &m, &["nothing"]].concat(),
+    );
+    assert_eq!(pdfcraft.status.code(), Some(2));
+}

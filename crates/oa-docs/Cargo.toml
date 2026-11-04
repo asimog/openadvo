@@ -1,0 +1,29 @@
+[package]
+name = "oa-docs"
+description = "Documents, viewers and editors (spec J): the headless DOCX engine stand-in for WordCraft, the first-revision writer, generators, annexure numbering, filing PDF assembly, the fidelity oracle and the hosting model. Pure logic plus the wordcraft and pdfcraft stub executables"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+hex.workspace = true
+thiserror.workspace = true
+schemars.workspace = true
+base64.workspace = true
+flate2 = "1.1"
+crc32fast = "1.5"
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[[bin]]
+name = "wordcraft"
+path = "src/bin/wordcraft.rs"
+
+[[bin]]
+name = "pdfcraft"
+path = "src/bin/pdfcraft.rs"

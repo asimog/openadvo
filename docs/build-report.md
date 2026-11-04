@@ -230,3 +230,126 @@ taken in this step.
   write.
 - F's ingest rows never leave `pending`. Readiness treats a document with an
   OCR record or text as ingested. F should move the row on when ingestion ends.
+
+
+# Build report: spec J, documents, viewers and editors
+
+Build steps 3, 7 and 9 for J, on top of the Spec H commit 05f7547. New crate
+`oa-docs` (pure logic plus the `wordcraft` and `pdfcraft` stub executables), a
+`matter.db` migration (`doc_records`), the kernel module `documents.rs` with the
+DOCX engine and K seams in `hooks.rs`, `oa draft ...`, `oa view`, `oa filing`,
+`oa fidelity`, `oa pdf`, and seven shell views. 236 tests pass (199 before).
+
+The kernel never parses a DOCX. Reads, edits and renders go through the
+`DocxEngine` hook: `wordcraft --headless` beside the running executable in the
+application, the same handler in process in kernel tests. The process boundary
+is tested in `oa-docs` against the built `wordcraft` and `pdfcraft`.
+
+## Acceptance criteria in scope
+
+| ID | Test | Result | Note |
+|---|---|---|---|
+| J-AC-01 | `j_ac_01_every_generated_paragraph_id_survives_an_edit_of_another_paragraph_in_wordcraft` (oa-docs) | pass | Through the `wordcraft --edit` stub process. |
+| J-AC-02 | `j_ac_02_the_headless_engine_replaces_one_paragraph_and_leaves_the_rest_byte_identical` (oa-docs) | pass | Through `wordcraft --headless`. Every other part's raw bytes are equal too. |
+| J-AC-03 | `j_ac_03_an_accepted_proposal_is_exactly_one_revision_authored_by_the_agent_turn` (kernel) | pass | Author `agent:turn-7`. A second accept is a conflict. |
+| J-AC-04 | `j_ac_04_a_proposal_on_a_stale_base_is_shown_again_and_not_committed` (kernel) | pass | |
+| J-AC-05 | `j_ac_05_draft_accept_and_reject_from_a_harness_connection_are_refused` (kernel) | pass | |
+| J-AC-06 | `j_ac_06_reverting_the_third_of_five_agent_edits_equals_applying_the_other_four` (kernel) | pass | Compared by paragraph id and paragraph XML hash. |
+| J-AC-07 | `j_ac_07_wordcraft_writing_under_a_drafts_folder_is_refused_by_the_boundary` (oa-docs), `j_ac_07_an_editor_file_inside_the_drafts_folder_is_detected_and_refused` (kernel) | pass | The editor boundary refuses the write; the kernel also detects a file that got there and refuses the import, audited. |
+| J-AC-08 | `j_ac_08_every_list_of_dates_sentence_carries_an_event_id_and_its_date` (oa-docs) | pass | Library level. `oa draft new --from-notebook` feeds the generator H's `--for-prose` events; no kernel test builds confirmed Notebook events for it. |
+| J-AC-09 | `j_ac_09_the_filing_pdf_passes_the_pdfa_check_at_the_configured_part_and_level` (oa-docs) | **partial** | Passes the in-tree structural preflight, not veraPDF. Font embedding and the ICC profile are `not_checked`. Real PDF/A conformance is not claimed. |
+| J-AC-10 | `j_ac_10_bookmarks_and_index_page_numbers_match_the_annexure_numbering` (oa-docs) | pass | |
+| J-AC-11 | `j_ac_11_a_hosted_window_has_no_taskbar_entry_and_tracks_move_resize_and_minimise` (oa-docs) | pass, model only | The hosting model. No real window is reparented (H-08 spike). |
+| J-AC-12 | `j_ac_12_at_a_dpi_change_the_window_scales_or_falls_back_with_a_notice` (oa-docs) | pass, model only | [AUTO+HUMAN]: the human half needs the real hosted window. |
+| J-AC-13 | `j_ac_13_the_fidelity_oracle_reports_page_differences_and_fails_above_the_threshold` (oa-docs), `the_fidelity_check_compares_the_engine_with_the_viewer_and_says_word_is_absent` (kernel) | pass | Fixture pages from the SLP template. Word is reported as not compared. |
+| J-AC-14 | `j_ac_14_a_wordcraft_crash_keeps_the_working_copy_and_leaves_an_autosave_to_recover` (oa-docs), `j_ac_14_a_crash_with_unsaved_edits_loses_no_revision_and_recovers_the_autosave` (kernel) | pass | The stub process crashes with exit 70 after an autosave. |
+| J-AC-15 | none | [HUMAN] | |
+| J-AC-16 | none | [HUMAN] | |
+| J-AC-17 | `j_ac_17_conversion_of_an_unapproved_or_blocked_revision_exits_1_with_no_pdf` (kernel), `j_cli_documents_commands_through_the_binary` (oa-cli) | pass | Unapproved, blocked gate (a test `DraftChecks`), and approved but no longer the head. |
+| J-AC-18 | `j_ac_18_pdfcraft_refuses_to_open_the_filing_pdf_for_editing` (oa-docs), `j_ac_18_pdfcraft_is_refused_the_filing_pdf` (kernel) | pass | |
+| J-AC-19 | `j_ac_19_the_conversion_record_links_the_docx_hash_to_the_pdfa_hash_on_disk` (kernel) | pass | Also in the link index. |
+| J-AC-20 | `j_ac_20_the_changes_viewer_shows_proposals_wordcraft_saves_and_restores_with_authors` (kernel), `j_ac_20_the_changes_viewer_shows_each_kind_of_change_with_its_author` (shell) | pass | |
+| J-AC-21 | `j_ac_21_a_review_note_stays_on_its_paragraph_id_in_later_revisions` (kernel) | pass | Also covers the agent-capability refusal. |
+| J-AC-22 | `j_ac_22_the_conversion_comparison_puts_a_failing_paragraph_from_both_sides_together` (oa-docs), `j_ac_22_the_conversion_report_shows_a_failing_paragraph_from_both_sides` (kernel and shell) | pass | The failing case is a rupee sign the standard font cannot write. |
+| J-AC-23 | `j_ac_23_the_corpus_regression_reports_no_lost_id_and_no_changed_byte_outside_the_edit` (oa-docs) | pass | A fixture corpus of three generated or hand-built files, including a table, a footnote, an image part and foreign XML. Not real petitions. |
+
+Also: `a_wordcraft_save_on_a_moved_head_becomes_a_proposal_for_the_advocate`
+and `an_unreadable_revision_is_shown_unreadable_in_the_viewer` (kernel), and
+`j_cli_documents_commands_through_the_binary` (oa-cli), which drives every new
+`oa` subcommand except `revert` through the binary and the real `wordcraft`.
+
+## Views in scope
+
+| View | Covers | Screenshot | Checked | Seen wrong |
+|---|---|---|---|---|
+| Viewer (J01, J02) | `view` | `target/screenshots/gallery-viewer.png` | DOCX paragraphs by id; a PDF's lines by page with the disputed line in red; unreadable revision as an error state | The Page column is blank for DOCX rows. |
+| Document viewer (J02) | `draft.paragraphs` | `target/screenshots/gallery-document.png` | id, style, text, event ids, authority ids, note count | At quarter width the Notes column is clipped when an authority id is long. |
+| Edit surface (J03) | `draft.proposals` | `target/screenshots/gallery-edit-surface.png` | state before the change so it is never clipped; - and + lines; re-based and WordCraft-import proposals | The Reason column clips at quarter width. |
+| Changes (J15) | `draft.changes`, `draft.diff` | `target/screenshots/gallery-changes.png` | kind and author per revision, agent edits marked for revert, review notes under their paragraph, read-only or agent-capability banner | none |
+| WordCraft (J05) | `draft.editor_status` | `target/screenshots/gallery-wordcraft.png` | session, working copy, head moved, unimported save, autosave to recover, fallback notice banner | Hosting says "not running" in the live app: no hosted window yet. |
+| Fidelity report (J12) | `fidelity.check` | `target/screenshots/gallery-fidelity.png` | renderers with Word "not compared", per-page differences, failing page red, banner | none |
+| Conversion report | `filing.conversions` | `target/screenshots/gallery-conversion.png` | PDF/A checks with the stub validator named, `not_checked` muted, DOCX and PDF/A side by side, failing paragraph red, "not for filing" banner | none |
+
+The screenshots are galleries (fixtures, no kernel). No live-window capture was
+taken in this step. Before this report the Edit surface clipped its State
+column and the Changes fixtures showed identical short hashes; both were fixed
+and re-captured.
+
+## [HUMAN] criteria still needing a person
+
+- J-AC-15: typing, IME input and spell check in hosted WordCraft. Needs the real
+  WordCraft fork hosted in the pane.
+- J-AC-16: does the filing PDF look like a properly prepared Supreme Court paper
+  book? Today it is plain Helvetica text pages; it does not yet.
+- J-AC-12, human half: a real DPI change with a hosted window.
+- The human gestures in the window, not clicked in this session: "Accept proposal
+  X on paragraph Y" and "Reject proposal X" on the Edit surface, "Revert agent
+  edit ..." and "Add note on paragraph ..." on Changes, "Open the head in
+  WordCraft", "Import WordCraft's save as a revision" and "Recover WordCraft's
+  autosave as a revision" on the WordCraft pane.
+- Keyboard-only operation of the new views (README GUI convention 5).
+
+## Stubs and the group that replaces each
+
+| Stub | Where | Replaced by |
+|---|---|---|
+| Headless DOCX engine (WordCraft stand-in) | `oa_docs::docx`, `wordcraft --headless` | J itself, when the WordCraft fork is vendored (OQ-01, H-02). The `DocxEngine` request protocol is the seam. |
+| Hosted WordCraft application | `wordcraft --edit <docx> --script <ops>` | J with the vendored fork, run by the D15 supervisor. |
+| Window reparenting | `oa_docs::host` model only | J with the H-08 spike (Win32 SetParent, owned-window fallback). |
+| First-revision writer | `oa_docs::writer` (stand-in for docx-rs) | J, when docx-rs is vendored (Q). |
+| PDF/A validation | `oa_docs::pdf::preflight`, named `oa-pdfa-preflight (stub; veraPDF not vendored)` | Q vendors veraPDF; K's conversion check then records its result. |
+| PDF text and pages | `oa_docs::pdf::read` for our own PDFs; Helvetica, ASCII only | G01/G02 pdfium for reading; an embedded font for writing (J13, Q). |
+| Annexure pages | OCR text per page, not the original page images | J13 with pdfium (G01) merging source PDFs as they are. |
+| K draft checks and conversion check | `hooks::StubDraftChecks` (no blockers; text comparison) | K (K06 numbering, the citation gates, the conversion check). |
+| Word as a fidelity renderer | reported "not compared" | J12 with Word through COM. |
+| PdfCraft | `pdfcraft --view/--edit` stub | J with the vendored PdfCraft fork. |
+| Question of law and grounds generators | placeholder paragraphs in the SLP template | J10 with I (research authorities). Spec I is not built. |
+
+No Research Studio (spec I) skeleton was needed. The `sources` part already has
+an `authorities` list for I to fill.
+
+## Open questions hit
+
+- OQ-01: WordCraft is treated as vendored source in a hosted process (X-01). Only
+  the stub exists.
+- OQ-03: the WordCraft engine renders the filing body. Word is only a fidelity
+  comparison, and is not wired.
+
+## Spec issues
+
+- The CLI table has no command for the edit surface's list, the Changes viewer,
+  the WordCraft pane's state, review notes, revert or the conversion report.
+  Added `draft.proposals`, `draft.changes`, `draft.editor_status`, `draft.note`,
+  `draft.revert`, `filing.conversions` and `pdf.open_editor`.
+- Rule 2 and J-AC-07 name `drafts/<draft id>/`, but the draft store keeps
+  revisions in `blobs/` and never creates that folder. The boundary refuses any
+  editor write under a matter's `drafts/`, and the kernel treats any file in
+  `drafts/<draft id>/` as foreign.
+- Rule 12 says "the approved head" without naming the gate. The code uses
+  `final_revision`, the gate spec C's tests use. K or L may name another.
+- Rule 14 gives the conversion check to K, but J-AC-22 needs its output in J's
+  report. The check runs behind the `DraftChecks` seam with a stub comparison.
+- J-AC-09 requires veraPDF, and a conforming PDF/A needs an embedded font and an
+  ICC output profile. Neither is in the tree, so J-AC-09 is partial.
+- The acceptance table lists J-AC-15 and J-AC-16 after J-AC-19. The ids are fine;
+  the order is only cosmetic.

@@ -2144,6 +2144,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "oa-docs"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "crc32fast",
+ "flate2",
+ "hex",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "oa-harness"
 version = "0.1.0"
 dependencies = [
@@ -2163,6 +2179,7 @@ dependencies = [
  "chrono",
  "hex",
  "oa-capture",
+ "oa-docs",
  "oa-notebook",
  "oa-ocr",
  "oa-store",

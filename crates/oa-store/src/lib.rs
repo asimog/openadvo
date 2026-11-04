@@ -143,6 +143,10 @@ pub trait MatterStore: Send {
     fn notebook_exclusions(&self) -> StoreResult<Vec<NotebookExclusionRow>>;
     fn notebook_meta(&self, key: &str) -> StoreResult<Option<String>>;
 
+    fn doc_record(&self, kind: &str, id: &str) -> StoreResult<Option<DocRecordRow>>;
+    /// Every record of a kind, oldest first; all kinds when `kind` is empty.
+    fn doc_records(&self, kind: &str) -> StoreResult<Vec<DocRecordRow>>;
+
     fn record_rejected(&self, rejected: &RejectedWrite) -> StoreResult<()>;
     fn rejected(&self) -> StoreResult<Vec<RejectedWrite>>;
 }

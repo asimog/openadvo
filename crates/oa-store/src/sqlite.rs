@@ -237,6 +237,19 @@ const MATTER_MIGRATIONS: &[&str] = &[
     );
     CREATE TABLE notebook_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 "#,
+    r#"
+    CREATE TABLE doc_records (
+        kind TEXT NOT NULL,
+        id TEXT NOT NULL,
+        draft_id TEXT NOT NULL,
+        state TEXT NOT NULL,
+        body TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (kind, id)
+    );
+    CREATE INDEX doc_records_draft ON doc_records(draft_id);
+"#,
 ];
 
 fn err(e: rusqlite::Error) -> StoreError {
@@ -1194,6 +1207,26 @@ impl MatterStore for SqliteMatter {
         )
     }
 
+    fn doc_record(&self, kind: &str, id: &str) -> StoreResult<Option<DocRecordRow>> {
+        one(
+            &self.conn,
+            "SELECT kind, id, draft_id, state, body, created_at, updated_at FROM doc_records
+             WHERE kind = ?1 AND id = ?2",
+            params![kind, id],
+            doc_record_row,
+        )
+    }
+
+    fn doc_records(&self, kind: &str) -> StoreResult<Vec<DocRecordRow>> {
+        many(
+            &self.conn,
+            "SELECT kind, id, draft_id, state, body, created_at, updated_at FROM doc_records
+             WHERE ?1 = '' OR kind = ?1 ORDER BY created_at, id",
+            params![kind],
+            doc_record_row,
+        )
+    }
+
     fn notebook_meta(&self, key: &str) -> StoreResult<Option<String>> {
         one(
             &self.conn,
@@ -1219,6 +1252,18 @@ fn one<T>(
     f: impl FnOnce(&Row) -> rusqlite::Result<T>,
 ) -> StoreResult<Option<T>> {
     conn.query_row(sql, p, f).optional().map_err(err)
+}
+
+fn doc_record_row(r: &Row) -> rusqlite::Result<DocRecordRow> {
+    Ok(DocRecordRow {
+        kind: r.get(0)?,
+        id: r.get(1)?,
+        draft_id: r.get(2)?,
+        state: r.get(3)?,
+        body: r.get(4)?,
+        created_at: r.get(5)?,
+        updated_at: r.get(6)?,
+    })
 }
 
 fn many<T>(
@@ -1634,5 +1679,31 @@ fn apply(tx: &Connection, w: &MatterWrite) -> StoreResult<()> {
              ON CONFLICT(key) DO UPDATE SET value = ?2",
             params![key, value],
         )),
+        MatterWrite::InsertDocRecord(d) => done(tx.execute(
+            "INSERT INTO doc_records (kind, id, draft_id, state, body, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![d.kind, d.id, d.draft_id, d.state, d.body, d.created_at, d.updated_at],
+        )),
+        MatterWrite::UpdateDocRecord {
+            kind,
+            id,
+            expected,
+            state,
+            body,
+            updated_at,
+        } => {
+            let n = tx
+                .execute(
+                    "UPDATE doc_records SET state = ?4, body = ?5, updated_at = ?6
+                     WHERE kind = ?1 AND id = ?2 AND state = ?3",
+                    params![kind, id, expected, state, body, updated_at],
+                )
+                .map_err(err)?;
+            if n == 1 {
+                Ok(())
+            } else {
+                Err(conflict(format!("{kind} {id} is no longer {expected}")))
+            }
+        }
     }
 }

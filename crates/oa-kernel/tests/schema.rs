@@ -310,6 +310,96 @@ fn samples() -> Vec<Request> {
             draft: "d".into(),
             checkpoint: "n".into(),
         },
+        Request::View {
+            matter: m(),
+            target: "r".into(),
+            page: Some(2),
+        },
+        Request::DraftNew {
+            matter: m(),
+            title: "SLP".into(),
+            template: "slp".into(),
+            from_notebook: true,
+        },
+        Request::DraftParagraphs {
+            matter: m(),
+            rev: "r".into(),
+        },
+        Request::DraftPropose {
+            matter: m(),
+            draft: "d".into(),
+            para: "10000001".into(),
+            replace: "text".into(),
+            reason: Some("why".into()),
+            turn: Some("t1".into()),
+        },
+        Request::DraftProposals {
+            matter: m(),
+            draft: None,
+            all: true,
+        },
+        Request::DraftAccept {
+            matter: m(),
+            proposal: "p".into(),
+        },
+        Request::DraftReject {
+            matter: m(),
+            proposal: "p".into(),
+            reason: None,
+        },
+        Request::DraftRevert {
+            matter: m(),
+            draft: "d".into(),
+            rev: "r".into(),
+        },
+        Request::DraftOpenEditor {
+            matter: m(),
+            draft: "d".into(),
+        },
+        Request::DraftEditorStatus {
+            matter: m(),
+            draft: "d".into(),
+        },
+        Request::DraftImportWorkingCopy {
+            matter: m(),
+            draft: "d".into(),
+            autosave: false,
+        },
+        Request::DraftDiff {
+            matter: m(),
+            a: "a".into(),
+            b: "b".into(),
+        },
+        Request::DraftChanges {
+            matter: m(),
+            draft: "d".into(),
+        },
+        Request::DraftNote {
+            matter: m(),
+            draft: "d".into(),
+            rev: "r".into(),
+            para: "10000001".into(),
+            text: "check".into(),
+            to_agent: false,
+        },
+        Request::DraftRender {
+            matter: m(),
+            rev: "r".into(),
+        },
+        Request::FilingPdf {
+            matter: m(),
+            rev: "r".into(),
+            annexures: vec!["e".into()],
+        },
+        Request::FilingConversions { matter: m() },
+        Request::FidelityCheck {
+            matter: m(),
+            rev: "r".into(),
+        },
+        Request::PdfOpenEditor {
+            matter: m(),
+            target: "t".into(),
+        },
         Request::ApprovalRequest {
             matter: m(),
             gate: "g".into(),

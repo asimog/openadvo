@@ -286,6 +286,19 @@ pub struct NotebookExclusionRow {
     pub created_at: String,
 }
 
+/// A spec J record: a proposal, a review note, an editor session or a
+/// conversion. The body is the record's JSON; `state` is what moves.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DocRecordRow {
+    pub kind: String,
+    pub id: String,
+    pub draft_id: String,
+    pub state: String,
+    pub body: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
 /// A row written in the same transaction as a ledger event (spec C rule 1).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MatterWrite {
@@ -337,6 +350,17 @@ pub enum MatterWrite {
     SetNotebookMeta {
         key: String,
         value: String,
+    },
+    InsertDocRecord(DocRecordRow),
+    /// Compare-and-swap on the state: refused with `Conflict` unless the
+    /// record is in `expected`.
+    UpdateDocRecord {
+        kind: String,
+        id: String,
+        expected: String,
+        state: String,
+        body: String,
+        updated_at: String,
     },
 }
 

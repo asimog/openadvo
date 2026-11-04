@@ -356,6 +356,106 @@ pub enum Request {
         checkpoint: String,
     },
 
+    /// Opens a revision, an evidence document or a conversion in our viewer
+    /// and returns the pane state (J01, J02).
+    #[serde(rename = "view")]
+    View {
+        matter: String,
+        target: String,
+        page: Option<u32>,
+    },
+    /// The first revision of a generated draft (J04, J10).
+    #[serde(rename = "draft.new")]
+    DraftNew {
+        matter: String,
+        title: String,
+        template: String,
+        from_notebook: bool,
+    },
+    #[serde(rename = "draft.paragraphs")]
+    DraftParagraphs { matter: String, rev: String },
+    /// A proposal against a paragraph anchor (J03, RQ-27).
+    #[serde(rename = "draft.propose")]
+    DraftPropose {
+        matter: String,
+        draft: String,
+        para: String,
+        replace: String,
+        reason: Option<String>,
+        /// The agent turn that made the proposal, for the revision's author.
+        turn: Option<String>,
+    },
+    /// The edit surface: pending proposals, or every proposal with `all`.
+    #[serde(rename = "draft.proposals")]
+    DraftProposals {
+        matter: String,
+        draft: Option<String>,
+        all: bool,
+    },
+    #[serde(rename = "draft.accept")]
+    DraftAccept { matter: String, proposal: String },
+    #[serde(rename = "draft.reject")]
+    DraftReject {
+        matter: String,
+        proposal: String,
+        reason: Option<String>,
+    },
+    /// Reverts one agent edit as a new revision (RQ-27).
+    #[serde(rename = "draft.revert")]
+    DraftRevert {
+        matter: String,
+        draft: String,
+        rev: String,
+    },
+    #[serde(rename = "draft.open_editor")]
+    DraftOpenEditor { matter: String, draft: String },
+    #[serde(rename = "draft.editor_status")]
+    DraftEditorStatus { matter: String, draft: String },
+    /// WordCraft's saved bytes, or its autosave after a crash, as a new
+    /// revision (RQ-72).
+    #[serde(rename = "draft.import_working_copy")]
+    DraftImportWorkingCopy {
+        matter: String,
+        draft: String,
+        autosave: bool,
+    },
+    #[serde(rename = "draft.diff")]
+    DraftDiff {
+        matter: String,
+        a: String,
+        b: String,
+    },
+    /// The Changes viewer (J15): every revision of a draft against its parent.
+    #[serde(rename = "draft.changes")]
+    DraftChanges { matter: String, draft: String },
+    /// A review note anchored to a paragraph id (J15).
+    #[serde(rename = "draft.note")]
+    DraftNote {
+        matter: String,
+        draft: String,
+        rev: String,
+        para: String,
+        text: String,
+        to_agent: bool,
+    },
+    #[serde(rename = "draft.render")]
+    DraftRender { matter: String, rev: String },
+    /// The filing PDF/A (J13), from the approved head with clear gates.
+    #[serde(rename = "filing.pdf")]
+    FilingPdf {
+        matter: String,
+        rev: String,
+        /// Evidence ids to annex, in order; J11 numbers them.
+        annexures: Vec<String>,
+    },
+    #[serde(rename = "filing.conversions")]
+    FilingConversions { matter: String },
+    #[serde(rename = "fidelity.check")]
+    FidelityCheck { matter: String, rev: String },
+    /// A PDF for PdfCraft. The filing PDF is refused (J rule 13).
+    #[serde(rename = "pdf.open_editor")]
+    PdfOpenEditor { matter: String, target: String },
+
     #[serde(rename = "approval.request")]
     ApprovalRequest {
         matter: String,
@@ -461,6 +561,25 @@ impl Request {
         "draft.show",
         "draft.checkpoint",
         "draft.restore",
+        "view",
+        "draft.new",
+        "draft.paragraphs",
+        "draft.propose",
+        "draft.proposals",
+        "draft.accept",
+        "draft.reject",
+        "draft.revert",
+        "draft.open_editor",
+        "draft.editor_status",
+        "draft.import_working_copy",
+        "draft.diff",
+        "draft.changes",
+        "draft.note",
+        "draft.render",
+        "filing.pdf",
+        "filing.conversions",
+        "fidelity.check",
+        "pdf.open_editor",
         "approval.request",
         "approval.decide",
         "approval.status",
@@ -506,6 +625,14 @@ impl Request {
         "draft.list",
         "draft.log",
         "draft.show",
+        "view",
+        "draft.paragraphs",
+        "draft.proposals",
+        "draft.editor_status",
+        "draft.diff",
+        "draft.changes",
+        "filing.conversions",
+        "fidelity.check",
         "approval.status",
         "rules.pin",
         "inspect",
@@ -533,6 +660,8 @@ impl Request {
                 | "notebook.confirm"
                 | "notebook.skip"
                 | "notebook.date_anchor"
+                | "draft.accept"
+                | "draft.reject"
         ) {
             CommandClass::Human
         } else {
@@ -601,6 +730,25 @@ impl Request {
             Request::DraftShow { .. } => "draft.show",
             Request::DraftCheckpoint { .. } => "draft.checkpoint",
             Request::DraftRestore { .. } => "draft.restore",
+            Request::View { .. } => "view",
+            Request::DraftNew { .. } => "draft.new",
+            Request::DraftParagraphs { .. } => "draft.paragraphs",
+            Request::DraftPropose { .. } => "draft.propose",
+            Request::DraftProposals { .. } => "draft.proposals",
+            Request::DraftAccept { .. } => "draft.accept",
+            Request::DraftReject { .. } => "draft.reject",
+            Request::DraftRevert { .. } => "draft.revert",
+            Request::DraftOpenEditor { .. } => "draft.open_editor",
+            Request::DraftEditorStatus { .. } => "draft.editor_status",
+            Request::DraftImportWorkingCopy { .. } => "draft.import_working_copy",
+            Request::DraftDiff { .. } => "draft.diff",
+            Request::DraftChanges { .. } => "draft.changes",
+            Request::DraftNote { .. } => "draft.note",
+            Request::DraftRender { .. } => "draft.render",
+            Request::FilingPdf { .. } => "filing.pdf",
+            Request::FilingConversions { .. } => "filing.conversions",
+            Request::FidelityCheck { .. } => "fidelity.check",
+            Request::PdfOpenEditor { .. } => "pdf.open_editor",
             Request::ApprovalRequest { .. } => "approval.request",
             Request::ApprovalDecide { .. } => "approval.decide",
             Request::ApprovalStatus { .. } => "approval.status",
@@ -646,6 +794,14 @@ impl Request {
             | Request::DraftList { .. }
             | Request::DraftLog { .. }
             | Request::DraftShow { .. }
+            | Request::View { .. }
+            | Request::DraftParagraphs { .. }
+            | Request::DraftProposals { .. }
+            | Request::DraftEditorStatus { .. }
+            | Request::DraftDiff { .. }
+            | Request::DraftChanges { .. }
+            | Request::FilingConversions { .. }
+            | Request::FidelityCheck { .. }
             | Request::ApprovalStatus { .. }
             | Request::RulesPin { .. }
             | Request::Inspect { .. }
@@ -660,7 +816,9 @@ impl Request {
             | Request::OcrTypedCopy { .. }
             | Request::NotebookConfirm { .. }
             | Request::NotebookSkip { .. }
-            | Request::NotebookDateAnchor { .. } => CommandClass::Human,
+            | Request::NotebookDateAnchor { .. }
+            | Request::DraftAccept { .. }
+            | Request::DraftReject { .. } => CommandClass::Human,
             Request::WorkspaceInit { .. }
             | Request::MatterCreate { .. }
             | Request::MatterOpen { .. }
@@ -684,6 +842,15 @@ impl Request {
             | Request::DraftCommit { .. }
             | Request::DraftCheckpoint { .. }
             | Request::DraftRestore { .. }
+            | Request::DraftNew { .. }
+            | Request::DraftPropose { .. }
+            | Request::DraftRevert { .. }
+            | Request::DraftOpenEditor { .. }
+            | Request::DraftImportWorkingCopy { .. }
+            | Request::DraftNote { .. }
+            | Request::DraftRender { .. }
+            | Request::FilingPdf { .. }
+            | Request::PdfOpenEditor { .. }
             | Request::ApprovalRequest { .. } => CommandClass::Internal,
         }
     }
@@ -730,6 +897,25 @@ impl Request {
             | Request::DraftShow { matter, .. }
             | Request::DraftCheckpoint { matter, .. }
             | Request::DraftRestore { matter, .. }
+            | Request::View { matter, .. }
+            | Request::DraftNew { matter, .. }
+            | Request::DraftParagraphs { matter, .. }
+            | Request::DraftPropose { matter, .. }
+            | Request::DraftProposals { matter, .. }
+            | Request::DraftAccept { matter, .. }
+            | Request::DraftReject { matter, .. }
+            | Request::DraftRevert { matter, .. }
+            | Request::DraftOpenEditor { matter, .. }
+            | Request::DraftEditorStatus { matter, .. }
+            | Request::DraftImportWorkingCopy { matter, .. }
+            | Request::DraftDiff { matter, .. }
+            | Request::DraftChanges { matter, .. }
+            | Request::DraftNote { matter, .. }
+            | Request::DraftRender { matter, .. }
+            | Request::FilingPdf { matter, .. }
+            | Request::FilingConversions { matter, .. }
+            | Request::FidelityCheck { matter, .. }
+            | Request::PdfOpenEditor { matter, .. }
             | Request::ApprovalRequest { matter, .. }
             | Request::ApprovalDecide { matter, .. }
             | Request::ApprovalStatus { matter, .. }

@@ -1,9 +1,14 @@
 //! Seams the kernel calls out through: fault injection for kill tests, the
-//! user-presence prompt for `human` commands (H-09), and the write-grant
-//! policy (C09). Each has a fail-safe default.
+//! user-presence prompt for `human` commands (H-09), the write-grant policy
+//! (C09), the DOCX engine (J) and K's draft checks. Each has a fail-safe
+//! default.
 
 use std::sync::Arc;
 
+use oa_docs::conversion::ParaCheck;
+use oa_docs::docx::Block;
+use oa_docs::filing::IndexEntry;
+use oa_docs::{DocxEngine, ProcessEngine};
 use oa_types::OaError;
 
 use crate::paths::WriteArea;
@@ -86,6 +91,11 @@ pub struct Hooks {
     pub faults: Arc<dyn FaultHook>,
     pub presence: Arc<dyn PresencePrompt>,
     pub grants: Arc<dyn GrantPolicy>,
+    /// The DOCX engine (J, X-04): `wordcraft --headless` beside the running
+    /// executable by default.
+    pub docx: Arc<dyn DocxEngine>,
+    /// K's draft checks, which J calls before conversion and on it.
+    pub checks: Arc<dyn DraftChecks>,
 }
 
 impl Default for Hooks {
@@ -94,6 +104,47 @@ impl Default for Hooks {
             faults: Arc::new(NoFaults),
             presence: Arc::new(NobodyPresent),
             grants: Arc::new(StepOneGrants),
+            docx: Arc::new(ProcessEngine::beside_current_exe()),
+            checks: Arc::new(StubDraftChecks),
         }
+    }
+}
+
+/// What K's checks see of one revision.
+pub struct CheckInput<'a> {
+    pub matter: &'a str,
+    pub draft: &'a str,
+    pub revision: &'a str,
+    pub paragraphs: &'a [Block],
+    /// The annexure manager's numbering for this filing (J11), for K06.
+    pub index: &'a [IndexEntry],
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GateBlocker {
+    pub gate: String,
+    pub detail: String,
+}
+
+/// The seam where K (the verification adapter) plugs into J. J asks whether
+/// a revision's gates are clear before conversion (J rule 12) and runs the
+/// conversion check on the produced PDF/A (J rule 14). K replaces
+/// [`StubDraftChecks`].
+pub trait DraftChecks: Send + Sync {
+    fn blockers(&self, input: &CheckInput) -> Vec<GateBlocker>;
+    fn conversion(&self, paragraphs: &[Block], pdf_body: &[String]) -> Vec<ParaCheck>;
+}
+
+/// Stub until K: no consistency findings of its own, and the paragraph-by-
+/// paragraph text comparison as the conversion check.
+pub struct StubDraftChecks;
+
+impl DraftChecks for StubDraftChecks {
+    fn blockers(&self, _input: &CheckInput) -> Vec<GateBlocker> {
+        Vec::new()
+    }
+
+    fn conversion(&self, paragraphs: &[Block], pdf_body: &[String]) -> Vec<ParaCheck> {
+        oa_docs::conversion::compare(paragraphs, pdf_body)
     }
 }

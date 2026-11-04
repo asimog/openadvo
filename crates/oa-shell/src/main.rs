@@ -9,6 +9,7 @@
 
 mod bar;
 mod conn;
+mod docviews;
 mod gallery;
 mod inbox;
 mod inspector;
@@ -126,6 +127,9 @@ struct App {
     setting_key: String,
     setting_value: String,
     decision_reason: String,
+    /// The review note being written in the Changes viewer.
+    note_text: String,
+    note_to_agent: bool,
 
     chrono_view: String,
     chrono_show_excluded: bool,
@@ -162,6 +166,8 @@ impl App {
             setting_key: String::new(),
             setting_value: String::new(),
             decision_reason: String::new(),
+            note_text: String::new(),
+            note_to_agent: false,
             chrono_view: "synopsis".into(),
             chrono_show_excluded: false,
             skip_reason: String::new(),
@@ -639,6 +645,72 @@ impl App {
                     }
                 })
             }
+            ViewId::Viewer => self.draft_view(view, page, |id, _draft, head| {
+                let target = page.arg.clone().filter(|a| !a.is_empty()).unwrap_or(head);
+                match self.q(Request::View {
+                    matter: id.to_string(),
+                    target,
+                    page: None,
+                }) {
+                    Ok(mut v) => docviews::viewer_table(id, &v.pop().unwrap_or_default()),
+                    Err(e) => Self::fail(view, &e),
+                }
+            }),
+            ViewId::Document => self.draft_view(view, page, |id, _draft, head| {
+                let rev = page.arg.clone().filter(|a| !a.is_empty()).unwrap_or(head);
+                match self.q(Request::DraftParagraphs {
+                    matter: id.to_string(),
+                    rev,
+                }) {
+                    Ok(mut v) => docviews::document_table(&v.pop().unwrap_or_default()),
+                    Err(e) => Self::fail(view, &e),
+                }
+            }),
+            ViewId::EditSurface => self.matter_scoped(view, |id| {
+                match self.q(Request::DraftProposals {
+                    matter: id.to_string(),
+                    draft: page.arg.clone().filter(|a| !a.is_empty()),
+                    all: false,
+                }) {
+                    Ok(v) => docviews::edit_surface_table(id, &v),
+                    Err(e) => Self::fail(view, &e),
+                }
+            }),
+            ViewId::Changes => self.draft_view(view, page, |id, draft, _head| {
+                match self.q(Request::DraftChanges {
+                    matter: id.to_string(),
+                    draft,
+                }) {
+                    Ok(mut v) => docviews::changes_table(id, &v.pop().unwrap_or_default()),
+                    Err(e) => Self::fail(view, &e),
+                }
+            }),
+            ViewId::WordCraft => self.draft_view(view, page, |id, draft, _head| {
+                match self.q(Request::DraftEditorStatus {
+                    matter: id.to_string(),
+                    draft,
+                }) {
+                    Ok(mut v) => docviews::wordcraft_table(id, &v.pop().unwrap_or_default(), None),
+                    Err(e) => Self::fail(view, &e),
+                }
+            }),
+            ViewId::Fidelity => self.draft_view(view, page, |id, _draft, head| {
+                match self.q(Request::FidelityCheck {
+                    matter: id.to_string(),
+                    rev: head,
+                }) {
+                    Ok(mut v) => docviews::fidelity_table(&v.pop().unwrap_or_default()),
+                    Err(e) => Self::fail(view, &e),
+                }
+            }),
+            ViewId::Conversion => self.matter_scoped(view, |id| {
+                match self.q(Request::FilingConversions {
+                    matter: id.to_string(),
+                }) {
+                    Ok(v) => docviews::conversion_table(id, &v),
+                    Err(e) => Self::fail(view, &e),
+                }
+            }),
             ViewId::Entities => self.ocr_doc_view(view, page, |id, doc| {
                 match self.q(Request::ExtractEntities {
                     matter: id.to_string(),
@@ -649,6 +721,40 @@ impl App {
                 }
             }),
         }
+    }
+
+    /// A view of one draft: the draft named by the page argument when it is
+    /// a draft id, else the matter's first draft. `f` gets the matter, the
+    /// draft and its head.
+    fn draft_view<F>(&self, view: ViewId, page: &Page, f: F) -> Content
+    where
+        F: FnOnce(&str, String, String) -> Table,
+    {
+        self.matter_scoped(view, |id| {
+            let drafts = match self.q(Request::DraftList {
+                matter: id.to_string(),
+            }) {
+                Ok(d) => d,
+                Err(e) => return Self::fail(view, &e),
+            };
+            let chosen = drafts
+                .iter()
+                .find(|d| page.arg.as_deref() == d["id"].as_str())
+                .or_else(|| drafts.first());
+            match chosen {
+                Some(d) => f(
+                    id,
+                    d["id"].as_str().unwrap_or_default().to_string(),
+                    d["head"].as_str().unwrap_or_default().to_string(),
+                ),
+                None => Table {
+                    state: ViewState::Empty(
+                        "No draft yet. `oa draft new --template slp` generates one.".into(),
+                    ),
+                    ..Table::loading(view)
+                },
+            }
+        })
     }
 
     fn ocr_doc_view<F>(&self, view: ViewId, page: &Page, f: F) -> Content
@@ -1217,8 +1323,177 @@ impl App {
             | ViewId::Chronology
             | ViewId::Conflicts
             | ViewId::Readiness => self.notebook_extras(ui, view),
+            ViewId::EditSurface | ViewId::Changes | ViewId::WordCraft => {
+                self.document_extras(ui, view)
+            }
             _ => {}
         }
+    }
+
+    /// The spec J controls: accept or reject a proposal (human commands,
+    /// named in full), revert an agent edit, add a review note, open and
+    /// import WordCraft's working copy.
+    fn document_extras(&mut self, ui: &mut egui::Ui, view: ViewId) {
+        let Some(matter) = self.selected.clone() else {
+            return;
+        };
+        let row = self.selected_row(view);
+        match view {
+            ViewId::EditSurface => {
+                let Some(row) = row else { return };
+                if !row.cells[2].starts_with("pending") {
+                    return;
+                }
+                let (proposal, para) = (row.cells[0].clone(), row.cells[1].clone());
+                ui.separator();
+                ui.label(
+                    egui::RichText::new(format!(
+                        "Decide proposal {proposal} on paragraph {para}. This records your decision."
+                    ))
+                    .strong(),
+                );
+                ui.horizontal(|ui| {
+                    if ui
+                        .button(format!("Accept proposal {proposal} on paragraph {para}"))
+                        .clicked()
+                        && self
+                            .act(Request::DraftAccept {
+                                matter: matter.clone(),
+                                proposal: proposal.clone(),
+                            })
+                            .is_some()
+                    {
+                        self.refresh();
+                    }
+                    if ui.button(format!("Reject proposal {proposal}")).clicked()
+                        && self
+                            .act(Request::DraftReject {
+                                matter: matter.clone(),
+                                proposal: proposal.clone(),
+                                reason: None,
+                            })
+                            .is_some()
+                    {
+                        self.refresh();
+                    }
+                });
+            }
+            ViewId::Changes => {
+                let Some(row) = row.filter(|r| r.cells[1] != "review note") else {
+                    return;
+                };
+                let views::Subject::Record { id: rev, .. } = row.subject.clone() else {
+                    return;
+                };
+                let Some(draft) = self.focused_draft(&matter) else {
+                    return;
+                };
+                ui.separator();
+                if row.tone == views::Tone::Warn && row.cells[1].starts_with("proposal") {
+                    let label = format!("Revert agent edit {}", row.cells[0]);
+                    if ui.button(label).clicked()
+                        && self
+                            .act(Request::DraftRevert {
+                                matter: matter.clone(),
+                                draft: draft.clone(),
+                                rev: rev.clone(),
+                            })
+                            .is_some()
+                    {
+                        self.refresh();
+                    }
+                }
+                let para = row.cells[3]
+                    .split_whitespace()
+                    .next()
+                    .unwrap_or_default()
+                    .to_string();
+                if para.is_empty() {
+                    return;
+                }
+                ui.horizontal(|ui| {
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.note_text)
+                            .hint_text(format!("Review note on paragraph {para}")),
+                    );
+                    ui.checkbox(&mut self.note_to_agent, "Send to the agent");
+                    let ready = !self.note_text.trim().is_empty();
+                    if ui
+                        .add_enabled(
+                            ready,
+                            egui::Button::new(format!("Add note on paragraph {para}")),
+                        )
+                        .clicked()
+                    {
+                        let text = std::mem::take(&mut self.note_text);
+                        if self
+                            .act(Request::DraftNote {
+                                matter: matter.clone(),
+                                draft: draft.clone(),
+                                rev: rev.clone(),
+                                para: para.clone(),
+                                text,
+                                to_agent: self.note_to_agent,
+                            })
+                            .is_some()
+                        {
+                            self.refresh();
+                        }
+                    }
+                });
+            }
+            ViewId::WordCraft => {
+                let Some(draft) = self.focused_draft(&matter) else {
+                    return;
+                };
+                ui.separator();
+                ui.horizontal(|ui| {
+                    if ui.button("Open the head in WordCraft").clicked()
+                        && self
+                            .act(Request::DraftOpenEditor {
+                                matter: matter.clone(),
+                                draft: draft.clone(),
+                            })
+                            .is_some()
+                    {
+                        self.refresh();
+                    }
+                    for (label, autosave) in [
+                        ("Import WordCraft's save as a revision", false),
+                        ("Recover WordCraft's autosave as a revision", true),
+                    ] {
+                        if ui.button(label).clicked()
+                            && self
+                                .act(Request::DraftImportWorkingCopy {
+                                    matter: matter.clone(),
+                                    draft: draft.clone(),
+                                    autosave,
+                                })
+                                .is_some()
+                        {
+                            self.refresh();
+                        }
+                    }
+                });
+            }
+            _ => {}
+        }
+    }
+
+    /// The draft the focused pane shows: its argument when it names a
+    /// draft, else the matter's first draft.
+    fn focused_draft(&self, matter: &str) -> Option<String> {
+        let arg = self.layout.panes[self.layout.focused].page.arg.clone();
+        let drafts = self
+            .q(Request::DraftList {
+                matter: matter.to_string(),
+            })
+            .ok()?;
+        drafts
+            .iter()
+            .find(|d| arg.as_deref() == d["id"].as_str())
+            .or_else(|| drafts.first())
+            .and_then(|d| d["id"].as_str().map(str::to_string))
     }
 
     /// The focused pane's selected row, if its view is `view`.
