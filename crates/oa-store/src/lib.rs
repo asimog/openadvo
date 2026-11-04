@@ -134,6 +134,9 @@ pub trait MatterStore: Send {
     fn ingests(&self) -> StoreResult<Vec<IngestRow>>;
     fn ingests_with_text(&self, fingerprint: &str) -> StoreResult<Vec<IngestRow>>;
 
+    fn ocr_document(&self, doc: &str) -> StoreResult<Option<OcrDocumentRow>>;
+    fn ocr_documents(&self) -> StoreResult<Vec<OcrDocumentRow>>;
+
     fn record_rejected(&self, rejected: &RejectedWrite) -> StoreResult<()>;
     fn rejected(&self) -> StoreResult<Vec<RejectedWrite>>;
 }

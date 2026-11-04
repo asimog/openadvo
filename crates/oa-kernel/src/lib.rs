@@ -18,6 +18,7 @@ mod layout;
 mod ledger;
 mod links;
 mod matters;
+mod ocr;
 mod paths;
 mod records;
 mod rescan;
@@ -36,7 +37,7 @@ use serde_json::Value;
 
 pub use command::{
     AdapterHealthInput, Attachment, CaptureInput, ClientSpec, CodebookInput, CourtCodeInput,
-    Request,
+    OcrEngineHealthInput, OcrPageInput, OcrReadingInput, OcrRunInput, Request,
 };
 pub use find::KINDS as FIND_KINDS;
 pub use hooks::{
@@ -217,6 +218,32 @@ impl Kernel {
             Request::EvidenceDuplicates { matter } => self.evidence_duplicates(&matter),
             Request::CodebookShow { scheme } => self.codebook_show(&scheme).map(one),
             Request::AdapterHealth => self.adapter_health(),
+            Request::OcrRun { matter, doc, input } => {
+                self.ocr_run(ctx, &matter, &doc, &input).map(one)
+            }
+            Request::OcrLines { matter, doc, page } => self.ocr_lines(&matter, &doc, page),
+            Request::OcrDisputes { matter, doc } => {
+                self.ocr_disputes(matter.as_deref(), doc.as_deref())
+            }
+            Request::OcrDecide {
+                matter,
+                dispute,
+                reading,
+                text,
+            } => self
+                .ocr_decide(ctx, &matter, &dispute, &reading, text.as_deref())
+                .map(one),
+            Request::OcrTypedCopy {
+                matter,
+                doc,
+                page,
+                text,
+                typist,
+            } => self
+                .ocr_typed_copy(ctx, &matter, &doc, page, &text, &typist)
+                .map(one),
+            Request::ExtractEntities { matter, doc } => self.extract_entities(&matter, &doc),
+            Request::OcrEngines => self.ocr_engines(),
             Request::EvidenceList { matter } => self.evidence_list(&matter),
             Request::EvidenceShow { matter, id } => self.evidence_show(&matter, &id).map(one),
             Request::DraftCreate {

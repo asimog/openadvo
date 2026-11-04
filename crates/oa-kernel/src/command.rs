@@ -4,6 +4,7 @@
 
 use std::path::PathBuf;
 
+use oa_ocr::Reading;
 use oa_types::CommandClass;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -82,7 +83,42 @@ pub struct CaptureInput {
     pub codebook: Option<CodebookInput>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct OcrPageInput {
+    pub page: u32,
+    pub raster_hash: String,
+    pub width: f32,
+    pub height: f32,
+    pub dpi: u32,
+    pub text_layer: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct OcrEngineHealthInput {
+    pub engine: String,
+    pub version: String,
+    pub model_hash: String,
+    pub state: String,
+    pub detail: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct OcrReadingInput {
+    pub page: u32,
+    pub line: u32,
+    pub reading: Reading,
+}
+
+/// The supervisor's raw readings. The kernel runs the agreement engine and
+/// stores the canonical lines and disputes (G rule 5).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct OcrRunInput {
+    pub pages: Vec<OcrPageInput>,
+    pub readings: Vec<OcrReadingInput>,
+    pub engine_health: Vec<OcrEngineHealthInput>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "command", content = "input")]
 pub enum Request {
     #[serde(rename = "workspace.init")]
@@ -169,6 +205,42 @@ pub enum Request {
     CodebookShow { scheme: String },
     #[serde(rename = "adapter.health")]
     AdapterHealth,
+    #[serde(rename = "ocr.run")]
+    OcrRun {
+        matter: String,
+        doc: String,
+        input: OcrRunInput,
+    },
+    #[serde(rename = "ocr.lines")]
+    OcrLines {
+        matter: String,
+        doc: String,
+        page: Option<u32>,
+    },
+    #[serde(rename = "ocr.disputes")]
+    OcrDisputes {
+        matter: Option<String>,
+        doc: Option<String>,
+    },
+    #[serde(rename = "ocr.decide")]
+    OcrDecide {
+        matter: String,
+        dispute: String,
+        reading: String,
+        text: Option<String>,
+    },
+    #[serde(rename = "ocr.typed_copy")]
+    OcrTypedCopy {
+        matter: String,
+        doc: String,
+        page: u32,
+        text: String,
+        typist: String,
+    },
+    #[serde(rename = "extract.entities")]
+    ExtractEntities { matter: String, doc: String },
+    #[serde(rename = "ocr.engines")]
+    OcrEngines,
     #[serde(rename = "evidence.list")]
     EvidenceList { matter: String },
     #[serde(rename = "evidence.show")]
@@ -280,6 +352,13 @@ impl Request {
         "evidence.duplicates",
         "codebook.show",
         "adapter.health",
+        "ocr.run",
+        "ocr.lines",
+        "ocr.disputes",
+        "ocr.decide",
+        "ocr.typed_copy",
+        "extract.entities",
+        "ocr.engines",
         "evidence.list",
         "evidence.show",
         "draft.create",
@@ -319,6 +398,10 @@ impl Request {
         "evidence.duplicates",
         "codebook.show",
         "adapter.health",
+        "ocr.lines",
+        "ocr.disputes",
+        "extract.entities",
+        "ocr.engines",
         "draft.list",
         "draft.log",
         "draft.show",
@@ -340,7 +423,10 @@ impl Request {
         }
         Some(if Self::QUERY_NAMES.contains(&name) {
             CommandClass::Query
-        } else if matches!(name, "matter.confirm" | "approval.decide") {
+        } else if matches!(
+            name,
+            "matter.confirm" | "approval.decide" | "ocr.decide" | "ocr.typed_copy"
+        ) {
             CommandClass::Human
         } else {
             CommandClass::Internal
@@ -376,6 +462,13 @@ impl Request {
             Request::EvidenceDuplicates { .. } => "evidence.duplicates",
             Request::CodebookShow { .. } => "codebook.show",
             Request::AdapterHealth => "adapter.health",
+            Request::OcrRun { .. } => "ocr.run",
+            Request::OcrLines { .. } => "ocr.lines",
+            Request::OcrDisputes { .. } => "ocr.disputes",
+            Request::OcrDecide { .. } => "ocr.decide",
+            Request::OcrTypedCopy { .. } => "ocr.typed_copy",
+            Request::ExtractEntities { .. } => "extract.entities",
+            Request::OcrEngines => "ocr.engines",
             Request::EvidenceList { .. } => "evidence.list",
             Request::EvidenceShow { .. } => "evidence.show",
             Request::DraftCreate { .. } => "draft.create",
@@ -415,6 +508,10 @@ impl Request {
             | Request::EvidenceDuplicates { .. }
             | Request::CodebookShow { .. }
             | Request::AdapterHealth
+            | Request::OcrLines { .. }
+            | Request::OcrDisputes { .. }
+            | Request::ExtractEntities { .. }
+            | Request::OcrEngines
             | Request::DraftList { .. }
             | Request::DraftLog { .. }
             | Request::DraftShow { .. }
@@ -426,7 +523,10 @@ impl Request {
             | Request::Find { .. }
             | Request::SettingsList
             | Request::ApprovalList { .. } => CommandClass::Query,
-            Request::MatterConfirm { .. } | Request::ApprovalDecide { .. } => CommandClass::Human,
+            Request::MatterConfirm { .. }
+            | Request::ApprovalDecide { .. }
+            | Request::OcrDecide { .. }
+            | Request::OcrTypedCopy { .. } => CommandClass::Human,
             Request::WorkspaceInit { .. }
             | Request::MatterCreate { .. }
             | Request::MatterOpen { .. }
@@ -440,6 +540,7 @@ impl Request {
             | Request::EvidenceImport { .. }
             | Request::IngestSetText { .. }
             | Request::CaptureCommit { .. }
+            | Request::OcrRun { .. }
             | Request::DraftCreate { .. }
             | Request::DraftCommit { .. }
             | Request::DraftCheckpoint { .. }
@@ -460,6 +561,11 @@ impl Request {
             | Request::EvidenceAdd { matter, .. }
             | Request::IngestSetText { matter, .. }
             | Request::CaptureCommit { matter, .. }
+            | Request::OcrRun { matter, .. }
+            | Request::OcrLines { matter, .. }
+            | Request::OcrDecide { matter, .. }
+            | Request::OcrTypedCopy { matter, .. }
+            | Request::ExtractEntities { matter, .. }
             | Request::EvidenceDuplicates { matter }
             | Request::EvidenceList { matter }
             | Request::EvidenceShow { matter, .. }
@@ -480,11 +586,13 @@ impl Request {
             | Request::RulesPin { matter } => Some(matter),
             Request::AuditRejected { matter }
             | Request::EvidenceImport { matter, .. }
+            | Request::OcrDisputes { matter, .. }
             | Request::Find { matter, .. } => matter.as_deref(),
             Request::CodebookShow { .. }
             | Request::CaptureStatus
             | Request::IngestStatus { .. }
-            | Request::AdapterHealth => None,
+            | Request::AdapterHealth
+            | Request::OcrEngines => None,
             _ => None,
         }
     }

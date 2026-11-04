@@ -24,6 +24,11 @@ pub enum ViewId {
     Duplicates,
     Codebook,
     AdapterHealth,
+    OcrReview,
+    OcrPipeline,
+    OcrLines,
+    OcrEngines,
+    Entities,
 }
 
 pub struct ViewDef {
@@ -130,6 +135,36 @@ pub const REGISTRY: &[ViewDef] = &[
         key: "adapters",
         title: "Adapter health",
         covers: &["adapter.health"],
+    },
+    ViewDef {
+        id: ViewId::OcrReview,
+        key: "ocr-review",
+        title: "OCR review",
+        covers: &["ocr.disputes"],
+    },
+    ViewDef {
+        id: ViewId::OcrPipeline,
+        key: "ocr-pipeline",
+        title: "Pipeline",
+        covers: &["ocr.lines"],
+    },
+    ViewDef {
+        id: ViewId::OcrLines,
+        key: "ocr-lines",
+        title: "Line inspector",
+        covers: &["ocr.lines"],
+    },
+    ViewDef {
+        id: ViewId::OcrEngines,
+        key: "ocr-engines",
+        title: "Engines",
+        covers: &["ocr.engines"],
+    },
+    ViewDef {
+        id: ViewId::Entities,
+        key: "entities",
+        title: "Entities",
+        covers: &["extract.entities"],
     },
 ];
 
@@ -766,6 +801,179 @@ pub fn adapter_health_table(values: &[Value]) -> Table {
     t
 }
 
+pub fn ocr_disputes_table(values: &[Value]) -> Table {
+    let rows = values
+        .iter()
+        .map(|d| {
+            let state = s(d, "state");
+            Row {
+                cells: vec![
+                    short(&s(d, "doc")),
+                    s(d, "page"),
+                    s(d, "reading_a"),
+                    s(d, "reading_b"),
+                    s(d, "reason"),
+                    state.clone(),
+                ],
+                subject: Subject::Raw(d.clone()),
+                tone: if state == "open" {
+                    Tone::Bad
+                } else {
+                    Tone::Good
+                },
+            }
+        })
+        .collect();
+    Table::new(
+        ViewId::OcrReview,
+        &[
+            "Document",
+            "Page",
+            "Reading A",
+            "Reading B",
+            "Reason",
+            "State",
+        ],
+        rows,
+        "No OCR disputes.",
+    )
+}
+
+pub fn ocr_lines_table(values: &[Value]) -> Table {
+    let rows = values
+        .iter()
+        .map(|l| {
+            let agreement = s(l, "agreement");
+            let disputed = l["disputed"].as_array().map(Vec::len).unwrap_or(0);
+            let norm = s(l, "normalisation_version");
+            let norm = if norm.starts_with("nfc-whitespace") {
+                "nfc-1".to_string()
+            } else {
+                norm
+            };
+            let detail = format!(
+                "{} | A:{} {:.2} {} | B:{} {:.2} {} | n:{} | d:{}",
+                agreement,
+                s(&l["reading_a"], "text"),
+                l["reading_a"]["confidence"].as_f64().unwrap_or(0.0),
+                s(&l["reading_a"], "engine_version"),
+                s(&l["reading_b"], "text"),
+                l["reading_b"]["confidence"].as_f64().unwrap_or(0.0),
+                s(&l["reading_b"], "engine_version"),
+                norm,
+                disputed
+            );
+            Row {
+                cells: vec![s(l, "page"), s(l, "line"), detail],
+                subject: Subject::Raw(l.clone()),
+                tone: if agreement == "agreed" {
+                    Tone::Good
+                } else {
+                    Tone::Bad
+                },
+            }
+        })
+        .collect();
+    Table::new(
+        ViewId::OcrLines,
+        &[
+            "Page",
+            "Line",
+            "Readings, confidences, versions and normalisation",
+        ],
+        rows,
+        "No OCR lines for this document.",
+    )
+}
+
+pub fn ocr_pipeline_table(values: &[Value]) -> Table {
+    let mut pages: std::collections::BTreeMap<u32, (usize, usize, String)> =
+        std::collections::BTreeMap::new();
+    for line in values {
+        let page = line["page"].as_u64().unwrap_or(0) as u32;
+        let entry = pages.entry(page).or_insert((0, 0, String::new()));
+        entry.0 += 1;
+        if s(line, "agreement") != "agreed" {
+            entry.1 += 1;
+        }
+        if entry.2.is_empty() {
+            entry.2 = s(line, "canonical_text");
+        }
+    }
+    let rows = pages
+        .into_iter()
+        .map(|(page, (lines, disputed, sample))| Row {
+            cells: vec![
+                page.to_string(),
+                lines.to_string(),
+                disputed.to_string(),
+                sample,
+            ],
+            subject: Subject::Raw(json!({ "page": page, "lines": lines, "disputed": disputed })),
+            tone: if disputed > 0 { Tone::Bad } else { Tone::Good },
+        })
+        .collect();
+    Table::new(
+        ViewId::OcrPipeline,
+        &["Page", "Lines", "Disputed", "First line"],
+        rows,
+        "No OCR pages for this document.",
+    )
+}
+
+pub fn ocr_engines_table(values: &[Value]) -> Table {
+    let rows = values
+        .iter()
+        .map(|e| {
+            let runtime = s(e, "runtime_state");
+            Row {
+                cells: vec![
+                    s(e, "engine"),
+                    s(e, "version"),
+                    short(&s(e, "model_hash")),
+                    runtime.clone(),
+                    s(e, "detail"),
+                ],
+                subject: Subject::Raw(e.clone()),
+                tone: if runtime == "healthy" {
+                    Tone::Good
+                } else {
+                    Tone::Bad
+                },
+            }
+        })
+        .collect();
+    Table::new(
+        ViewId::OcrEngines,
+        &["Engine", "Version", "Model", "Runtime", "Detail"],
+        rows,
+        "No OCR engine health has been recorded.",
+    )
+}
+
+pub fn entities_table(values: &[Value]) -> Table {
+    let rows = values
+        .iter()
+        .map(|e| Row {
+            cells: vec![
+                s(e, "kind"),
+                s(e, "text"),
+                s(&e["anchor"], "page"),
+                s(&e["anchor"], "line"),
+                s(e, "date"),
+            ],
+            subject: Subject::Raw(e.clone()),
+            tone: Tone::Normal,
+        })
+        .collect();
+    Table::new(
+        ViewId::Entities,
+        &["Kind", "Text", "Page", "Line", "Date"],
+        rows,
+        "No entities for this document.",
+    )
+}
+
 /// Rule-pin facts for the overview (`rules.pin`).
 pub fn overview_lines(matter: &Value, pin: &Value) -> Vec<(String, String)> {
     let get = |v: &Value, k: &str| {
@@ -954,6 +1162,76 @@ fn typical(view: ViewId, n: usize, disputed: bool) -> Table {
                 })
                 .collect::<Vec<_>>(),
         ),
+        ViewId::OcrReview => ocr_disputes_table(
+            &(0..n)
+                .map(|i| {
+                    json!({
+                        "id": format!("D{i}"),
+                        "doc": format!("E{i}"),
+                        "page": 1,
+                        "token_index": i,
+                        "reading_a": "12.03.2019",
+                        "reading_b": "12.08.2019",
+                        "class": "critical",
+                        "reason": "critical_mismatch",
+                        "state": if disputed && i == 0 { "open" } else { "decided" },
+                    })
+                })
+                .collect::<Vec<_>>(),
+        ),
+        ViewId::OcrPipeline => ocr_pipeline_table(
+            &(0..n)
+                .map(|i| {
+                    json!({
+                        "page": i / 4 + 1,
+                        "line": i,
+                        "agreement": if disputed && i == 0 { "disputed" } else { "agreed" },
+                        "canonical_text": format!("line {i} of the order"),
+                    })
+                })
+                .collect::<Vec<_>>(),
+        ),
+        ViewId::OcrLines => ocr_lines_table(
+            &(0..n)
+                .map(|i| {
+                    json!({
+                        "page": 1,
+                        "line": i,
+                        "agreement": if disputed && i == 0 { "disputed" } else { "agreed" },
+                        "canonical_text": format!("the respondent filed line {i}"),
+                        "reading_a": { "text": format!("the respondent filed line {i}"), "confidence": 0.95, "engine_version": "stub-1.0" },
+                        "reading_b": { "text": format!("the respondcnt filed line {i}"), "confidence": 0.93, "engine_version": "stub-1.0" },
+                        "normalisation_version": "nfc-whitespace-hyphen-devanagari-1",
+                        "disputed": if disputed && i == 0 { json!([{"token_index": 1}]) } else { json!([]) },
+                    })
+                })
+                .collect::<Vec<_>>(),
+        ),
+        ViewId::OcrEngines => ocr_engines_table(
+            &(0..n)
+                .map(|i| {
+                    json!({
+                        "engine": if i % 2 == 0 { "tesseract" } else { "paddle" },
+                        "version": "stub-1.0",
+                        "model_hash": format!("sha256:{:064x}", i),
+                        "runtime_state": if disputed && i == 0 { "failed" } else { "healthy" },
+                        "detail": if disputed && i == 0 { "engine exited with 7" } else { "" },
+                    })
+                })
+                .collect::<Vec<_>>(),
+        ),
+        ViewId::Entities => entities_table(
+            &(0..n)
+                .map(|i| {
+                    json!({
+                        "kind": if i % 2 == 0 { "date" } else { "amount" },
+                        "text": if i % 2 == 0 { "12.03.2019" } else { "Rs. 1,50,000" },
+                        "anchor": { "page": 1, "line": i, "line_hash": format!("sha256:{:064x}", i) },
+                        "date": if i % 2 == 0 { json!("2019-03-12") } else { Value::Null },
+                    })
+                })
+                .collect::<Vec<_>>(),
+        ),
         ViewId::Overview | ViewId::Inspector => Table::new(view, &["Field", "Value"], Vec::new(), "Select a matter."),
     }
 }
@@ -1069,6 +1347,33 @@ mod tests {
         let t = fixture(ViewId::Codebook, GalleryState::Typical);
         assert_eq!(t.rows[0].cells[2], "WP");
         assert_eq!(t.rows[0].cells[3], "Writ Petition (Civil)");
+    }
+
+    #[test]
+    fn g_ac_16_the_line_inspector_shows_both_readings_confidences_versions_and_normalisation() {
+        let t = fixture(ViewId::OcrLines, GalleryState::Typical);
+        let detail = &t.rows[0].cells[2];
+        assert!(detail.contains("the respondent"), "{detail}");
+        assert!(detail.contains("the respondcnt"), "{detail}");
+        assert!(detail.contains("0.95"), "{detail}");
+        assert!(detail.contains("stub-1.0"), "{detail}");
+        assert!(detail.contains("nfc-1"), "{detail}");
+    }
+
+    #[test]
+    fn g_ac_17_a_disputed_token_is_highlighted_in_the_review_view() {
+        let t = fixture(ViewId::OcrReview, GalleryState::Disputed);
+        assert_eq!(t.rows[0].cells[2], "12.03.2019");
+        assert_eq!(t.rows[0].cells[3], "12.08.2019");
+        assert_eq!(t.rows[0].tone, Tone::Bad);
+    }
+
+    #[test]
+    fn g_ac_15_the_review_view_shows_both_readings_and_the_decision_columns() {
+        let t = fixture(ViewId::OcrReview, GalleryState::Typical);
+        assert!(t.columns.contains(&"Reading A"));
+        assert!(t.columns.contains(&"Reading B"));
+        assert!(t.columns.contains(&"State"));
     }
 
     #[test]

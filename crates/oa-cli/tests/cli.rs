@@ -189,6 +189,81 @@ fn f_cli_import_ingest_status_and_codebook_show() {
 }
 
 #[test]
+fn g_cli_ocr_queries_after_a_call() {
+    let tmp = tempfile::tempdir().unwrap();
+    let app = tmp.path().join("app");
+    let root = tmp.path().join("root");
+    oa(&app, &["workspace", "init", root.to_str().unwrap()]);
+    let id = lines(&oa(&app, &["matter", "create", "--title", "OCR"]))[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let file = tmp.path().join("order.txt");
+    std::fs::write(&file, b"paid on 12.03.2019").unwrap();
+    let imported = lines(&oa(
+        &app,
+        &["import", file.to_str().unwrap(), "--matter", &id],
+    ));
+    let doc = imported[0]["id"].as_str().unwrap().to_string();
+    let input = serde_json::json!({
+        "matter": id,
+        "doc": doc,
+        "input": {
+            "pages": [{ "page": 1, "raster_hash": "sha256:r", "width": 10.0, "height": 10.0, "dpi": 300, "text_layer": null }],
+            "readings": [
+                { "page": 1, "line": 0, "reading": { "engine": "tesseract", "engine_version": "stub-1.0", "model_hash": "sha256:m", "text": "paid on 12.03.2019", "confidence": 0.9, "words": [] } },
+                { "page": 1, "line": 0, "reading": { "engine": "paddle", "engine_version": "stub-1.0", "model_hash": "sha256:m", "text": "paid on 12.08.2019", "confidence": 0.9, "words": [] } }
+            ],
+            "engine_health": [
+                { "engine": "tesseract", "version": "stub-1.0", "model_hash": "sha256:m", "state": "healthy", "detail": null },
+                { "engine": "paddle", "version": "stub-1.0", "model_hash": "sha256:m", "state": "healthy", "detail": null }
+            ]
+        }
+    });
+    let run = lines(&oa(
+        &app,
+        &["call", "ocr.run", "--input", &input.to_string()],
+    ));
+    assert_eq!(run[0]["state"], "needs_review");
+    let lines_out = lines(&oa(&app, &["ocr", "lines", "--matter", &id, &doc]));
+    assert_eq!(lines_out.len(), 1);
+    let disputes = lines(&oa(
+        &app,
+        &["ocr", "disputes", "--matter", &id, "--doc", &doc],
+    ));
+    assert_eq!(disputes.len(), 1);
+    let dispute = disputes[0]["id"].as_str().unwrap().to_string();
+    let decided = lines(&oa(
+        &app,
+        &["ocr", "decide", "--matter", &id, &dispute, "--a"],
+    ));
+    assert_eq!(decided[0]["state"], "decided");
+    let engines = lines(&oa(&app, &["ocr", "engines"]));
+    assert_eq!(engines.len(), 2);
+    let entities = lines(&oa(&app, &["extract", "entities", "--matter", &id, &doc]));
+    assert!(entities.iter().any(|e| e["kind"] == "date"));
+    let typed = tmp.path().join("typed.txt");
+    std::fs::write(&typed, "typed page").unwrap();
+    let copy = lines(&oa(
+        &app,
+        &[
+            "ocr",
+            "typed-copy",
+            "--matter",
+            &id,
+            &doc,
+            "--page",
+            "1",
+            "--file",
+            typed.to_str().unwrap(),
+            "--typist",
+            "advocate",
+        ],
+    ));
+    assert_eq!(copy[0]["text"], "typed page");
+}
+
+#[test]
 fn d_cli_agent_run_uses_harness_origin_policy_and_records_effects() {
     let tmp = tempfile::tempdir().unwrap();
     let app = tmp.path().join("app");

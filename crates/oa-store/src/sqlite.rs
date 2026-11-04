@@ -194,6 +194,18 @@ const MATTER_MIGRATIONS: &[&str] = &[
     CREATE INDEX ingest_evidence ON ingest(evidence_id);
     CREATE INDEX ingest_text ON ingest(text_fingerprint);
 "#,
+    r#"
+    CREATE TABLE ocr_documents (
+        doc TEXT PRIMARY KEY REFERENCES evidence(id),
+        state TEXT NOT NULL,
+        page_count INTEGER NOT NULL,
+        disputes INTEGER NOT NULL,
+        data TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+    CREATE INDEX ocr_documents_state ON ocr_documents(state);
+"#,
 ];
 
 fn err(e: rusqlite::Error) -> StoreError {
@@ -1096,6 +1108,24 @@ impl MatterStore for SqliteMatter {
         )
     }
 
+    fn ocr_document(&self, doc: &str) -> StoreResult<Option<OcrDocumentRow>> {
+        one(
+            &self.conn,
+            &format!("SELECT {OCR_DOCUMENT_COLS} FROM ocr_documents WHERE doc = ?1"),
+            params![doc],
+            ocr_document_row,
+        )
+    }
+
+    fn ocr_documents(&self) -> StoreResult<Vec<OcrDocumentRow>> {
+        many(
+            &self.conn,
+            &format!("SELECT {OCR_DOCUMENT_COLS} FROM ocr_documents ORDER BY created_at, doc"),
+            params![],
+            ocr_document_row,
+        )
+    }
+
     fn record_rejected(&self, r: &RejectedWrite) -> StoreResult<()> {
         insert_rejected(&self.conn, r)
     }
@@ -1135,6 +1165,7 @@ const APPROVAL_COLS: &str =
     "id, gate, target, requested_at, requested_by, decision, reason, decided_at, decided_by";
 const CAPTURE_COLS: &str = "id, evidence_id, url, final_url, captured_at, blob, profile, gesture, portal_date, adapter, status, reason, created_at, updated_at";
 const INGEST_COLS: &str = "id, evidence_id, status, format, readability, proposed_class, text_fingerprint, duplicate_of, message, created_at, updated_at";
+const OCR_DOCUMENT_COLS: &str = "doc, state, page_count, disputes, data, created_at, updated_at";
 
 fn evidence_row(r: &Row) -> rusqlite::Result<EvidenceRow> {
     Ok(EvidenceRow {
@@ -1224,6 +1255,18 @@ fn ingest_row(r: &Row) -> rusqlite::Result<IngestRow> {
         message: r.get(8)?,
         created_at: r.get(9)?,
         updated_at: r.get(10)?,
+    })
+}
+
+fn ocr_document_row(r: &Row) -> rusqlite::Result<OcrDocumentRow> {
+    Ok(OcrDocumentRow {
+        doc: r.get(0)?,
+        state: r.get(1)?,
+        page_count: r.get(2)?,
+        disputes: r.get(3)?,
+        data: r.get(4)?,
+        created_at: r.get(5)?,
+        updated_at: r.get(6)?,
     })
 }
 
@@ -1422,5 +1465,21 @@ fn apply(tx: &Connection, w: &MatterWrite) -> StoreResult<()> {
             }
             Ok(())
         }
+        MatterWrite::UpsertOcrDocument(o) => done(tx.execute(
+            &format!(
+                "INSERT INTO ocr_documents ({OCR_DOCUMENT_COLS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                 ON CONFLICT(doc) DO UPDATE SET state = ?2, page_count = ?3, disputes = ?4,
+                     data = ?5, updated_at = ?7"
+            ),
+            params![
+                o.doc,
+                o.state,
+                o.page_count,
+                o.disputes,
+                o.data,
+                o.created_at,
+                o.updated_at
+            ],
+        )),
     }
 }

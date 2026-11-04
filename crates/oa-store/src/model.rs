@@ -236,6 +236,20 @@ pub struct AdapterHealthRow {
     pub checked_at: String,
 }
 
+/// OCR state for one document, keyed by its evidence id (spec G rule 11).
+/// The JSON `data` column holds the page, line, dispute and typed-copy records
+/// so the kernel can keep one document's OCR run atomic.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OcrDocumentRow {
+    pub doc: String,
+    pub state: String,
+    pub page_count: i64,
+    pub disputes: i64,
+    pub data: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
 /// A row written in the same transaction as a ledger event (spec C rule 1).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MatterWrite {
@@ -274,6 +288,7 @@ pub enum MatterWrite {
         duplicate_of: Option<String>,
         updated_at: String,
     },
+    UpsertOcrDocument(OcrDocumentRow),
 }
 
 /// An accepted command, for the control audit (spec B rule 8).

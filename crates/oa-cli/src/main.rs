@@ -9,12 +9,17 @@ use std::io::{BufRead, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::Arc;
+use std::time::Duration;
 
 use clap::{Args, Parser, Subcommand};
 mod harness_cmds;
 
 use oa_client::{Client, InProcess, PipeClient};
-use oa_kernel::{Attachment, ClientSpec, Hooks, Kernel, PresencePrompt, Request};
+use oa_kernel::{
+    Attachment, ClientSpec, Hooks, Kernel, OcrEngineHealthInput, OcrPageInput, OcrReadingInput,
+    OcrRunInput, PresencePrompt, Request,
+};
+use oa_ocr::{sha256_hex, EngineJob, Reading};
 use oa_store::sqlite::SqliteFactory;
 use oa_types::{ErrorCode, OaError, Origin};
 use serde_json::Value;
@@ -79,6 +84,12 @@ enum Command {
     /// Court codebooks
     #[command(subcommand)]
     Codebook(CodebookCmd),
+    /// OCR and document intelligence
+    #[command(subcommand)]
+    Ocr(OcrCmd),
+    /// Entity extraction from an OCR run
+    #[command(subcommand)]
+    Extract(ExtractCmd),
     /// Drafts and their revisions
     #[command(subcommand)]
     Draft(DraftCmd),
@@ -293,6 +304,69 @@ enum IngestCmd {
 enum CodebookCmd {
     /// A court codebook with its list version
     Show { scheme: String },
+}
+
+#[derive(Subcommand)]
+enum OcrCmd {
+    /// Run both engines on a document and store the agreement
+    Run {
+        #[command(flatten)]
+        m: MatterArg,
+        doc: String,
+        #[arg(long)]
+        pages: Option<String>,
+    },
+    /// Canonical lines with both readings and agreement state
+    Lines {
+        #[command(flatten)]
+        m: MatterArg,
+        doc: String,
+        #[arg(long)]
+        page: Option<u32>,
+    },
+    /// Open disputes
+    Disputes {
+        #[arg(long)]
+        matter: Option<String>,
+        #[arg(long)]
+        doc: Option<String>,
+    },
+    /// Decide a dispute (human command)
+    Decide {
+        #[command(flatten)]
+        m: MatterArg,
+        dispute: String,
+        #[arg(long, conflicts_with = "b", required_unless_present = "b")]
+        a: bool,
+        #[arg(long)]
+        b: bool,
+        #[arg(long)]
+        text: Option<String>,
+    },
+    /// Record a typed copy for a handwritten page (human command)
+    TypedCopy {
+        #[command(flatten)]
+        m: MatterArg,
+        doc: String,
+        #[arg(long)]
+        page: u32,
+        #[arg(long, value_name = "FILE")]
+        file: PathBuf,
+        #[arg(long)]
+        typist: String,
+    },
+    /// Engine versions, model hashes and health
+    Engines,
+}
+
+#[derive(Subcommand)]
+enum ExtractCmd {
+    /// Dates, case numbers, CNRs, parties, amounts, provisions, citations and negations
+    Entities {
+        #[command(flatten)]
+        m: MatterArg,
+        doc: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -565,6 +639,50 @@ fn request(cmd: Command) -> Result<Request, OaError> {
         Command::Capture(CaptureCmd::Status) => Request::CaptureStatus,
         Command::Ingest(IngestCmd::Status { doc }) => Request::IngestStatus { doc },
         Command::Codebook(CodebookCmd::Show { scheme }) => Request::CodebookShow { scheme },
+        Command::Ocr(c) => match c {
+            OcrCmd::Run { .. } => unreachable!("handled before a request is built"),
+            OcrCmd::Lines { m, doc, page } => Request::OcrLines {
+                matter: m.matter,
+                doc,
+                page,
+            },
+            OcrCmd::Disputes { matter, doc } => Request::OcrDisputes { matter, doc },
+            OcrCmd::Decide {
+                m,
+                dispute,
+                a,
+                b: _,
+                text,
+            } => Request::OcrDecide {
+                matter: m.matter,
+                dispute,
+                reading: if a { "a" } else { "b" }.into(),
+                text,
+            },
+            OcrCmd::TypedCopy {
+                m,
+                doc,
+                page,
+                file,
+                typist,
+            } => {
+                let text = std::fs::read_to_string(&file).map_err(|e| {
+                    OaError::new(ErrorCode::Usage, format!("{}: {e}", file.display()))
+                })?;
+                Request::OcrTypedCopy {
+                    matter: m.matter,
+                    doc,
+                    page,
+                    text,
+                    typist,
+                }
+            }
+            OcrCmd::Engines => Request::OcrEngines,
+        },
+        Command::Extract(ExtractCmd::Entities { m, doc }) => Request::ExtractEntities {
+            matter: m.matter,
+            doc,
+        },
         Command::Draft(d) => match d {
             DraftCmd::Create { m, title, from } => Request::DraftCreate {
                 matter: m.matter,
@@ -750,6 +868,9 @@ fn run(cli: Cli) -> Result<Vec<Value>, OaError> {
             let harness = harness_cmds::harness_client(kernel(&app));
             return harness_cmds::agent(c, &user, harness);
         }
+        Command::Ocr(OcrCmd::Run { m, doc, pages }) => {
+            return ocr_run(&app, cli.connect, &m.matter, &doc, pages.as_deref())
+        }
         _ => {}
     }
     let key = cli.idempotency_key.or_else(|| Some(oa_types::new_key()));
@@ -759,6 +880,159 @@ fn run(cli: Cli) -> Result<Vec<Value>, OaError> {
     } else {
         InProcess::new(kernel(&app), Origin::Cli).call(key, req)
     }
+}
+
+fn client(app: &Path, connect: bool) -> Result<Box<dyn Client>, OaError> {
+    if connect {
+        Ok(Box::new(PipeClient::connect(app, Origin::Cli)?))
+    } else {
+        Ok(Box::new(InProcess::new(kernel(app), Origin::Cli)))
+    }
+}
+
+fn engine_path(name: &str) -> PathBuf {
+    let env = format!("OA_OCR_{}", name.to_ascii_uppercase());
+    if let Some(path) = std::env::var_os(env) {
+        return PathBuf::from(path);
+    }
+    let exe = std::env::current_exe().ok();
+    let dir = exe
+        .as_ref()
+        .and_then(|p| p.parent())
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."));
+    let file = format!("{name}{}", std::env::consts::EXE_SUFFIX);
+    let beside = dir.join(&file);
+    if beside.is_file() {
+        return beside;
+    }
+    if let Some(parent) = dir.parent() {
+        let up = parent.join(&file);
+        if up.is_file() {
+            return up;
+        }
+    }
+    beside
+}
+
+/// `oa ocr run` is the one CLI command that does work before the kernel call:
+/// it runs the two engine processes and sends their raw readings. The kernel
+/// still runs the agreement engine and is the only writer (G rule 3).
+fn ocr_run(
+    app: &Path,
+    connect: bool,
+    matter: &str,
+    doc: &str,
+    _pages: Option<&str>,
+) -> Result<Vec<Value>, OaError> {
+    let client = client(app, connect)?;
+    let shown = client.call(
+        None,
+        Request::EvidenceShow {
+            matter: matter.to_string(),
+            id: doc.to_string(),
+        },
+    )?;
+    let blob_path = shown
+        .first()
+        .and_then(|v| v["blob_path"].as_str())
+        .ok_or_else(|| OaError::new(ErrorCode::NotFound, format!("no bytes for {doc}")))?
+        .to_string();
+    let bytes = std::fs::read(&blob_path)
+        .map_err(|e| OaError::new(ErrorCode::Unavailable, format!("{blob_path}: {e}")))?;
+    let text = String::from_utf8_lossy(&bytes).to_string();
+    let work = std::env::temp_dir().join(format!("oa-ocr-{}", oa_types::new_key()));
+    std::fs::create_dir_all(&work)
+        .map_err(|e| OaError::new(ErrorCode::Unavailable, format!("OCR work folder: {e}")))?;
+    let sidecar_t = format!("{blob_path}.tesseract.txt");
+    let sidecar_p = format!("{blob_path}.paddle.txt");
+    let use_engines = Path::new(&sidecar_t).is_file() || Path::new(&sidecar_p).is_file();
+    let mut readings = Vec::new();
+    let mut health = Vec::new();
+    let mut text_layer = None;
+    if use_engines {
+        for (name, sidecar) in [("tesseract", &sidecar_t), ("paddle", &sidecar_p)] {
+            if !Path::new(sidecar).is_file() {
+                health.push(OcrEngineHealthInput {
+                    engine: name.into(),
+                    version: "unknown".into(),
+                    model_hash: "unknown".into(),
+                    state: "failed".into(),
+                    detail: Some(format!("no sidecar {sidecar}")),
+                });
+                continue;
+            }
+            let job = EngineJob {
+                doc: doc.to_string(),
+                page: 1,
+                image_path: blob_path.clone(),
+                text_layer: None,
+                fail_mode: None,
+            };
+            let run = oa_ocr::run_engine(&engine_path(name), &job, &work, Duration::from_secs(30));
+            match &run.failure {
+                Some(failure) => health.push(OcrEngineHealthInput {
+                    engine: name.into(),
+                    version: run.version.clone(),
+                    model_hash: run.model_hash.clone(),
+                    state: "failed".into(),
+                    detail: Some(failure.detail.clone()),
+                }),
+                None => {
+                    health.push(OcrEngineHealthInput {
+                        engine: name.into(),
+                        version: run.version.clone(),
+                        model_hash: run.model_hash.clone(),
+                        state: "healthy".into(),
+                        detail: None,
+                    });
+                    for (line, reading) in run.lines.iter().enumerate() {
+                        readings.push(OcrReadingInput {
+                            page: 1,
+                            line: line as u32,
+                            reading: reading.clone(),
+                        });
+                    }
+                }
+            }
+        }
+    } else {
+        text_layer = Some(text.clone());
+        readings.push(OcrReadingInput {
+            page: 1,
+            line: 0,
+            reading: Reading {
+                engine: "pdfium".into(),
+                engine_version: "pdfium".into(),
+                model_hash: "sha256:pdfium-text-layer".into(),
+                text,
+                confidence: 1.0,
+                words: Vec::new(),
+            },
+        });
+    }
+    let input = OcrRunInput {
+        pages: vec![OcrPageInput {
+            page: 1,
+            raster_hash: sha256_hex(&bytes),
+            width: 0.0,
+            height: 0.0,
+            dpi: 300,
+            text_layer,
+        }],
+        readings,
+        engine_health: health,
+    };
+    let result = client.call(
+        Some(oa_types::new_key()),
+        Request::OcrRun {
+            matter: matter.to_string(),
+            doc: doc.to_string(),
+            input,
+        },
+    );
+    let _ = std::fs::remove_dir_all(&work);
+    result
 }
 
 fn main() -> ExitCode {

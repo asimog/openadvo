@@ -44,6 +44,8 @@ pub struct Sources {
     pub adapters: Vec<Value>,
     /// (matter id, duplicate row)
     pub duplicates: Vec<(String, Value)>,
+    /// Open OCR disputes, each with its matter.
+    pub ocr_disputes: Vec<Value>,
 }
 
 fn id_of(v: &Value) -> String {
@@ -216,6 +218,28 @@ pub fn build(src: &Sources) -> Vec<InboxItem> {
             needs_decision: true,
             blocks_gate: false,
             subject: Subject::Raw(d.clone()),
+        });
+    }
+    for d in &src.ocr_disputes {
+        let matter = d["matter"].as_str().unwrap_or_default().to_string();
+        let doc = d["doc"].as_str().unwrap_or_default().to_string();
+        items.push(InboxItem {
+            key: format!("ocr:{}", d["id"].as_str().unwrap_or_default()),
+            kind: "ocr_dispute",
+            summary: format!(
+                "OCR dispute: {} vs {}",
+                d["reading_a"].as_str().unwrap_or_default(),
+                d["reading_b"].as_str().unwrap_or_default()
+            ),
+            detail: format!(
+                "page {} line {} ({})",
+                d["page"].as_u64().unwrap_or(0),
+                d["token_index"].as_u64().unwrap_or(0),
+                d["reason"].as_str().unwrap_or_default()
+            ),
+            needs_decision: true,
+            blocks_gate: false,
+            subject: Subject::Record { matter, id: doc },
         });
     }
     for (i, r) in src.rejected.iter().enumerate() {
@@ -395,6 +419,27 @@ mod tests {
         let adapter = items.iter().find(|i| i.kind == "adapter_degraded").unwrap();
         assert!(is_signal(adapter));
         assert!(adapter.summary.contains("supreme_court_case_status"));
+    }
+
+    #[test]
+    fn g_ac_17_a_disputed_token_is_signal_in_the_inbox() {
+        let items = build(&Sources {
+            ocr_disputes: vec![serde_json::json!({
+                "id": "D1",
+                "matter": "M1",
+                "doc": "E1",
+                "page": 1,
+                "token_index": 2,
+                "reading_a": "12.03.2019",
+                "reading_b": "12.08.2019",
+                "reason": "critical_mismatch",
+            })],
+            ..Sources::default()
+        });
+        let dispute = items.iter().find(|i| i.kind == "ocr_dispute").unwrap();
+        assert!(is_signal(dispute));
+        assert!(dispute.summary.contains("12.03.2019"));
+        assert!(matches!(dispute.subject, Subject::Record { .. }));
     }
 
     #[test]

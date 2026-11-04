@@ -250,6 +250,12 @@ impl App {
                 .q(Request::IngestStatus { doc: None })
                 .unwrap_or_default(),
             adapters: self.q(Request::AdapterHealth).unwrap_or_default(),
+            ocr_disputes: self
+                .q(Request::OcrDisputes {
+                    matter: None,
+                    doc: None,
+                })
+                .unwrap_or_default(),
             ..inbox::Sources::default()
         };
         for m in &self.matters {
@@ -526,6 +532,69 @@ impl App {
             ViewId::AdapterHealth => Content::Table(match self.q(Request::AdapterHealth) {
                 Ok(v) => views::adapter_health_table(&v),
                 Err(e) => Self::fail(view, &e),
+            }),
+            ViewId::OcrReview => self.matter_scoped(view, |id| {
+                match self.q(Request::OcrDisputes {
+                    matter: Some(id.to_string()),
+                    doc: None,
+                }) {
+                    Ok(v) => views::ocr_disputes_table(&v),
+                    Err(e) => Self::fail(view, &e),
+                }
+            }),
+            ViewId::OcrPipeline => self.ocr_doc_view(view, page, |id, doc| {
+                match self.q(Request::OcrLines {
+                    matter: id.to_string(),
+                    doc: doc.to_string(),
+                    page: None,
+                }) {
+                    Ok(v) => views::ocr_pipeline_table(&v),
+                    Err(e) => Self::fail(view, &e),
+                }
+            }),
+            ViewId::OcrLines => self.ocr_doc_view(view, page, |id, doc| {
+                match self.q(Request::OcrLines {
+                    matter: id.to_string(),
+                    doc: doc.to_string(),
+                    page: None,
+                }) {
+                    Ok(v) => views::ocr_lines_table(&v),
+                    Err(e) => Self::fail(view, &e),
+                }
+            }),
+            ViewId::OcrEngines => Content::Table(match self.q(Request::OcrEngines) {
+                Ok(v) => views::ocr_engines_table(&v),
+                Err(e) => Self::fail(view, &e),
+            }),
+            ViewId::Entities => self.ocr_doc_view(view, page, |id, doc| {
+                match self.q(Request::ExtractEntities {
+                    matter: id.to_string(),
+                    doc: doc.to_string(),
+                }) {
+                    Ok(v) => views::entities_table(&v),
+                    Err(e) => Self::fail(view, &e),
+                }
+            }),
+        }
+    }
+
+    fn ocr_doc_view<F>(&self, view: ViewId, page: &Page, f: F) -> Content
+    where
+        F: FnOnce(&str, &str) -> Table,
+    {
+        let Some(doc) = page.arg.as_deref().filter(|a| !a.is_empty()) else {
+            return Content::Table(Table {
+                state: ViewState::Empty(
+                    "Open a document from Evidence to see its OCR lines.".into(),
+                ),
+                ..Table::loading(view)
+            });
+        };
+        match &self.selected {
+            Some(id) => Content::Table(f(id, doc)),
+            None => Content::Table(Table {
+                state: ViewState::Empty("Select a matter in the sidebar.".into()),
+                ..Table::loading(view)
             }),
         }
     }
@@ -1017,6 +1086,55 @@ impl App {
                             {
                                 self.refresh();
                             }
+                        }
+                    }
+                });
+            }
+            ViewId::OcrReview => {
+                let Some(sel) = self.panes[i].selected else {
+                    return;
+                };
+                let Content::Table(t) = &self.panes[i].content else {
+                    return;
+                };
+                let Some(row) = t.rows.get(sel) else { return };
+                let Subject::Raw(d) = row.subject.clone() else {
+                    return;
+                };
+                let Some(matter) = self.selected.clone() else {
+                    return;
+                };
+                let dispute = d["id"].as_str().unwrap_or_default().to_string();
+                let a = d["reading_a"].as_str().unwrap_or_default().to_string();
+                let b = d["reading_b"].as_str().unwrap_or_default().to_string();
+                let doc = d["doc"].as_str().unwrap_or_default().to_string();
+                ui.separator();
+                ui.label(
+                    egui::RichText::new(format!(
+                        "Decide the OCR dispute in {doc}: \"{a}\" vs \"{b}\". This records your decision."
+                    ))
+                    .strong(),
+                );
+                ui.label(
+                    egui::RichText::new("The page image region is shown by the viewer (spec J).")
+                        .weak(),
+                );
+                ui.horizontal(|ui| {
+                    for (label, reading) in [
+                        (format!("Use reading A: {a}"), "a"),
+                        (format!("Use reading B: {b}"), "b"),
+                    ] {
+                        if ui.button(label).clicked()
+                            && self
+                                .act(Request::OcrDecide {
+                                    matter: matter.clone(),
+                                    dispute: dispute.clone(),
+                                    reading: reading.into(),
+                                    text: None,
+                                })
+                                .is_some()
+                        {
+                            self.refresh();
                         }
                     }
                 });

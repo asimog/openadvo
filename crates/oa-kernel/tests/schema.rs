@@ -5,8 +5,9 @@ use std::path::PathBuf;
 
 use oa_kernel::{
     AdapterHealthInput, Attachment, CaptureInput, ClientSpec, CodebookInput, CourtCodeInput,
-    Request,
+    OcrEngineHealthInput, OcrPageInput, OcrReadingInput, OcrRunInput, Request,
 };
+use oa_ocr::{Reading, Rect};
 use serde_json::Value;
 
 fn att() -> Attachment {
@@ -43,6 +44,41 @@ fn capture() -> CaptureInput {
                 label: "Writ Petition (Civil)".into(),
             }],
         }),
+    }
+}
+
+fn ocr_input() -> OcrRunInput {
+    OcrRunInput {
+        pages: vec![OcrPageInput {
+            page: 1,
+            raster_hash: "sha256:raster".into(),
+            width: 100.0,
+            height: 200.0,
+            dpi: 300,
+            text_layer: None,
+        }],
+        readings: vec![OcrReadingInput {
+            page: 1,
+            line: 0,
+            reading: Reading {
+                engine: "tesseract".into(),
+                engine_version: "stub-1.0".into(),
+                model_hash: "sha256:model".into(),
+                text: "the respondent filed".into(),
+                confidence: 0.9,
+                words: vec![oa_ocr::Word {
+                    text: "the".into(),
+                    rect: Rect::new(0.0, 0.0, 10.0, 12.0),
+                }],
+            },
+        }],
+        engine_health: vec![OcrEngineHealthInput {
+            engine: "tesseract".into(),
+            version: "stub-1.0".into(),
+            model_hash: "sha256:model".into(),
+            state: "healthy".into(),
+            detail: None,
+        }],
     }
 }
 
@@ -123,6 +159,38 @@ fn samples() -> Vec<Request> {
             scheme: "supreme_court:list-2024-03".into(),
         },
         Request::AdapterHealth,
+        Request::OcrRun {
+            matter: m(),
+            doc: "e".into(),
+            input: ocr_input(),
+        },
+        Request::OcrLines {
+            matter: m(),
+            doc: "e".into(),
+            page: Some(1),
+        },
+        Request::OcrDisputes {
+            matter: Some(m()),
+            doc: Some("e".into()),
+        },
+        Request::OcrDecide {
+            matter: m(),
+            dispute: "d".into(),
+            reading: "a".into(),
+            text: None,
+        },
+        Request::OcrTypedCopy {
+            matter: m(),
+            doc: "e".into(),
+            page: 1,
+            text: "typed".into(),
+            typist: "advocate".into(),
+        },
+        Request::ExtractEntities {
+            matter: m(),
+            doc: "e".into(),
+        },
+        Request::OcrEngines,
         Request::DraftCreate {
             matter: m(),
             title: "D".into(),

@@ -1,0 +1,29 @@
+[package]
+name = "oa-ocr"
+description = "OCR and document intelligence (spec G): normalisation, token agreement, dates, entities, anchors, bounded batches, line versions, gold-set accuracy and the engine supervisor. Pure logic and engine stubs: no window, kernel or harness model"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+hex.workspace = true
+chrono.workspace = true
+regex.workspace = true
+thiserror.workspace = true
+unicode-normalization.workspace = true
+schemars.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[[bin]]
+name = "ocr-tesseract"
+path = "src/bin/ocr-tesseract.rs"
+
+[[bin]]
+name = "ocr-paddle"
+path = "src/bin/ocr-paddle.rs"

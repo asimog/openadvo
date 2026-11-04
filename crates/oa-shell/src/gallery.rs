@@ -58,7 +58,7 @@ impl eframe::App for Gallery {
                 crate::views::def(self.view).title
             ));
             ui.separator();
-            let cols = if self.states.len() > 1 { 3 } else { 1 };
+            let cols = if self.states.len() > 1 { 2 } else { 1 };
             let rows = self.states.len().div_ceil(cols);
             let w = (ui.available_width() - 12.0 * cols as f32) / cols as f32;
             let h = (ui.available_height() - 12.0 * rows as f32) / rows as f32;
