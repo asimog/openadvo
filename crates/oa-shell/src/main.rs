@@ -542,11 +542,9 @@ impl App {
                     Err(e) => Self::fail(view, &e),
                 }
             }),
-            ViewId::OcrPipeline => self.ocr_doc_view(view, page, |id, doc| {
-                match self.q(Request::OcrLines {
-                    matter: id.to_string(),
-                    doc: doc.to_string(),
-                    page: None,
+            ViewId::OcrPipeline => self.matter_scoped(view, |id| {
+                match self.q(Request::OcrPipeline {
+                    matter: Some(id.to_string()),
                 }) {
                     Ok(v) => views::ocr_pipeline_table(&v),
                     Err(e) => Self::fail(view, &e),

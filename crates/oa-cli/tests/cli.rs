@@ -235,7 +235,7 @@ fn g_cli_ocr_queries_after_a_call() {
     let dispute = disputes[0]["id"].as_str().unwrap().to_string();
     let decided = lines(&oa(
         &app,
-        &["ocr", "decide", "--matter", &id, &dispute, "--a"],
+        &["ocr", "decide", "--matter", &id, &dispute, "--reading", "a"],
     ));
     assert_eq!(decided[0]["state"], "decided");
     let engines = lines(&oa(&app, &["ocr", "engines"]));

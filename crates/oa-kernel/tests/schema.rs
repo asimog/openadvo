@@ -169,6 +169,7 @@ fn samples() -> Vec<Request> {
             doc: "e".into(),
             page: Some(1),
         },
+        Request::OcrPipeline { matter: Some(m()) },
         Request::OcrDisputes {
             matter: Some(m()),
             doc: Some("e".into()),

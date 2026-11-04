@@ -324,6 +324,11 @@ enum OcrCmd {
         #[arg(long)]
         page: Option<u32>,
     },
+    /// Each document's pipeline state, pages and open disputes
+    Pipeline {
+        #[arg(long)]
+        matter: Option<String>,
+    },
     /// Open disputes
     Disputes {
         #[arg(long)]
@@ -336,11 +341,9 @@ enum OcrCmd {
         #[command(flatten)]
         m: MatterArg,
         dispute: String,
-        #[arg(long, conflicts_with = "b", required_unless_present = "b")]
-        a: bool,
-        #[arg(long)]
-        b: bool,
-        #[arg(long)]
+        #[arg(long, value_parser = ["a", "b", "typed"])]
+        reading: String,
+        #[arg(long, required_if_eq("reading", "typed"))]
         text: Option<String>,
     },
     /// Record a typed copy for a handwritten page (human command)
@@ -646,17 +649,17 @@ fn request(cmd: Command) -> Result<Request, OaError> {
                 doc,
                 page,
             },
+            OcrCmd::Pipeline { matter } => Request::OcrPipeline { matter },
             OcrCmd::Disputes { matter, doc } => Request::OcrDisputes { matter, doc },
             OcrCmd::Decide {
                 m,
                 dispute,
-                a,
-                b: _,
+                reading,
                 text,
             } => Request::OcrDecide {
                 matter: m.matter,
                 dispute,
-                reading: if a { "a" } else { "b" }.into(),
+                reading,
                 text,
             },
             OcrCmd::TypedCopy {

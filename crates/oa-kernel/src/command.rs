@@ -217,6 +217,8 @@ pub enum Request {
         doc: String,
         page: Option<u32>,
     },
+    #[serde(rename = "ocr.pipeline")]
+    OcrPipeline { matter: Option<String> },
     #[serde(rename = "ocr.disputes")]
     OcrDisputes {
         matter: Option<String>,
@@ -354,6 +356,7 @@ impl Request {
         "adapter.health",
         "ocr.run",
         "ocr.lines",
+        "ocr.pipeline",
         "ocr.disputes",
         "ocr.decide",
         "ocr.typed_copy",
@@ -399,6 +402,7 @@ impl Request {
         "codebook.show",
         "adapter.health",
         "ocr.lines",
+        "ocr.pipeline",
         "ocr.disputes",
         "extract.entities",
         "ocr.engines",
@@ -464,6 +468,7 @@ impl Request {
             Request::AdapterHealth => "adapter.health",
             Request::OcrRun { .. } => "ocr.run",
             Request::OcrLines { .. } => "ocr.lines",
+            Request::OcrPipeline { .. } => "ocr.pipeline",
             Request::OcrDisputes { .. } => "ocr.disputes",
             Request::OcrDecide { .. } => "ocr.decide",
             Request::OcrTypedCopy { .. } => "ocr.typed_copy",
@@ -509,6 +514,7 @@ impl Request {
             | Request::CodebookShow { .. }
             | Request::AdapterHealth
             | Request::OcrLines { .. }
+            | Request::OcrPipeline { .. }
             | Request::OcrDisputes { .. }
             | Request::ExtractEntities { .. }
             | Request::OcrEngines
@@ -587,6 +593,7 @@ impl Request {
             Request::AuditRejected { matter }
             | Request::EvidenceImport { matter, .. }
             | Request::OcrDisputes { matter, .. }
+            | Request::OcrPipeline { matter }
             | Request::Find { matter, .. } => matter.as_deref(),
             Request::CodebookShow { .. }
             | Request::CaptureStatus

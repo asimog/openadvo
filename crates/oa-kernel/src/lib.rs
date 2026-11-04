@@ -222,6 +222,7 @@ impl Kernel {
                 self.ocr_run(ctx, &matter, &doc, &input).map(one)
             }
             Request::OcrLines { matter, doc, page } => self.ocr_lines(&matter, &doc, page),
+            Request::OcrPipeline { matter } => self.ocr_pipeline(matter.as_deref()),
             Request::OcrDisputes { matter, doc } => {
                 self.ocr_disputes(matter.as_deref(), doc.as_deref())
             }

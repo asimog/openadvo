@@ -81,3 +81,53 @@ All five galleries render without a kernel. Each row opens the Inspector.
   record is reachable through the Inspector on its evidence entry
   (`inspect`); a dedicated view can be added when M provides the browser
   handoff actions.
+
+
+# Build report: spec G, OCR and document intelligence
+
+Build step 5 (commit 869cd46), followed by a review pass. The OCR engines are
+stubs across a real process boundary. Tesseract and PaddleOCR are not vendored
+yet.
+
+## Acceptance criteria in scope
+
+| ID | Test | Result | Note |
+|---|---|---|---|
+| G-AC-01 | `g_ac_01_killing_an_engine_is_a_recorded_failure_not_a_panic` | pass | The engine exits by itself (fail_mode crash). No test kills it from outside, and no review item is asserted. |
+| G-AC-02 | `g_ac_02_a_hanging_engine_is_killed_at_the_timeout` | pass | Tests the timeout kill. There is no malformed-image fuzz fixture yet. **Gap.** |
+| G-AC-03 to 06 | `g_ac_03` .. `g_ac_06` (oa-ocr unit tests) | pass | |
+| G-AC-07 | `g_ac_07_a_disputed_date_stays_open_until_the_advocate_decides` | pass | No Factual Matrix exists yet (spec H). Entities on open disputes are now marked `disputed`. H must refuse to confirm them. |
+| G-AC-08 | `g_ac_08_ocr_decide_from_a_harness_connection_is_refused` | pass | |
+| G-AC-09, 10 | `g_ac_09`, `g_ac_10` (oa-ocr) | pass | Library level only. `extract.entities` in the kernel still uses no header or portal anchor. |
+| G-AC-11 to 14 | `g_ac_11` .. `g_ac_14` (oa-ocr) | pass | G-AC-12 is also covered end to end by `a_rerun_keeps_decisions_and_maps_old_line_hashes`. |
+| G-AC-15 | `g_ac_15_the_review_view_shows_both_readings_and_the_decision_columns` | pass | [HUMAN] half: a decision is one action in the window. |
+| G-AC-16 | `g_ac_16_*` (kernel and shell) | pass | |
+| G-AC-17 | `g_ac_17_*` (kernel, shell, inbox) | pass | |
+
+## Review findings fixed
+
+- A line read by only one OCR engine was compared with itself and marked
+  `agreed`. It is now disputed in full with reason `one_engine_empty`. Only a
+  pdfium text-layer line may stand on one reading.
+- Readings were assigned to a and b by arrival order. Reading a is now always
+  Tesseract and reading b PaddleOCR.
+- A re-run threw away every decision and typed copy, and kept no old line
+  hashes. It now keeps unchanged decisions and typed copies, moves replaced
+  lines to `superseded`, and records old-to-new hashes (`supersedes` in
+  `ocr.lines`).
+- `ocr.decide` could overwrite an earlier decision, accepted any reading word,
+  and never lowered the document's dispute count or state. All three are fixed.
+- The CLI took `--a`/`--b`, so `typed` could not be reached. It now takes
+  `--reading a|b|typed` as the spec table says.
+- The Pipeline view showed page counts from one document's lines. The new query
+  `ocr.pipeline` gives each document's state, pages, open disputes and engine
+  failures. Screenshot: `target/screenshots/gallery-ocr-pipeline.png`.
+
+## Still open
+
+- Party names are not passed to the agreement engine in the kernel (no party
+  store until H). G-AC-05 holds in the library but not end to end.
+- Engine failures and disputes do not yet create review items in an inbox
+  queue of their own. The inbox reads open disputes directly.
+- Real engines (vendored Tesseract and PaddleOCR), pdfium rasterising and the
+  gold set run in CI are still to come (spec Q builds them).

@@ -5,7 +5,10 @@
 
 use std::collections::BTreeMap;
 
-use oa_ocr::{agree, extract_entities, DateAnchor, LineRecord, LineRef, Reading, Rect};
+use oa_ocr::{
+    agree, extract_entities, map_line_versions, Agreement, DateAnchor, LineRecord, LineRef,
+    LineVersion, Reading, Rect,
+};
 use oa_store::{AdapterHealthRow, MatterWrite, OcrDocumentRow};
 use oa_types::{ErrorCode, OaError};
 use serde::{Deserialize, Serialize};
@@ -58,6 +61,95 @@ struct OcrData {
     lines: Vec<LineRecord>,
     disputes: Vec<DisputeRecord>,
     typed_copies: Vec<TypedCopyRecord>,
+    /// Engines that did not return a healthy reading on the last run.
+    #[serde(default)]
+    engine_failures: Vec<String>,
+    /// Lines replaced by a later run, kept so old anchors resolve (G rule 10).
+    #[serde(default)]
+    superseded: Vec<LineRecord>,
+    /// Old line hash to the current line hash at the same position (G08).
+    #[serde(default)]
+    line_map: BTreeMap<String, String>,
+}
+
+/// Reading a is always Tesseract's and reading b PaddleOCR's, whatever order
+/// the supervisor sent them in.
+const READING_A_ENGINE: &str = "tesseract";
+/// A born-digital line comes from the pdfium text layer and is not OCR'd
+/// (G rule 2), so it has one reading by design.
+const BORN_DIGITAL_ENGINE: &str = "pdfium";
+
+impl OcrData {
+    fn open_disputes(&self) -> usize {
+        self.disputes.iter().filter(|d| d.state == "open").count()
+    }
+
+    fn state(&self) -> &'static str {
+        if self.open_disputes() > 0 || !self.engine_failures.is_empty() {
+            "needs_review"
+        } else {
+            "done"
+        }
+    }
+
+    /// Old line hashes that now resolve to `line_hash`.
+    fn supersedes(&self, line_hash: &str) -> Vec<&str> {
+        self.line_map
+            .iter()
+            .filter(|(_, new)| new.as_str() == line_hash)
+            .map(|(old, _)| old.as_str())
+            .collect()
+    }
+
+    /// The line's text with decided disputes applied, and the byte spans of
+    /// tokens still under open dispute (G rule 6).
+    fn effective_text(&self, line: &LineRecord) -> (String, Vec<(usize, usize)>) {
+        let mut text = String::new();
+        let mut open = Vec::new();
+        for (i, token) in line.canonical_text.split(' ').enumerate() {
+            let dispute = self
+                .disputes
+                .iter()
+                .find(|d| d.line_hash == line.line_hash && d.token_index == i);
+            let chosen = match dispute {
+                Some(d) if d.state == "decided" => match d.decided_reading.as_deref() {
+                    Some("b") => d.reading_b.as_str(),
+                    Some("typed") => d.decided_text.as_deref().unwrap_or(token),
+                    _ => d.reading_a.as_str(),
+                },
+                _ => token,
+            };
+            if !text.is_empty() {
+                text.push(' ');
+            }
+            let start = text.len();
+            text.push_str(chosen);
+            if dispute.is_some_and(|d| d.state == "open") {
+                open.push((start, text.len()));
+            }
+        }
+        (text, open)
+    }
+}
+
+fn missing_reading() -> Reading {
+    Reading {
+        engine: "none".into(),
+        engine_version: "none".into(),
+        model_hash: String::new(),
+        text: String::new(),
+        confidence: 0.0,
+        words: Vec::new(),
+    }
+}
+
+fn line_version(l: &LineRecord) -> LineVersion {
+    LineVersion {
+        page: l.page,
+        line: l.line,
+        line_hash: l.line_hash.clone(),
+        engine_version: l.reading_a.engine_version.clone(),
+    }
 }
 
 fn parse_data(row: &OcrDocumentRow) -> Result<OcrData, OaError> {
@@ -89,8 +181,9 @@ fn dispute_json(d: &DisputeRecord) -> Value {
     })
 }
 
-fn line_json(l: &LineRecord) -> Value {
+fn line_json(data: &OcrData, l: &LineRecord) -> Value {
     json!({
+        "supersedes": data.supersedes(&l.line_hash),
         "page": l.page,
         "line": l.line,
         "line_hash": l.line_hash,
@@ -156,14 +249,45 @@ impl Kernel {
                 .or_default()
                 .push(input_reading.reading.clone());
         }
+        let previous = live
+            .store
+            .ocr_document(doc)
+            .map_err(store_err)?
+            .map(|row| parse_data(&row).map(|data| (row.created_at, data)))
+            .transpose()?;
         let mut lines = Vec::new();
         let mut disputes = Vec::new();
-        for ((page, line), readings) in grouped {
+        for ((page, line), mut readings) in grouped {
+            readings.sort_by_key(|r| (r.engine != READING_A_ENGINE, r.engine.clone()));
             let a = readings[0].clone();
-            let b = readings.get(1).cloned().unwrap_or_else(|| a.clone());
+            let b = match readings.get(1) {
+                Some(b) => b.clone(),
+                None if a.engine == BORN_DIGITAL_ENGINE => a.clone(),
+                // One engine read the line and the other did not: every token
+                // is disputed, never agreed with itself (G edge cases).
+                None => missing_reading(),
+            };
             let rect = a.words.first().map(|w| w.rect).unwrap_or_else(Rect::zero);
             let record = agree(page, line, rect, a, b, &[]);
             for d in &record.disputed {
+                let carried = previous.as_ref().and_then(|(_, p)| {
+                    p.disputes.iter().find(|o| {
+                        o.state == "decided"
+                            && o.line_hash == record.line_hash
+                            && o.token_index == d.token_index
+                            && o.reading_a == d.reading_a
+                            && o.reading_b == d.reading_b
+                    })
+                });
+                if let Some(old) = carried {
+                    disputes.push(old.clone());
+                    continue;
+                }
+                let reason = if record.agreement == Agreement::OneEngineEmpty {
+                    "one_engine_empty".to_string()
+                } else {
+                    d.reason.clone()
+                };
                 disputes.push(DisputeRecord {
                     id: ulid::Ulid::new().to_string(),
                     doc: doc.to_string(),
@@ -173,7 +297,7 @@ impl Kernel {
                     reading_a: d.reading_a.clone(),
                     reading_b: d.reading_b.clone(),
                     class: format!("{:?}", d.class).to_lowercase(),
-                    reason: d.reason.clone(),
+                    reason,
                     state: "open".into(),
                     decided_reading: None,
                     decided_text: None,
@@ -184,38 +308,66 @@ impl Kernel {
             }
             lines.push(record);
         }
-        let failed_engine = input
+        let engine_failures: Vec<String> = input
             .engine_health
             .iter()
-            .any(|h| h.state != "healthy" && h.state != "captcha_pending");
-        let state = if !disputes.is_empty() || failed_engine {
-            "needs_review"
-        } else {
-            "done"
-        };
-        let data = OcrData {
+            .filter(|h| h.state != "healthy")
+            .map(|h| h.engine.clone())
+            .collect();
+        let mut data = OcrData {
             pages,
             lines,
             disputes,
-            typed_copies: Vec::new(),
+            engine_failures,
+            ..OcrData::default()
         };
+        let mut created_at = now.clone();
+        if let Some((created, old)) = previous {
+            created_at = created;
+            // Decisions on lines that changed stay as history, not open.
+            for d in old.disputes {
+                if d.state == "decided" && !data.disputes.iter().any(|n| n.id == d.id) {
+                    data.disputes.push(d);
+                }
+            }
+            data.typed_copies = old.typed_copies;
+            let new_versions: Vec<LineVersion> = data.lines.iter().map(line_version).collect();
+            let old_versions: Vec<LineVersion> = old.lines.iter().map(line_version).collect();
+            let fresh = map_line_versions(&old_versions, &new_versions);
+            data.line_map = old
+                .line_map
+                .into_iter()
+                .map(|(k, v)| {
+                    let v = fresh.get(&v).cloned().unwrap_or(v);
+                    (k, v)
+                })
+                .collect();
+            for (old_hash, new_hash) in fresh {
+                if old_hash != new_hash {
+                    data.line_map.insert(old_hash, new_hash);
+                }
+            }
+            data.superseded = old.superseded;
+            data.superseded.extend(
+                old.lines
+                    .into_iter()
+                    .filter(|l| !data.lines.iter().any(|n| n.line_hash == l.line_hash)),
+            );
+        }
+        let state = data.state();
         let data_json = serde_json::to_string(&data).map_err(|e| {
             OaError::new(
                 ErrorCode::Internal,
                 format!("OCR data does not serialise: {e}"),
             )
         })?;
-        let existing = live.store.ocr_document(doc).map_err(store_err)?;
         let row = OcrDocumentRow {
             doc: doc.to_string(),
             state: state.to_string(),
             page_count: data.pages.len() as i64,
-            disputes: data.disputes.len() as i64,
+            disputes: data.open_disputes() as i64,
             data: data_json,
-            created_at: existing
-                .as_ref()
-                .map(|r| r.created_at.clone())
-                .unwrap_or_else(|| now.clone()),
+            created_at,
             updated_at: now.clone(),
         };
         self.commit_event(
@@ -268,17 +420,35 @@ impl Kernel {
             .lines
             .iter()
             .filter(|l| page.is_none_or(|p| l.page == p))
-            .map(line_json)
+            .map(|l| line_json(&data, l))
             .collect())
     }
 
-    pub(crate) fn ocr_disputes(
-        &self,
-        matter: Option<&str>,
-        doc: Option<&str>,
-    ) -> Result<Vec<Value>, OaError> {
+    /// Each document's pipeline state, pages and open dispute count (G GUI
+    /// "Pipeline").
+    pub(crate) fn ocr_pipeline(&self, matter: Option<&str>) -> Result<Vec<Value>, OaError> {
         let mut out = Vec::new();
-        let matters: Vec<String> = match matter {
+        for m in self.ocr_matters(matter)? {
+            let live = self.live(&m)?;
+            for row in live.store.ocr_documents().map_err(store_err)? {
+                let data = parse_data(&row)?;
+                out.push(json!({
+                    "matter": m,
+                    "doc": row.doc,
+                    "state": row.state,
+                    "pages": row.page_count,
+                    "lines": data.lines.len(),
+                    "disputes": row.disputes,
+                    "engine_failures": data.engine_failures,
+                    "updated_at": row.updated_at,
+                }));
+            }
+        }
+        Ok(out)
+    }
+
+    fn ocr_matters(&self, matter: Option<&str>) -> Result<Vec<String>, OaError> {
+        Ok(match matter {
             Some(m) => vec![m.to_string()],
             None => self
                 .registry()?
@@ -288,8 +458,16 @@ impl Kernel {
                 .filter(|m| !m.removed)
                 .map(|m| m.id)
                 .collect(),
-        };
-        for m in matters {
+        })
+    }
+
+    pub(crate) fn ocr_disputes(
+        &self,
+        matter: Option<&str>,
+        doc: Option<&str>,
+    ) -> Result<Vec<Value>, OaError> {
+        let mut out = Vec::new();
+        for m in self.ocr_matters(matter)? {
             let live = self.live(&m)?;
             let rows = match doc {
                 Some(d) => live
@@ -339,6 +517,31 @@ impl Kernel {
                 format!("no OCR dispute {dispute}"),
             ));
         };
+        match (reading, text) {
+            ("a" | "b", _) => {}
+            ("typed", Some(t)) if !t.trim().is_empty() => {}
+            ("typed", _) => {
+                return Err(OaError::new(
+                    ErrorCode::Usage,
+                    "a typed decision needs --text",
+                ))
+            }
+            (other, _) => {
+                return Err(OaError::new(
+                    ErrorCode::Usage,
+                    format!("reading must be a, b or typed, not {other}"),
+                ))
+            }
+        }
+        if data.disputes[index].state != "open" {
+            return Err(OaError::new(
+                ErrorCode::Conflict,
+                format!(
+                    "dispute {dispute} is already {}",
+                    data.disputes[index].state
+                ),
+            ));
+        }
         let now = oa_types::now_utc();
         let decided_by = ctx.origin.actor().to_string();
         {
@@ -356,6 +559,8 @@ impl Kernel {
             )
         })?;
         row.updated_at = now;
+        row.state = data.state().to_string();
+        row.disputes = data.open_disputes() as i64;
         self.commit_event(
             &live,
             ctx,
@@ -439,11 +644,15 @@ impl Kernel {
                 line_hash: &line.line_hash,
                 rect: line.rect,
             };
-            let extraction =
-                extract_entities(&line.canonical_text, line_ref, &[], &DateAnchor::default());
+            let (text, open) = data.effective_text(line);
+            let extraction = extract_entities(&text, line_ref, &[], &DateAnchor::default());
             for entity in extraction.entities {
+                let disputed = open
+                    .iter()
+                    .any(|(start, end)| entity.start < *end && *start < entity.end);
                 let mut v = serde_json::to_value(entity).unwrap_or(Value::Null);
                 v["doc"] = json!(doc);
+                v["disputed"] = json!(disputed);
                 out.push(v);
             }
         }

@@ -333,3 +333,261 @@ fn entities_and_engine_health_are_queryable() {
     assert_eq!(engines.len(), 2);
     assert!(engines.iter().all(|e| e["runtime_state"] == "healthy"));
 }
+
+// Review fixes for the kernel OCR path.
+
+fn one_engine_input(text: &str) -> OcrRunInput {
+    let mut input = run_input(text, text);
+    input.readings.truncate(1);
+    input.engine_health[1].state = "raised".into();
+    input
+}
+
+fn lines(k: &Kernel, m: &str, doc: &str) -> Vec<Value> {
+    query(
+        k,
+        Request::OcrLines {
+            matter: m.to_string(),
+            doc: doc.to_string(),
+            page: None,
+        },
+    )
+}
+
+fn open_disputes(k: &Kernel, m: &str, doc: &str) -> Vec<Value> {
+    query(
+        k,
+        Request::OcrDisputes {
+            matter: Some(m.to_string()),
+            doc: Some(doc.to_string()),
+        },
+    )
+}
+
+fn decide(
+    k: &Kernel,
+    m: &str,
+    dispute: &str,
+    reading: &str,
+    text: Option<&str>,
+) -> Result<Vec<Value>, oa_types::OaError> {
+    k.dispatch(
+        &Ctx::new(Origin::Cli, new_key()),
+        Request::OcrDecide {
+            matter: m.to_string(),
+            dispute: dispute.to_string(),
+            reading: reading.into(),
+            text: text.map(str::to_string),
+        },
+    )
+}
+
+#[test]
+fn a_line_read_by_only_one_engine_is_disputed_not_agreed_with_itself() {
+    let f = fixture();
+    let k = kernel(&f);
+    init(&k, &f);
+    let m = matter(&k);
+    let doc = evidence(&k, &m);
+    let result = run(&k, &m, &doc, one_engine_input("paid on 12.03.2019"));
+    assert_eq!(result["state"], "needs_review");
+    let l = lines(&k, &m, &doc);
+    assert_eq!(l[0]["agreement"], "one_engine_empty");
+    assert_eq!(open_disputes(&k, &m, &doc).len(), 3);
+}
+
+#[test]
+fn a_born_digital_text_layer_line_is_not_disputed() {
+    let f = fixture();
+    let k = kernel(&f);
+    init(&k, &f);
+    let m = matter(&k);
+    let doc = evidence(&k, &m);
+    let mut input = run_input("paid on 12.03.2019", "unused");
+    input.readings.truncate(1);
+    input.readings[0].reading.engine = "pdfium".into();
+    input.engine_health.clear();
+    let result = run(&k, &m, &doc, input);
+    assert_eq!(result["state"], "done");
+}
+
+#[test]
+fn readings_are_assigned_by_engine_not_by_arrival_order() {
+    let f = fixture();
+    let k = kernel(&f);
+    init(&k, &f);
+    let m = matter(&k);
+    let doc = evidence(&k, &m);
+    let mut input = run_input("paid on 12.03.2019", "paid on 12.08.2019");
+    input.readings.reverse();
+    run(&k, &m, &doc, input);
+    let d = open_disputes(&k, &m, &doc);
+    assert_eq!(d[0]["reading_a"], "12.03.2019", "reading a is tesseract's");
+}
+
+#[test]
+fn deciding_updates_the_document_state_and_dispute_count() {
+    let f = fixture();
+    let k = kernel(&f);
+    init(&k, &f);
+    let m = matter(&k);
+    let doc = evidence(&k, &m);
+    run(
+        &k,
+        &m,
+        &doc,
+        run_input("paid on 12.03.2019", "paid on 12.08.2019"),
+    );
+    let id = open_disputes(&k, &m, &doc)[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    decide(&k, &m, &id, "a", None).unwrap();
+    let docs = query(
+        &k,
+        Request::OcrPipeline {
+            matter: Some(m.clone()),
+        },
+    );
+    let row = docs.iter().find(|r| r["doc"] == doc.as_str()).unwrap();
+    assert_eq!(row["disputes"], 0);
+    assert_eq!(row["state"], "done");
+}
+
+#[test]
+fn a_decided_dispute_cannot_be_decided_again() {
+    let f = fixture();
+    let k = kernel(&f);
+    init(&k, &f);
+    let m = matter(&k);
+    let doc = evidence(&k, &m);
+    run(
+        &k,
+        &m,
+        &doc,
+        run_input("paid on 12.03.2019", "paid on 12.08.2019"),
+    );
+    let id = open_disputes(&k, &m, &doc)[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    decide(&k, &m, &id, "a", None).unwrap();
+    let err = decide(&k, &m, &id, "b", None).unwrap_err();
+    assert_eq!(err.code, ErrorCode::Conflict);
+}
+
+#[test]
+fn a_typed_decision_needs_text_and_the_reading_must_be_known() {
+    let f = fixture();
+    let k = kernel(&f);
+    init(&k, &f);
+    let m = matter(&k);
+    let doc = evidence(&k, &m);
+    run(
+        &k,
+        &m,
+        &doc,
+        run_input("paid on 12.03.2019", "paid on 12.08.2019"),
+    );
+    let id = open_disputes(&k, &m, &doc)[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        decide(&k, &m, &id, "typed", None).unwrap_err().code,
+        ErrorCode::Usage
+    );
+    assert_eq!(
+        decide(&k, &m, &id, "c", None).unwrap_err().code,
+        ErrorCode::Usage
+    );
+    decide(&k, &m, &id, "typed", Some("12.03.2019")).unwrap();
+}
+
+#[test]
+fn a_rerun_keeps_decisions_and_maps_old_line_hashes() {
+    let f = fixture();
+    let k = kernel(&f);
+    init(&k, &f);
+    let m = matter(&k);
+    let doc = evidence(&k, &m);
+    run(
+        &k,
+        &m,
+        &doc,
+        run_input("paid on 12.03.2019", "paid on 12.08.2019"),
+    );
+    let old_hash = lines(&k, &m, &doc)[0]["line_hash"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let id = open_disputes(&k, &m, &doc)[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    decide(&k, &m, &id, "a", None).unwrap();
+    k.dispatch(
+        &Ctx::new(Origin::Cli, new_key()),
+        Request::OcrTypedCopy {
+            matter: m.clone(),
+            doc: doc.clone(),
+            page: 1,
+            text: "paid on 12.03.2019".into(),
+            typist: "clerk".into(),
+        },
+    )
+    .unwrap();
+    // Same readings again: the decided dispute stays decided.
+    run(
+        &k,
+        &m,
+        &doc,
+        run_input("paid on 12.03.2019", "paid on 12.08.2019"),
+    );
+    assert!(open_disputes(&k, &m, &doc).is_empty());
+    // A new engine version: new line hash, old hash still resolves.
+    let mut input = run_input("paid on 12.03.2019", "paid on 12.03.2019");
+    for r in &mut input.readings {
+        r.reading.engine_version = "stub-2.0".into();
+    }
+    run(&k, &m, &doc, input);
+    let new_hash = lines(&k, &m, &doc)[0]["line_hash"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_ne!(old_hash, new_hash);
+    let current = &lines(&k, &m, &doc)[0];
+    let supersedes: Vec<&str> = current["supersedes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(Value::as_str)
+        .collect();
+    assert!(supersedes.contains(&old_hash.as_str()));
+    let docs = query(&k, Request::OcrPipeline { matter: Some(m) });
+    assert_eq!(docs[0]["state"], "done");
+}
+
+#[test]
+fn an_entity_on_a_disputed_token_is_marked_disputed() {
+    let f = fixture();
+    let k = kernel(&f);
+    init(&k, &f);
+    let m = matter(&k);
+    let doc = evidence(&k, &m);
+    run(
+        &k,
+        &m,
+        &doc,
+        run_input("paid on 12.03.2019", "paid on 12.08.2019"),
+    );
+    let entities = query(
+        &k,
+        Request::ExtractEntities {
+            matter: m.clone(),
+            doc: doc.clone(),
+        },
+    );
+    let date = entities.iter().find(|e| e["kind"] == "date").unwrap();
+    assert_eq!(date["disputed"], true);
+}

@@ -146,7 +146,7 @@ pub const REGISTRY: &[ViewDef] = &[
         id: ViewId::OcrPipeline,
         key: "ocr-pipeline",
         title: "Pipeline",
-        covers: &["ocr.lines"],
+        covers: &["ocr.pipeline"],
     },
     ViewDef {
         id: ViewId::OcrLines,
@@ -887,37 +887,49 @@ pub fn ocr_lines_table(values: &[Value]) -> Table {
 }
 
 pub fn ocr_pipeline_table(values: &[Value]) -> Table {
-    let mut pages: std::collections::BTreeMap<u32, (usize, usize, String)> =
-        std::collections::BTreeMap::new();
-    for line in values {
-        let page = line["page"].as_u64().unwrap_or(0) as u32;
-        let entry = pages.entry(page).or_insert((0, 0, String::new()));
-        entry.0 += 1;
-        if s(line, "agreement") != "agreed" {
-            entry.1 += 1;
-        }
-        if entry.2.is_empty() {
-            entry.2 = s(line, "canonical_text");
-        }
-    }
-    let rows = pages
-        .into_iter()
-        .map(|(page, (lines, disputed, sample))| Row {
-            cells: vec![
-                page.to_string(),
-                lines.to_string(),
-                disputed.to_string(),
-                sample,
-            ],
-            subject: Subject::Raw(json!({ "page": page, "lines": lines, "disputed": disputed })),
-            tone: if disputed > 0 { Tone::Bad } else { Tone::Good },
+    let rows = values
+        .iter()
+        .map(|d| {
+            let disputes = d["disputes"].as_u64().unwrap_or(0);
+            let failures: Vec<&str> = d["engine_failures"]
+                .as_array()
+                .map(|a| a.iter().filter_map(Value::as_str).collect())
+                .unwrap_or_default();
+            Row {
+                cells: vec![
+                    s(d, "doc"),
+                    s(d, "state"),
+                    d["pages"].as_u64().unwrap_or(0).to_string(),
+                    disputes.to_string(),
+                    if failures.is_empty() {
+                        "-".into()
+                    } else {
+                        failures.join(", ")
+                    },
+                ],
+                subject: Subject::Record {
+                    matter: s(d, "matter"),
+                    id: s(d, "doc"),
+                },
+                tone: match s(d, "state").as_str() {
+                    "done" => Tone::Good,
+                    "failed" | "needs_review" => Tone::Bad,
+                    _ => Tone::Normal,
+                },
+            }
         })
         .collect();
     Table::new(
         ViewId::OcrPipeline,
-        &["Page", "Lines", "Disputed", "First line"],
+        &[
+            "Document",
+            "State",
+            "Pages",
+            "Open disputes",
+            "Engine failures",
+        ],
         rows,
-        "No OCR pages for this document.",
+        "No document has been through OCR in this matter.",
     )
 }
 
@@ -1183,10 +1195,12 @@ fn typical(view: ViewId, n: usize, disputed: bool) -> Table {
             &(0..n)
                 .map(|i| {
                     json!({
-                        "page": i / 4 + 1,
-                        "line": i,
-                        "agreement": if disputed && i == 0 { "disputed" } else { "agreed" },
-                        "canonical_text": format!("line {i} of the order"),
+                        "matter": "01J0MATTER",
+                        "doc": format!("01J0DOC{i:03}"),
+                        "state": if disputed && i == 0 { "needs_review" } else { "done" },
+                        "pages": 4 + i,
+                        "disputes": if disputed && i == 0 { 2 } else { 0 },
+                        "engine_failures": if disputed && i == 0 { vec!["paddle"] } else { vec![] },
                     })
                 })
                 .collect::<Vec<_>>(),
