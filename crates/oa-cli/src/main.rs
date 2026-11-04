@@ -16,8 +16,8 @@ mod harness_cmds;
 
 use oa_client::{Client, InProcess, PipeClient};
 use oa_kernel::{
-    Attachment, ClientSpec, Hooks, Kernel, OcrEngineHealthInput, OcrPageInput, OcrReadingInput,
-    OcrRunInput, PresencePrompt, Request,
+    Attachment, ClientSpec, ContactInput, Hooks, Kernel, OcrEngineHealthInput, OcrPageInput,
+    OcrReadingInput, OcrRunInput, PresencePrompt, Request,
 };
 use oa_ocr::{sha256_hex, EngineJob, Reading};
 use oa_store::sqlite::SqliteFactory;
@@ -152,6 +152,29 @@ enum Command {
     /// kernel to keep them between commands
     #[command(subcommand)]
     Browser(BrowserCmd),
+    /// Contacts, organisations, counsel, courts and benches (firm data)
+    #[command(subcommand)]
+    Contacts(ContactsCmd),
+    /// Party roles: `oa parties <matter>` lists them, `oa parties set` records one
+    #[command(args_conflicts_with_subcommands = true, subcommand_negates_reqs = true)]
+    Parties {
+        #[arg(required = true)]
+        matter: Option<String>,
+        #[command(subcommand)]
+        cmd: Option<PartiesCmd>,
+    },
+    /// A matter's or a contact's activity, computed from the ledger
+    Timeline {
+        /// A matter id, or a contact id
+        target: String,
+        /// Read the target as a contact even if a matter has that id
+        #[arg(long)]
+        contact: bool,
+    },
+    /// The correspondence log. It records calls, meetings and letters; it
+    /// never sends anything
+    #[command(subcommand)]
+    Correspondence(CorrespondenceCmd),
     /// The harness tool registry
     #[command(subcommand)]
     Tools(harness_cmds::ToolsCmd),
@@ -824,6 +847,100 @@ enum BrowserCmd {
     },
 }
 
+#[derive(clap::Args)]
+struct ContactFields {
+    /// person, organisation, counsel, court or bench
+    #[arg(long)]
+    kind: Option<String>,
+    /// Where a court or bench comes from, for example codebook:<scheme>/<code>
+    #[arg(long)]
+    source: Option<String>,
+    #[arg(long)]
+    organisation: Option<String>,
+    #[arg(long)]
+    phone: Option<String>,
+    #[arg(long)]
+    email: Option<String>,
+    #[arg(long)]
+    address: Option<String>,
+    #[arg(long)]
+    note: Option<String>,
+}
+
+impl ContactFields {
+    fn input(self, name: String, default_kind: &str) -> ContactInput {
+        ContactInput {
+            name,
+            kind: self.kind.unwrap_or_else(|| default_kind.to_string()),
+            source: self.source,
+            organisation: self.organisation,
+            phone: self.phone,
+            email: self.email,
+            address: self.address,
+            note: self.note,
+        }
+    }
+}
+
+#[derive(Subcommand)]
+enum ContactsCmd {
+    /// Every contact, optionally of one kind
+    List {
+        #[arg(long)]
+        kind: Option<String>,
+    },
+    /// Add a contact
+    Add {
+        name: String,
+        #[command(flatten)]
+        f: ContactFields,
+    },
+    /// A contact with every matter and role
+    Show { id: String },
+    /// Change a contact; fields not given are kept, an empty value clears one
+    Edit {
+        id: String,
+        #[arg(long)]
+        name: Option<String>,
+        #[command(flatten)]
+        f: ContactFields,
+    },
+}
+
+#[derive(Subcommand)]
+enum PartiesCmd {
+    /// Record a party role in a matter
+    Set {
+        matter: String,
+        #[arg(long)]
+        contact: String,
+        /// petitioner, respondent, appellant, applicant, plaintiff, ...
+        #[arg(long)]
+        role: String,
+        /// The name as it appears in the record, if it differs from the contact's
+        #[arg(long)]
+        record_name: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum CorrespondenceCmd {
+    /// Log a call, meeting, letter, email or notice
+    Log {
+        matter: String,
+        /// call, meeting, letter, email or notice
+        #[arg(long)]
+        kind: String,
+        #[arg(long)]
+        summary: String,
+        #[arg(long)]
+        contact: Option<String>,
+        /// When it happened (RFC 3339 or a date); defaults to now
+        #[arg(long)]
+        at: Option<String>,
+    },
+}
+
 #[derive(Subcommand)]
 enum PdfCmd {
     /// A working copy of a PDF for PdfCraft
@@ -1393,6 +1510,50 @@ fn request(cmd: Command) -> Result<Request, OaError> {
             BrowserCmd::Egress { profile, refused } => Request::BrowserEgress { profile, refused },
             BrowserCmd::Devtools { profile } => Request::BrowserDevtools { profile },
         },
+        Command::Contacts(c) => match c {
+            ContactsCmd::List { kind } => Request::ContactsList { kind },
+            ContactsCmd::Add { name, f } => Request::ContactsAdd {
+                contact: f.input(name, "person"),
+            },
+            ContactsCmd::Show { id } => Request::ContactsShow { id },
+            ContactsCmd::Edit { id, name, f } => Request::ContactsEdit {
+                id,
+                contact: f.input(name.unwrap_or_default(), ""),
+            },
+        },
+        Command::Parties { matter, cmd } => match cmd {
+            Some(PartiesCmd::Set {
+                matter,
+                contact,
+                role,
+                record_name,
+            }) => Request::PartiesSet {
+                matter,
+                contact,
+                role,
+                record_name,
+            },
+            None => Request::PartiesList {
+                matter: matter.unwrap_or_default(),
+            },
+        },
+        Command::Timeline { target, contact } => Request::Timeline {
+            matter: (!contact).then(|| target.clone()),
+            contact: contact.then_some(target),
+        },
+        Command::Correspondence(CorrespondenceCmd::Log {
+            matter,
+            kind,
+            summary,
+            contact,
+            at,
+        }) => Request::CorrespondenceLog {
+            matter,
+            kind,
+            summary,
+            contact,
+            occurred_at: at,
+        },
         Command::Approval(a) => match a {
             ApprovalCmd::Request { m, gate, target } => Request::ApprovalRequest {
                 matter: m.matter,
@@ -1538,6 +1699,10 @@ fn run(cli: Cli) -> Result<Vec<Value>, OaError> {
         Command::Ocr(OcrCmd::Run { m, doc, pages }) => {
             return ocr_run(&app, cli.connect, &m.matter, &doc, pages.as_deref())
         }
+        Command::Timeline {
+            target,
+            contact: false,
+        } => return timeline(&app, cli.connect, &target),
         _ => {}
     }
     let key = cli.idempotency_key.or_else(|| Some(oa_types::new_key()));
@@ -1618,6 +1783,36 @@ fn documents_outcome(
         ));
     }
     Ok(())
+}
+
+/// `oa timeline <id>`: a matter's timeline, or a contact's when no matter
+/// has that id.
+fn timeline(app: &Path, connect: bool, target: &str) -> Result<Vec<Value>, OaError> {
+    let c = client(app, connect)?;
+    let as_matter = c.call(
+        None,
+        Request::Timeline {
+            matter: Some(target.to_string()),
+            contact: None,
+        },
+    );
+    match as_matter {
+        Err(e) if matches!(e.code, ErrorCode::NotFound | ErrorCode::Usage) => c
+            .call(
+                None,
+                Request::Timeline {
+                    matter: None,
+                    contact: Some(target.to_string()),
+                },
+            )
+            .map_err(|_| {
+                OaError::new(
+                    ErrorCode::NotFound,
+                    format!("no matter or contact {target}"),
+                )
+            }),
+        other => other,
+    }
 }
 
 fn client(app: &Path, connect: bool) -> Result<Box<dyn Client>, OaError> {

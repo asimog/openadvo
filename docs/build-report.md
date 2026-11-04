@@ -529,3 +529,118 @@ None. No OQ-xx decision was needed.
   harness and audited, so the agent cannot widen its own egress.
 - Downloads from a browser are captured with the new origin `browser`, added
   to F's known capture origins.
+
+# Build report: spec O, firm data
+
+Build step after 6, on top of the Spec M commit 9259f55. This adds a new
+pure-logic crate `oa-firm` (contact kinds, party roles, correspondence kinds,
+a contact's matters and roles, and the timeline built from ledger events). It
+also adds a `firm.db` migration (migration 4: `contacts` gains `kind`,
+`source`, `details`, `updated_at` and `confirmed`), the kernel module
+`firm.rs`, eight commands, `oa contacts|parties|timeline|correspondence`, and
+three shell views. 292 tests pass (274 before).
+
+Where things live:
+
+- Contacts are in `firm.db`, the same store and the same `FirmStore` trait that
+  A's client records and M's browser tables use. No second firm store was made.
+- Party roles and the correspondence log are matter records. They go through
+  the single commit path (one ledger event plus a `doc_records` row of kind
+  `party` or `correspondence`), so the timeline sees them.
+- The timeline is `oa_firm::timeline` over the ledger, computed on every
+  call. No table holds it.
+
+Matter creation consults O01 for the client (A). `matter.create` with
+`ClientSpec::Existing` looks the contact up in `firm.db`, and `ClientSpec::New`
+creates a `person` contact after the RQ-87 confirmation, as before. One gap is
+closed. `contacts.add` is `internal`, so the agent may add a contact. A
+contact the agent added is stored `confirmed = false`. Making it a matter's
+client from the harness raises the same RQ-87 pending confirmation as a new
+client, and `oa matter confirm` then uses that contact (no duplicate). From
+the CLI or the UI it asks for presence and then confirms the contact. An
+advocate's `contacts.edit` also confirms it.
+
+## Acceptance criteria in scope
+
+| ID | Test | Result |
+|---|---|---|
+| O-AC-01 | `o_ac_01_the_timeline_is_a_pure_function_of_the_ledger` (oa-firm), `o_ac_01_deleting_and_rebuilding_the_timeline_gives_the_same_entries` (kernel: two computations equal, one entry per ledger event in order, and no timeline table in `firm.db` or `matter.db`) | pass |
+| O-AC-02 | `o_ac_02_a_differing_record_name_shows_both` (oa-firm), `o_ac_02_a_party_whose_record_name_differs_keeps_and_shows_both` (kernel), `o_ac_02_the_parties_view_shows_both_names_when_they_differ` (shell) | pass |
+| O-AC-03 | `o_ac_03_no_command_in_this_group_makes_a_network_request` (kernel: every O command runs; no browser profile starts, the egress log stays empty, and `oa-firm` depends only on serde and serde_json) | pass |
+| O-AC-04 | none | [HUMAN] |
+| O-AC-05 | `o_ac_05_a_contact_lists_every_matter_and_role` (oa-firm), `o_ac_05_a_contact_page_lists_every_matter_and_role_and_the_timeline_opens_in_the_inspector` (kernel: client, petitioner in one matter and respondent in another; every contact-timeline entry and a party row open through `inspect`), `o_ac_05_the_contact_page_lists_every_matter_and_role_and_timeline_rows_open_events` (shell) | pass |
+
+Also tested:
+
+- `rq_87_a_contact_only_the_agent_added_needs_the_new_client_confirmation`.
+- `with_firm_data_unavailable_contacts_are_refused_and_matter_work_continues`.
+  `firm.db` is replaced by a folder. `contacts.add` and new-client
+  `matter.create` answer `unavailable` (exit 5), while `parties.list`,
+  `correspondence.log` and `timeline` still work.
+- `two_contacts_with_the_same_name_stay_apart`.
+- `contacts_add_is_idempotent_and_validates`.
+- `o_cli_contacts_parties_timeline_and_correspondence`, through the `oa`
+  binary.
+- `firm_data_unavailable_is_a_visible_state_in_the_parties_view` and
+  `an_unconfirmed_contact_is_marked`, both in the shell.
+
+## Views in scope
+
+| View | Covers | Screenshot | Checked | Seen wrong |
+|---|---|---|---|---|
+| Contacts | `contacts.list`, `contacts.show` | `target/screenshots/o-contacts-typical.png` (list), `o-contacts-disputed.png` (a contact page) | List: name, kind, "Matters and roles" grouped per matter, details, source for a court, unconfirmed contacts in amber. Page: a banner with kind, details and the count of roles, one row per matter and role with the name in the record, and the matter row opening the matter record | The first page draft put the details under the "Id" header. Fixed: the details moved to the banner. The fixture gave a court an organisation; fixed. |
+| Parties | `parties.list` | `o-parties-typical.png`, `o-parties-disputed.png` | Role, a party label showing both names when they differ (amber), contact name, name in the record, contact id. With firm data unavailable, an amber banner and "(contact name unavailable)" | Roles show with underscores (`proforma_respondent`), as stored |
+| Timeline | `timeline` | `o-timeline-typical.png`, `o-timeline-disputed.png` | IST time, matter, kind, a one-line summary, actor via origin; calls and meetings in green; a banner says it is computed from the ledger; each row opens `event:<seq>` in the Inspector | none |
+
+A live capture (`target/screenshots/o-live.png`, with -Seed) shows the shell
+connected to its kernel. At that window size the new views are below the fold
+of the sidebar list. The controls under each view were not clicked:
+
+- Contacts: add, edit, open a matter, timeline.
+- Parties: record a party, open a contact.
+- Timeline: log correspondence.
+
+## [HUMAN] criteria still needing a person
+
+- O-AC-04: the contact and party views are what an advocate's office expects.
+- Clicking the controls above in a live window, and keyboard-only operation
+  of the three views (README GUI convention 5).
+- The RQ-87 presence prompt for an agent-added contact ("Confirm the client
+  ... and create the matter ...") from the CLI and the UI.
+
+## Stubs and the group that replaces each
+
+| Stub | Replaced by |
+|---|---|
+| Courts and benches are contacts with a free-text `source` (required, for example `codebook:hc/DL`). Nothing yet checks the source against the F12 codebooks or keeps them in step (O rule 4) | O with F, when the codebooks are browsable |
+| `firm.db` backup and export (the spec's second assumption, E06) is not built | E (E06) |
+| Merging two contacts with the same name (edge case) has no command. They stay apart, which the spec allows | O, when merge is specified |
+| The contact timeline selects events whose body names the contact id (matter creation for a client, party roles, correspondence). Other events in the same matters are not included | none, unless the spec wants a wider timeline |
+
+## Open questions hit
+
+None. No OQ-xx decision was needed.
+
+## Spec issues
+
+- The GUI table says the advocate can edit a contact, but the CLI table has no
+  edit command. I added `oa contacts edit <id>` (`contacts.edit`, internal). It
+  merges: a field you do not give is kept, and an empty value clears it.
+- `parties.list` is a query, but the GUI table has no view for it. A-AC-16
+  needs one, so I added a Parties view.
+- The correspondence log has no query of its own. Its entries appear in the
+  timeline and open in the Inspector (`correspondence` records). I added no
+  `correspondence list` command.
+- `oa timeline <matter|contact>` is ambiguous, because both ids are ULIDs. The
+  CLI tries the id as a matter first, then as a contact. `--contact` forces
+  the contact reading. The command itself takes `matter` or `contact`.
+- RQ-87 says the agent needs a confirmation for a new client. `contacts.add`
+  is `internal`, so without the `confirmed` flag the agent could add a
+  contact and then name it as an existing client. Please review the flag
+  (decisions.tsv row). It implements RQ-87 and changes no decision.
+- The failure mode says that with `firm.db` unavailable, "firm data is read
+  only". A `firm.db` that cannot be opened cannot be read either. Contact
+  commands therefore answer `unavailable`, and the parties view shows names
+  from the record with the contact name marked unavailable. Matter creation
+  also needs the workspace root, which lives in `firm.db` (spec A), so every
+  `matter.create` is refused in that state, not only one for a new client.

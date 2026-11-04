@@ -11,6 +11,8 @@ mod bar;
 mod browserviews;
 mod conn;
 mod docviews;
+mod firmui;
+mod firmviews;
 mod gallery;
 mod inbox;
 mod inspector;
@@ -138,6 +140,8 @@ struct App {
     chrono_view: String,
     chrono_show_excluded: bool,
     skip_reason: String,
+    /// The firm data forms (spec O).
+    firm: firmui::FirmForm,
 }
 
 impl App {
@@ -178,6 +182,7 @@ impl App {
             chrono_view: "synopsis".into(),
             chrono_show_excluded: false,
             skip_reason: String::new(),
+            firm: firmui::FirmForm::default(),
         };
         me.reconnect();
         me
@@ -749,6 +754,61 @@ impl App {
                     Err(e) => Self::fail(view, &e),
                 },
             ),
+            ViewId::Contacts => Content::Table(match &page.arg {
+                Some(id) => match self.q(Request::ContactsShow { id: id.clone() }) {
+                    Ok(mut v) => firmviews::contact_page_table(&v.pop().unwrap_or_default()),
+                    Err(e) => Self::fail(view, &e),
+                },
+                None => match self.q(Request::ContactsList { kind: None }) {
+                    Ok(v) => firmviews::contacts_table(&v),
+                    Err(e) => Self::fail(view, &e),
+                },
+            }),
+            ViewId::Parties => self.matter_scoped(view, |id| {
+                match self.q(Request::PartiesList {
+                    matter: id.to_string(),
+                }) {
+                    Ok(v) => firmviews::parties_table(id, &v),
+                    Err(e) => Self::fail(view, &e),
+                }
+            }),
+            ViewId::Timeline => match page
+                .arg
+                .as_deref()
+                .and_then(|a| a.strip_prefix(firmviews::CONTACT_PREFIX))
+            {
+                Some(contact) => {
+                    let name = self
+                        .q(Request::ContactsShow {
+                            id: contact.to_string(),
+                        })
+                        .ok()
+                        .and_then(|v| v.first().and_then(|c| c["name"].as_str().map(String::from)))
+                        .unwrap_or_else(|| contact.to_string());
+                    Content::Table(
+                        match self.q(Request::Timeline {
+                            matter: None,
+                            contact: Some(contact.to_string()),
+                        }) {
+                            Ok(v) => firmviews::timeline_table(&v, &name),
+                            Err(e) => Self::fail(view, &e),
+                        },
+                    )
+                }
+                None => self.matter_scoped(view, |id| {
+                    let title = self
+                        .selected_matter()
+                        .and_then(|m| m["title"].as_str().map(String::from))
+                        .unwrap_or_else(|| id.to_string());
+                    match self.q(Request::Timeline {
+                        matter: Some(id.to_string()),
+                        contact: None,
+                    }) {
+                        Ok(v) => firmviews::timeline_table(&v, &title),
+                        Err(e) => Self::fail(view, &e),
+                    }
+                }),
+            },
             ViewId::Entities => self.ocr_doc_view(view, page, |id, doc| {
                 match self.q(Request::ExtractEntities {
                     matter: id.to_string(),
@@ -1365,6 +1425,7 @@ impl App {
                 self.document_extras(ui, view)
             }
             ViewId::Browser => self.browser_extras(ui),
+            ViewId::Contacts | ViewId::Parties | ViewId::Timeline => self.firm_extras(ui, view),
             ViewId::Egress => {
                 ui.separator();
                 ui.horizontal(|ui| {

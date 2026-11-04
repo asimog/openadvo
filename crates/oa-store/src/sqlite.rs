@@ -93,6 +93,14 @@ const FIRM_MIGRATIONS: &[&str] = &[
         detached_at TEXT, detached_by TEXT
     );
 "#,
+    r#"
+    ALTER TABLE contacts ADD COLUMN kind TEXT NOT NULL DEFAULT 'person';
+    ALTER TABLE contacts ADD COLUMN source TEXT;
+    ALTER TABLE contacts ADD COLUMN details TEXT NOT NULL DEFAULT '{}';
+    ALTER TABLE contacts ADD COLUMN updated_at TEXT NOT NULL DEFAULT '';
+    ALTER TABLE contacts ADD COLUMN confirmed INTEGER NOT NULL DEFAULT 1;
+    UPDATE contacts SET updated_at = created_at WHERE updated_at = '';
+"#,
 ];
 
 const MATTER_MIGRATIONS: &[&str] = &[
@@ -646,6 +654,9 @@ impl RegistryStore for SqliteRegistry {
     }
 }
 
+const CONTACT_COLS: &str =
+    "id, name, creation_key, created_at, kind, source, details, updated_at, confirmed";
+
 struct SqliteFirm {
     conn: Connection,
 }
@@ -656,6 +667,11 @@ fn contact_row(r: &Row) -> rusqlite::Result<Contact> {
         name: r.get(1)?,
         creation_key: r.get(2)?,
         created_at: r.get(3)?,
+        kind: r.get(4)?,
+        source: r.get(5)?,
+        details: r.get(6)?,
+        updated_at: r.get(7)?,
+        confirmed: r.get(8)?,
     })
 }
 
@@ -714,7 +730,7 @@ impl FirmStore for SqliteFirm {
     fn contact(&self, id: &str) -> StoreResult<Option<Contact>> {
         self.conn
             .query_row(
-                "SELECT id, name, creation_key, created_at FROM contacts WHERE id = ?1",
+                &format!("SELECT {CONTACT_COLS} FROM contacts WHERE id = ?1"),
                 params![id],
                 contact_row,
             )
@@ -725,7 +741,7 @@ impl FirmStore for SqliteFirm {
     fn contact_by_creation_key(&self, key: &str) -> StoreResult<Option<Contact>> {
         self.conn
             .query_row(
-                "SELECT id, name, creation_key, created_at FROM contacts WHERE creation_key = ?1",
+                &format!("SELECT {CONTACT_COLS} FROM contacts WHERE creation_key = ?1"),
                 params![key],
                 contact_row,
             )
@@ -736,11 +752,41 @@ impl FirmStore for SqliteFirm {
     fn insert_contact(&self, c: &Contact) -> StoreResult<()> {
         self.conn
             .execute(
-                "INSERT INTO contacts (id, name, creation_key, created_at) VALUES (?1, ?2, ?3, ?4)",
-                params![c.id, c.name, c.creation_key, c.created_at],
+                "INSERT INTO contacts (id, name, creation_key, created_at, kind, source, details, updated_at, confirmed)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![c.id, c.name, c.creation_key, c.created_at, c.kind, c.source, c.details, c.updated_at, c.confirmed],
             )
             .map(|_| ())
             .map_err(err)
+    }
+
+    fn contacts(&self) -> StoreResult<Vec<Contact>> {
+        let mut stmt = self
+            .conn
+            .prepare(&format!(
+                "SELECT {CONTACT_COLS} FROM contacts ORDER BY name COLLATE NOCASE, id"
+            ))
+            .map_err(err)?;
+        let rows = stmt.query_map([], contact_row).map_err(err)?;
+        rows.collect::<Result<_, _>>().map_err(err)
+    }
+
+    fn update_contact(&self, c: &Contact) -> StoreResult<()> {
+        let n = self
+            .conn
+            .execute(
+                "UPDATE contacts SET name = ?2, kind = ?3, source = ?4, details = ?5, updated_at = ?6,
+                 confirmed = ?7 WHERE id = ?1",
+                params![c.id, c.name, c.kind, c.source, c.details, c.updated_at, c.confirmed],
+            )
+            .map_err(err)?;
+        if n == 0 {
+            return Err(StoreError::new(
+                StoreErrorKind::NotFound,
+                format!("no contact {}", c.id),
+            ));
+        }
+        Ok(())
     }
 
     fn setting(&self, key: &str) -> StoreResult<Option<String>> {

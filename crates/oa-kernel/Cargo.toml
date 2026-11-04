@@ -15,6 +15,7 @@ oa-notebook.workspace = true
 oa-docs.workspace = true
 oa-verify.workspace = true
 oa-browser.workspace = true
+oa-firm.workspace = true
 chrono.workspace = true
 base64.workspace = true
 hex.workspace = true

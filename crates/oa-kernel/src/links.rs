@@ -178,6 +178,9 @@ impl Kernel {
         if let Some(found) = Self::notebook_record(live, id)? {
             return Ok(found);
         }
+        if let Some(found) = Self::firm_record_of(live, id)? {
+            return Ok(found);
+        }
         if let Some(found) = Self::doc_record_of(live, id)? {
             return Ok(found);
         }

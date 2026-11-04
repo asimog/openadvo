@@ -14,6 +14,7 @@ mod documents;
 mod drafts;
 mod evidence;
 mod find;
+mod firm;
 mod hooks;
 mod jobs;
 mod layout;
@@ -39,8 +40,8 @@ use oa_types::{CommandClass, ErrorCode, OaError, Origin};
 use serde_json::Value;
 
 pub use command::{
-    AdapterHealthInput, Attachment, CaptureInput, ClientSpec, CodebookInput, CourtCodeInput,
-    OcrEngineHealthInput, OcrPageInput, OcrReadingInput, OcrRunInput, Request,
+    AdapterHealthInput, Attachment, CaptureInput, ClientSpec, CodebookInput, ContactInput,
+    CourtCodeInput, OcrEngineHealthInput, OcrPageInput, OcrReadingInput, OcrRunInput, Request,
 };
 pub use find::KINDS as FIND_KINDS;
 pub use hooks::{
@@ -248,6 +249,40 @@ impl Kernel {
                 self.browser_egress(profile.as_deref(), refused)
             }
             Request::BrowserDevtools { profile } => self.browser_devtools(ctx, &profile).map(one),
+            Request::ContactsList { kind } => self.contacts_list(kind.as_deref()),
+            Request::ContactsShow { id } => self.contacts_show(&id).map(one),
+            Request::ContactsAdd { contact } => self.contacts_add(ctx, &contact).map(one),
+            Request::ContactsEdit { id, contact } => {
+                self.contacts_edit(ctx, &id, &contact).map(one)
+            }
+            Request::PartiesList { matter } => self.parties_list(&matter),
+            Request::PartiesSet {
+                matter,
+                contact,
+                role,
+                record_name,
+            } => self
+                .parties_set(ctx, &matter, &contact, &role, record_name.as_deref())
+                .map(one),
+            Request::Timeline { matter, contact } => {
+                self.timeline(matter.as_deref(), contact.as_deref())
+            }
+            Request::CorrespondenceLog {
+                matter,
+                kind,
+                summary,
+                contact,
+                occurred_at,
+            } => self
+                .correspondence_log(
+                    ctx,
+                    &matter,
+                    &kind,
+                    &summary,
+                    contact.as_deref(),
+                    occurred_at.as_deref(),
+                )
+                .map(one),
             Request::IngestStatus { doc } => self.ingest_status(doc.as_deref()),
             Request::EvidenceDuplicates { matter } => self.evidence_duplicates(&matter),
             Request::CodebookShow { scheme } => self.codebook_show(&scheme).map(one),

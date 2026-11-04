@@ -21,6 +21,10 @@ struct PendingMatter {
     title: String,
     client_name: String,
     key: String,
+    /// An existing contact the agent added and no advocate has confirmed
+    /// (spec O). Absent for a client not yet in firm data.
+    #[serde(default)]
+    contact: Option<String>,
 }
 
 fn matter_json(state: &MatterState, dir: &Path) -> Value {
@@ -112,9 +116,34 @@ impl Kernel {
         let client_id = match client {
             ClientSpec::None => None,
             ClientSpec::Existing(id) => {
-                let contact = firm.contact(&id).map_err(store_err)?.ok_or_else(|| {
+                let mut contact = firm.contact(&id).map_err(store_err)?.ok_or_else(|| {
                     OaError::new(ErrorCode::NotFound, format!("no client with id {id}"))
                 })?;
+                // A contact only the agent has seen is still a new client
+                // (RQ-87): it needs the same confirmation.
+                if !contact.confirmed {
+                    if ctx.origin == Origin::Harness {
+                        if from.is_some() {
+                            return Err(OaError::new(
+                                ErrorCode::Usage,
+                                "a matter for an unconfirmed client cannot carry a file until it is confirmed; write the file after confirmation",
+                            ));
+                        }
+                        return Err(self.propose_client_matter(
+                            ctx,
+                            title,
+                            &contact.name,
+                            Some(&contact.id),
+                        )?);
+                    }
+                    self.require_presence(&format!(
+                        "Confirm the client \"{}\" and create the matter \"{title}\"",
+                        contact.name
+                    ))?;
+                    contact.confirmed = true;
+                    contact.updated_at = oa_types::now_utc();
+                    firm.update_contact(&contact).map_err(store_err)?;
+                }
                 Some(contact.id)
             }
             ClientSpec::New(name) => {
@@ -133,7 +162,7 @@ impl Kernel {
                             "a matter for a new client cannot carry a file until it is confirmed; write the file after confirmation",
                         ));
                     }
-                    return Err(self.propose_new_client_matter(ctx, title, &name)?);
+                    return Err(self.propose_client_matter(ctx, title, &name, None)?);
                 } else {
                     self.require_presence(&format!(
                         "Create a new client record \"{name}\" and the matter \"{title}\""
@@ -147,17 +176,19 @@ impl Kernel {
 
     /// The agent may propose a matter for a new client. The advocate confirms
     /// it with `oa matter confirm` (RQ-87).
-    fn propose_new_client_matter(
+    fn propose_client_matter(
         &self,
         ctx: &Ctx,
         title: &str,
         name: &str,
+        contact: Option<&str>,
     ) -> Result<OaError, OaError> {
         let id = ulid::Ulid::new().to_string();
         let payload = PendingMatter {
             title: title.to_string(),
             client_name: name.to_string(),
             key: ctx.key().to_string(),
+            contact: contact.map(str::to_string),
         };
         self.firm()?
             .insert_pending(&Pending {
@@ -177,12 +208,12 @@ impl Kernel {
     fn insert_client(&self, name: &str, key: &str) -> Result<String, OaError> {
         let id = ulid::Ulid::new().to_string();
         self.firm()?
-            .insert_contact(&Contact {
-                id: id.clone(),
-                name: name.to_string(),
-                creation_key: Some(key.to_string()),
-                created_at: oa_types::now_utc(),
-            })
+            .insert_contact(&Contact::person(
+                &id,
+                name,
+                Some(key.to_string()),
+                &oa_types::now_utc(),
+            ))
             .map_err(store_err)?;
         Ok(id)
     }
@@ -201,12 +232,30 @@ impl Kernel {
             })?;
         let p: PendingMatter = serde_json::from_str(&pending.payload)
             .map_err(|e| OaError::new(ErrorCode::Internal, e.to_string()))?;
-        self.require_presence(&format!(
-            "Create a new client record \"{}\" and the matter \"{}\"",
-            p.client_name, p.title
-        ))?;
-        let client_id = match firm.contact_by_creation_key(&p.key).map_err(store_err)? {
-            Some(c) => c.id,
+        self.require_presence(&if p.contact.is_some() {
+            format!(
+                "Confirm the client \"{}\" and create the matter \"{}\"",
+                p.client_name, p.title
+            )
+        } else {
+            format!(
+                "Create a new client record \"{}\" and the matter \"{}\"",
+                p.client_name, p.title
+            )
+        })?;
+        let existing = match &p.contact {
+            Some(id) => firm.contact(id).map_err(store_err)?,
+            None => firm.contact_by_creation_key(&p.key).map_err(store_err)?,
+        };
+        let client_id = match existing {
+            Some(mut c) => {
+                if !c.confirmed {
+                    c.confirmed = true;
+                    c.updated_at = oa_types::now_utc();
+                    firm.update_contact(&c).map_err(store_err)?;
+                }
+                c.id
+            }
             None => self.insert_client(&p.client_name, &p.key)?,
         };
         let result = self.create_matter_folder(ctx, &p.key, &p.title, Some(client_id), None)?;

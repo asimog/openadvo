@@ -80,6 +80,11 @@ pub trait FirmStore: Send {
     fn contact(&self, id: &str) -> StoreResult<Option<Contact>>;
     fn contact_by_creation_key(&self, key: &str) -> StoreResult<Option<Contact>>;
     fn insert_contact(&self, contact: &Contact) -> StoreResult<()>;
+    /// Every contact, by name then id.
+    fn contacts(&self) -> StoreResult<Vec<Contact>>;
+    /// Replaces a contact's name, kind, source, details and confirmation. `NotFound` if
+    /// there is no such contact.
+    fn update_contact(&self, contact: &Contact) -> StoreResult<()>;
 
     fn setting(&self, key: &str) -> StoreResult<Option<String>>;
     fn set_setting(&self, key: &str, value: &str, at: &str) -> StoreResult<()>;

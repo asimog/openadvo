@@ -363,12 +363,12 @@ fn a_ac_05_new_client_needs_confirmation_and_existing_client_does_not() {
     SqliteFactory
         .firm(&f.app)
         .unwrap()
-        .insert_contact(&Contact {
-            id: "client-1".into(),
-            name: "Existing Client".into(),
-            creation_key: None,
-            created_at: oa_types::now_utc(),
-        })
+        .insert_contact(&Contact::person(
+            "client-1",
+            "Existing Client",
+            None,
+            &oa_types::now_utc(),
+        ))
         .unwrap();
     let make = |c: &Ctx, client: ClientSpec| {
         k.dispatch(

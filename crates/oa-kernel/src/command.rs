@@ -119,6 +119,23 @@ pub struct OcrRunInput {
     pub engine_health: Vec<OcrEngineHealthInput>,
 }
 
+/// A contact, organisation, counsel, court or bench (spec O01). For
+/// `contacts.edit`, an empty name or kind and an absent field keep the
+/// current value, and an empty field clears it.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ContactInput {
+    pub name: String,
+    /// person, organisation, counsel, court or bench.
+    pub kind: String,
+    /// Required for a court or bench, for example `codebook:<scheme>/<code>`.
+    pub source: Option<String>,
+    pub organisation: Option<String>,
+    pub phone: Option<String>,
+    pub email: Option<String>,
+    pub address: Option<String>,
+    pub note: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "command", content = "input")]
 pub enum Request {
@@ -536,6 +553,39 @@ pub enum Request {
     /// Opens DevTools for a profile. Refused in the filing profile (M05).
     #[serde(rename = "browser.devtools")]
     BrowserDevtools { profile: String },
+    #[serde(rename = "contacts.list")]
+    ContactsList { kind: Option<String> },
+    #[serde(rename = "contacts.show")]
+    ContactsShow { id: String },
+    #[serde(rename = "contacts.add")]
+    ContactsAdd { contact: ContactInput },
+    #[serde(rename = "contacts.edit")]
+    ContactsEdit { id: String, contact: ContactInput },
+    #[serde(rename = "parties.list")]
+    PartiesList { matter: String },
+    #[serde(rename = "parties.set")]
+    PartiesSet {
+        matter: String,
+        contact: String,
+        role: String,
+        /// The name as it appears in the record; defaults to the contact's.
+        record_name: Option<String>,
+    },
+    /// A matter's or a contact's activity, computed from the ledger.
+    #[serde(rename = "timeline")]
+    Timeline {
+        matter: Option<String>,
+        contact: Option<String>,
+    },
+    /// Records a call, meeting or letter. It never sends anything.
+    #[serde(rename = "correspondence.log")]
+    CorrespondenceLog {
+        matter: String,
+        kind: String,
+        summary: String,
+        contact: Option<String>,
+        occurred_at: Option<String>,
+    },
 }
 
 impl Request {
@@ -641,6 +691,14 @@ impl Request {
         "browser.downloads",
         "browser.egress",
         "browser.devtools",
+        "contacts.list",
+        "contacts.show",
+        "contacts.add",
+        "contacts.edit",
+        "parties.list",
+        "parties.set",
+        "timeline",
+        "correspondence.log",
     ];
 
     /// Every `query` class command. The shell's view registry must cover each
@@ -699,6 +757,10 @@ impl Request {
         "browser.attachments",
         "browser.downloads",
         "browser.egress",
+        "contacts.list",
+        "contacts.show",
+        "parties.list",
+        "timeline",
     ];
 
     /// The class of a command by wire name. Used by the tool registry, which
@@ -831,6 +893,14 @@ impl Request {
             Request::BrowserDownloads { .. } => "browser.downloads",
             Request::BrowserEgress { .. } => "browser.egress",
             Request::BrowserDevtools { .. } => "browser.devtools",
+            Request::ContactsList { .. } => "contacts.list",
+            Request::ContactsShow { .. } => "contacts.show",
+            Request::ContactsAdd { .. } => "contacts.add",
+            Request::ContactsEdit { .. } => "contacts.edit",
+            Request::PartiesList { .. } => "parties.list",
+            Request::PartiesSet { .. } => "parties.set",
+            Request::Timeline { .. } => "timeline",
+            Request::CorrespondenceLog { .. } => "correspondence.log",
         }
     }
 
@@ -888,7 +958,11 @@ impl Request {
             | Request::BrowserScreenshot { .. }
             | Request::BrowserAttachments
             | Request::BrowserDownloads { .. }
-            | Request::BrowserEgress { .. } => CommandClass::Query,
+            | Request::BrowserEgress { .. }
+            | Request::ContactsList { .. }
+            | Request::ContactsShow { .. }
+            | Request::PartiesList { .. }
+            | Request::Timeline { .. } => CommandClass::Query,
             Request::BrowserOpen { .. } => CommandClass::External,
             Request::MatterConfirm { .. }
             | Request::ApprovalDecide { .. }
@@ -934,7 +1008,11 @@ impl Request {
             | Request::PdfOpenEditor { .. }
             | Request::ApprovalRequest { .. }
             | Request::BrowserDetach
-            | Request::BrowserDevtools { .. } => CommandClass::Internal,
+            | Request::BrowserDevtools { .. }
+            | Request::ContactsAdd { .. }
+            | Request::ContactsEdit { .. }
+            | Request::PartiesSet { .. }
+            | Request::CorrespondenceLog { .. } => CommandClass::Internal,
         }
     }
 
@@ -1007,14 +1085,18 @@ impl Request {
             | Request::LinksOut { matter, .. }
             | Request::LinksIn { matter, .. }
             | Request::RulesPin { matter }
-            | Request::BrowserAttach { matter } => Some(matter),
+            | Request::BrowserAttach { matter }
+            | Request::PartiesList { matter }
+            | Request::PartiesSet { matter, .. }
+            | Request::CorrespondenceLog { matter, .. } => Some(matter),
             Request::AuditRejected { matter }
             | Request::EvidenceImport { matter, .. }
             | Request::OcrDisputes { matter, .. }
             | Request::OcrPipeline { matter }
             | Request::Find { matter, .. }
             | Request::BrowserOpen { matter, .. }
-            | Request::BrowserDownloads { matter } => matter.as_deref(),
+            | Request::BrowserDownloads { matter }
+            | Request::Timeline { matter, .. } => matter.as_deref(),
             Request::CodebookShow { .. }
             | Request::CaptureStatus
             | Request::IngestStatus { .. }

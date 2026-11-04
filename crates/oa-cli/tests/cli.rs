@@ -739,3 +739,73 @@ fn m_cli_browser_commands_through_a_served_kernel() {
     let _ = server.kill();
     let _ = server.wait();
 }
+
+#[test]
+fn o_cli_contacts_parties_timeline_and_correspondence() {
+    let tmp = tempfile::tempdir().unwrap();
+    let app = tmp.path().join("app");
+    let root = tmp.path().join("root");
+    oa(&app, &["workspace", "init", root.to_str().unwrap()]);
+    let c = lines(&oa(&app, &["contacts", "add", "Ramesh Kumar"]))[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let m = lines(&oa(
+        &app,
+        &[
+            "matter",
+            "create",
+            "--title",
+            "Kumar v. State",
+            "--client",
+            &c,
+        ],
+    ))[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let set = oa(
+        &app,
+        &[
+            "parties",
+            "set",
+            &m,
+            "--contact",
+            &c,
+            "--role",
+            "petitioner",
+            "--record-name",
+            "R. Kumar",
+        ],
+    );
+    assert!(
+        set.status.success(),
+        "{}",
+        String::from_utf8_lossy(&set.stderr)
+    );
+    let parties = lines(&oa(&app, &["parties", &m]));
+    assert_eq!(parties[0]["record_name"], "R. Kumar");
+    assert_eq!(parties[0]["contact_name"], "Ramesh Kumar");
+    let logged = oa(
+        &app,
+        &[
+            "correspondence",
+            "log",
+            &m,
+            "--kind",
+            "call",
+            "--summary",
+            "Next date asked",
+        ],
+    );
+    assert!(logged.status.success());
+    let by_matter = lines(&oa(&app, &["timeline", &m]));
+    assert_eq!(by_matter.len(), 3);
+    // The same positional reads as a contact when no matter has the id.
+    let by_contact = lines(&oa(&app, &["timeline", &c]));
+    assert_eq!(by_contact.len(), 2);
+    let shown = lines(&oa(&app, &["contacts", "show", &c]));
+    assert_eq!(shown[0]["matters"].as_array().unwrap().len(), 2);
+    let bad = oa(&app, &["contacts", "add", "HC", "--kind", "court"]);
+    assert_eq!(bad.status.code(), Some(2));
+}

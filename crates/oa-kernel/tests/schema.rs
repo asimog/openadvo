@@ -4,8 +4,8 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use oa_kernel::{
-    AdapterHealthInput, Attachment, CaptureInput, ClientSpec, CodebookInput, CourtCodeInput,
-    OcrEngineHealthInput, OcrPageInput, OcrReadingInput, OcrRunInput, Request,
+    AdapterHealthInput, Attachment, CaptureInput, ClientSpec, CodebookInput, ContactInput,
+    CourtCodeInput, OcrEngineHealthInput, OcrPageInput, OcrReadingInput, OcrRunInput, Request,
 };
 use oa_ocr::{Reading, Rect};
 use serde_json::Value;
@@ -459,6 +459,44 @@ fn samples() -> Vec<Request> {
         },
         Request::BrowserDevtools {
             profile: "filing".into(),
+        },
+        Request::ContactsList {
+            kind: Some("person".into()),
+        },
+        Request::ContactsShow { id: "C1".into() },
+        Request::ContactsAdd {
+            contact: ContactInput {
+                name: "Ramesh Kumar".into(),
+                kind: "person".into(),
+                ..Default::default()
+            },
+        },
+        Request::ContactsEdit {
+            id: "C1".into(),
+            contact: ContactInput {
+                name: "Ramesh Kumar".into(),
+                kind: "person".into(),
+                phone: Some("+91 98100 00000".into()),
+                ..Default::default()
+            },
+        },
+        Request::PartiesList { matter: m() },
+        Request::PartiesSet {
+            matter: m(),
+            contact: "C1".into(),
+            role: "petitioner".into(),
+            record_name: Some("R. Kumar".into()),
+        },
+        Request::Timeline {
+            matter: Some(m()),
+            contact: None,
+        },
+        Request::CorrespondenceLog {
+            matter: m(),
+            kind: "call".into(),
+            summary: "Client called about the next date".into(),
+            contact: Some("C1".into()),
+            occurred_at: None,
         },
     ]
 }

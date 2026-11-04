@@ -51,6 +51,33 @@ pub struct Contact {
     pub name: String,
     pub creation_key: Option<String>,
     pub created_at: String,
+    /// person, organisation, counsel, court or bench (spec O01).
+    pub kind: String,
+    /// Where reference data came from, for courts and benches (O rule 4).
+    pub source: Option<String>,
+    /// Canonical JSON object: organisation, phone, email, address, note.
+    pub details: String,
+    pub updated_at: String,
+    /// False for a contact the agent added and no advocate has confirmed.
+    /// Using it as a matter's client needs the RQ-87 confirmation.
+    pub confirmed: bool,
+}
+
+impl Contact {
+    /// A person known only by name, as matter creation makes a new client.
+    pub fn person(id: &str, name: &str, creation_key: Option<String>, at: &str) -> Self {
+        Contact {
+            id: id.to_string(),
+            name: name.to_string(),
+            creation_key,
+            created_at: at.to_string(),
+            kind: "person".into(),
+            source: None,
+            details: "{}".into(),
+            updated_at: at.to_string(),
+            confirmed: true,
+        }
+    }
 }
 
 /// A command waiting for a human confirmation, for example a matter for a

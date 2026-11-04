@@ -2177,6 +2177,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "oa-firm"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "oa-harness"
 version = "0.1.0"
 dependencies = [
@@ -2198,6 +2206,7 @@ dependencies = [
  "oa-browser",
  "oa-capture",
  "oa-docs",
+ "oa-firm",
  "oa-notebook",
  "oa-ocr",
  "oa-store",
@@ -2273,6 +2282,7 @@ dependencies = [
  "eframe",
  "image",
  "oa-client",
+ "oa-firm",
  "oa-kernel",
  "oa-types",
  "serde_json",
