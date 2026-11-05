@@ -11,6 +11,8 @@ use std::path::Path;
 
 pub mod command;
 pub use command::*;
+pub mod screen;
+pub use screen::*;
 
 use oa_types::{OaError, Origin};
 use serde::de::DeserializeOwned;

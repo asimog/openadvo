@@ -81,6 +81,19 @@ impl fmt::Display for MatterId {
     }
 }
 
+impl Serialize for MatterId {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for MatterId {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        s.parse::<MatterId>().map_err(serde::de::Error::custom)
+    }
+}
+
 impl FromStr for MatterId {
     type Err = OaError;
 

@@ -612,3 +612,167 @@ fn renaming_appends_a_chained_event_and_repeats_are_idempotent() {
     let manifest: Value = serde_json::from_slice(&fs::read(dir.join(MANIFEST)).unwrap()).unwrap();
     assert_eq!(manifest["title"], "New");
 }
+
+
+#[test]
+fn a_ac_06_screen_show_returns_open_matter_pane_states_and_splits() {
+    let f = fixture();
+    let k = kernel(&f, Hooks::default());
+    init(&k, &f);
+    let m = create(&k, &ctx(Origin::Cli), "Test Matter").unwrap();
+    let mid_str = id_of(&m);
+    let mid = mid_str.parse::<oa_types::MatterId>().unwrap();
+
+    let initial = k
+        .dispatch(&Ctx::query(Origin::Cli), Request::ScreenShow)
+        .unwrap()
+        .remove(0);
+    assert_eq!(initial["matter"], Value::Null);
+    assert_eq!(initial["left"], "open");
+    assert_eq!(initial["chat"], "open");
+    assert_eq!(initial["view"]["pane"], "open");
+    assert_eq!(initial["view"]["splits"][0]["page"]["view"], "matters");
+
+    let custom_screen = oa_protocol::Screen {
+        matter: Some(mid),
+        left: oa_protocol::Pane::Collapsed,
+        chat: oa_protocol::Pane::Open,
+        view: oa_protocol::ViewArea {
+            pane: oa_protocol::Pane::Open,
+            splits: vec![
+                oa_protocol::Split {
+                    page: oa_protocol::Page {
+                        view: oa_protocol::ViewId::Overview,
+                        arg: None,
+                    },
+                    back: vec![],
+                    forward: vec![],
+                    visible_anchors: vec!["anchor-1".into(), "anchor-2".into()],
+                    selection: Some("sel-overview".into()),
+                },
+                oa_protocol::Split {
+                    page: oa_protocol::Page {
+                        view: oa_protocol::ViewId::Ledger,
+                        arg: Some("filter".into()),
+                    },
+                    back: vec![oa_protocol::Page {
+                        view: oa_protocol::ViewId::Matters,
+                        arg: None,
+                    }],
+                    forward: vec![],
+                    visible_anchors: vec!["anchor-ledger-seq-5".into()],
+                    selection: Some("seq-5".into()),
+                },
+            ],
+            focus: 1,
+        },
+        inspector: Some(oa_protocol::Subject::Record {
+            matter: mid_str.clone(),
+            id: "record-001".into(),
+        }),
+    };
+
+    let set_res = k
+        .dispatch(
+            &ctx(Origin::Cli),
+            Request::ScreenSet {
+                screen: custom_screen.clone(),
+            },
+        )
+        .unwrap()
+        .remove(0);
+    assert_eq!(set_res["matter"], mid_str);
+
+    let shown = k
+        .dispatch(&Ctx::query(Origin::Cli), Request::ScreenShow)
+        .unwrap()
+        .remove(0);
+    assert_eq!(shown["matter"], mid_str);
+    assert_eq!(shown["left"], "collapsed");
+    assert_eq!(shown["chat"], "open");
+    assert_eq!(shown["view"]["pane"], "open");
+    assert_eq!(shown["view"]["splits"].as_array().unwrap().len(), 2);
+    assert_eq!(shown["view"]["splits"][0]["page"]["view"], "overview");
+    assert_eq!(
+        shown["view"]["splits"][0]["visible_anchors"],
+        serde_json::json!(["anchor-1", "anchor-2"])
+    );
+    assert_eq!(shown["view"]["splits"][0]["selection"], "sel-overview");
+    assert_eq!(shown["view"]["splits"][1]["page"]["view"], "ledger");
+    assert_eq!(
+        shown["view"]["splits"][1]["visible_anchors"],
+        serde_json::json!(["anchor-ledger-seq-5"])
+    );
+    assert_eq!(shown["view"]["splits"][1]["selection"], "seq-5");
+    assert_eq!(shown["view"]["focus"], 1);
+
+    let invalid_screen = oa_protocol::Screen {
+        matter: None,
+        left: oa_protocol::Pane::Open,
+        chat: oa_protocol::Pane::Collapsed,
+        view: oa_protocol::ViewArea {
+            pane: oa_protocol::Pane::Collapsed,
+            splits: vec![oa_protocol::Split::new(oa_protocol::ViewId::Matters)],
+            focus: 0,
+        },
+        inspector: None,
+    };
+    let err = k
+        .dispatch(
+            &ctx(Origin::Cli),
+            Request::ScreenSet {
+                screen: invalid_screen,
+            },
+        )
+        .unwrap_err();
+    assert_eq!(err.code, ErrorCode::Usage);
+}
+
+#[test]
+fn a_ac_25_screen_round_trips_through_json_and_saved_layout_is_stored_screen() {
+    let mid_str = "01JE7Q00000000000000000000";
+    let mid = mid_str.parse::<oa_types::MatterId>().unwrap();
+
+    let original = oa_protocol::Screen {
+        matter: Some(mid),
+        left: oa_protocol::Pane::Open,
+        chat: oa_protocol::Pane::Collapsed,
+        view: oa_protocol::ViewArea {
+            pane: oa_protocol::Pane::Open,
+            splits: vec![
+                oa_protocol::Split {
+                    page: oa_protocol::Page {
+                        view: oa_protocol::ViewId::Document,
+                        arg: Some("rev-1".into()),
+                    },
+                    back: vec![oa_protocol::Page {
+                        view: oa_protocol::ViewId::Matters,
+                        arg: None,
+                    }],
+                    forward: vec![oa_protocol::Page {
+                        view: oa_protocol::ViewId::Viewer,
+                        arg: None,
+                    }],
+                    visible_anchors: vec!["p-1".into(), "p-2".into()],
+                    selection: Some("p-2".into()),
+                },
+            ],
+            focus: 0,
+        },
+        inspector: Some(oa_protocol::Subject::Record {
+            matter: mid_str.to_string(),
+            id: "draft-1".into(),
+        }),
+    };
+
+    let json = serde_json::to_string(&original).unwrap();
+    let back: oa_protocol::Screen = serde_json::from_str(&json).unwrap();
+    assert_eq!(back, original);
+
+    let saved_layout_json = serde_json::to_value(&original).unwrap();
+    assert_eq!(saved_layout_json["matter"], mid_str);
+    assert_eq!(saved_layout_json["view"]["splits"][0]["page"]["view"], "document");
+    assert_eq!(saved_layout_json["view"]["splits"][0]["page"]["arg"], "rev-1");
+    let restored_screen: oa_protocol::Screen = serde_json::from_value(saved_layout_json).unwrap();
+    assert_eq!(restored_screen, original);
+}

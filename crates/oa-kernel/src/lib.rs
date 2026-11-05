@@ -87,6 +87,7 @@ pub struct Kernel {
     writer: Mutex<()>,
     /// The browser supervisor and its profile processes (spec M).
     browser: Mutex<browser::BrowserState>,
+    screen: std::sync::RwLock<oa_protocol::Screen>,
 }
 
 pub(crate) fn store_err(e: StoreError) -> OaError {
@@ -111,12 +112,22 @@ impl Kernel {
     pub fn new(app_data: impl Into<PathBuf>, stores: Arc<dyn StoreFactory>, hooks: Hooks) -> Self {
         let app_data = app_data.into();
         let sup = oa_browser::Supervisor::new(hooks.browser.clone(), app_data.join("browser"));
+        let screen_file = app_data.join("screen.json");
+        let initial_screen = if screen_file.is_file() {
+            std::fs::read_to_string(&screen_file)
+                .ok()
+                .and_then(|t| serde_json::from_str::<oa_protocol::Screen>(&t).ok())
+                .unwrap_or_default()
+        } else {
+            oa_protocol::Screen::default()
+        };
         Kernel {
             app_data,
             stores,
             hooks,
             writer: Mutex::new(()),
             browser: browser::BrowserState::new(sup),
+            screen: std::sync::RwLock::new(initial_screen),
         }
     }
 
@@ -183,6 +194,8 @@ impl Kernel {
 
     fn run(&self, ctx: &Ctx, req: Request) -> Result<Vec<Value>, OaError> {
         match req {
+            Request::ScreenShow => self.screen_show().map(one),
+            Request::ScreenSet { screen } => self.screen_set(ctx, screen).map(one),
             Request::WorkspaceInit { root } => self.workspace_init(&root).map(one),
             Request::MatterCreate {
                 title,
@@ -631,6 +644,32 @@ impl Kernel {
             "workspace_root": root_str,
             "app_data": self.app_data.to_string_lossy(),
         }))
+    }
+
+    fn screen_show(&self) -> Result<Value, OaError> {
+        let screen = self
+            .screen
+            .read()
+            .map_err(|_| OaError::new(ErrorCode::Internal, "failed to acquire screen read lock"))?;
+        serde_json::to_value(&*screen).map_err(|e| {
+            OaError::new(ErrorCode::Internal, format!("failed to serialize screen: {e}"))
+        })
+    }
+
+    fn screen_set(&self, _ctx: &Ctx, screen: oa_protocol::Screen) -> Result<Value, OaError> {
+        screen.validate()?;
+        let mut current = self
+            .screen
+            .write()
+            .map_err(|_| OaError::new(ErrorCode::Internal, "failed to acquire screen write lock"))?;
+        *current = screen.clone();
+        let _ = std::fs::write(
+            self.app_data.join("screen.json"),
+            serde_json::to_string_pretty(&screen).unwrap_or_default(),
+        );
+        serde_json::to_value(&*current).map_err(|e| {
+            OaError::new(ErrorCode::Internal, format!("failed to serialize screen: {e}"))
+        })
     }
 }
 

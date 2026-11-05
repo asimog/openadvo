@@ -943,3 +943,51 @@ fn b_ac_17_the_same_script_in_process_and_over_the_pipe_gives_equal_replies_and_
     let _ = oa(&app_pipe, &["kernel", "shutdown"]);
     let _ = server.wait();
 }
+
+#[test]
+fn a_ac_06_cli_screen_show_and_set() {
+    let tmp = tempfile::tempdir().unwrap();
+    let app = tmp.path().join("app");
+    let root = tmp.path().join("root");
+    oa(&app, &["workspace", "init", root.to_str().unwrap()]);
+
+    let initial = lines(&oa(&app, &["screen", "show"]));
+    assert_eq!(initial.len(), 1);
+    assert_eq!(initial[0]["left"], "open");
+    assert_eq!(initial[0]["chat"], "open");
+    assert_eq!(initial[0]["view"]["pane"], "open");
+
+    let screen_json = serde_json::json!({
+        "matter": null,
+        "left": "collapsed",
+        "chat": "open",
+        "view": {
+            "pane": "open",
+            "splits": [
+                {
+                    "page": { "view": "overview", "arg": null },
+                    "back": [],
+                    "forward": [],
+                    "visible_anchors": ["anchor-cli-1"],
+                    "selection": "sel-cli"
+                }
+            ],
+            "focus": 0
+        },
+        "inspector": null
+    });
+    let temp_screen = tmp.path().join("test_screen.json");
+    std::fs::write(&temp_screen, screen_json.to_string()).unwrap();
+
+    let set_out = lines(&oa(&app, &["screen", "set", temp_screen.to_str().unwrap()]));
+    assert_eq!(set_out.len(), 1);
+    assert_eq!(set_out[0]["left"], "collapsed");
+    assert_eq!(set_out[0]["view"]["splits"][0]["visible_anchors"][0], "anchor-cli-1");
+    assert_eq!(set_out[0]["view"]["splits"][0]["selection"], "sel-cli");
+
+    let shown = lines(&oa(&app, &["screen", "show"]));
+    assert_eq!(shown.len(), 1);
+    assert_eq!(shown[0]["left"], "collapsed");
+    assert_eq!(shown[0]["view"]["splits"][0]["page"]["view"], "overview");
+    assert_eq!(shown[0]["view"]["splits"][0]["selection"], "sel-cli");
+}

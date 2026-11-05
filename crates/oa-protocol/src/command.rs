@@ -600,6 +600,10 @@ pub enum Request {
         contact: Option<String>,
         occurred_at: Option<String>,
     },
+    #[serde(rename = "screen.show")]
+    ScreenShow,
+    #[serde(rename = "screen.set")]
+    ScreenSet { screen: crate::screen::Screen },
 }
 
 impl Request {
@@ -716,6 +720,8 @@ impl Request {
         "parties.set",
         "timeline",
         "correspondence.log",
+        "screen.show",
+        "screen.set",
     ];
 
     /// Every `query` class command. The shell's view registry must cover each
@@ -779,6 +785,7 @@ impl Request {
         "contacts.show",
         "parties.list",
         "timeline",
+        "screen.show",
     ];
 
     /// The class of a command by wire name. Used by the tool registry, which
@@ -922,12 +929,15 @@ impl Request {
             Request::PartiesSet { .. } => "parties.set",
             Request::Timeline { .. } => "timeline",
             Request::CorrespondenceLog { .. } => "correspondence.log",
+            Request::ScreenShow => "screen.show",
+            Request::ScreenSet { .. } => "screen.set",
         }
     }
 
     pub fn class(&self) -> CommandClass {
         match self {
-            Request::MatterList { .. }
+            Request::ScreenShow
+            | Request::MatterList { .. }
             | Request::SettingsGet { .. }
             | Request::JobList
             | Request::JobShow { .. }
@@ -996,7 +1006,8 @@ impl Request {
             | Request::DraftAccept { .. }
             | Request::DraftReject { .. }
             | Request::BrowserAttach { .. } => CommandClass::Human,
-            Request::WorkspaceInit { .. }
+            Request::ScreenSet { .. }
+            | Request::WorkspaceInit { .. }
             | Request::MatterCreate { .. }
             | Request::MatterOpen { .. }
             | Request::MatterArchive { .. }

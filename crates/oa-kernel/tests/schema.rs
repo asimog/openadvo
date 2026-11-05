@@ -509,6 +509,10 @@ fn samples() -> Vec<Request> {
             detail: Some("detail".into()),
         },
         Request::KernelShutdown,
+        Request::ScreenShow,
+        Request::ScreenSet {
+            screen: oa_protocol::Screen::default(),
+        },
     ]
 }
 

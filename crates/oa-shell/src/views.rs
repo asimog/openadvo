@@ -69,7 +69,7 @@ pub const REGISTRY: &[ViewDef] = &[
         id: ViewId::Overview,
         key: "overview",
         title: "Matter overview",
-        covers: &["rules.pin"],
+        covers: &["rules.pin", "screen.show"],
     },
     ViewDef {
         id: ViewId::Ledger,

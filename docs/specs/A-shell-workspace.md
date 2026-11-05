@@ -2,7 +2,7 @@
 
 Components: A01 to A18. Conventions, test kinds and status words are in the [README](README.md).
 
-**Status:** matter workspaces, the registry, panes with three splits, the Inspector, the inbox, the command bar, galleries, and the contract-crate dependency (PH-03) work. Remaining: the screen (PH-04), the three-region frame (PH-05), the UI module (A18), GUI and visual tests, AccessKit, Devanagari shaping, first run.
+**Status:** matter workspaces, the registry, panes with three splits, the Inspector, the inbox, the command bar, galleries, and the contract-crate dependency (PH-03) work. Remaining: the three-region frame (PH-05), the UI module (A18), GUI and visual tests, AccessKit, Devanagari shaping, first run.
 
 ## Purpose
 
@@ -154,7 +154,7 @@ View builders stay egui-free: they turn query results into tables and lines. A v
 | A-AC-03 | Removing a matter folder while the application runs marks it `removed` within one scan interval, closes its splits and shows a notice. | [AUTO] | done |
 | A-AC-04 | A harness connection writing to `evidence/`, `blobs/` or `drafts/` is refused with exit 3 and a rejected-write audit row. | [AUTO] | done |
 | A-AC-05 | A matter with a new client raises a confirmation; an existing client does not. | [AUTO] | done |
-| A-AC-06 | `oa screen show --json` returns the open matter, pane states, each split's view and its visible anchors and selection. | [AUTO] | remaining |
+| A-AC-06 | `oa screen show --json` returns the open matter, pane states, each split's view and its visible anchors and selection. | [AUTO] | done |
 | A-AC-07 | Every standard widget has an AccessKit node with a non-empty role and name. | [AUTO] | remaining |
 | A-AC-08 | A screen reader user can open a matter, read the inbox and open an item. | [HUMAN] | remaining |
 | A-AC-09 | A voice command mapped to a `human` command is refused with a spoken and visible reason. | [AUTO] | remaining |
@@ -173,7 +173,7 @@ View builders stay egui-free: they turn query results into tables and lines. A v
 | A-AC-22 | Every view renders in every gallery state without a kernel. | [AUTO] | done |
 | A-AC-23 | An advocate can find any record and inspect its provenance without help. | [HUMAN] | remaining |
 | A-AC-24 | `cargo tree -p oa-shell` contains no `oa-kernel`, `oa-store` or `rusqlite`. | [AUTO] | done |
-| A-AC-25 | The screen round-trips through JSON unchanged, and a saved layout is a stored screen. | [AUTO] | remaining |
+| A-AC-25 | The screen round-trips through JSON unchanged, and a saved layout is a stored screen. | [AUTO] | done |
 | A-AC-26 | Closing the window when it started the kernel shuts the kernel down over the pipe; a running job is checkpointed, not killed. | [AUTO] | remaining |
 
 ### GUI tests

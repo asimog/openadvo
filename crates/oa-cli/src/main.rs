@@ -118,6 +118,9 @@ enum Command {
     /// The fidelity oracle
     #[command(subcommand)]
     Fidelity(FidelityCmd),
+    /// Window screen layout
+    #[command(subcommand)]
+    Screen(ScreenCmd),
     /// PDFs for PdfCraft (never the filing PDF)
     #[command(subcommand)]
     Pdf(PdfCmd),
@@ -772,6 +775,17 @@ enum FilingCmd {
 }
 
 #[derive(Subcommand)]
+enum ScreenCmd {
+    /// Show current screen layout
+    Show,
+    /// Set current screen layout from a JSON file or inline JSON
+    Set {
+        #[arg(value_name = "SPEC")]
+        spec: String,
+    },
+}
+
+#[derive(Subcommand)]
 enum FidelityCmd {
     /// Compare renderers page by page (exit 1 above the threshold)
     Check {
@@ -1131,6 +1145,24 @@ fn kernel(app: &Path) -> Kernel {
 
 fn request(cmd: Command) -> Result<Request, OaError> {
     Ok(match cmd {
+        Command::Screen(s) => match s {
+            ScreenCmd::Show => Request::ScreenShow,
+            ScreenCmd::Set { spec } => {
+                let path = Path::new(&spec);
+                let text = if path.is_file() {
+                    std::fs::read_to_string(path).map_err(|e| {
+                        OaError::new(ErrorCode::Usage, format!("{}: {e}", path.display()))
+                    })?
+                } else {
+                    spec
+                };
+                let screen: oa_protocol::Screen = serde_json::from_str(&text).map_err(|e| {
+                    OaError::new(ErrorCode::Usage, format!("invalid screen JSON: {e}"))
+                })?;
+                screen.validate()?;
+                Request::ScreenSet { screen }
+            }
+        },
         Command::Workspace(WorkspaceCmd::Init { root }) => Request::WorkspaceInit { root },
         Command::Matter(m) => match m {
             MatterCmd::Create {
