@@ -2122,7 +2122,8 @@ impl eframe::App for App {
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         if let Some(mut child) = self.kernel_child.take() {
             if let Some(ref client) = self.client {
-                let _ = client.call(None, Request::KernelShutdown);
+                // kernel.shutdown is internal class and needs a key.
+                let _ = client.call(Some(new_key()), Request::KernelShutdown);
             }
             let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
             let mut exited = false;

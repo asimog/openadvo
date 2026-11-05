@@ -1035,7 +1035,8 @@ enum OutboxCmd {
         #[command(flatten)]
         m: MatterArg,
         id: String,
-        #[arg(long, default_value = "sent")]
+        /// The outcome found: done, succeeded, sent or failed
+        #[arg(long)]
         outcome: String,
         #[arg(long)]
         detail: Option<String>,
@@ -1772,7 +1773,13 @@ fn run(cli: Cli) -> Result<Vec<Value>, OaError> {
     };
     let req = request(cli.command)?;
     let name = req.name();
-    let client = client(&app, cli.connect)?;
+    // `oa kernel shutdown` asks the serving kernel; there is nothing to stop
+    // in process (spec B).
+    let client: Box<dyn Client> = if matches!(req, Request::KernelShutdown) {
+        Box::new(PipeClient::connect(&app, Origin::Cli)?)
+    } else {
+        client(&app, cli.connect)?
+    };
     let mut values = client.call(key, req)?;
     if let Some(path) = shot {
         write_screenshot(&mut values, &path)?;

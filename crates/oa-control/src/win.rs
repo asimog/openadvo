@@ -152,7 +152,11 @@ pub fn is_beside_oa_shell(pid: u32) -> bool {
 
     if let Ok(cur) = std::env::current_exe() {
         if let (Some(cur_dir), Some(client_dir)) = (cur.parent(), client_path.parent()) {
-            return cur_dir == client_dir;
+            // Windows paths are case-insensitive.
+            return cur_dir
+                .as_os_str()
+                .to_string_lossy()
+                .eq_ignore_ascii_case(&client_dir.as_os_str().to_string_lossy());
         }
     }
     false
@@ -177,6 +181,13 @@ impl PipeListener {
     /// created with FILE_FLAG_FIRST_PIPE_INSTANCE, so a process that already
     /// owns the name cannot be impersonated.
     pub fn accept(&mut self) -> io::Result<(File, u32)> {
+        let pipe = self.create()?;
+        Self::connect(pipe)
+    }
+
+    /// Creates the next pipe instance. The first call fails with
+    /// ERROR_ACCESS_DENIED when another kernel already owns the name (PH-02).
+    fn create(&mut self) -> io::Result<HANDLE> {
         let mut open_mode = PIPE_ACCESS_DUPLEX;
         if self.first {
             open_mode |= FILE_FLAG_FIRST_PIPE_INSTANCE;
@@ -198,6 +209,11 @@ impl PipeListener {
             return Err(io::Error::last_os_error());
         }
         self.first = false;
+        Ok(pipe)
+    }
+
+    /// Waits for a client on a created instance and hands it over as a File.
+    fn connect(pipe: HANDLE) -> io::Result<(File, u32)> {
         // SAFETY: `pipe` is a valid pipe handle; no overlapped I/O is used.
         let connected = unsafe { ConnectNamedPipe(pipe, null_mut()) };
         // SAFETY: GetLastError has no preconditions.
@@ -225,8 +241,20 @@ pub fn serve(
     job: Option<Arc<HarnessJob>>,
     mut listener: PipeListener,
 ) -> io::Result<()> {
+    let mut owned = false;
     loop {
-        let (conn, pid) = listener.accept()?;
+        let pipe = listener.create()?;
+        if !owned {
+            // This process now owns the pipe name, so it is the one serving
+            // kernel: jobs checkpointed by the last shutdown resume (C-AC-25).
+            owned = true;
+            if let Err(e) = kernel.resume_checkpointed_jobs() {
+                // SAFETY: we own the handle and nothing else uses it.
+                unsafe { CloseHandle(pipe) };
+                return Err(io::Error::other(e.message));
+            }
+        }
+        let (conn, pid) = PipeListener::connect(pipe)?;
         let kernel = kernel.clone();
         let job = job.clone();
         thread::spawn(move || {

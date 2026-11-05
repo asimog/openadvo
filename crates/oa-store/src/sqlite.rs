@@ -1983,13 +1983,23 @@ fn apply(tx: &Connection, w: &MatterWrite) -> StoreResult<()> {
         )),
         MatterWrite::UpdateOutboxState {
             id,
+            expected,
             state,
             outcome,
             detail,
             updated_at,
-        } => done(tx.execute(
-            "UPDATE outbox SET state = ?2, outcome = ?3, detail = ?4, last_attempt_at = ?5 WHERE id = ?1",
-            params![id, state, outcome, detail, updated_at],
-        )),
+        } => {
+            let n = tx
+                .execute(
+                    "UPDATE outbox SET state = ?3, outcome = ?4, detail = ?5, last_attempt_at = ?6 WHERE id = ?1 AND state = ?2",
+                    params![id, expected, state, outcome, detail, updated_at],
+                )
+                .map_err(err)?;
+            if n == 1 {
+                Ok(())
+            } else {
+                Err(conflict(format!("outbox entry {id} is no longer {expected}")))
+            }
+        }
     }
 }

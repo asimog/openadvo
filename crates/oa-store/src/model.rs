@@ -383,8 +383,11 @@ pub enum MatterWrite {
     },
     InsertDocRecord(DocRecordRow),
     InsertOutbox(OutboxRow),
+    /// Compare-and-swap on the state: refused with `Conflict` unless the
+    /// entry is in `expected`.
     UpdateOutboxState {
         id: String,
+        expected: String,
         state: String,
         outcome: Option<String>,
         detail: Option<String>,

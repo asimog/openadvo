@@ -71,10 +71,18 @@ impl Kernel {
             ));
         }
 
+        // Reconciling records the outcome found (C-AC-24). `pending` would be
+        // a retry and `unknown` resolves nothing, so neither is an outcome.
         let new_state = match outcome {
             "succeeded" | "done" => "done",
             "failed" => "failed",
-            other => other,
+            "sent" => "sent",
+            other => {
+                return Err(OaError::new(
+                    ErrorCode::Usage,
+                    format!("outcome must be done, succeeded, sent or failed, not '{other}'"),
+                ))
+            }
         };
 
         let now = oa_types::now_utc();
@@ -90,6 +98,7 @@ impl Kernel {
             }),
             &[MatterWrite::UpdateOutboxState {
                 id: id.to_string(),
+                expected: "unknown".to_string(),
                 state: new_state.to_string(),
                 outcome: Some(outcome.to_string()),
                 detail: detail.map(String::from),

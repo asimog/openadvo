@@ -545,11 +545,18 @@ impl Supervisor {
     }
 }
 
-impl Drop for Supervisor {
-    fn drop(&mut self) {
+impl Supervisor {
+    /// Stops every running profile, as on kernel shutdown.
+    pub fn stop_all(&mut self) {
         let profiles: Vec<Profile> = self.running.keys().cloned().collect();
         for p in profiles {
             self.stop(&p);
         }
+    }
+}
+
+impl Drop for Supervisor {
+    fn drop(&mut self) {
+        self.stop_all();
     }
 }

@@ -29,6 +29,9 @@ impl Kernel {
                 checkpointed_count += 1;
             }
         }
+        // The serving process exits right after this reply without running
+        // destructors, so supervised processes are stopped here.
+        self.browser_stop_all();
         Ok(json!({
             "shutdown": true,
             "checkpointed_jobs": checkpointed_count,

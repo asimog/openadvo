@@ -534,4 +534,9 @@ impl Kernel {
     pub fn browser_end_agent_run(&self) {
         self.browser_state().sup.end_agent_run();
     }
+
+    /// Stops every browser profile process (C rule 22).
+    pub(crate) fn browser_stop_all(&self) {
+        self.browser_state().sup.stop_all();
+    }
 }
