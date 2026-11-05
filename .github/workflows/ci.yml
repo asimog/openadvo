@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  WGPU_ADAPTER_NAME: "Microsoft Basic Render Driver"
+  WGPU_POWER_PREF: "low"
+
+jobs:
+  test:
+    name: Windows Test Suite & Release Gates
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Run workspace tests
+        run: cargo test --workspace
+
+      - name: Run release gates - loop conformance fixtures
+        run: cargo test -p oa-harness --test d_acceptance -- d_ac_01_fixture
+
+      - name: Run release gates - kill tests
+        run: cargo test -p oa-harness --test d_acceptance -- d_ac_02_and_03 d_ac_03
+
+      - name: Run release gates - store contract tests
+        run: cargo test -p oa-store --test contract
+
+      - name: Run repo checks
+        run: cargo test -p oa-repo-checks
