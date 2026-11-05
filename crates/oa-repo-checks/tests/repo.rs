@@ -128,3 +128,71 @@ fn a_ac_24_cargo_tree_oa_shell_has_no_oa_kernel_oa_store_or_rusqlite() {
         );
     }
 }
+
+#[test]
+fn a_ac_21_every_human_command_control_is_drawn_by_the_human_control() {
+    let shell_src = repo_root().join("crates/oa-shell/src");
+    let human_rs = shell_src.join("ui").join("human.rs");
+    assert!(human_rs.is_file(), "ui/human.rs exists");
+
+    let human_constructors = [
+        "Request::MatterConfirm",
+        "Request::ApprovalDecide",
+        "Request::OcrDecide",
+        "Request::OcrTypedCopy",
+        "Request::NotebookConfirm",
+        "Request::NotebookSkip",
+        "Request::NotebookDateAnchor",
+        "Request::DraftAccept",
+        "Request::DraftReject",
+        "Request::BrowserAttach",
+    ];
+
+    let human_text = fs::read_to_string(&human_rs).unwrap();
+    for c in &human_constructors {
+        assert!(
+            contains_identifier(&human_text, c),
+            "ui/human.rs must encapsulate {c} (A-AC-21)"
+        );
+    }
+
+    let mut files = Vec::new();
+    let mut stack = vec![shell_src];
+    while let Some(dir) = stack.pop() {
+        for entry in fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if path.extension().is_some_and(|e| e == "rs") && path != human_rs {
+                files.push(path);
+            }
+        }
+    }
+
+    for file in files {
+        let text = fs::read_to_string(&file).unwrap();
+        for c in &human_constructors {
+            assert!(
+                !contains_identifier(&text, c),
+                "File {:?} constructs {c} directly; all human-class commands must be drawn by ui::human::HumanControl (A-AC-21)",
+                file.file_name().unwrap()
+            );
+        }
+    }
+}
+
+fn contains_identifier(text: &str, ident: &str) -> bool {
+    let mut offset = 0;
+    while let Some(pos) = text[offset..].find(ident) {
+        let abs = offset + pos;
+        let after = abs + ident.len();
+        let next_char = text[after..].chars().next();
+        match next_char {
+            Some(ch) if ch.is_alphanumeric() || ch == '_' => {
+                offset = abs + ident.len();
+            }
+            _ => return true,
+        }
+    }
+    false
+}

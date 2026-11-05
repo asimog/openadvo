@@ -982,7 +982,10 @@ fn a_ac_06_cli_screen_show_and_set() {
     let set_out = lines(&oa(&app, &["screen", "set", temp_screen.to_str().unwrap()]));
     assert_eq!(set_out.len(), 1);
     assert_eq!(set_out[0]["left"], "collapsed");
-    assert_eq!(set_out[0]["view"]["splits"][0]["visible_anchors"][0], "anchor-cli-1");
+    assert_eq!(
+        set_out[0]["view"]["splits"][0]["visible_anchors"][0],
+        "anchor-cli-1"
+    );
     assert_eq!(set_out[0]["view"]["splits"][0]["selection"], "sel-cli");
 
     let shown = lines(&oa(&app, &["screen", "show"]));

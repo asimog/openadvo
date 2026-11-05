@@ -2,7 +2,7 @@
 
 Components: D01 to D19. Conventions, test kinds and status words are in the [README](README.md).
 
-**Status:** the loop, conformance fixtures, intent rows, reconciliation, replay, context manifests, sub-agent caps, capability manifests, policy, playbooks, supervision, fences, the tool-result limit, action history and matter memory work against scripted providers. Remaining: a live provider adapter, the chat pane in the window, per-step tool grants, disputed-span marking, the D/browser run-end call.
+**Status:** the loop, conformance fixtures, intent rows, reconciliation, replay, context manifests, sub-agent caps, capability manifests, policy, playbooks, supervision, fences, the tool-result limit, action history, matter memory, the chat pane in the window with scripted provider (D-GUI-01 to D-GUI-05, D-VIS-01 to D-VIS-03, D-E2E-02), and crash handling (D-AC-08) work. Remaining: a live provider adapter (Step 3: D-AC-05, D-AC-23, D-E2E-01), per-step tool grants (D-AC-24), disputed-span marking (D-AC-25), the D/browser run-end call (D-AC-26), and human sign-offs (D-AC-15, D-AC-22).
 
 ## Purpose
 
@@ -116,7 +116,7 @@ Text from untrusted sources (pages, emails, documents) is shown in the transcrip
 | D-AC-05 | Every model call has a manifest, and its token total matches the provider's reported input tokens within 2 percent. | [AUTO] | remaining (needs the live adapter) |
 | D-AC-06 | No manifest for one call holds more than the page budget from one document. | [AUTO] | done |
 | D-AC-07 | A sub-agent return over its cap is refused and reported as a tool failure. | [AUTO] | done |
-| D-AC-08 | A harness crash leaves the window and kernel running, and the chat pane shows `stopped`. | [AUTO] | done (process); remaining (chat pane) |
+| D-AC-08 | A harness crash leaves the window and kernel running, and the chat pane shows `stopped`. | [AUTO] | done |
 | D-AC-09 | A call claiming a capability the manifest omits is refused with a reason. | [AUTO] | done |
 | D-AC-10 | A matter labelled restricted never sends text to a remote provider (egress test). | [AUTO] | done |
 | D-AC-11 | Exactly one crate contains a turn loop. | [AUTO] | done |
@@ -140,26 +140,26 @@ Text from untrusted sources (pages, emails, documents) is shown in the transcrip
 
 | ID | Behaviour | Status |
 |---|---|---|
-| D-GUI-01 | Typing an instruction and pressing Enter issues `agent.run` (or `agent.steer` while running) for the open matter. | remaining |
-| D-GUI-02 | Switching matter in the left pane switches the chat pane's run; no tool card from the other matter is shown. | remaining |
-| D-GUI-03 | A tool card opens the Inspector; a referenced record opens in the view pane. | remaining |
-| D-GUI-04 | Cancel during a streamed answer issues `agent.cancel`, and the header shows the run idle. | remaining |
-| D-GUI-05 | A gate in the waiting strip opens its human control in the view pane, never in the chat pane. | remaining |
+| D-GUI-01 | Typing an instruction and pressing Enter issues `agent.run` (or `agent.steer` while running) for the open matter. | done |
+| D-GUI-02 | Switching matter in the left pane switches the chat pane's run; no tool card from the other matter is shown. | done |
+| D-GUI-03 | A tool card opens the Inspector; a referenced record opens in the view pane. | done |
+| D-GUI-04 | Cancel during a streamed answer issues `agent.cancel`, and the header shows the run idle. | done |
+| D-GUI-05 | A gate in the waiting strip opens its human control in the view pane, never in the chat pane. | done |
 
 ### Visual tests
 
 | ID | Snapshot | Status |
 |---|---|---|
-| D-VIS-01 | The chat pane: idle, streaming, waiting on you, stopped, failed, and a transcript with a long tool card. | remaining |
-| D-VIS-02 | The chat pane as the rightmost pane with the view pane collapsed. | remaining |
-| D-VIS-03 | Tool card, context manifest, waiting on you, sub-agents, matter memory, effects and services in their six gallery states. | remaining |
+| D-VIS-01 | The chat pane: idle, streaming, waiting on you, stopped, failed, and a transcript with a long tool card. | done |
+| D-VIS-02 | The chat pane as the rightmost pane with the view pane collapsed. | done |
+| D-VIS-03 | Tool card, context manifest, waiting on you, sub-agents, matter memory, effects and services in their six gallery states. | done |
 
 ### End-to-end tests
 
 | ID | Flow | Status |
 |---|---|---|
 | D-E2E-01 | With a live provider, instruct "summarise the impugned judgment" on a matter with an imported PDF: the run reads evidence through tools, answers with anchors, and the manifest names the pages used. | remaining |
-| D-E2E-02 | Kill the harness mid-run: the chat pane shows `stopped`, the supervisor restarts it, the run resumes without repeating an effect. | remaining |
+| D-E2E-02 | Kill the harness mid-run: the chat pane shows `stopped`, the supervisor restarts it, the run resumes without repeating an effect. | done |
 
 ## Edge cases
 

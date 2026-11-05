@@ -604,6 +604,22 @@ pub enum Request {
     ScreenShow,
     #[serde(rename = "screen.set")]
     ScreenSet { screen: crate::screen::Screen },
+    #[serde(rename = "agent.run")]
+    AgentRun { matter: String, instruction: String },
+    #[serde(rename = "agent.status")]
+    AgentStatus { matter: Option<String> },
+    #[serde(rename = "agent.transcript")]
+    AgentTranscript { matter: String, since: Option<u64> },
+    #[serde(rename = "agent.steer")]
+    AgentSteer { matter: String, text: String },
+    #[serde(rename = "agent.cancel")]
+    AgentCancel { matter: String },
+    #[serde(rename = "agent.effects")]
+    AgentEffects { state: Option<String> },
+    #[serde(rename = "agent.reconcile")]
+    AgentReconcile { effect: String },
+    #[serde(rename = "agent.replay")]
+    AgentReplay { session: String, until: Option<u64> },
 }
 
 impl Request {
@@ -722,6 +738,14 @@ impl Request {
         "correspondence.log",
         "screen.show",
         "screen.set",
+        "agent.run",
+        "agent.status",
+        "agent.transcript",
+        "agent.steer",
+        "agent.cancel",
+        "agent.effects",
+        "agent.reconcile",
+        "agent.replay",
     ];
 
     /// Every `query` class command. The shell's view registry must cover each
@@ -786,6 +810,10 @@ impl Request {
         "parties.list",
         "timeline",
         "screen.show",
+        "agent.status",
+        "agent.transcript",
+        "agent.effects",
+        "agent.replay",
     ];
 
     /// The class of a command by wire name. Used by the tool registry, which
@@ -931,6 +959,14 @@ impl Request {
             Request::CorrespondenceLog { .. } => "correspondence.log",
             Request::ScreenShow => "screen.show",
             Request::ScreenSet { .. } => "screen.set",
+            Request::AgentRun { .. } => "agent.run",
+            Request::AgentStatus { .. } => "agent.status",
+            Request::AgentTranscript { .. } => "agent.transcript",
+            Request::AgentSteer { .. } => "agent.steer",
+            Request::AgentCancel { .. } => "agent.cancel",
+            Request::AgentEffects { .. } => "agent.effects",
+            Request::AgentReconcile { .. } => "agent.reconcile",
+            Request::AgentReplay { .. } => "agent.replay",
         }
     }
 
@@ -994,7 +1030,11 @@ impl Request {
             | Request::ContactsShow { .. }
             | Request::PartiesList { .. }
             | Request::OutboxList { .. }
-            | Request::Timeline { .. } => CommandClass::Query,
+            | Request::Timeline { .. }
+            | Request::AgentStatus { .. }
+            | Request::AgentTranscript { .. }
+            | Request::AgentEffects { .. }
+            | Request::AgentReplay { .. } => CommandClass::Query,
             Request::BrowserOpen { .. } => CommandClass::External,
             Request::MatterConfirm { .. }
             | Request::ApprovalDecide { .. }
@@ -1047,7 +1087,11 @@ impl Request {
             | Request::PartiesSet { .. }
             | Request::CorrespondenceLog { .. }
             | Request::OutboxReconcile { .. }
-            | Request::KernelShutdown => CommandClass::Internal,
+            | Request::KernelShutdown
+            | Request::AgentRun { .. }
+            | Request::AgentSteer { .. }
+            | Request::AgentCancel { .. }
+            | Request::AgentReconcile { .. } => CommandClass::Internal,
         }
     }
 

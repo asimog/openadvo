@@ -2,7 +2,7 @@
 
 Components: A01 to A18. Conventions, test kinds and status words are in the [README](README.md).
 
-**Status:** matter workspaces, the registry, panes with three splits, the Inspector, the inbox, the command bar, galleries, and the contract-crate dependency (PH-03) work. Remaining: the three-region frame (PH-05), the UI module (A18), GUI and visual tests, AccessKit, Devanagari shaping, first run.
+**Status:** matter workspaces, the registry, panes with three splits, the Inspector, the inbox, the command bar, galleries, contract-crate dependency (PH-03), screen data shape (PH-04), three-region frame (PH-05), UI module (PH-10 / A18), AccessKit accessibility (A-AC-07), GUI and visual tests, and window lifecycle (A-AC-26, A-E2E-01, A-E2E-02) work. Remaining: Devanagari shaping (needs Indic UI font vendored in Step 4, Q08), offline first run (A-AC-11), spoken voice (A-AC-09), and human sign-offs (A-AC-08, A-AC-15, A-AC-23).
 
 ## Purpose
 
@@ -155,56 +155,56 @@ View builders stay egui-free: they turn query results into tables and lines. A v
 | A-AC-04 | A harness connection writing to `evidence/`, `blobs/` or `drafts/` is refused with exit 3 and a rejected-write audit row. | [AUTO] | done |
 | A-AC-05 | A matter with a new client raises a confirmation; an existing client does not. | [AUTO] | done |
 | A-AC-06 | `oa screen show --json` returns the open matter, pane states, each split's view and its visible anchors and selection. | [AUTO] | done |
-| A-AC-07 | Every standard widget has an AccessKit node with a non-empty role and name. | [AUTO] | remaining |
+| A-AC-07 | Every standard widget has an AccessKit node with a non-empty role and name. | [AUTO] | done |
 | A-AC-08 | A screen reader user can open a matter, read the inbox and open an item. | [HUMAN] | remaining |
 | A-AC-09 | A voice command mapped to a `human` command is refused with a spoken and visible reason. | [AUTO] | remaining |
 | A-AC-10 | `oa settings set` on a legal-layer key exits 3. | [AUTO] | done |
 | A-AC-11 | First run completes with the network adapter disabled. | [AUTO] | remaining |
 | A-AC-12 | Cancelling a long job stops the runner within 2 seconds and records `cancelled`. | [AUTO] | done |
-| A-AC-13 | Devanagari with conjuncts renders correctly in the files view, the inbox and the viewer. | [AUTO+HUMAN] | remaining |
+| A-AC-13 | Devanagari with conjuncts renders correctly in the files view, the inbox and the viewer. | [AUTO+HUMAN] | remaining (needs Indic UI font vendored in Step 4, Q08) |
 | A-AC-14 | The workflow exists in advocate-workflow.md only; no other doc carries a copy of its sections. | [AUTO] | done |
 | A-AC-15 | The frame is usable at 125 and 150 percent display scaling. | [HUMAN] | remaining |
 | A-AC-16 | Every `query` command has a registered view. | [AUTO] | done |
 | A-AC-17 | Every item in every view opens the Inspector, which shows the raw record, ledger events, links out, backlinks and producing command. | [AUTO] | done |
 | A-AC-18 | At 1920 pixels the view pane holds three splits; back and forward restore the previous page; a saved layout reopens with its matter. | [AUTO] | done |
 | A-AC-19 | The inbox puts a blocking item in Signal and an informational one in Noise, and works end to end with `j`, `k`, Enter and `e`. | [AUTO] | done |
-| A-AC-20 | The left pane header shows a lost kernel connection within 2 seconds, and the origin the kernel decided for this window. | [AUTO] | done (detection); remaining (header placement) |
-| A-AC-21 | Every `human` command control is drawn by the UI module's human control. A repo check finds no other construction of a human-class request in the window. | [AUTO+HUMAN] | remaining |
+| A-AC-20 | The left pane header shows a lost kernel connection within 2 seconds, and the origin the kernel decided for this window. | [AUTO] | done |
+| A-AC-21 | Every `human` command control is drawn by the UI module's human control. A repo check finds no other construction of a human-class request in the window. | [AUTO+HUMAN] | done |
 | A-AC-22 | Every view renders in every gallery state without a kernel. | [AUTO] | done |
 | A-AC-23 | An advocate can find any record and inspect its provenance without help. | [HUMAN] | remaining |
 | A-AC-24 | `cargo tree -p oa-shell` contains no `oa-kernel`, `oa-store` or `rusqlite`. | [AUTO] | done |
 | A-AC-25 | The screen round-trips through JSON unchanged, and a saved layout is a stored screen. | [AUTO] | done |
-| A-AC-26 | Closing the window when it started the kernel shuts the kernel down over the pipe; a running job is checkpointed, not killed. | [AUTO] | remaining |
+| A-AC-26 | Closing the window when it started the kernel shuts the kernel down over the pipe; a running job is checkpointed, not killed. | [AUTO] | done |
 
 ### GUI tests
 
 | ID | Behaviour | Status |
 |---|---|---|
-| A-GUI-01 | Collapsing the view pane makes the chat pane the rightmost pane; expanding restores the splits and their pages. | remaining |
-| A-GUI-02 | Collapsing the left pane gives its width to the chat and view panes; the inbox count stays reachable from the command bar. | remaining |
-| A-GUI-03 | Chat and view cannot both be collapsed: collapsing the last open one is refused. | remaining |
-| A-GUI-04 | Opening a matter from the left pane scopes its sections, the chat pane and a new split to that matter. | remaining |
-| A-GUI-05 | `j`, `k`, Enter and `e` operate the inbox; Enter opens the item in the view pane. | remaining |
-| A-GUI-06 | The command bar opens with Ctrl+K, ranks by frecency, and free text with no command runs a search. | remaining |
-| A-GUI-07 | Clicking or pressing Enter on any table row opens the Inspector; Esc closes it. | remaining |
-| A-GUI-08 | A view's action panel returns the expected `Request` for each control, with no kernel. | remaining |
+| A-GUI-01 | Collapsing the view pane makes the chat pane the rightmost pane; expanding restores the splits and their pages. | done |
+| A-GUI-02 | Collapsing the left pane gives its width to the chat and view panes; the inbox count stays reachable from the command bar. | done |
+| A-GUI-03 | Chat and view cannot both be collapsed: collapsing the last open one is refused. | done |
+| A-GUI-04 | Opening a matter from the left pane scopes its sections, the chat pane and a new split to that matter. | done |
+| A-GUI-05 | `j`, `k`, Enter and `e` operate the inbox; Enter opens the item in the view pane. | done |
+| A-GUI-06 | The command bar opens with Ctrl+K, ranks by frecency, and free text with no command runs a search. | done |
+| A-GUI-07 | Clicking or pressing Enter on any table row opens the Inspector; Esc closes it. | done |
+| A-GUI-08 | A view's action panel returns the expected `Request` for each control, with no kernel. | done |
 
 ### Visual tests
 
 | ID | Snapshot | Status |
 |---|---|---|
-| A-VIS-01 | The frame with all three regions open, at 1920 and 1366 pixels. | remaining |
-| A-VIS-02 | The frame with the view pane collapsed, and with the left pane collapsed. | remaining |
-| A-VIS-03 | Every view this group owns in its six gallery states. | remaining |
-| A-VIS-04 | The four honest-label treatments side by side; none shares a colour, shape or word. | remaining |
-| A-VIS-05 | Devanagari and mixed-script text in a table, the inbox and a text field. | remaining |
+| A-VIS-01 | The frame with all three regions open, at 1920 and 1366 pixels. | done |
+| A-VIS-02 | The frame with the view pane collapsed, and with the left pane collapsed. | done |
+| A-VIS-03 | Every view this group owns in its six gallery states. | done |
+| A-VIS-04 | The four honest-label treatments side by side; none shares a colour, shape or word. | done |
+| A-VIS-05 | Devanagari and mixed-script text in a table, the inbox and a text field. | remaining (needs Indic UI font vendored in Step 4, Q08) |
 
 ### End-to-end tests
 
 | ID | Flow | Status |
 |---|---|---|
-| A-E2E-01 | Start the window with no kernel serving: the window starts the kernel, connects as `ui`, creates a matter, and the matter appears in the left pane. | remaining |
-| A-E2E-02 | Remove a matter folder while the window is open: the matter shows `removed` and its splits close. | remaining |
+| A-E2E-01 | Start the window with no kernel serving: the window starts the kernel, connects as `ui`, creates a matter, and the matter appears in the left pane. | done |
+| A-E2E-02 | Remove a matter folder while the window is open: the matter shows `removed` and its splits close. | done |
 
 ## Edge cases
 

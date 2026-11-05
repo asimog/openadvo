@@ -6,6 +6,10 @@ version.workspace = true
 license.workspace = true
 publish.workspace = true
 
+[lib]
+name = "oa_shell"
+path = "src/lib.rs"
+
 [[bin]]
 name = "oa-shell"
 path = "src/main.rs"
@@ -23,3 +27,4 @@ base64.workspace = true
 
 [dev-dependencies]
 egui_kittest = { version = "0.31.1", features = ["wgpu", "snapshot"] }
+tempfile.workspace = true

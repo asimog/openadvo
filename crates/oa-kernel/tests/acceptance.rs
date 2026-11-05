@@ -613,7 +613,6 @@ fn renaming_appends_a_chained_event_and_repeats_are_idempotent() {
     assert_eq!(manifest["title"], "New");
 }
 
-
 #[test]
 fn a_ac_06_screen_show_returns_open_matter_pane_states_and_splits() {
     let f = fixture();
@@ -739,24 +738,22 @@ fn a_ac_25_screen_round_trips_through_json_and_saved_layout_is_stored_screen() {
         chat: oa_protocol::Pane::Collapsed,
         view: oa_protocol::ViewArea {
             pane: oa_protocol::Pane::Open,
-            splits: vec![
-                oa_protocol::Split {
-                    page: oa_protocol::Page {
-                        view: oa_protocol::ViewId::Document,
-                        arg: Some("rev-1".into()),
-                    },
-                    back: vec![oa_protocol::Page {
-                        view: oa_protocol::ViewId::Matters,
-                        arg: None,
-                    }],
-                    forward: vec![oa_protocol::Page {
-                        view: oa_protocol::ViewId::Viewer,
-                        arg: None,
-                    }],
-                    visible_anchors: vec!["p-1".into(), "p-2".into()],
-                    selection: Some("p-2".into()),
+            splits: vec![oa_protocol::Split {
+                page: oa_protocol::Page {
+                    view: oa_protocol::ViewId::Document,
+                    arg: Some("rev-1".into()),
                 },
-            ],
+                back: vec![oa_protocol::Page {
+                    view: oa_protocol::ViewId::Matters,
+                    arg: None,
+                }],
+                forward: vec![oa_protocol::Page {
+                    view: oa_protocol::ViewId::Viewer,
+                    arg: None,
+                }],
+                visible_anchors: vec!["p-1".into(), "p-2".into()],
+                selection: Some("p-2".into()),
+            }],
             focus: 0,
         },
         inspector: Some(oa_protocol::Subject::Record {
@@ -771,8 +768,14 @@ fn a_ac_25_screen_round_trips_through_json_and_saved_layout_is_stored_screen() {
 
     let saved_layout_json = serde_json::to_value(&original).unwrap();
     assert_eq!(saved_layout_json["matter"], mid_str);
-    assert_eq!(saved_layout_json["view"]["splits"][0]["page"]["view"], "document");
-    assert_eq!(saved_layout_json["view"]["splits"][0]["page"]["arg"], "rev-1");
+    assert_eq!(
+        saved_layout_json["view"]["splits"][0]["page"]["view"],
+        "document"
+    );
+    assert_eq!(
+        saved_layout_json["view"]["splits"][0]["page"]["arg"],
+        "rev-1"
+    );
     let restored_screen: oa_protocol::Screen = serde_json::from_value(saved_layout_json).unwrap();
     assert_eq!(restored_screen, original);
 }

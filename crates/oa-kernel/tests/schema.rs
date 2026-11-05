@@ -513,6 +513,30 @@ fn samples() -> Vec<Request> {
         Request::ScreenSet {
             screen: oa_protocol::Screen::default(),
         },
+        Request::AgentRun {
+            matter: m(),
+            instruction: "Draft petition".into(),
+        },
+        Request::AgentSteer {
+            matter: m(),
+            text: "Focus on section 9".into(),
+        },
+        Request::AgentCancel { matter: m() },
+        Request::AgentStatus { matter: Some(m()) },
+        Request::AgentTranscript {
+            matter: m(),
+            since: Some(0),
+        },
+        Request::AgentEffects {
+            state: Some("pending".into()),
+        },
+        Request::AgentReplay {
+            session: "sess-1".into(),
+            until: Some(10),
+        },
+        Request::AgentReconcile {
+            effect: "eff-1".into(),
+        },
     ]
 }
 

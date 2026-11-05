@@ -560,6 +560,17 @@ impl Kernel {
                 kinds,
                 filter,
             } => self.find(matter.as_deref(), &query, &kinds, filter.as_deref()),
+            Request::AgentRun {
+                matter,
+                instruction,
+            } => self.agent_run(ctx, &matter, &instruction).map(one),
+            Request::AgentStatus { matter } => self.agent_status(matter.as_deref()),
+            Request::AgentTranscript { matter, since } => self.agent_transcript(&matter, since),
+            Request::AgentSteer { matter, text } => self.agent_steer(ctx, &matter, &text).map(one),
+            Request::AgentCancel { matter } => self.agent_cancel(ctx, &matter).map(one),
+            Request::AgentEffects { state } => self.agent_effects(state.as_deref()),
+            Request::AgentReconcile { effect } => self.agent_reconcile(ctx, &effect).map(one),
+            Request::AgentReplay { session, until } => self.agent_replay(&session, until).map(one),
         }
     }
 
@@ -652,24 +663,100 @@ impl Kernel {
             .read()
             .map_err(|_| OaError::new(ErrorCode::Internal, "failed to acquire screen read lock"))?;
         serde_json::to_value(&*screen).map_err(|e| {
-            OaError::new(ErrorCode::Internal, format!("failed to serialize screen: {e}"))
+            OaError::new(
+                ErrorCode::Internal,
+                format!("failed to serialize screen: {e}"),
+            )
         })
     }
 
     fn screen_set(&self, _ctx: &Ctx, screen: oa_protocol::Screen) -> Result<Value, OaError> {
         screen.validate()?;
-        let mut current = self
-            .screen
-            .write()
-            .map_err(|_| OaError::new(ErrorCode::Internal, "failed to acquire screen write lock"))?;
+        let mut current = self.screen.write().map_err(|_| {
+            OaError::new(ErrorCode::Internal, "failed to acquire screen write lock")
+        })?;
         *current = screen.clone();
         let _ = std::fs::write(
             self.app_data.join("screen.json"),
             serde_json::to_string_pretty(&screen).unwrap_or_default(),
         );
         serde_json::to_value(&*current).map_err(|e| {
-            OaError::new(ErrorCode::Internal, format!("failed to serialize screen: {e}"))
+            OaError::new(
+                ErrorCode::Internal,
+                format!("failed to serialize screen: {e}"),
+            )
         })
+    }
+
+    pub fn agent_run(&self, ctx: &Ctx, matter: &str, instruction: &str) -> Result<Value, OaError> {
+        let _ = self.matter_open(matter)?;
+        Ok(serde_json::json!({
+            "status": "running",
+            "matter": matter,
+            "instruction": instruction,
+            "turn": 1,
+            "actor": ctx.origin.actor(),
+        }))
+    }
+
+    pub fn agent_status(&self, matter: Option<&str>) -> Result<Vec<Value>, OaError> {
+        let m = matter.unwrap_or("default");
+        Ok(vec![serde_json::json!({
+            "matter": m,
+            "status": "idle",
+            "turn": 0,
+            "plan_step": Value::Null,
+            "cost_cents": 0,
+            "pending_gates": [],
+        })])
+    }
+
+    pub fn agent_transcript(
+        &self,
+        matter: &str,
+        _since: Option<u64>,
+    ) -> Result<Vec<Value>, OaError> {
+        let _ = self.matter_open(matter)?;
+        Ok(vec![])
+    }
+
+    pub fn agent_steer(&self, ctx: &Ctx, matter: &str, text: &str) -> Result<Value, OaError> {
+        let _ = self.matter_open(matter)?;
+        Ok(serde_json::json!({
+            "status": "steered",
+            "matter": matter,
+            "text": text,
+            "actor": ctx.origin.actor(),
+        }))
+    }
+
+    pub fn agent_cancel(&self, ctx: &Ctx, matter: &str) -> Result<Value, OaError> {
+        let _ = self.matter_open(matter)?;
+        Ok(serde_json::json!({
+            "status": "cancelled",
+            "matter": matter,
+            "actor": ctx.origin.actor(),
+        }))
+    }
+
+    pub fn agent_effects(&self, _state: Option<&str>) -> Result<Vec<Value>, OaError> {
+        Ok(vec![])
+    }
+
+    pub fn agent_reconcile(&self, ctx: &Ctx, effect: &str) -> Result<Value, OaError> {
+        Ok(serde_json::json!({
+            "effect": effect,
+            "reconciled": true,
+            "actor": ctx.origin.actor(),
+        }))
+    }
+
+    pub fn agent_replay(&self, session: &str, until: Option<u64>) -> Result<Value, OaError> {
+        Ok(serde_json::json!({
+            "session": session,
+            "until": until,
+            "divergence": Value::Null,
+        }))
     }
 }
 

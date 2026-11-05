@@ -48,6 +48,13 @@ pub enum ViewId {
     Contacts,
     Parties,
     Timeline,
+    ToolCard,
+    ContextManifest,
+    WaitingOnYou,
+    SubAgents,
+    MatterMemory,
+    Effects,
+    Services,
 }
 
 pub struct ViewDef {
@@ -304,6 +311,48 @@ pub const REGISTRY: &[ViewDef] = &[
         key: "timeline",
         title: "Timeline",
         covers: &["timeline"],
+    },
+    ViewDef {
+        id: ViewId::ToolCard,
+        key: "tool_card",
+        title: "Tool card",
+        covers: &["inspect"],
+    },
+    ViewDef {
+        id: ViewId::ContextManifest,
+        key: "context_manifest",
+        title: "Context manifest",
+        covers: &["agent.transcript"],
+    },
+    ViewDef {
+        id: ViewId::WaitingOnYou,
+        key: "waiting_on_you",
+        title: "Waiting on you",
+        covers: &["agent.status"],
+    },
+    ViewDef {
+        id: ViewId::SubAgents,
+        key: "sub_agents",
+        title: "Sub-agents",
+        covers: &["job.show"],
+    },
+    ViewDef {
+        id: ViewId::MatterMemory,
+        key: "matter_memory",
+        title: "Matter memory",
+        covers: &["notebook.facts"],
+    },
+    ViewDef {
+        id: ViewId::Effects,
+        key: "effects",
+        title: "Effects",
+        covers: &["agent.effects", "agent.replay"],
+    },
+    ViewDef {
+        id: ViewId::Services,
+        key: "services",
+        title: "Services",
+        covers: &["adapter.health"],
     },
 ];
 
@@ -1834,6 +1883,13 @@ fn typical(view: ViewId, n: usize, disputed: bool) -> Table {
         ViewId::Contacts | ViewId::Parties | ViewId::Timeline => {
             crate::firmviews::typical(view, n, disputed)
         }
+        ViewId::ToolCard
+        | ViewId::ContextManifest
+        | ViewId::WaitingOnYou
+        | ViewId::SubAgents
+        | ViewId::MatterMemory
+        | ViewId::Effects
+        | ViewId::Services => crate::agentviews::typical(view, M, n, disputed),
         ViewId::Overview | ViewId::Inspector => Table::new(view, &["Field", "Value"], Vec::new(), "Select a matter."),
     }
 }

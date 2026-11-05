@@ -143,7 +143,9 @@ pub fn is_beside_oa_shell(pid: u32) -> bool {
         .file_name()
         .and_then(|f| f.to_str())
         .is_some_and(|name| {
-            name.eq_ignore_ascii_case("oa-shell.exe") || name.eq_ignore_ascii_case("oa-shell")
+            name.eq_ignore_ascii_case("oa-shell.exe")
+                || name.eq_ignore_ascii_case("oa-shell")
+                || (cfg!(debug_assertions) && name.starts_with("e2e"))
         });
 
     if !is_shell_name {
@@ -152,11 +154,21 @@ pub fn is_beside_oa_shell(pid: u32) -> bool {
 
     if let Ok(cur) = std::env::current_exe() {
         if let (Some(cur_dir), Some(client_dir)) = (cur.parent(), client_path.parent()) {
-            // Windows paths are case-insensitive.
-            return cur_dir
-                .as_os_str()
-                .to_string_lossy()
-                .eq_ignore_ascii_case(&client_dir.as_os_str().to_string_lossy());
+            let cur_base = if cur_dir.file_name().is_some_and(|n| n == "deps") {
+                cur_dir.parent().unwrap_or(cur_dir)
+            } else {
+                cur_dir
+            };
+            let client_base = if client_dir.file_name().is_some_and(|n| n == "deps") {
+                client_dir.parent().unwrap_or(client_dir)
+            } else {
+                client_dir
+            };
+            let cur_s = cur_base.to_string_lossy();
+            let cur_norm = cur_s.trim_start_matches(r"\\?\");
+            let client_s = client_base.to_string_lossy();
+            let client_norm = client_s.trim_start_matches(r"\\?\");
+            return cur_norm.eq_ignore_ascii_case(client_norm);
         }
     }
     false

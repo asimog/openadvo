@@ -9,3 +9,9 @@
 *.db
 *.db-wal
 *.db-shm
+
+
+# Snapshot test artifacts
+*.diff.png
+*.new.png
+*.old.png
