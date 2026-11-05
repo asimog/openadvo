@@ -9,7 +9,9 @@
 use std::io::{self, BufRead, Write};
 use std::path::Path;
 
-use oa_kernel::Request;
+pub mod command;
+pub use command::*;
+
 use oa_types::{OaError, Origin};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};

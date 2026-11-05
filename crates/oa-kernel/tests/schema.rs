@@ -498,6 +498,17 @@ fn samples() -> Vec<Request> {
             contact: Some("C1".into()),
             occurred_at: None,
         },
+        Request::OutboxList {
+            matter: m(),
+            state: Some("pending".into()),
+        },
+        Request::OutboxReconcile {
+            matter: m(),
+            id: "O1".into(),
+            outcome: "sent".into(),
+            detail: Some("detail".into()),
+        },
+        Request::KernelShutdown,
     ]
 }
 

@@ -12,7 +12,7 @@ path = "src/main.rs"
 
 [dependencies]
 oa-types.workspace = true
-oa-kernel.workspace = true
+oa-protocol.workspace = true
 oa-firm.workspace = true
 oa-client.workspace = true
 eframe.workspace = true

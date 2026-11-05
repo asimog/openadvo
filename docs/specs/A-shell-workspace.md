@@ -2,7 +2,7 @@
 
 Components: A01 to A18. Conventions, test kinds and status words are in the [README](README.md).
 
-**Status:** matter workspaces, the registry, panes with three splits, the Inspector, the inbox, the command bar and galleries work. Remaining: the contract-crate dependency (PH-03), the screen (PH-04), the three-region frame (PH-05), the UI module (A18), GUI and visual tests, AccessKit, Devanagari shaping, first run.
+**Status:** matter workspaces, the registry, panes with three splits, the Inspector, the inbox, the command bar, galleries, and the contract-crate dependency (PH-03) work. Remaining: the screen (PH-04), the three-region frame (PH-05), the UI module (A18), GUI and visual tests, AccessKit, Devanagari shaping, first run.
 
 ## Purpose
 
@@ -172,7 +172,7 @@ View builders stay egui-free: they turn query results into tables and lines. A v
 | A-AC-21 | Every `human` command control is drawn by the UI module's human control. A repo check finds no other construction of a human-class request in the window. | [AUTO+HUMAN] | remaining |
 | A-AC-22 | Every view renders in every gallery state without a kernel. | [AUTO] | done |
 | A-AC-23 | An advocate can find any record and inspect its provenance without help. | [HUMAN] | remaining |
-| A-AC-24 | `cargo tree -p oa-shell` contains no `oa-kernel`, `oa-store` or `rusqlite`. | [AUTO] | remaining |
+| A-AC-24 | `cargo tree -p oa-shell` contains no `oa-kernel`, `oa-store` or `rusqlite`. | [AUTO] | done |
 | A-AC-25 | The screen round-trips through JSON unchanged, and a saved layout is a stored screen. | [AUTO] | remaining |
 | A-AC-26 | Closing the window when it started the kernel shuts the kernel down over the pipe; a running job is checkpointed, not killed. | [AUTO] | remaining |
 

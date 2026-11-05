@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use oa_kernel::Request;
+use oa_protocol::Request;
 
 /// Per-command use, kept by the shell as a convenience. Not canonical state.
 #[derive(Debug, Default, Clone)]

@@ -2,7 +2,7 @@
 
 Components: E01 to E07. Conventions, test kinds and status words are in the [README](README.md).
 
-**Status:** `matter.db`, `registry.db`, `firm.db`, the harness session store, content-addressed blobs and `oa find` work. Remaining: FTS5 with the legal tokeniser, vector search with a local embedding model, the graph projection, `oa store check`, index rebuilds, export and import bundles, `firm.db` backup, the OS keychain, immediate write transactions.
+**Status:** `matter.db`, `registry.db`, `firm.db`, the harness session store, content-addressed blobs, immediate write transactions and `oa find` work. Remaining: FTS5 with the legal tokeniser, vector search with a local embedding model, the graph projection, `oa store check`, index rebuilds, export and import bundles, `firm.db` backup, the OS keychain.
 
 ## Purpose
 
@@ -105,7 +105,7 @@ RQ-31, RQ-70, RQ-75, RQ-83, C-5, X-12, X-18, H-04, P9, M-06, PH-02.
 
 | ID | Contract | Status |
 |---|---|---|
-| E-CT-01 | The bundled SQLite has FTS5, WAL and `BEGIN IMMEDIATE` behaviour as relied on (two processes, one waits). | remaining |
+| E-CT-01 | The bundled SQLite has FTS5, WAL and `BEGIN IMMEDIATE` behaviour as relied on (two processes, one waits). | done |
 | E-CT-02 | `sqlite-vec` loads in the kernel and returns the same top five for a fixed vector set. | remaining |
 | E-CT-03 | The embedding model gives the same vectors (within tolerance) for a fixed text set, offline. | remaining |
 

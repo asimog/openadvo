@@ -164,6 +164,9 @@ pub trait MatterStore: Send {
 
     fn record_rejected(&self, rejected: &RejectedWrite) -> StoreResult<()>;
     fn rejected(&self) -> StoreResult<Vec<RejectedWrite>>;
+
+    fn outbox(&self, state: Option<&str>) -> StoreResult<Vec<OutboxRow>>;
+    fn outbox_entry(&self, id: &str) -> StoreResult<Option<OutboxRow>>;
 }
 
 /// Opens the stores. The one place that knows how they are persisted.

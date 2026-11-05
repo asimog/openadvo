@@ -2,7 +2,7 @@
 
 Components: B01 to B08. Conventions, test kinds and status words are in the [README](README.md).
 
-**Status:** the typed command registry, the named pipe, the harness job check, idempotency, JSON output and the command audit work. Remaining: kernel-decided `ui` and `capture` origins (PH-01), one kernel per folder (PH-02), the contract crate (PH-03), the Windows Hello presence prompt, the screen query, snapshot, the command console and stream views.
+**Status:** the typed command registry, the named pipe, the harness job check, idempotency, JSON output, the command audit, kernel-decided `ui` and `capture` origins (PH-01), one kernel per folder (PH-02), and the contract crate (PH-03) work. Remaining: the Windows Hello presence prompt, the screen query, snapshot, the command console and stream views.
 
 ## Purpose
 
@@ -103,11 +103,11 @@ Every group lists its own subcommands. This group adds:
 | B-AC-11 | An engineer can diagnose a broken view using only `oa screen show`, `oa watch` and `oa audit`. | [HUMAN] | remaining |
 | B-AC-12 | The command console issues every registered command from a form generated from the schema. | [AUTO] | remaining |
 | B-AC-13 | The command stream shows a harness connection that claimed `cli` as `harness`. | [AUTO] | remaining |
-| B-AC-14 | A pipe client claiming `capture` or `test` is recorded as `cli`, and `capture.commit` from it is refused. | [AUTO] | remaining |
-| B-AC-15 | A pipe client claiming `ui` whose image is not the installed `oa-shell` is recorded as `cli`, and an approval from it needs the presence prompt. | [AUTO] | remaining |
-| B-AC-16 | A second `oa kernel serve` on the same folder exits 3; `oa` with a kernel serving goes through the pipe. | [AUTO] | remaining |
-| B-AC-17 | The same script run in-process and over the pipe gives equal replies and equal ledger bodies. | [AUTO] | remaining |
-| B-AC-18 | A process started inside the harness job cannot break away, and dies when the job closes. | [AUTO] | remaining |
+| B-AC-14 | A pipe client claiming `capture` or `test` is recorded as `cli`, and `capture.commit` from it is refused. | [AUTO] | done |
+| B-AC-15 | A pipe client claiming `ui` whose image is not the installed `oa-shell` is recorded as `cli`, and an approval from it needs the presence prompt. | [AUTO] | done |
+| B-AC-16 | A second `oa kernel serve` on the same folder exits 3; `oa` with a kernel serving goes through the pipe. | [AUTO] | done |
+| B-AC-17 | The same script run in-process and over the pipe gives equal replies and equal ledger bodies. | [AUTO] | done |
+| B-AC-18 | A process started inside the harness job cannot break away, and dies when the job closes. | [AUTO] | done |
 
 ### GUI tests
 

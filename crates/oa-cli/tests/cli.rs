@@ -809,3 +809,137 @@ fn o_cli_contacts_parties_timeline_and_correspondence() {
     let bad = oa(&app, &["contacts", "add", "HC", "--kind", "court"]);
     assert_eq!(bad.status.code(), Some(2));
 }
+
+#[test]
+fn b_ac_16_a_second_oa_kernel_serve_on_the_same_folder_exits_3() {
+    let tmp = tempfile::tempdir().unwrap();
+    let app = tmp.path().join("app");
+    let root = tmp.path().join("root");
+    oa(&app, &["workspace", "init", root.to_str().unwrap()]);
+
+    let mut server = Command::new(env!("CARGO_BIN_EXE_oa"))
+        .arg("--app-data")
+        .arg(&app)
+        .args(["kernel", "serve"])
+        .spawn()
+        .unwrap();
+
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while std::time::Instant::now() < deadline {
+        if oa_client::PipeClient::try_connect(&app, oa_types::Origin::Cli).is_ok() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+
+    let second = Command::new(env!("CARGO_BIN_EXE_oa"))
+        .arg("--app-data")
+        .arg(&app)
+        .args(["kernel", "serve"])
+        .output()
+        .unwrap();
+    assert_eq!(
+        second.status.code(),
+        Some(3),
+        "second serve on same folder exits 3"
+    );
+
+    let list_out = oa(&app, &["matter", "list"]);
+    assert!(
+        list_out.status.success(),
+        "oa without --connect routes to serving kernel"
+    );
+
+    let shutdown_out = oa(&app, &["kernel", "shutdown"]);
+    assert!(shutdown_out.status.success());
+    let _ = server.wait();
+}
+
+#[test]
+fn b_ac_17_the_same_script_in_process_and_over_the_pipe_gives_equal_replies_and_ledger() {
+    let tmp = tempfile::tempdir().unwrap();
+    let app_in_process = tmp.path().join("app_in_proc");
+    let root_in_process = tmp.path().join("root_in_proc");
+
+    let app_pipe = tmp.path().join("app_pipe");
+    let root_pipe = tmp.path().join("root_pipe");
+
+    let mut server = Command::new(env!("CARGO_BIN_EXE_oa"))
+        .arg("--app-data")
+        .arg(&app_pipe)
+        .args(["kernel", "serve"])
+        .spawn()
+        .unwrap();
+
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while std::time::Instant::now() < deadline {
+        if oa_client::PipeClient::try_connect(&app_pipe, oa_types::Origin::Cli).is_ok() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+
+    let r1_in = lines(&oa(
+        &app_in_process,
+        &["workspace", "init", root_in_process.to_str().unwrap()],
+    ));
+    let r1_pipe = lines(&oa(
+        &app_pipe,
+        &["workspace", "init", root_pipe.to_str().unwrap()],
+    ));
+    assert_eq!(r1_in[0]["schema_version"], r1_pipe[0]["schema_version"]);
+
+    let r2_in = lines(&oa(
+        &app_in_process,
+        &["matter", "create", "--title", "Matter Script"],
+    ));
+    let r2_pipe = lines(&oa(
+        &app_pipe,
+        &["matter", "create", "--title", "Matter Script"],
+    ));
+    assert_eq!(r2_in[0]["title"], r2_pipe[0]["title"]);
+    let m_in = r2_in[0]["id"].as_str().unwrap();
+    let m_pipe = r2_pipe[0]["id"].as_str().unwrap();
+
+    let r3_in = lines(&oa(
+        &app_in_process,
+        &[
+            "draft",
+            "new",
+            "--matter",
+            m_in,
+            "--title",
+            "Draft1",
+            "--template",
+            "blank",
+        ],
+    ));
+    let r3_pipe = lines(&oa(
+        &app_pipe,
+        &[
+            "draft",
+            "new",
+            "--matter",
+            m_pipe,
+            "--title",
+            "Draft1",
+            "--template",
+            "blank",
+        ],
+    ));
+    assert_eq!(r3_in[0]["draft"]["title"], r3_pipe[0]["draft"]["title"]);
+
+    let ledger_in = lines(&oa(&app_in_process, &["ledger", "tail", "--matter", m_in]));
+    let ledger_pipe = lines(&oa(&app_pipe, &["ledger", "tail", "--matter", m_pipe]));
+    assert_eq!(ledger_in.len(), ledger_pipe.len());
+    for (e_in, e_pipe) in ledger_in.iter().zip(ledger_pipe.iter()) {
+        assert_eq!(e_in["event"], e_pipe["event"], "events match");
+        assert_eq!(
+            e_in["data"]["title"], e_pipe["data"]["title"],
+            "ledger event data bodies match"
+        );
+    }
+
+    let _ = oa(&app_pipe, &["kernel", "shutdown"]);
+    let _ = server.wait();
+}

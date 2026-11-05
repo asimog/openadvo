@@ -2,10 +2,12 @@
 
 use std::fs::File;
 use std::io;
+use std::os::windows::ffi::OsStringExt;
 use std::os::windows::io::{FromRawHandle, RawHandle};
 use std::ptr::{null, null_mut};
 use std::sync::Arc;
 use std::thread;
+use std::time::Duration;
 
 use oa_kernel::Kernel;
 use windows_sys::Win32::Foundation::{
@@ -13,21 +15,24 @@ use windows_sys::Win32::Foundation::{
 };
 use windows_sys::Win32::Storage::FileSystem::{FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX};
 use windows_sys::Win32::System::JobObjects::{
-    AssignProcessToJobObject, CreateJobObjectW, IsProcessInJob,
+    AssignProcessToJobObject, CreateJobObjectW, IsProcessInJob, JobObjectExtendedLimitInformation,
+    SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+    JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
 };
 use windows_sys::Win32::System::Pipes::{
     ConnectNamedPipe, CreateNamedPipeW, GetNamedPipeClientProcessId, PIPE_READMODE_BYTE,
     PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
 };
 use windows_sys::Win32::System::Threading::{
-    GetCurrentProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SET_QUOTA,
-    PROCESS_TERMINATE,
+    GetCurrentProcess, OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION,
+    PROCESS_SET_QUOTA, PROCESS_TERMINATE,
 };
 
 use crate::handle_connection;
 
 /// The Job Object the harness runs in. Children inherit it and, because the
-/// job does not allow breakaway, cannot leave it.
+/// job does not allow breakaway, cannot leave it. Processes in it die when the
+/// job closes (kill-on-close, B-AC-18).
 pub struct HarnessJob {
     handle: HANDLE,
 }
@@ -43,6 +48,21 @@ impl HarnessJob {
         let handle = unsafe { CreateJobObjectW(null(), null()) };
         if handle.is_null() {
             return Err(io::Error::last_os_error());
+        }
+        let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = unsafe { std::mem::zeroed() };
+        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        let ok = unsafe {
+            SetInformationJobObject(
+                handle,
+                JobObjectExtendedLimitInformation,
+                &info as *const _ as *const _,
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            )
+        };
+        if ok == 0 {
+            let err = io::Error::last_os_error();
+            unsafe { CloseHandle(handle) };
+            return Err(err);
         }
         Ok(HarnessJob { handle })
     }
@@ -97,6 +117,45 @@ impl Drop for HarnessJob {
         // SAFETY: we own the handle and close it once.
         unsafe { CloseHandle(self.handle) };
     }
+}
+
+/// Inspects the process image of a pipe client to check if it is the installed
+/// oa-shell executable beside the kernel's own executable (spec B rule 3, PH-01).
+pub fn is_beside_oa_shell(pid: u32) -> bool {
+    if pid == 0 {
+        return false;
+    }
+    let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid) };
+    if process.is_null() {
+        return false;
+    }
+    let mut buf = [0u16; 1024];
+    let mut size = buf.len() as u32;
+    let ok = unsafe { QueryFullProcessImageNameW(process, 0, buf.as_mut_ptr(), &mut size) };
+    unsafe { CloseHandle(process) };
+    if ok == 0 || size == 0 {
+        return false;
+    }
+    let client_exe = std::ffi::OsString::from_wide(&buf[..size as usize]);
+    let client_path = std::path::PathBuf::from(client_exe);
+
+    let is_shell_name = client_path
+        .file_name()
+        .and_then(|f| f.to_str())
+        .is_some_and(|name| {
+            name.eq_ignore_ascii_case("oa-shell.exe") || name.eq_ignore_ascii_case("oa-shell")
+        });
+
+    if !is_shell_name {
+        return false;
+    }
+
+    if let Ok(cur) = std::env::current_exe() {
+        if let (Some(cur_dir), Some(client_dir)) = (cur.parent(), client_path.parent()) {
+            return cur_dir == client_dir;
+        }
+    }
+    false
 }
 
 /// A named pipe that accepts one client per instance. Local clients only.
@@ -171,8 +230,14 @@ pub fn serve(
         let kernel = kernel.clone();
         let job = job.clone();
         thread::spawn(move || {
-            let in_job = job.is_some_and(|j| j.contains(pid));
-            let _ = handle_connection(&kernel, conn, in_job);
+            let in_job = job.as_ref().is_some_and(|j| j.contains(pid));
+            let beside_shell = is_beside_oa_shell(pid);
+            if let Ok(crate::ConnectionOutcome::Shutdown) =
+                handle_connection(&kernel, conn, in_job, beside_shell)
+            {
+                thread::sleep(Duration::from_millis(50));
+                std::process::exit(0);
+            }
         });
     }
 }

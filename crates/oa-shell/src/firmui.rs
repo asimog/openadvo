@@ -3,7 +3,7 @@
 //! correspondence. Each control issues one registered command (P9).
 
 use eframe::egui;
-use oa_kernel::{ContactInput, Request};
+use oa_protocol::{ContactInput, Request};
 
 use crate::views::{Subject, ViewId};
 use crate::{firmviews, App, Content};

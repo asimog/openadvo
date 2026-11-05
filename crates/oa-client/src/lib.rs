@@ -1,7 +1,5 @@
-//! The one way a front end issues commands. The CLI, and later the panes and
-//! the harness, hold a `Client`.
+//! The client side of the control surface.
 //!
-//! [`InProcess`] runs a headless kernel in this process, for scripted runs.
 //! [`PipeClient`] talks to a running kernel over the control protocol, where
 //! the kernel decides the origin from the connecting process.
 
@@ -11,37 +9,14 @@ use std::path::Path;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use oa_kernel::{Ctx, Kernel, Request};
-use oa_protocol::{pipe_name, read_msg, write_msg, Call, Hello, Reply, PROTOCOL_VERSION};
+use oa_protocol::{pipe_name, read_msg, write_msg, Call, Hello, Reply, Request, PROTOCOL_VERSION};
 use oa_types::{ErrorCode, OaError, Origin};
 use serde_json::Value;
 
-pub trait Client {
+pub trait Client: Send + Sync {
     /// Issues one command. `key` is the idempotency key for `internal` and
     /// `external` commands.
     fn call(&self, key: Option<String>, req: Request) -> Result<Vec<Value>, OaError>;
-}
-
-/// A headless kernel in this process, with a fixed origin.
-pub struct InProcess {
-    kernel: Kernel,
-    origin: Origin,
-}
-
-impl InProcess {
-    pub fn new(kernel: Kernel, origin: Origin) -> Self {
-        InProcess { kernel, origin }
-    }
-}
-
-impl Client for InProcess {
-    fn call(&self, key: Option<String>, req: Request) -> Result<Vec<Value>, OaError> {
-        let ctx = Ctx {
-            origin: self.origin,
-            key,
-        };
-        self.kernel.dispatch(&ctx, req)
-    }
 }
 
 struct Conn {
@@ -60,29 +35,7 @@ fn unavailable(message: String) -> OaError {
 }
 
 impl PipeClient {
-    /// Connects to the kernel serving `app_data`, waiting briefly for a busy
-    /// or just-starting pipe.
-    pub fn connect(app_data: &Path, claimed: Origin) -> Result<Self, OaError> {
-        const ERROR_PIPE_BUSY: i32 = 231;
-        let name = pipe_name(app_data);
-        let deadline = Instant::now() + Duration::from_secs(3);
-        let file = loop {
-            match OpenOptions::new().read(true).write(true).open(&name) {
-                Ok(f) => break f,
-                Err(e)
-                    if Instant::now() < deadline
-                        && (e.raw_os_error() == Some(ERROR_PIPE_BUSY)
-                            || e.kind() == std::io::ErrorKind::NotFound) =>
-                {
-                    std::thread::sleep(Duration::from_millis(20));
-                }
-                Err(e) => {
-                    return Err(unavailable(format!(
-                        "no kernel is serving {name}: {e}; start one with `oa kernel serve`"
-                    )))
-                }
-            }
-        };
+    fn handshake(file: File, claimed: Origin) -> Result<Self, OaError> {
         let writer = file.try_clone().map_err(|e| unavailable(e.to_string()))?;
         let mut conn = Conn {
             reader: BufReader::new(file),
@@ -106,6 +59,59 @@ impl PipeClient {
                 "the kernel did not complete the handshake".into(),
             )),
         }
+    }
+
+    /// Connects to the kernel serving `app_data`, waiting briefly for a busy
+    /// or just-starting pipe.
+    pub fn connect(app_data: &Path, claimed: Origin) -> Result<Self, OaError> {
+        const ERROR_PIPE_BUSY: i32 = 231;
+        let name = pipe_name(app_data);
+        let deadline = Instant::now() + Duration::from_secs(3);
+        let file = loop {
+            match OpenOptions::new().read(true).write(true).open(&name) {
+                Ok(f) => break f,
+                Err(e)
+                    if Instant::now() < deadline
+                        && (e.raw_os_error() == Some(ERROR_PIPE_BUSY)
+                            || e.kind() == std::io::ErrorKind::NotFound) =>
+                {
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+                Err(e) => {
+                    return Err(unavailable(format!(
+                        "no kernel is serving {name}: {e}; start one with `oa kernel serve`"
+                    )))
+                }
+            }
+        };
+        Self::handshake(file, claimed)
+    }
+
+    /// Probes and connects immediately if a kernel is serving, without the 3-second wait.
+    pub fn try_connect(app_data: &Path, claimed: Origin) -> Result<Self, OaError> {
+        const ERROR_PIPE_BUSY: i32 = 231;
+        let name = pipe_name(app_data);
+        let file = match OpenOptions::new().read(true).write(true).open(&name) {
+            Ok(f) => f,
+            Err(e) if e.raw_os_error() == Some(ERROR_PIPE_BUSY) => {
+                let deadline = Instant::now() + Duration::from_millis(500);
+                loop {
+                    std::thread::sleep(Duration::from_millis(10));
+                    match OpenOptions::new().read(true).write(true).open(&name) {
+                        Ok(f) => break f,
+                        Err(e)
+                            if Instant::now() < deadline
+                                && e.raw_os_error() == Some(ERROR_PIPE_BUSY) =>
+                        {
+                            continue
+                        }
+                        Err(e) => return Err(unavailable(format!("pipe busy: {e}"))),
+                    }
+                }
+            }
+            Err(e) => return Err(unavailable(format!("no kernel is serving {name}: {e}"))),
+        };
+        Self::handshake(file, claimed)
     }
 
     /// The origin the kernel decided for this connection.

@@ -9,8 +9,9 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
+use crate::in_process::InProcess;
 use clap::{Args, Subcommand};
-use oa_client::{Client, InProcess};
+use oa_client::Client;
 use oa_harness::playbook;
 use oa_harness::provider::{Provider, Residency, Scripted, StreamItem};
 use oa_harness::supervise::Supervisor;

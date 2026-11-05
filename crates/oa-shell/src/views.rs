@@ -105,7 +105,7 @@ pub const REGISTRY: &[ViewDef] = &[
         id: ViewId::Jobs,
         key: "jobs",
         title: "Jobs",
-        covers: &["job.list", "job.show"],
+        covers: &["job.list", "job.show", "outbox.list"],
     },
     ViewDef {
         id: ViewId::Settings,
@@ -1971,7 +1971,7 @@ mod tests {
 
     #[test]
     fn a_ac_16_every_query_command_has_a_registered_view() {
-        let missing = uncovered(oa_kernel::Request::QUERY_NAMES);
+        let missing = uncovered(oa_protocol::Request::QUERY_NAMES);
         assert!(missing.is_empty(), "queries with no view: {missing:?}");
     }
 
@@ -1980,7 +1980,7 @@ mod tests {
         for d in REGISTRY {
             for c in d.covers {
                 assert!(
-                    oa_kernel::Request::QUERY_NAMES.contains(c),
+                    oa_protocol::Request::QUERY_NAMES.contains(c),
                     "{} covers {c}, which is not a query command",
                     d.key
                 );

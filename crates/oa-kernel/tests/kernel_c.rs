@@ -8,7 +8,7 @@ use oa_kernel::{
     Attachment, ClientSpec, Ctx, FaultHook, Hooks, Kernel, PresencePrompt, Request, Step,
 };
 use oa_store::sqlite::SqliteFactory;
-use oa_store::StoreFactory;
+use oa_store::{JobRow, JobStatus, MatterWrite, OutboxRow, StoreFactory};
 use oa_types::{new_key, ErrorCode, OaError, Origin};
 use serde_json::Value;
 use tempfile::TempDir;
@@ -702,4 +702,256 @@ fn a_ac_21_a_window_decision_needs_no_prompt_but_the_harness_is_still_refused() 
     assert_eq!(harness.code, ErrorCode::HumanCommandRefused);
     one(&w.k, &Ctx::new(Origin::Ui, new_key()), decide).unwrap();
     assert_eq!(presence.0.load(Ordering::SeqCst), 0, "no terminal prompt");
+}
+
+#[test]
+fn c_ac_22_two_writer_processes_on_one_matter_db_never_fork_the_chain() {
+    let w = world(Hooks::default());
+    let app = w.app.clone();
+    let matter_id = w.matter.clone();
+
+    let h1 = std::thread::spawn({
+        let app = app.clone();
+        let matter_id = matter_id.clone();
+        move || {
+            let k1 = Kernel::new(&app, Arc::new(SqliteFactory), Hooks::default());
+            for i in 0..5 {
+                let _ = k1.dispatch(
+                    &Ctx::new(Origin::Cli, new_key()),
+                    Request::CorrespondenceLog {
+                        matter: matter_id.clone(),
+                        kind: "call".into(),
+                        summary: format!("Call writer1 #{i}"),
+                        contact: None,
+                        occurred_at: None,
+                    },
+                );
+            }
+        }
+    });
+
+    let h2 = std::thread::spawn({
+        let app = app.clone();
+        let matter_id = matter_id.clone();
+        move || {
+            let k2 = Kernel::new(&app, Arc::new(SqliteFactory), Hooks::default());
+            for i in 0..5 {
+                let res = k2.dispatch(
+                    &Ctx::new(Origin::Cli, new_key()),
+                    Request::CorrespondenceLog {
+                        matter: matter_id.clone(),
+                        kind: "call".into(),
+                        summary: format!("Call writer2 #{i}"),
+                        contact: None,
+                        occurred_at: None,
+                    },
+                );
+                if let Err(e) = res {
+                    assert_eq!(
+                        e.code,
+                        ErrorCode::Conflict,
+                        "the second writer gets a typed conflict"
+                    );
+                }
+            }
+        }
+    });
+
+    h1.join().unwrap();
+    h2.join().unwrap();
+
+    let verified = one(
+        &w.k,
+        &cli(),
+        Request::LedgerVerify {
+            matter: w.matter.clone(),
+        },
+    )
+    .unwrap();
+    assert_eq!(verified["ok"], true);
+    assert!(
+        verified["events"].as_i64().unwrap() > 1,
+        "chain is never forked"
+    );
+}
+
+#[test]
+fn c_ac_23_an_external_effects_outbox_row_exists_iff_its_ledger_event_exists() {
+    let w = world(Hooks::default());
+    let store = SqliteFactory.open_matter(&w.dir).unwrap();
+
+    let outbox_id = oa_types::new_key();
+    let outbox_row = OutboxRow {
+        id: outbox_id.clone(),
+        created_at: oa_types::now_utc(),
+        actor: "advocate".into(),
+        origin: "cli".into(),
+        command: "filing.submit".into(),
+        idempotency_key: Some(new_key()),
+        state: "pending".into(),
+        payload: "{\"target\": \"court\"}".into(),
+        approval_id: None,
+        attempt_count: 0,
+        last_attempt_at: None,
+        outcome: None,
+        detail: None,
+    };
+
+    let head = store.last_event().unwrap().unwrap();
+    let event = oa_kernel::build(oa_kernel::LedgerNewEvent {
+        seq: head.seq + 1,
+        prev_hash: &head.hash,
+        origin: Origin::Cli,
+        command: "filing.submit",
+        key: None,
+        body: serde_json::json!({ "outbox": outbox_id }),
+    });
+
+    let committed_hash = event.hash.clone();
+    store
+        .commit(&event, &[MatterWrite::InsertOutbox(outbox_row.clone())])
+        .unwrap();
+    assert!(store.outbox_entry(&outbox_id).unwrap().is_some());
+    let head_after = store.last_event().unwrap().unwrap();
+    assert_eq!(head_after.hash, committed_hash);
+
+    let bad_outbox_id = oa_types::new_key();
+    let bad_outbox_row = OutboxRow {
+        id: bad_outbox_id.clone(),
+        created_at: oa_types::now_utc(),
+        actor: "advocate".into(),
+        origin: "cli".into(),
+        command: "filing.submit".into(),
+        idempotency_key: Some(new_key()),
+        state: "pending".into(),
+        payload: "{\"target\": \"court\"}".into(),
+        approval_id: None,
+        attempt_count: 0,
+        last_attempt_at: None,
+        outcome: None,
+        detail: None,
+    };
+    let bad_event = oa_kernel::build(oa_kernel::LedgerNewEvent {
+        seq: head_after.seq + 1,
+        prev_hash: &head_after.hash,
+        origin: Origin::Cli,
+        command: "filing.submit",
+        key: None,
+        body: serde_json::json!({ "outbox": bad_outbox_id }),
+    });
+    let err = store.commit(
+        &bad_event,
+        &[
+            MatterWrite::InsertOutbox(bad_outbox_row),
+            MatterWrite::InsertOutbox(outbox_row),
+        ],
+    );
+    assert!(err.is_err());
+    assert!(store.outbox_entry(&bad_outbox_id).unwrap().is_none());
+    let current_head = store.last_event().unwrap().unwrap();
+    assert_eq!(
+        current_head.hash, committed_hash,
+        "ledger was not modified on abort"
+    );
+}
+
+#[test]
+fn c_ac_24_an_unknown_effect_is_not_retried_until_oa_outbox_reconcile() {
+    let w = world(Hooks::default());
+    let store = SqliteFactory.open_matter(&w.dir).unwrap();
+
+    let effect_id = oa_types::new_key();
+    let row = OutboxRow {
+        id: effect_id.clone(),
+        created_at: oa_types::now_utc(),
+        actor: "advocate".into(),
+        origin: "cli".into(),
+        command: "filing.submit".into(),
+        idempotency_key: Some(new_key()),
+        state: "unknown".into(),
+        payload: "{\"submission\": 1}".into(),
+        approval_id: None,
+        attempt_count: 1,
+        last_attempt_at: Some(oa_types::now_utc()),
+        outcome: None,
+        detail: Some("connection timed out in flight".into()),
+    };
+
+    let head = store.last_event().unwrap().unwrap();
+    let event = oa_kernel::build(oa_kernel::LedgerNewEvent {
+        seq: head.seq + 1,
+        prev_hash: &head.hash,
+        origin: Origin::Cli,
+        command: "filing.submit",
+        key: None,
+        body: serde_json::json!({ "effect": "unknown" }),
+    });
+    store
+        .commit(&event, &[MatterWrite::InsertOutbox(row)])
+        .unwrap();
+
+    let pending = store.outbox(Some("pending")).unwrap();
+    assert!(
+        !pending.iter().any(|r| r.id == effect_id),
+        "unknown is not in pending retry list"
+    );
+
+    let unknown_list = store.outbox(Some("unknown")).unwrap();
+    assert!(unknown_list.iter().any(|r| r.id == effect_id));
+
+    let res = one(
+        &w.k,
+        &cli(),
+        Request::OutboxReconcile {
+            matter: w.matter.clone(),
+            id: effect_id.clone(),
+            outcome: "sent".into(),
+            detail: Some("verified delivered with bank portal receipt".into()),
+        },
+    )
+    .unwrap();
+    assert_eq!(res["outcome"], "sent");
+    assert_eq!(res["state"], "sent");
+
+    let updated = store.outbox_entry(&effect_id).unwrap().unwrap();
+    assert_eq!(updated.state, "sent");
+    assert_eq!(
+        updated.detail.as_deref(),
+        Some("verified delivered with bank portal receipt")
+    );
+}
+
+#[test]
+fn c_ac_25_kernel_shutdown_checkpoints_a_running_job_and_resumes_on_next_start() {
+    let w = world(Hooks::default());
+    let reg = w.k.registry().unwrap();
+
+    let job_id = oa_types::new_key();
+    let job = JobRow {
+        id: job_id.clone(),
+        kind: "ocr.batch".into(),
+        status: JobStatus::Running,
+        done: 5,
+        total: 10,
+        cancel_requested: false,
+        message: Some("processing page 6".into()),
+        created_at: oa_types::now_utc(),
+        updated_at: oa_types::now_utc(),
+    };
+    reg.create_job(&job).unwrap();
+
+    let res = one(&w.k, &cli(), Request::KernelShutdown).unwrap();
+    assert_eq!(res["shutdown"], true);
+    assert_eq!(res["checkpointed_jobs"], 1);
+
+    let stored = reg.job(&job_id).unwrap().unwrap();
+    assert_eq!(stored.status, JobStatus::Checkpointed);
+    assert_eq!(stored.done, 5);
+    assert_eq!(stored.total, 10);
+
+    let resumed = w.k.resume_checkpointed_jobs().unwrap();
+    assert_eq!(resumed, 1);
+
+    let stored_after = reg.job(&job_id).unwrap().unwrap();
+    assert_eq!(stored_after.status, JobStatus::Running);
 }

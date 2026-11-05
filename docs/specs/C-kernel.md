@@ -2,7 +2,7 @@
 
 Components: C01 to C17. Conventions, test kinds and status words are in the [README](README.md).
 
-**Status:** the single commit path, the hash-chained ledger, references, rejected writes, the evidence and draft stores, approvals bound to revisions, idempotent replay, `oa inspect` and the link index work. Remaining: kill tests inside a commit, immediate write transactions (PH-02), the durable outbox, revert proposals, the disclosure builder, rule pack adoption, `oa trace` end to end, `kernel.shutdown`.
+**Status:** the single commit path, the hash-chained ledger, references, rejected writes, the evidence and draft stores, approvals bound to revisions, idempotent replay, `oa inspect`, the link index, immediate write transactions (PH-02), the durable outbox, and `kernel.shutdown` work. Remaining: kill tests inside a commit, revert proposals, the disclosure builder, rule pack adoption, `oa trace` end to end.
 
 ## Purpose
 
@@ -111,10 +111,10 @@ P2, P9, RQ-05, RQ-11, RQ-24, RQ-26, RQ-27, RQ-29, RQ-30, RQ-31, RQ-36, RQ-40, RQ
 | C-AC-19 | The approvals view shows an approval on a non-head revision as stale. | [AUTO] | done |
 | C-AC-20 | `oa inspect` on any record lists the ledger events that touched it. | [AUTO] | done |
 | C-AC-21 | `oa links in` on an evidence entry lists every revision, verification and Notebook item that references it, and a rebuild from the ledger agrees. | [AUTO] | done |
-| C-AC-22 | Two kernels' worth of writers (two processes) on one `matter.db` never fork the chain; the second waits on the lock and then commits or gets a typed conflict. | [AUTO] | remaining |
-| C-AC-23 | An external effect's outbox row exists if and only if its ledger event exists, under a kill at every step. | [AUTO] | remaining |
-| C-AC-24 | An `unknown` effect is not retried until reconciled; reconciling records the outcome found. | [AUTO] | remaining |
-| C-AC-25 | `kernel.shutdown` with a running job checkpoints it; the job resumes on the next start. | [AUTO] | remaining |
+| C-AC-22 | Two kernels' worth of writers (two processes) on one `matter.db` never fork the chain; the second waits on the lock and then commits or gets a typed conflict. | [AUTO] | done |
+| C-AC-23 | An external effect's outbox row exists if and only if its ledger event exists, under a kill at every step. | [AUTO] | done |
+| C-AC-24 | An `unknown` effect is not retried until reconciled; reconciling records the outcome found. | [AUTO] | done |
+| C-AC-25 | `kernel.shutdown` with a running job checkpoints it; the job resumes on the next start. | [AUTO] | done |
 
 ### GUI tests
 

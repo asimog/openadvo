@@ -72,3 +72,40 @@ fn b_ac_03_and_b_ac_05_the_harness_job_decides_the_origin() {
     let _ = child.kill();
     let _ = child.wait();
 }
+
+#[test]
+fn b_ac_18_a_process_in_the_harness_job_cannot_break_away_and_dies_when_job_closes() {
+    let job = HarnessJob::new().unwrap();
+    let mut child = Command::new("cmd")
+        .args(["/C", "ping -n 10 127.0.0.1 >NUL"])
+        .spawn()
+        .unwrap();
+
+    job.assign(child.id()).unwrap();
+    assert!(
+        job.contains(child.id()),
+        "the child process is placed in the harness job"
+    );
+    assert!(
+        child.try_wait().unwrap().is_none(),
+        "the child is actively running"
+    );
+
+    // Dropping the job closes its handle. With JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    // the system terminates all processes in the job immediately.
+    drop(job);
+
+    let start = std::time::Instant::now();
+    let mut terminated = false;
+    while start.elapsed() < std::time::Duration::from_secs(3) {
+        if child.try_wait().unwrap().is_some() {
+            terminated = true;
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    assert!(
+        terminated,
+        "the child process died when the harness job closed"
+    );
+}

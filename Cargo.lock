@@ -2140,7 +2140,6 @@ dependencies = [
 name = "oa-client"
 version = "0.1.0"
 dependencies = [
- "oa-kernel",
  "oa-protocol",
  "oa-types",
  "serde_json",
@@ -2209,6 +2208,7 @@ dependencies = [
  "oa-firm",
  "oa-notebook",
  "oa-ocr",
+ "oa-protocol",
  "oa-store",
  "oa-types",
  "oa-verify",
@@ -2253,9 +2253,12 @@ dependencies = [
 name = "oa-protocol"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "hex",
- "oa-kernel",
+ "oa-notebook",
+ "oa-ocr",
  "oa-types",
+ "schemars",
  "serde",
  "serde_json",
  "sha2",
@@ -2283,7 +2286,7 @@ dependencies = [
  "image",
  "oa-client",
  "oa-firm",
- "oa-kernel",
+ "oa-protocol",
  "oa-types",
  "serde_json",
 ]

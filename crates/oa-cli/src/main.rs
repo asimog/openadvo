@@ -13,8 +13,10 @@ use std::time::Duration;
 
 use clap::{Args, Parser, Subcommand};
 mod harness_cmds;
+mod in_process;
 
-use oa_client::{Client, InProcess, PipeClient};
+use in_process::InProcess;
+use oa_client::{Client, PipeClient};
 use oa_kernel::{
     Attachment, ClientSpec, ContactInput, Hooks, Kernel, OcrEngineHealthInput, OcrPageInput,
     OcrReadingInput, OcrRunInput, PresencePrompt, Request,
@@ -187,6 +189,9 @@ enum Command {
     /// The agent: runs, effects, memory, context
     #[command(subcommand)]
     Agent(harness_cmds::AgentCmd),
+    /// External effects and their state
+    #[command(subcommand)]
+    Outbox(OutboxCmd),
     /// Run the kernel and its control pipe
     #[command(subcommand)]
     Kernel(KernelCmd),
@@ -1012,6 +1017,29 @@ enum LinksCmd {
 enum KernelCmd {
     /// Serve the control pipe until stopped
     Serve,
+    /// Asks the serving kernel to checkpoint jobs and stop
+    Shutdown,
+}
+
+#[derive(Subcommand)]
+enum OutboxCmd {
+    /// Every external effect with its state
+    List {
+        #[command(flatten)]
+        m: MatterArg,
+        #[arg(long)]
+        state: Option<String>,
+    },
+    /// Reconcile an unknown effect
+    Reconcile {
+        #[command(flatten)]
+        m: MatterArg,
+        id: String,
+        #[arg(long, default_value = "sent")]
+        outcome: String,
+        #[arg(long)]
+        detail: Option<String>,
+    },
 }
 
 /// Stub for H-09: a terminal confirmation. Refuses when no terminal is
@@ -1613,7 +1641,25 @@ fn request(cmd: Command) -> Result<Request, OaError> {
             serde_json::from_value(envelope)
                 .map_err(|e| OaError::new(ErrorCode::Usage, format!("{command}: {e}")))?
         }
-        Command::Kernel(_)
+        Command::Outbox(o) => match o {
+            OutboxCmd::List { m, state } => Request::OutboxList {
+                matter: m.matter,
+                state,
+            },
+            OutboxCmd::Reconcile {
+                m,
+                id,
+                outcome,
+                detail,
+            } => Request::OutboxReconcile {
+                matter: m.matter,
+                id,
+                outcome,
+                detail,
+            },
+        },
+        Command::Kernel(KernelCmd::Shutdown) => Request::KernelShutdown,
+        Command::Kernel(KernelCmd::Serve)
         | Command::Schema { .. }
         | Command::Tools(_)
         | Command::Playbook(_)
@@ -1655,7 +1701,16 @@ fn serve(app: &Path) -> Result<Vec<Value>, OaError> {
         Some(Arc::new(job)),
         oa_control::PipeListener::bind(&name),
     )
-    .map_err(|e| OaError::new(ErrorCode::Unavailable, format!("control pipe {name}: {e}")))?;
+    .map_err(|e| {
+        if e.raw_os_error() == Some(5) || e.kind() == std::io::ErrorKind::PermissionDenied {
+            OaError::new(
+                ErrorCode::WriteRefused,
+                format!("one kernel serves one application data folder; another is already serving: {e}"),
+            )
+        } else {
+            OaError::new(ErrorCode::Unavailable, format!("control pipe {name}: {e}"))
+        }
+    })?;
     Ok(Vec::new())
 }
 
@@ -1717,11 +1772,8 @@ fn run(cli: Cli) -> Result<Vec<Value>, OaError> {
     };
     let req = request(cli.command)?;
     let name = req.name();
-    let mut values = if cli.connect {
-        PipeClient::connect(&app, Origin::Cli)?.call(key, req)?
-    } else {
-        InProcess::new(kernel(&app), Origin::Cli).call(key, req)?
-    };
+    let client = client(&app, cli.connect)?;
+    let mut values = client.call(key, req)?;
     if let Some(path) = shot {
         write_screenshot(&mut values, &path)?;
     }
@@ -1818,6 +1870,8 @@ fn timeline(app: &Path, connect: bool, target: &str) -> Result<Vec<Value>, OaErr
 fn client(app: &Path, connect: bool) -> Result<Box<dyn Client>, OaError> {
     if connect {
         Ok(Box::new(PipeClient::connect(app, Origin::Cli)?))
+    } else if let Ok(pipe) = PipeClient::try_connect(app, Origin::Cli) {
+        Ok(Box::new(pipe))
     } else {
         Ok(Box::new(InProcess::new(kernel(app), Origin::Cli)))
     }

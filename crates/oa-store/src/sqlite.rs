@@ -278,6 +278,24 @@ const MATTER_MIGRATIONS: &[&str] = &[
     );
     CREATE INDEX doc_records_draft ON doc_records(draft_id);
 "#,
+    r#"
+    CREATE TABLE outbox (
+        id TEXT PRIMARY KEY,
+        created_at TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        origin TEXT NOT NULL,
+        command TEXT NOT NULL,
+        idempotency_key TEXT,
+        state TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        approval_id TEXT,
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        last_attempt_at TEXT,
+        outcome TEXT,
+        detail TEXT
+    );
+    CREATE INDEX outbox_state ON outbox(state);
+"#,
 ];
 
 fn err(e: rusqlite::Error) -> StoreError {
@@ -1076,7 +1094,11 @@ fn head(conn: &Connection) -> rusqlite::Result<Option<LedgerEvent>> {
 
 impl MatterStore for SqliteMatter {
     fn initialise(&self, state: &MatterState, genesis: &LedgerEvent) -> StoreResult<()> {
-        let tx = self.conn.unchecked_transaction().map_err(err)?;
+        let tx = rusqlite::Transaction::new_unchecked(
+            &self.conn,
+            rusqlite::TransactionBehavior::Immediate,
+        )
+        .map_err(err)?;
         if head(&tx).map_err(err)?.is_some() {
             return Err(StoreError::new(
                 StoreErrorKind::Conflict,
@@ -1134,7 +1156,11 @@ impl MatterStore for SqliteMatter {
     }
 
     fn commit(&self, event: &LedgerEvent, writes: &[MatterWrite]) -> StoreResult<()> {
-        let tx = self.conn.unchecked_transaction().map_err(err)?;
+        let tx = rusqlite::Transaction::new_unchecked(
+            &self.conn,
+            rusqlite::TransactionBehavior::Immediate,
+        )
+        .map_err(err)?;
         let (expected_seq, expected_prev) = match head(&tx).map_err(err)? {
             Some(h) => (h.seq + 1, h.hash),
             None => return Err(conflict("ledger has no genesis event")),
@@ -1424,6 +1450,34 @@ impl MatterStore for SqliteMatter {
     fn rejected(&self) -> StoreResult<Vec<RejectedWrite>> {
         select_rejected(&self.conn)
     }
+
+    fn outbox(&self, state: Option<&str>) -> StoreResult<Vec<OutboxRow>> {
+        match state {
+            Some(s) => many(
+                &self.conn,
+                &format!("SELECT {OUTBOX_COLS} FROM outbox WHERE state = ?1 ORDER BY created_at"),
+                params![s],
+                outbox_row,
+            ),
+            None => many(
+                &self.conn,
+                &format!("SELECT {OUTBOX_COLS} FROM outbox ORDER BY created_at"),
+                params![],
+                outbox_row,
+            ),
+        }
+    }
+
+    fn outbox_entry(&self, id: &str) -> StoreResult<Option<OutboxRow>> {
+        self.conn
+            .query_row(
+                &format!("SELECT {OUTBOX_COLS} FROM outbox WHERE id = ?1"),
+                params![id],
+                outbox_row,
+            )
+            .optional()
+            .map_err(err)
+    }
 }
 
 fn one<T>(
@@ -1597,6 +1651,27 @@ fn notebook_review_row(r: &Row) -> rusqlite::Result<NotebookReviewRow> {
         data: r.get(4)?,
         created_at: r.get(5)?,
         updated_at: r.get(6)?,
+    })
+}
+
+const OUTBOX_COLS: &str =
+    "id, created_at, actor, origin, command, idempotency_key, state, payload, approval_id, attempt_count, last_attempt_at, outcome, detail";
+
+fn outbox_row(r: &Row) -> rusqlite::Result<OutboxRow> {
+    Ok(OutboxRow {
+        id: r.get(0)?,
+        created_at: r.get(1)?,
+        actor: r.get(2)?,
+        origin: r.get(3)?,
+        command: r.get(4)?,
+        idempotency_key: r.get(5)?,
+        state: r.get(6)?,
+        payload: r.get(7)?,
+        approval_id: r.get(8)?,
+        attempt_count: r.get(9)?,
+        last_attempt_at: r.get(10)?,
+        outcome: r.get(11)?,
+        detail: r.get(12)?,
     })
 }
 
@@ -1886,5 +1961,35 @@ fn apply(tx: &Connection, w: &MatterWrite) -> StoreResult<()> {
                 Err(conflict(format!("{kind} {id} is no longer {expected}")))
             }
         }
+        MatterWrite::InsertOutbox(o) => done(tx.execute(
+            &format!(
+                "INSERT INTO outbox ({OUTBOX_COLS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)"
+            ),
+            params![
+                o.id,
+                o.created_at,
+                o.actor,
+                o.origin,
+                o.command,
+                o.idempotency_key,
+                o.state,
+                o.payload,
+                o.approval_id,
+                o.attempt_count,
+                o.last_attempt_at,
+                o.outcome,
+                o.detail
+            ],
+        )),
+        MatterWrite::UpdateOutboxState {
+            id,
+            state,
+            outcome,
+            detail,
+            updated_at,
+        } => done(tx.execute(
+            "UPDATE outbox SET state = ?2, outcome = ?3, detail = ?4, last_attempt_at = ?5 WHERE id = ?1",
+            params![id, state, outcome, detail, updated_at],
+        )),
     }
 }

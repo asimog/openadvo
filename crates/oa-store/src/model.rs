@@ -96,6 +96,7 @@ pub enum JobStatus {
     Done,
     Cancelled,
     Failed,
+    Checkpointed,
 }
 
 impl JobStatus {
@@ -105,6 +106,7 @@ impl JobStatus {
             JobStatus::Done => "done",
             JobStatus::Cancelled => "cancelled",
             JobStatus::Failed => "failed",
+            JobStatus::Checkpointed => "checkpointed",
         }
     }
 
@@ -114,6 +116,7 @@ impl JobStatus {
             "done" => Some(JobStatus::Done),
             "cancelled" => Some(JobStatus::Cancelled),
             "failed" => Some(JobStatus::Failed),
+            "checkpointed" => Some(JobStatus::Checkpointed),
             _ => None,
         }
     }
@@ -379,6 +382,14 @@ pub enum MatterWrite {
         value: String,
     },
     InsertDocRecord(DocRecordRow),
+    InsertOutbox(OutboxRow),
+    UpdateOutboxState {
+        id: String,
+        state: String,
+        outcome: Option<String>,
+        detail: Option<String>,
+        updated_at: String,
+    },
     /// Compare-and-swap on the state: refused with `Conflict` unless the
     /// record is in `expected`.
     UpdateDocRecord {
@@ -389,6 +400,24 @@ pub enum MatterWrite {
         body: String,
         updated_at: String,
     },
+}
+
+/// One external effect queued or completed in the outbox (spec C rule 14).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutboxRow {
+    pub id: String,
+    pub created_at: String,
+    pub actor: String,
+    pub origin: String,
+    pub command: String,
+    pub idempotency_key: Option<String>,
+    pub state: String,
+    pub payload: String,
+    pub approval_id: Option<String>,
+    pub attempt_count: i64,
+    pub last_attempt_at: Option<String>,
+    pub outcome: Option<String>,
+    pub detail: Option<String>,
 }
 
 /// One connection a browser profile made or refused (spec M, the egress log).

@@ -30,7 +30,7 @@ use inbox::{Effect, Inbox, Key};
 use inspector::Inspected;
 use layout::{Layout, Page};
 use oa_client::{Client, PipeClient};
-use oa_kernel::{ClientSpec, Request};
+use oa_protocol::{ClientSpec, Request};
 use oa_types::{new_key, OaError, Origin};
 use serde_json::{json, Value};
 use views::{Subject, Table, ViewId, ViewState, REGISTRY};
@@ -2121,7 +2121,21 @@ impl eframe::App for App {
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         if let Some(mut child) = self.kernel_child.take() {
-            let _ = child.kill();
+            if let Some(ref client) = self.client {
+                let _ = client.call(None, Request::KernelShutdown);
+            }
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+            let mut exited = false;
+            while std::time::Instant::now() < deadline {
+                if let Ok(Some(_)) = child.try_wait() {
+                    exited = true;
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+            if !exited {
+                let _ = child.kill();
+            }
             let _ = child.wait();
         }
     }

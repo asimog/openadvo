@@ -23,10 +23,12 @@ mod links;
 mod matters;
 mod notebook;
 mod ocr;
+mod outbox;
 mod paths;
 mod records;
 mod rescan;
 mod settings;
+mod shutdown;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -49,7 +51,7 @@ pub use hooks::{
     PresencePrompt, Step, StepOneGrants, StubDraftChecks, VerifyChecks,
 };
 pub use layout::{Manifest, MANIFEST, STAGING, SUBDIRS};
-pub use ledger::{verify_chain, ChainBreak};
+pub use ledger::{build, sha256_hex, verify_chain, ChainBreak, NewEvent as LedgerNewEvent};
 pub use links::{edges, Edge};
 pub use paths::WriteArea;
 
@@ -529,6 +531,16 @@ impl Kernel {
             Request::LinksIn { matter, id } => self.links_in(&matter, &id),
             Request::SettingsList => self.settings_list(),
             Request::ApprovalList { matter } => self.approval_list(&matter),
+            Request::OutboxList { matter, state } => self.outbox_list(&matter, state.as_deref()),
+            Request::OutboxReconcile {
+                matter,
+                id,
+                outcome,
+                detail,
+            } => self
+                .outbox_reconcile(ctx, &matter, &id, &outcome, detail.as_deref())
+                .map(one),
+            Request::KernelShutdown => self.kernel_shutdown(ctx).map(one),
             Request::Find {
                 matter,
                 query,
@@ -542,7 +554,7 @@ impl Kernel {
         fs::create_dir_all(&self.app_data).map_err(|e| io_err("application data folder", e))
     }
 
-    pub(crate) fn registry(&self) -> Result<Box<dyn RegistryStore>, OaError> {
+    pub fn registry(&self) -> Result<Box<dyn RegistryStore>, OaError> {
         self.ensure_app_data()?;
         self.stores.registry(&self.app_data).map_err(store_err)
     }

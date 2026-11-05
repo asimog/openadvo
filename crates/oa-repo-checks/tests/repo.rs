@@ -8,7 +8,11 @@ fn a_ac_14_the_workflow_exists_in_one_document_only() {
     let flow = fs::read_to_string(root.join("docs/advocate-workflow.md")).unwrap();
     let w = workflow_sections(&flow).expect("advocate-workflow.md has sections 1 to 12");
     assert!(!w.is_empty());
-    for doc in ["docs/architecture.md", "docs/component-map.md", "docs/decisions.md"] {
+    for doc in [
+        "docs/architecture.md",
+        "docs/component-map.md",
+        "docs/decisions.md",
+    ] {
         let text = fs::read_to_string(root.join(doc)).unwrap();
         assert!(
             workflow_sections(&text).is_none(),
@@ -106,4 +110,21 @@ fn d_ac_11_exactly_one_crate_contains_a_turn_loop() {
     holders.sort();
     holders.dedup();
     assert_eq!(holders, ["oa-harness"], "turn loop holders: {holders:?}");
+}
+
+#[test]
+fn a_ac_24_cargo_tree_oa_shell_has_no_oa_kernel_oa_store_or_rusqlite() {
+    let output = std::process::Command::new("cargo")
+        .args(["tree", "-p", "oa-shell"])
+        .current_dir(repo_root())
+        .output()
+        .expect("cargo tree runs");
+    assert!(output.status.success(), "cargo tree succeeded");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for forbidden in ["oa-kernel", "oa-store", "rusqlite"] {
+        assert!(
+            !stdout.contains(forbidden),
+            "cargo tree -p oa-shell contains {forbidden} (PH-03)"
+        );
+    }
 }

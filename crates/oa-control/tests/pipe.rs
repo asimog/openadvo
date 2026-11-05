@@ -100,3 +100,138 @@ fn b_ac_09_calls_over_the_pipe_return_typed_errors() {
         .unwrap_err();
     assert_eq!(err.code, ErrorCode::Usage);
 }
+
+#[test]
+fn b_ac_14_a_pipe_claim_of_capture_or_test_is_recorded_as_cli_and_capture_commit_is_refused() {
+    let tmp = tempfile::tempdir().unwrap();
+    let app = tmp.path().join("app");
+    start(&app, None);
+    let c = PipeClient::connect(&app, Origin::Capture).unwrap();
+    assert_eq!(
+        c.origin(),
+        Origin::Cli,
+        "a pipe client claiming capture is recorded as cli"
+    );
+
+    c.call(
+        Some(new_key()),
+        Request::WorkspaceInit {
+            root: tmp.path().join("root"),
+        },
+    )
+    .unwrap();
+    let m = c
+        .call(
+            Some(new_key()),
+            Request::MatterCreate {
+                title: "Matter".into(),
+                client: ClientSpec::None,
+                from: None,
+            },
+        )
+        .unwrap();
+    let matter_id = m[0]["id"].as_str().unwrap().to_string();
+
+    let err = c
+        .call(
+            Some(new_key()),
+            Request::CaptureCommit {
+                matter: matter_id,
+                capture: Box::new(oa_protocol::CaptureInput {
+                    file: None,
+                    origin: "portal".into(),
+                    url: "https://example.com".into(),
+                    final_url: "https://example.com".into(),
+                    captured_at: "2026-11-04T00:00:00Z".into(),
+                    profile: "default".into(),
+                    gesture: "download".into(),
+                    portal_date: None,
+                    adapter: "high_court".into(),
+                    status: "captured".into(),
+                    reason: None,
+                    health: None,
+                    codebook: None,
+                }),
+            },
+        )
+        .unwrap_err();
+    assert_eq!(err.code, ErrorCode::WriteRefused);
+
+    let c_test = PipeClient::connect(&app, Origin::Test).unwrap();
+    assert_eq!(
+        c_test.origin(),
+        Origin::Cli,
+        "a pipe client claiming test is recorded as cli"
+    );
+}
+
+#[test]
+fn b_ac_15_a_pipe_client_claiming_ui_whose_image_is_not_installed_oa_shell_is_cli() {
+    let tmp = tempfile::tempdir().unwrap();
+    let app = tmp.path().join("app");
+    start(&app, None);
+
+    let c = PipeClient::connect(&app, Origin::Ui).unwrap();
+    assert_eq!(
+        c.origin(),
+        Origin::Cli,
+        "a pipe client claiming ui from non-oa-shell is recorded as cli"
+    );
+
+    c.call(
+        Some(new_key()),
+        Request::WorkspaceInit {
+            root: tmp.path().join("root"),
+        },
+    )
+    .unwrap();
+    let m = c
+        .call(
+            Some(new_key()),
+            Request::MatterCreate {
+                title: "Matter".into(),
+                client: ClientSpec::None,
+                from: None,
+            },
+        )
+        .unwrap();
+    let matter_id = m[0]["id"].as_str().unwrap().to_string();
+
+    let d = c
+        .call(
+            Some(new_key()),
+            Request::DraftNew {
+                matter: matter_id.clone(),
+                title: "Draft".into(),
+                template: "blank".into(),
+                from_notebook: false,
+            },
+        )
+        .unwrap();
+    let r1 = d[0]["revision"]["hash"].as_str().unwrap().to_string();
+
+    let apprv = c
+        .call(
+            Some(new_key()),
+            Request::ApprovalRequest {
+                matter: matter_id.clone(),
+                gate: "gate1".into(),
+                target: r1,
+            },
+        )
+        .unwrap();
+    let approval_id = apprv[0]["id"].as_str().unwrap().to_string();
+
+    let err = c
+        .call(
+            Some(new_key()),
+            Request::ApprovalDecide {
+                matter: matter_id,
+                id: approval_id,
+                accept: true,
+                reason: "human decided".into(),
+            },
+        )
+        .unwrap_err();
+    assert_eq!(err.code, ErrorCode::ConfirmationDenied);
+}
