@@ -2,7 +2,7 @@
 
 Components: G01 to G13. Conventions, test kinds and status words are in the [README](README.md).
 
-**Status:** the canonical line, agreement, disputes, human decisions, date rules, entities, re-OCR mapping, the per-document pipeline and the views work against stand-in engines. Remaining: vendored pdfium, Tesseract and PaddleOCR with contract tests (Q08 steps 1 to 3), the real `ocr-tesseract` and `ocr-paddle` processes, born-digital text from pdfium, the gold set, the 1,500 page run.
+**Status:** vendored pdfium, Tesseract and PaddleOCR with contract tests (Q08 steps 1 to 3), the real `ocr-tesseract` and `ocr-paddle` processes, supervisor process boundaries, born-digital text layer extraction from pdfium, gold set harness, 1,500 page bounded batch processing, and end-to-end flows are done. Remaining: GUI and visual tests, and the human sign-off on the full production gold set.
 
 ## Purpose
 
@@ -80,8 +80,8 @@ RQ-22, RQ-23, RQ-82, RQ-84, RQ-85, C-8, P7, L-06, L-15, H-07, H-10, P9, PH-06.
 
 | ID | Criterion | Check | Status |
 |---|---|---|---|
-| G-AC-01 | Both engines run as separate processes. Killing one mid-page yields a `raised` tool failure and a review item; the window, kernel and harness stay up. | [AUTO] | remaining (real engines) |
-| G-AC-02 | A malformed image that crashes an engine produces a review item and no other crash. | [AUTO] | remaining (real engines) |
+| G-AC-01 | Both engines run as separate processes. Killing one mid-page yields a `raised` tool failure and a review item; the window, kernel and harness stay up. | [AUTO] | done |
+| G-AC-02 | A malformed image that crashes an engine produces a review item and no other crash. | [AUTO] | done |
 | G-AC-03 | Readings "12.03.2019" and "12.08.2019" dispute the date token. | [AUTO] | done |
 | G-AC-04 | "respondent" and "respondcnt" in prose produce no dispute. | [AUTO] | done |
 | G-AC-05 | A one-character difference in a party name disputes. | [AUTO] | done |
@@ -90,26 +90,26 @@ RQ-22, RQ-23, RQ-82, RQ-84, RQ-85, C-8, P7, L-06, L-15, H-07, H-10, P9, PH-06.
 | G-AC-08 | `oa ocr decide` from a harness connection is refused. | [AUTO] | done |
 | G-AC-09 | "thereafter" produces no date; "on the next day" with header date 10.01.2020 gives 11.01.2020, `inferred`. | [AUTO] | done |
 | G-AC-10 | With no header date, a portal capture anchors on the portal's date; with neither, one question goes to the advocate. | [AUTO] | done |
-| G-AC-11 | Highlight boxes land on the same word in the viewer raster as the OCR box, within one pixel. | [AUTO] | remaining (pdfium) |
+| G-AC-11 | Highlight boxes land on the same word in the viewer raster as the OCR box, within one pixel. | [AUTO] | done |
 | G-AC-12 | Re-running OCR with a new engine version keeps every anchor resolvable. | [AUTO] | done |
-| G-AC-13 | Gold-set critical-token accuracy is reported per engine and for the agreed output, and CI fails on regression. | [AUTO] | remaining (real engines, gold set) |
-| G-AC-14 | A 1,500 page scanned record completes in bounded batches without exhausting memory. | [AUTO] | remaining (real engines) |
+| G-AC-13 | Gold-set critical-token accuracy is reported per engine and for the agreed output, and CI fails on regression. | [AUTO] | done (auto); remaining (human) |
+| G-AC-14 | A 1,500 page scanned record completes in bounded batches without exhausting memory. | [AUTO] | done |
 | G-AC-15 | The review screen shows the image region, both readings and the decision actions in one view; a decision is one action. | [AUTO+HUMAN] | done (auto); remaining (human) |
 | G-AC-16 | The line inspector shows both readings, confidences, engine versions and normalisation version. | [AUTO] | done |
 | G-AC-17 | Every disputed token is highlighted in the viewer and links to its review item. | [AUTO] | done |
-| G-AC-18 | A born-digital PDF page is read from its text layer and not sent to OCR. | [AUTO] | remaining |
+| G-AC-18 | A born-digital PDF page is read from its text layer and not sent to OCR. | [AUTO] | done |
 
 ### Contract tests
 
 | ID | Contract | Status |
 |---|---|---|
-| G-CT-01 | pdfium opens the PDF corpus (scanned, born-digital, rotated, encrypted, damaged) and reports page counts and errors as expected. | remaining |
-| G-CT-02 | pdfium rasterises a fixed page at the profile DPI to the recorded raster hash. | remaining |
-| G-CT-03 | pdfium's text layer for a born-digital page gives the expected characters and boxes. | remaining |
-| G-CT-04 | `ocr-tesseract` reads the English fixture pages to expected lines within the recorded accuracy. | remaining |
-| G-CT-05 | `ocr-tesseract` reads Devanagari and mixed-script fixture pages within the recorded accuracy. | remaining |
-| G-CT-06 | `ocr-paddle` reads the English fixture pages within the recorded accuracy. | remaining |
-| G-CT-07 | `ocr-paddle` reads Devanagari and mixed-script fixture pages within the recorded accuracy. | remaining |
+| G-CT-01 | pdfium opens the PDF corpus (scanned, born-digital, rotated, encrypted, damaged) and reports page counts and errors as expected. | done |
+| G-CT-02 | pdfium rasterises a fixed page at the profile DPI to the recorded raster hash. | done |
+| G-CT-03 | pdfium's text layer for a born-digital page gives the expected characters and boxes. | done |
+| G-CT-04 | `ocr-tesseract` reads the English fixture pages to expected lines within the recorded accuracy. | done |
+| G-CT-05 | `ocr-tesseract` reads Devanagari and mixed-script fixture pages within the recorded accuracy. | done |
+| G-CT-06 | `ocr-paddle` reads the English fixture pages within the recorded accuracy. | done |
+| G-CT-07 | `ocr-paddle` reads Devanagari and mixed-script fixture pages within the recorded accuracy. | done |
 
 ### GUI tests
 
@@ -128,8 +128,8 @@ RQ-22, RQ-23, RQ-82, RQ-84, RQ-85, C-8, P7, L-06, L-15, H-07, H-10, P9, PH-06.
 
 | ID | Flow | Status |
 |---|---|---|
-| G-E2E-01 | Import a scanned two-column judgment: both real engines run, a planted date mismatch becomes a dispute in the inbox, the advocate decides it in the window, and the Notebook date becomes confirmable. | remaining |
-| G-E2E-02 | Kill `ocr-paddle` mid-document: the page shows `needs_review`, the supervisor restarts the engine, and a re-run completes. | remaining |
+| G-E2E-01 | Import a scanned two-column judgment: both real engines run, a planted date mismatch becomes a dispute in the inbox, the advocate decides it in the window, and the Notebook date becomes confirmable. | done |
+| G-E2E-02 | Kill `ocr-paddle` mid-document: the page shows `needs_review`, the supervisor restarts the engine, and a re-run completes. | done |
 
 ## Edge cases
 

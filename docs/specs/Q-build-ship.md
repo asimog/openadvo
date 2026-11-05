@@ -2,7 +2,7 @@
 
 Components: Q01 to Q08. Conventions, test kinds and status words are in the [README](README.md).
 
-**Status:** the workspace builds and tests in one `cargo test`. Remaining: everything in this spec. Vendoring (Q08) is on the critical path for G, J, M and F.
+**Status:** the workspace builds and tests in one `cargo test`. Q08 vendoring order 1 to 3 (pdfium, Tesseract, PaddleOCR) and contract tests are done (Q-AC-09, Q-AC-10). Remaining: installer, updater, crash dump, egress, and vendoring 4 to 10.
 
 ## Purpose
 
@@ -101,8 +101,8 @@ The engines are fed and read through the same typed pipes and interfaces the cur
 | Q-AC-06 | A forced crash mid-run restarts and resumes with no duplicate effect. | [AUTO] | remaining |
 | Q-AC-07 | The installer and updater are acceptable to a non-technical advocate. | [HUMAN] | remaining |
 | Q-AC-08 | The About view lists every asset with the hash `oa version` prints. | [AUTO] | remaining |
-| Q-AC-09 | Every directory under `vendor/` has a version, licence, build recipe and recorded output hash, and CI rebuilds it reproducibly. | [AUTO] | remaining |
-| Q-AC-10 | A release build that links a test double fails. | [AUTO] | remaining |
+| Q-AC-09 | Every directory under `vendor/` has a version, licence, build recipe and recorded output hash, and CI rebuilds it reproducibly. | [AUTO] | done |
+| Q-AC-10 | A release build that links a test double fails. | [AUTO] | done |
 
 ### Contract tests
 

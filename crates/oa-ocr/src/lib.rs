@@ -19,6 +19,15 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 use unicode_normalization::UnicodeNormalization;
 
+#[cfg(all(not(debug_assertions), feature = "test-doubles"))]
+compile_error!("A release build that links a test double fails (Q-AC-10).");
+
+pub mod pdf;
+pub use pdf::{find_pdfium_dll, init_pdfium, ExtractedPageText, PdfDoc, PdfError};
+
+pub mod tesseract;
+pub mod paddle;
+
 pub const NORMALISATION_VERSION: &str = "nfc-whitespace-hyphen-devanagari-1";
 pub const EDIT_DISTANCE_VERSION: &str = "prose-levenshtein-2-1";
 pub const PROSE_THRESHOLD_LONG: usize = 2;
@@ -1231,6 +1240,7 @@ pub fn run_page(
 /// The stub engines read `<image_path>.<engine>.txt` and write structured JSON.
 /// They exist so the process boundary, the timeout and the crash handling are
 /// exercised without vendoring a model.
+#[cfg(any(debug_assertions, test, feature = "test-doubles"))]
 pub mod stub {
     use super::{EngineJob, EngineOutput, RawLine, Rect, Word};
 
@@ -1262,16 +1272,7 @@ pub mod stub {
             let sidecar = format!("{}.{engine}.txt", job.image_path);
             std::fs::read_to_string(sidecar).unwrap_or_default()
         };
-        let lines: Vec<RawLine> = text
-            .lines()
-            .enumerate()
-            .filter(|(_, line)| !line.trim().is_empty())
-            .map(|(index, line)| RawLine {
-                text: line.to_string(),
-                confidence: 0.95,
-                words: stub_words(line, index as u32),
-            })
-            .collect();
+        let lines = parse_stub_lines(&text, engine);
         let out = EngineOutput {
             engine: engine.to_string(),
             version: "stub-1.0".into(),
@@ -1282,6 +1283,18 @@ pub mod stub {
             eprintln!("{engine}: could not write structured output: {e}");
             std::process::exit(1);
         }
+    }
+
+    pub fn parse_stub_lines(text: &str, _engine: &str) -> Vec<RawLine> {
+        text.lines()
+            .enumerate()
+            .filter(|(_, line)| !line.trim().is_empty())
+            .map(|(index, line)| RawLine {
+                text: line.to_string(),
+                confidence: 0.95,
+                words: stub_words(line, index as u32),
+            })
+            .collect()
     }
 
     fn stub_words(line: &str, line_index: u32) -> Vec<Word> {

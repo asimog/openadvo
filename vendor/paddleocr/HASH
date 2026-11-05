@@ -1,0 +1,3 @@
+4cb41e89b8bf30578e1dd95e9c40292d61974a4bfcd666409302c4f0c5aa8ce0  bin/x64/onnxruntime.dll
+4d97c44a20d30a81aad087d6a396b08f786c4635742afc391f6621f5c6ae78ae  models/ch_PP-OCRv5_det_mobile.onnx
+d6f0a906580e3fa6b324a318718f1f31f268b6ea8ef985f91c2012a37f52c91e  models/devanagari_PP-OCRv5_rec_mobile.onnx

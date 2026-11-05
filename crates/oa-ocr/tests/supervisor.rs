@@ -1,6 +1,7 @@
-//! The engine process boundary is real even though the OCR model is a stub.
-//! Each test spawns the built `ocr-tesseract` or `ocr-paddle` executable.
+//! Supervisor tests: both engines run as separate processes, crash/timeout
+//! handling, and malformed image handling (G-AC-01, G-AC-02).
 
+use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -27,18 +28,34 @@ fn job(page: u32, image_path: &str) -> EngineJob {
 #[test]
 fn g_ac_01_killing_an_engine_is_a_recorded_failure_not_a_panic() {
     let dir = tempfile::tempdir().unwrap();
-    let mut j = job(1, dir.path().join("page.png").to_str().unwrap());
-    j.fail_mode = Some("crash".into());
-    let run = run_engine(
+    
+    // 1. ocr-tesseract
+    let mut j1 = job(1, dir.path().join("page1.png").to_str().unwrap());
+    j1.fail_mode = Some("crash".into());
+    let run1 = run_engine(
         &bin("ocr-tesseract"),
-        &j,
+        &j1,
         dir.path(),
         Duration::from_secs(2),
     );
-    assert!(run.lines.is_empty());
-    let failure = run.failure.unwrap();
-    assert_eq!(failure.kind, "raised");
-    assert!(failure.detail.contains("ocr-tesseract"));
+    assert!(run1.lines.is_empty());
+    let f1 = run1.failure.expect("expected failure for crashed ocr-tesseract");
+    assert_eq!(f1.kind, "raised");
+    assert!(f1.detail.contains("ocr-tesseract"));
+
+    // 2. ocr-paddle
+    let mut j2 = job(2, dir.path().join("page2.png").to_str().unwrap());
+    j2.fail_mode = Some("crash".into());
+    let run2 = run_engine(
+        &bin("ocr-paddle"),
+        &j2,
+        dir.path(),
+        Duration::from_secs(2),
+    );
+    assert!(run2.lines.is_empty());
+    let f2 = run2.failure.expect("expected failure for crashed ocr-paddle");
+    assert_eq!(f2.kind, "raised");
+    assert!(f2.detail.contains("ocr-paddle"));
 }
 
 #[test]
@@ -57,11 +74,39 @@ fn g_ac_02_a_hanging_engine_is_killed_at_the_timeout() {
 }
 
 #[test]
+fn g_ac_02_malformed_image_produces_review_item_and_no_host_crash() {
+    let dir = tempfile::tempdir().unwrap();
+    let malformed = dir.path().join("corrupted.png");
+    fs::write(&malformed, b"corrupted bytes not a real png").unwrap();
+
+    let j = job(1, malformed.to_str().unwrap());
+
+    // Both engines should handle malformed images gracefully with a recorded failure
+    let run1 = run_engine(
+        &bin("ocr-tesseract"),
+        &j,
+        dir.path(),
+        Duration::from_secs(3),
+    );
+    assert!(run1.lines.is_empty());
+    assert!(run1.failure.is_some(), "expected failure for malformed image in tesseract");
+
+    let run2 = run_engine(
+        &bin("ocr-paddle"),
+        &j,
+        dir.path(),
+        Duration::from_secs(3),
+    );
+    assert!(run2.lines.is_empty());
+    assert!(run2.failure.is_some(), "expected failure for malformed image in paddle");
+}
+
+#[test]
 fn a_stub_engine_reads_a_sidecar_and_returns_structured_lines() {
     let dir = tempfile::tempdir().unwrap();
     let image = dir.path().join("page.png");
-    std::fs::write(&image, b"not a real raster").unwrap();
-    std::fs::write(
+    fs::write(&image, b"not a real raster").unwrap();
+    fs::write(
         dir.path().join("page.png.tesseract.txt"),
         "the respondent filed\n12.03.2019\n",
     )
