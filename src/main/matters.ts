@@ -66,6 +66,14 @@ export class Matters {
     return (await this.store(matterId)).listOrigins(sourceId);
   }
 
+  /** The stored bytes of one source, for a read-only view. */
+  async sourceFile(matterId: string, sourceId: string): Promise<{ path: string; name: string }> {
+    const store = await this.store(matterId);
+    const source = store.getSource(sourceId);
+    if (!source) throw new MatterStoreError("SOURCE_NOT_FOUND", sourceId);
+    return { path: store.blobPath(source.sha256), name: source.name };
+  }
+
   async listEvents(matterId: string): Promise<EventRecord[]> {
     return (await this.store(matterId)).listEvents();
   }

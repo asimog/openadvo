@@ -89,6 +89,7 @@ test("create, add, duplicate, refuse, restart, integrity", async () => {
   await page.getByRole("button", { name: "Petitioner v. Respondent" }).click();
   await expect(page.getByRole("heading", { name: "Sources (2)" })).toBeVisible();
   await page.getByRole("button", { name: "impugned-judgment.pdf" }).click();
+  await page.getByText("Hash, origins and events").click();
   await expect(page.getByTestId("detail-sha256")).toHaveText(/^[0-9a-f]{64}$/);
   const sha = (await page.getByTestId("detail-sha256").textContent())!;
   await expect(page.getByRole("table", { name: "Events" })).toContainText("source.origin_added");
@@ -122,7 +123,7 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
   expect(probe.bridge).toEqual(
     [
       "addFiles", "createMatter", "getChat", "getModel", "listEvents", "listMatters", "listModels", "listOrigins",
-      "listSources", "onChatEvent", "openMatter", "pathsForFiles", "pickFiles", "sendChat", "setModel",
+      "closeView", "listSources", "onChatEvent", "openMatter", "openSourceView", "pathsForFiles", "pickFiles", "sendChat", "setModel",
     ].sort(),
   );
   await app.close();

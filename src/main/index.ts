@@ -7,6 +7,8 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { Matters } from "./matters.ts";
 import { Agent } from "./agent.ts";
+import { EditorHost, registerEditorScheme, EO_ORIGIN } from "./editor-host.ts";
+import { platformKey } from "../lib/euro-office/platform.ts";
 import type { ChatEvent } from "../shared/api.ts";
 
 // Tests and the proof run may point the application at separate folders.
@@ -16,7 +18,10 @@ const here = import.meta.dirname;
 const rendererDevUrl = process.env.ELECTRON_RENDERER_URL;
 const rendererFile = path.join(here, "../renderer/index.html");
 
+registerEditorScheme();
+
 let window: BrowserWindow | null = null;
+let editorHost: EditorHost;
 let matters: Matters;
 let agent: Agent;
 
@@ -54,6 +59,11 @@ function registerBridge(): void {
     return matters.addFiles(matterId, list, { actor: "advocate" });
   });
   handle("events:list", (matterId: string) => matters.listEvents(matterId));
+  handle("view:openSource", async (matterId: string, sourceId: string) => {
+    const file = await matters.sourceFile(matterId, sourceId);
+    return editorHost.open(file.path, file.name, "pdf", true);
+  });
+  handle("view:close", (token: string) => editorHost.close(String(token ?? "")));
   handle("dialog:pickFiles", async () => {
     if (!window) return [];
     const result = await dialog.showOpenDialog(window, {
@@ -94,6 +104,12 @@ function createWindow(): void {
     return { action: "deny" };
   });
   window.webContents.on("will-navigate", (event) => event.preventDefault());
+  // The editor frame may move only within its own origin (WD-078).
+  window.webContents.on("will-frame-navigate", (event) => {
+    if (event.isMainFrame) return;
+    if (event.url.startsWith(`${EO_ORIGIN}/`) || event.url === "about:blank") return;
+    event.preventDefault();
+  });
   window.once("ready-to-show", () => window?.show());
   if (rendererDevUrl) void window.loadURL(rendererDevUrl);
   else void window.loadFile(rendererFile);
@@ -130,7 +146,19 @@ function exposeTestHooks(): void {
   };
 }
 
+function euroOfficeRoot(): string {
+  if (process.env.OPENADVO_EO_ROOT) return path.resolve(process.env.OPENADVO_EO_ROOT);
+  return path.join(app.getAppPath(), "resources", "euro-office", platformKey());
+}
+
 app.whenReady().then(() => {
+  editorHost = new EditorHost({
+    eoRoot: euroOfficeRoot(),
+    hostDir: path.join(app.getAppPath(), "src", "editor-host"),
+    fontDataDir: path.join(app.getPath("userData"), "euro-office-fonts"),
+    logFile: path.join(app.getPath("userData"), "logs", "editor-host.log"),
+  });
+  editorHost.register();
   matters = new Matters(mattersRoot());
   agent = new Agent(
     {

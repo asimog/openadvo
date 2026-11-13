@@ -122,6 +122,41 @@ function NewMatterDialog(props: { isOpen: boolean; onOpenChange: (open: boolean)
   );
 }
 
+/** The Euro-Office PDF editor, read only, in a sandboxed frame (editor-design item j). */
+function SourceViewer(props: { matterId: string; sourceId: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    let opened: string | null = null;
+    setUrl(null);
+    setError(null);
+    api.openSourceView(props.matterId, props.sourceId).then(
+      (u) => {
+        opened = u;
+        if (live) setUrl(u);
+        else void api.closeView(u);
+      },
+      (e: Error) => live && setError(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, "")),
+    );
+    return () => {
+      live = false;
+      if (opened) void api.closeView(opened);
+    };
+  }, [props.matterId, props.sourceId]);
+  if (error) return <div className="notice" data-testid="viewer-error">{error}</div>;
+  if (!url) return <Text type="supporting">Opening the PDF editor…</Text>;
+  return (
+    <iframe
+      className="source-frame"
+      title="Source document"
+      data-testid="source-frame"
+      src={url}
+      sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads"
+    />
+  );
+}
+
 function SourceDetail(props: { matterId: string; source: SourceRecord; events: EventRecord[] }) {
   const [origins, setOrigins] = useState<OriginRecord[]>([]);
   useEffect(() => {
@@ -129,8 +164,11 @@ function SourceDetail(props: { matterId: string; source: SourceRecord; events: E
   }, [props.matterId, props.source.id, props.source.origins]);
   const events = props.events.filter((e) => e.subject === props.source.id);
   return (
-    <div>
+    <div className="source-detail">
       <Heading level={2}>{props.source.name}</Heading>
+      <SourceViewer matterId={props.matterId} sourceId={props.source.id} />
+      <details>
+      <summary>Hash, origins and events</summary>
       <dl className="facts">
         <dt>SHA-256</dt>
         <dd className="mono" data-testid="detail-sha256">{props.source.sha256}</dd>
@@ -152,6 +190,7 @@ function SourceDetail(props: { matterId: string; source: SourceRecord; events: E
       </table>
       <Heading level={3}>Events</Heading>
       <EventTable events={events} />
+      </details>
     </div>
   );
 }

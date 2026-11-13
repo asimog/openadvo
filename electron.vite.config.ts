@@ -6,7 +6,7 @@ import type { Plugin } from "vite";
 // scripts for React refresh, so the policy is added at build time only.
 const CSP =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; " +
-  "font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'";
+  "font-src 'self' data:; connect-src 'self'; frame-src oa-eo:; object-src 'none'; base-uri 'none'; form-action 'none'";
 
 function contentSecurityPolicy(): Plugin {
   return {

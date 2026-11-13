@@ -51,5 +51,8 @@ export interface OpenAdvoApi {
   pathsForFiles(files: File[]): string[];
   sendChat(matterId: string, text: string): Promise<void>;
   setModel(key: string): Promise<string>;
+  /** Open a source read only in the Euro-Office PDF editor. Returns the URL for a sandboxed frame. */
+  openSourceView(matterId: string, sourceId: string): Promise<string>;
+  closeView(url: string): Promise<void>;
   onChatEvent(listener: (event: ChatEvent) => void): () => void;
 }

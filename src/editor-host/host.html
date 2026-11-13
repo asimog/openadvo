@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Policy carried over from advodsh legal-docx-workspace.md section 14.1 (WD-076). -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'self' blob: data:; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <title>Document</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; background: #f3f3f3; }
+    #placeholder { position: absolute; inset: 0; }
+    #status {
+      position: fixed; inset: 0; z-index: 1000; display: none;
+      align-items: center; justify-content: center; text-align: center;
+      padding: 24px; color: #222; font: 13px/1.5 'Segoe UI', system-ui, sans-serif;
+      background: rgba(243, 243, 243, 0.94);
+    }
+    #status.active { display: flex; }
+  </style>
+</head>
+<body>
+  <div id="placeholder"></div>
+  <div id="status" data-testid="editor-status"></div>
+  <script src="/host/shim.js"></script>
+  <script src="/eo/web-apps/apps/api/documents/api.js"></script>
+  <script src="/host/boot.js"></script>
+</body>
+</html>
