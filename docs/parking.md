@@ -15,3 +15,6 @@ Each line: the idea, where it came from, and the step it would touch.
 | A matter rename and archive. | Step 1 build | 1, second version |
 | Render the agent's markdown in the chat pane (the proof run shows raw `**bold**`). | Step 1 proof run | 1, second version |
 | Replace Electron's default menu (File, Edit, View, Window) with our own. | Step 1 proof run | 1, second version |
+| Run ingestion in a worker thread, so a very large bundle never slows the window. Step 2 runs it in the main process (109 real pages took about 2.6 seconds). | Step 2 build | 2, second version |
+| Answer the editor's `/downloadfile/<key>` request (it asks a document server for the file; today it gets 404 and opens the file through the desktop route anyway). | Step 2 build | 2, second version |
+| Scroll the PDF editor to a line anchor and mark it. | Step 2 spec | 2, second version |

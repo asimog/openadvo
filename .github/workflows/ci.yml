@@ -21,6 +21,14 @@ jobs:
       - run: npm run typecheck
       - run: npm run test:unit
       - run: npm run build
+      # The official Euro-Office release for this platform (about 0.5 to 1 GB), cached by manifest.
+      - uses: actions/cache@v4
+        with:
+          path: .vendor-cache
+          key: euro-office-${{ runner.os }}-${{ hashFiles('scripts/euro-office.manifest.json') }}
+      - name: Vendor Euro-Office (the editor tests check the error path when this fails)
+        continue-on-error: true
+        run: npm run vendor
       # Ubuntu 24.04 blocks the unprivileged user namespaces that the Chromium sandbox uses.
       - name: Allow the Electron sandbox on Linux
         if: runner.os == 'Linux'

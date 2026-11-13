@@ -166,3 +166,31 @@ Inspector (P9); review inbox (M-03); command bar (M-04); saved layouts (M-02); m
 - Model: a picker in the chat pane from pi-ai's model list (`ModelRuntime.getAvailable()`), default from Pi's own setting, choice saved and applied with `session.setModel`. Choice 17. Tests: 5 of 5 Playwright tests pass with the live model, including a new picker test.
 - Euro-Office: the vendoring document is rewritten short. Plan: the complete official release (`v9.3.6`), every editor, inside the window, hosted with the same three layers euro-office-lite uses (host page, `AscDesktopEditor` bridge, `x2t` backend) but with the release's published editor files, unchanged. Nothing is built from source: `x2t -create-allfonts` from the release builds the font list (checked: exit 0, about 1 second). Choice 18.
 - Build plan: hosting moves from step 4 to step 2, because the PDF view is the Euro-Office PDF editor. The draft step 2 spec in section 13 is out of date on this point: its PDF view is now the Euro-Office PDF editor, not `pdfjs-dist`. `pdfjs-dist` stays only for text extraction.
+
+## 15. Step 2: document intelligence and the Euro-Office PDF view
+
+Spec: [docs/specs/v0-document-intelligence.md](../../docs/specs/v0-document-intelligence.md). Not the step 2 draft in section 13, which is superseded.
+
+**Built.**
+- `scripts/vendor-euro-office.ts` (`npm run vendor`). It staged the official Windows x64 release `v9.3.6` from the local copy of the release file (`--from`, sha256 checked) into `resources/euro-office/win-x64`, with `editors/`, `converter/`, `fonts/` and `dictionaries/`, about 1.4 GB, not committed. A second run checks and exits.
+- The editor host. A custom protocol `oa-eo://app/` serves the vendored editors unchanged, our host page, shim and boot script (adapted from advodsh `shim.js`, `boot.js` and `host.html`), the font list, and one document per view token. The font list comes from the release's own `x2t -create-allfonts`: bundled fonts plus 345 Windows system fonts. Checked: the run leaves the vendored folder unchanged. Fonts are served only when the font list names them.
+- Sources open read only in the Euro-Office PDF editor, in a sandboxed frame in the view pane. The frame may navigate only inside `oa-eo://app` (WD-078).
+- `lib/document-intelligence`: the `pdfjs-dist` text layer grouped into lines with boxes. A page with no text is rendered with `@napi-rs/canvas` and read by `tesseract.js`, with English data bundled. OCR lines use the same PDF coordinates as text-layer lines.
+- In the matter store: ingest jobs, pages, line anchors (`sha256:page:line`), OCR readings and review items. Pages, anchors and readings can only be written once, which triggers enforce. Review items are marked, never deleted.
+- `main/ingest.ts`: one job per source, after a file is added or a matter opens. A job left half done by an earlier run is marked failed, with a review item.
+- New read-only agent tools: `read_source_text` and `search_sources`. Human-only bridge actions: `resolveReviewItem` and `skipReviewItem`.
+- The window: a "Text" status per source, the page text under the PDF editor (line numbers, with the kind of text and the OCR confidence), and review items with Resolve and Skip.
+
+**Tests.** `npm run typecheck`: no errors. `npm run test:unit`: 7 pass. `npx playwright test`: 4 pass, 2 skipped (the live tests), including the new step 2 test (text layer, OCR, review item for a blank page, Skip, page text, the PDF editor reporting "opened"). CI now runs `npm run vendor` with a cache. If vendoring fails there, the editor test checks the error message instead.
+
+**Defect found and fixed during the build.** `@napi-rs/canvas` was not a direct dependency, so the bundler copied it into the main bundle, which broke its native loading. Every ingest job failed with "reading 'prototype'". This failure path itself worked as designed: the source showed "Failed", and a review item gave the reason. It is now a pinned direct dependency.
+
+**Proof run (my run, real files).** The step 1 proof matter: the four court-software manuals, plus `scanned-contents.pdf`, an image-only page made from a real manual page. Script `scratchpad/proof2.mjs`, against the built app, with the live model `opencode-go/deepseek-v4.1-flash`:
+- All 5 sources were read in about 2.6 seconds: 108 text-layer pages and 1 OCR page (91% confidence). No failures and no review items.
+- `eFM_2.0_Manual.pdf` opened in the Euro-Office PDF editor, read only, about 1 second after the click.
+- Question to the agent: "Where do the sources explain how to register as an Advocate-on-Record? Give each place as source, page and line." It used `search_sources`, `read_source_text` and `list_sources`. It cited, among others, eFM 2.0 p. 5 l. 1 and 4, eFM 3.0 p. 6 l. 14–15, and scanned-contents p. 1 l. 5. I checked these against the stored lines in `matter.db`, and all match.
+- One inaccuracy in the reply: it called the eFM 2.0 text "OCR" where it is a text layer.
+
+**Known and parked.** At start the editor asks for `oa-eo://app/downloadfile/<key>` (a document-server route) and gets 404. The document still opens through the desktop route, and this is parked. A service worker cannot register on the custom protocol, with no visible effect. The PDF editor still shows its File tab and a save icon. Saving is refused by our host, and the tab is hidden at step 4. Ingestion runs in the main process; moving it to a worker thread is parked.
+
+**Not yet checked.** Linux and macOS vendoring (the tar.xz and dmg paths are written but have not run). Scrolling the PDF editor to a line anchor (parked). The owner's proof task on a real brief with real scanned pages.

@@ -31,6 +31,7 @@ This file owns: the accepted decisions, the engineering choices made under them,
 | 16 | **Model credentials: Pi's own credential store.** The application stores no model secret. | Owner, 2026-11-13 | questions.md Q-2 |
 | 17 | **Model selection: pi-ai's model list.** The chat pane lists `ModelRuntime.getAvailable()`. The default is `OPENADVO_MODEL`, then the advocate's saved choice (`settings.json` in user data, resolved with the SDK's `resolveCliModel`), then Pi's own default model setting, then the first available model. A change applies to open sessions through `session.setModel`. Pi's own default is not changed. | Owner, 2026-11-13 | `src/main/agent.ts` |
 | 18 | **Euro-Office: the complete official desktop release, every editor, inside the window.** Hosted like euro-office-lite hosts it (host page, `AscDesktopEditor` bridge, `x2t` backend), but with the release's published editor files, unchanged. Moves Euro-Office hosting to build step 2. | Owner, 2026-11-13 | [euro-office-vendoring.md](euro-office-vendoring.md) |
+| 19 | **PDF text: `pdfjs-dist`** (text layer with positions, grouped into lines). **Page images for OCR: `@napi-rs/canvas`**, a prebuilt native canvas per platform, installed by npm and loaded through N-API. **OCR: `tesseract.js`** with English data from `@tesseract.js-data/eng`, so nothing is downloaded at run time. All run in the main process (decision 6: inside `lib/document-intelligence`). | Step 2 | `tests/unit/document-intelligence.test.ts` |
 
 ## 3. Rulings carried over from earlier records
 

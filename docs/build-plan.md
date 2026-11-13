@@ -53,7 +53,7 @@ Every section and appendix item of the workflow has a row. "v0" means the step's
 | 4. Hash and preserve original bytes | 1 | v0 |
 | 4. Identify format and readability | 2 | v0 (PDF only; other formats reported "not supported") |
 | 12. The full Euro-Office suite (Word, PDF and the other editors) inside the window | 2 (hosting, PDF editor), 4 (Word editor) | v0 |
-| 4. Detect document type and legal category | 2 | Later. v0: the advocate classifies. |
+| 4. Detect document type and legal category | 2 | Later. Step 2 v0 has no classification, by the advocate or by the system. |
 | 4. Metadata, annexure and exhibit references | 2 | Later |
 | 4. Born-digital text | 2 | v0 |
 | 4. OCR of scanned pages | 2 | v0: one OCR engine, each reading marked "single reading, not cross-checked" |
@@ -145,11 +145,11 @@ Round 1 steps also list the main-process modules, agent tools, bridge functions,
 - **Port when the step starts:** `deprecated/docs/specs/G-ocr-document-intelligence.md` (pipeline states, review items, OCR gold set G13); `deprecated/docs/specs/F-capture-ingest.md` (ingestion queue); `deprecated/docs/specs/J-documents-editors.md` J01 (PDF viewer requirement: anchors and highlights at page geometry); `deprecated/docs/decisions.md` sections 5C, 5N and 5.4; `research/engineering research/C2-prior-art-repos-review.md` section 6 (ingest, OCR and anchors).
 - **Main-process modules:** `main/ingest.ts` (a queue with one job per source; it calls the library and passes results to `main/matters.ts`, which writes them); `main/editor-host.ts` (serves the vendored Euro-Office files and our host page on a custom protocol; answers the editors' `AscDesktopEditor` calls over IPC; runs conversions).
 - **Plain libraries:** `lib/document-intelligence` (wraps `pdfjs-dist` for text with positions, and `tesseract.js` for OCR); `lib/converter` (selects the release's `x2t` by platform and runs it; builds the font list with `x2t -create-allfonts`).
-- **Scripts:** `scripts/vendor-euro-office.mjs` (fetches and checks the release; see the vendoring document).
+- **Scripts:** `scripts/vendor-euro-office.ts` (fetches and checks the release; see the vendoring document).
 - **Agent tools:** `read_source_text` (one source, a page range); `search_sources` (text search; returns anchors). Both read only.
-- **Bridge functions.** Queries: `getSourcePages`, `getPageText`, `getSourceBytes` (the bytes for the PDF view; the renderer reads no file), `listReviewItems`. Human-only actions: `classifySource`, `resolveReviewItem`, `skipReviewItem`.
+- **Bridge functions (as built).** Queries: `listJobs`, `getSourcePages`, `listReviewItems`, `openSourceView`, `closeView`; an `onIngestUpdate` event. Human-only actions: `resolveReviewItem`, `skipReviewItem`.
 - **Views:** the Euro-Office PDF editor in the view pane (a sandboxed view), with the page text beside it and the anchor of the selected line; the review item list.
-- **Events written:** `ingest.started`, `ingest.finished`, `ingest.failed`, `page.extracted`, `ocr.read`, `review_item.opened`, `review_item.resolved`, `review_item.skipped`, `source.classified`. **Records read:** sources, blobs, pages, anchors, review items.
+- **Events written (as built):** `ingest.started`, `ingest.finished` (with page counts by kind), `ingest.failed`, `ocr.read`, `review_item.opened`, `review_item.resolved`, `review_item.skipped`. **Records read:** sources, blobs, pages, anchors, OCR readings, jobs, review items.
 - **Carry over from `advodsh/plugins/workspace-editor`:** `lib/editor/host.html`, `lib/editor/boot.js`, `lib/editor/shim.js` (host page, editor boot, `AscDesktopEditor` answers; follow the official open and save flow, see the vendoring document); `lib/x2t.js` (one conversion at a time, a temp folder per run); `lib/engine/locate.js` (converter SHA-256 check, WD-101). Remove every euro-office-lite part.
 
 ### Step 3. Notebook: sources, procedural history, Factual Matrix, chronology

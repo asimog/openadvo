@@ -67,7 +67,7 @@ The Windows x64 file is the same file as `C:\dev\advodsh\resources\euro-office-d
 
 ## The fetch script
 
-One Node script, `scripts/vendor-euro-office.mjs`, written at step 4:
+One Node script, `scripts/vendor-euro-office.ts` (`npm run vendor`; `--from <file>` uses a local copy of the release file, still checked by sha256):
 
 1. Pick the release file for this platform. Stop with a clear message on macOS Intel.
 2. Download it once into a cache folder, and check its sha256 against the table above.
