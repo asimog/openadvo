@@ -10,13 +10,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { platformKey } from "../../src/lib/euro-office/platform.ts";
-import { appendFileSync } from "node:fs";
 import { appEnv } from "./env.ts";
-
-const progressFile = path.resolve(import.meta.dirname, "../../scratchpad/step4-lead/e2e-progress.log");
-function progress(line: string): void {
-  try { appendFileSync(progressFile, `${new Date().toISOString()} ${line}\n`); } catch {}
-}
 
 const repo = path.resolve(import.meta.dirname, "../..");
 const vendored = existsSync(path.join(repo, "resources", "euro-office", platformKey(), "converter"));
@@ -85,8 +79,6 @@ test("generate, show source, edit and save twice, approve", async () => {
   }, file);
   await page.getByRole("button", { name: "Add files" }).click();
   await expect(page.getByText("1 pp.")).toBeVisible({ timeout: 120_000 });
-
-  progress("ingested");
   const matterId: string = await page.evaluate(async () => (await (globalThis as any).openadvo.listMatters())[0].id);
 
   // Rule 1 of the spec: nothing unconfirmed enters generated prose.
@@ -99,16 +91,12 @@ test("generate, show source, edit and save twice, approve", async () => {
     return (await (globalThis as any).openadvo.getNotebook(id)).events.length;
   }, matterId);
   expect(confirmed).toBe(3);
-
-  progress("confirmed");
   // Generate the List of Dates; the DOCX opens in the Word editor with the harness bar.
   await page.getByRole("button", { name: "Generate List of Dates" }).click();
   const frame = page.getByTestId("draft-frame");
   await expect(frame).toBeVisible({ timeout: 120_000 });
   await expect(page.getByTestId("draft-status")).toContainText("Revision 1");
-  progress("draft-frame");
   const editor = await editorFrame(page);
-  progress("editor-ready");
   await expect(page.getByText("Opening the Word editor…")).toBeHidden({ timeout: 120_000 });
 
   // The generated DOCX carries one anchor per event paragraph and the paragraph links are stored.
@@ -124,8 +112,6 @@ test("generate, show source, edit and save twice, approve", async () => {
   }, matterId);
   expect(revision.anchors).toBe(3);
   expect(revision.author).toBe("generator");
-
-  progress("revision-checked");
   // Show source: put the cursor in the second date paragraph through the editor's own API, then use the bar.
   await editor.evaluate(() => {
     const api = (globalThis as any).Asc.editor.getJsApi();
@@ -146,8 +132,6 @@ test("generate, show source, edit and save twice, approve", async () => {
   });
   await page.getByRole("button", { name: "Show source of this paragraph" }).click();
   await expect(page.getByTestId("draft-message")).toContainText("no source link");
-
-  progress("show-source");
   // Edit and save: a human save makes a new revision with a base revision.
   const box = await frame.boundingBox();
   expect(box).not.toBeNull();
@@ -173,8 +157,6 @@ test("generate, show source, edit and save twice, approve", async () => {
   expect(revisions.author).toBe("advocate");
   // The anchors survived two editor saves.
   expect(revisions.anchors).toBe(3);
-
-  progress("saved-twice");
   // Approve one revision (human-only action); the status shows it.
   await page.getByRole("button", { name: "Approve revision" }).click();
   await expect(page.getByTestId("draft-status")).toContainText("Approved by advocate", { timeout: 30_000 });
@@ -191,14 +173,12 @@ test("generate, show source, edit and save twice, approve", async () => {
     return detail.paragraphs.filter((p: { anchor: string | null }) => p.anchor).length;
   }, matterId);
   expect(stored).toBe(3);
-
-  progress("approved");
   // Leave the editor before closing the application: the editor frame holds the document.
   await page.getByRole("button", { name: "Back to matter" }).first().click();
   await expect(page.getByTestId("draft-frame")).toBeHidden({ timeout: 30_000 });
   await app.close();
-  progress("closed");
 });
+
 
 
 
