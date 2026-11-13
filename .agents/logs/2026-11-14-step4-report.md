@@ -97,4 +97,4 @@ Insert a Notebook sentence at the cursor; hide the Draw and View ribbon tabs if 
 
 ## 10. Round 1
 
-Steps 1 to 4 are built, tested and committed. Round 1 is complete as software. The owner's round 1 proof tasks on a real brief are the remaining gate before any second version or step 5.
+Steps 1 to 4 are built, tested and committed. Round 1 is complete as software, and the round 1 proof tasks were run on the real Shankar Teli brief from `C:\dev\DOCSTEST`: [2026-11-14-round1-proof-report.md](2026-11-14-round1-proof-report.md). The owner's own confirmation on a real brief is the remaining gate before any second version or step 5.

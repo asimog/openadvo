@@ -18,7 +18,9 @@ Each line: the idea, where it came from, and the step it would touch.
 | Run ingestion in a worker thread, so a very large bundle never slows the window. Step 2 runs it in the main process (109 real pages took about 2.6 seconds). | Step 2 build | 2, second version |
 | Answer the editor's `/downloadfile/<key>` request (it asks a document server for the file; today it gets 404 and opens the file through the desktop route anyway). | Step 2 build | 2, second version |
 | Scroll the PDF editor to a line anchor and mark it. | Step 2 spec | 2, second version |
-| Drop running page headers and footers before joining lines into an event (the proof run joined a footer of spaced-out letters into an event). | Step 3 proof run | 3, second version |
+| Drop running page headers and footers before joining lines into an event (the proof run joined a footer of spaced-out letters into an event, and the manupatra footer "05-06-2020 (Page N of M)" became the event 05.06.2020 in the List of Dates). | Step 3 and round 1 proof runs | 3, second version |
+| Do not compare document metadata lines when the Notebook looks for the same act across sources (round 1 proof: the "Decided On:" lines of two different judgments became a false date conflict). | Round 1 proof run | 3, second version |
+| Do not accept a time range as a date ("4-4.30" was extracted as a date candidate; the proof operator rejected it by hand). | Round 1 proof run | 3, second version |
 | Show the Notebook's reading kind more plainly to the agent (it called text-layer text "OCR" twice). | Step 2 and 3 proof runs | 3, second version |
 | Relative dates against the document's header date ("the next day"). | Step 3 spec | 3, second version |
 | Insert a Notebook sentence at the cursor. Step 4 v0 adds it at the end of the draft, because the build has no public paragraph-insert API that keeps an anchor. | Step 4 proof task | 4, second version or 5 |
@@ -27,3 +29,4 @@ Each line: the idea, where it came from, and the step it would touch.
 | Compare a generated List of Dates against the owner's real SLP drafts and improve the sentence shape (still deterministic, no model text). | Step 4 proof task | After round 1 |
 | Quitting the application while a draft editor frame is open hung under Playwright. Check the window close path with a draft open and fix it. | Step 4 test run | 4, second version |
 | Clean the event description before generated prose: the step 3 extractor keeps list numbering ("2. In brief …") and repeated date phrases ("on the date of the incident, i.e. 18.3.1988"), and the List of Dates and Synopsis show them. The step 3 extractor owns the text. | Step 4 proof run on real documents | 3, second version |
+| Help the advocate select and order the generated List of Dates rows. v0 converts every confirmed dated line: round 1 proof produced 89 rows against the brief's 5 curated rows, and all 5 real dates were among the 89. | Round 1 proof run | 4, second version |

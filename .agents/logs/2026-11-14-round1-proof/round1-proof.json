@@ -1,0 +1,1368 @@
+{
+  "brief": "SHANKAR TELI",
+  "base": "C:\\Users\\RAHULK~1\\AppData\\Local\\Temp\\oa-round1-Gqhjtu",
+  "steps": [
+    {
+      "name": "step1-sources",
+      "value": {
+        "files": [
+          "AGAINST Gurmukh_Singh_vs_State_of_Haryana_25082009__SCs091541COM505229.pdf",
+          "Atmaram_and_Ors_vs_State_of_Madhya_Pradesh_1005201s120333COM503984.pdf",
+          "CRA_2392_2008_Judgement_18-Oct-2019.pdf",
+          "State_of_Rajasthan_vs_Islam_and_Ors_24052011__SCs110597COM442844.pdf",
+          "The_State_of_Rajasthan_vs_Kanhaiya_Lal_10042019__SSC20191704191116222COM575205.pdf"
+        ],
+        "filePages": {
+          "AGAINST Gurmukh_Singh_vs_State_of_Haryana_25082009__SCs091541COM505229.pdf": 7,
+          "Atmaram_and_Ors_vs_State_of_Madhya_Pradesh_1005201s120333COM503984.pdf": 11,
+          "CRA_2392_2008_Judgement_18-Oct-2019.pdf": 11,
+          "State_of_Rajasthan_vs_Islam_and_Ors_24052011__SCs110597COM442844.pdf": 5,
+          "The_State_of_Rajasthan_vs_Kanhaiya_Lal_10042019__SSC20191704191116222COM575205.pdf": 6,
+          "Delhi-IndbCh.pdf": 1
+        },
+        "sources": [
+          {
+            "name": "AGAINST Gurmukh_Singh_vs_State_of_Haryana_25082009__SCs091541COM505229.pdf",
+            "sha256": "b70624222d920d88",
+            "size": 87567,
+            "status": "ok"
+          },
+          {
+            "name": "Atmaram_and_Ors_vs_State_of_Madhya_Pradesh_1005201s120333COM503984.pdf",
+            "sha256": "5127e304417a8ba8",
+            "size": 118669,
+            "status": "ok"
+          },
+          {
+            "name": "CRA_2392_2008_Judgement_18-Oct-2019.pdf",
+            "sha256": "89a6495e870c812f",
+            "size": 211840,
+            "status": "ok"
+          },
+          {
+            "name": "State_of_Rajasthan_vs_Islam_and_Ors_24052011__SCs110597COM442844.pdf",
+            "sha256": "ffcd9ed81e0b9446",
+            "size": 70294,
+            "status": "ok"
+          },
+          {
+            "name": "The_State_of_Rajasthan_vs_Kanhaiya_Lal_10042019__SSC20191704191116222COM575205.pdf",
+            "sha256": "86f05f1c3f0f021e",
+            "size": 72490,
+            "status": "ok"
+          },
+          {
+            "name": "Delhi-IndbCh.pdf",
+            "sha256": "df061720b1c092c8",
+            "size": 573050,
+            "status": "ok"
+          }
+        ],
+        "jobs": [
+          {
+            "sourceId": "d537c9d6-9849-4dbc-a404-969db3831dd4",
+            "state": "done",
+            "pages": 7,
+            "error": null
+          },
+          {
+            "sourceId": "725f345e-caf0-4b1f-ad1e-0e75326b50e2",
+            "state": "done",
+            "pages": 11,
+            "error": null
+          },
+          {
+            "sourceId": "035b1099-ae00-4d48-909d-f0cfeeab7f74",
+            "state": "done",
+            "pages": 11,
+            "error": null
+          },
+          {
+            "sourceId": "a7371a15-8ee0-47be-bf23-d1159d15656d",
+            "state": "done",
+            "pages": 5,
+            "error": null
+          },
+          {
+            "sourceId": "5d28ac7b-7163-4229-ad8b-70149969f131",
+            "state": "done",
+            "pages": 6,
+            "error": null
+          },
+          {
+            "sourceId": "2570df6c-de9e-499b-9890-b802864730cb",
+            "state": "done",
+            "pages": 1,
+            "error": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "step2-pages",
+      "value": [
+        {
+          "name": "AGAINST Gurmukh_Singh_vs_State_of_Haryana_25082009__SCs091541COM505229.pdf",
+          "filePages": 7,
+          "storedPages": 7,
+          "pageCountEqual": true,
+          "kinds": {
+            "born_digital": 7,
+            "ocr": 0,
+            "none": 0
+          },
+          "textChars": 21105,
+          "ocrConfidence": []
+        },
+        {
+          "name": "Atmaram_and_Ors_vs_State_of_Madhya_Pradesh_1005201s120333COM503984.pdf",
+          "filePages": 11,
+          "storedPages": 11,
+          "pageCountEqual": true,
+          "kinds": {
+            "born_digital": 11,
+            "ocr": 0,
+            "none": 0
+          },
+          "textChars": 36880,
+          "ocrConfidence": []
+        },
+        {
+          "name": "CRA_2392_2008_Judgement_18-Oct-2019.pdf",
+          "filePages": 11,
+          "storedPages": 11,
+          "pageCountEqual": true,
+          "kinds": {
+            "born_digital": 11,
+            "ocr": 0,
+            "none": 0
+          },
+          "textChars": 20442,
+          "ocrConfidence": []
+        },
+        {
+          "name": "State_of_Rajasthan_vs_Islam_and_Ors_24052011__SCs110597COM442844.pdf",
+          "filePages": 5,
+          "storedPages": 5,
+          "pageCountEqual": true,
+          "kinds": {
+            "born_digital": 5,
+            "ocr": 0,
+            "none": 0
+          },
+          "textChars": 14393,
+          "ocrConfidence": []
+        },
+        {
+          "name": "The_State_of_Rajasthan_vs_Kanhaiya_Lal_10042019__SSC20191704191116222COM575205.pdf",
+          "filePages": 6,
+          "storedPages": 6,
+          "pageCountEqual": true,
+          "kinds": {
+            "born_digital": 6,
+            "ocr": 0,
+            "none": 0
+          },
+          "textChars": 19307,
+          "ocrConfidence": []
+        },
+        {
+          "name": "Delhi-IndbCh.pdf",
+          "filePages": 1,
+          "storedPages": 1,
+          "pageCountEqual": true,
+          "kinds": {
+            "born_digital": 0,
+            "ocr": 1,
+            "none": 0
+          },
+          "textChars": 1796,
+          "ocrConfidence": [
+            80
+          ]
+        }
+      ]
+    },
+    {
+      "name": "step2-review-items",
+      "value": {
+        "decisions": [
+          {
+            "id": "42f4cd8e-3f25-45bf-b732-fecbd0ce7378",
+            "kind": "date_conflict",
+            "decision": "left to the conflict decision",
+            "reason": "Conflicting dates for the same event: 24.05.2011 (State_of_Rajasthan_vs_Islam_and_Ors_24052011__SCs110597COM442844.pdf, p. 1, l. 6) and 10.04.2019 (The_State_of_Rajasthan_vs_Kanhaiya_Lal_10042019__SSC20191704191116222COM575205.pdf, p. 1, l. 6)."
+          }
+        ],
+        "remaining": 1
+      }
+    },
+    {
+      "name": "step2-editor",
+      "value": [
+        {
+          "name": "AGAINST Gurmukh_Singh_vs_State_of_Haryana_25082009__SCs091541COM505229.pdf",
+          "viewer": "Opened read only in the Euro-Office PDF editor.",
+          "firstPage": "MANU/SC/1542/2009\nEquivalent Citation: 2010C riLJ450, JT2009(11)SC 117, 2009(4)RC R(C riminal)220, 2009(11)SC ALE688, (2009)15SC C 635\nIN THE SUPREME COURT OF I"
+        },
+        {
+          "name": "Atmaram_and_Ors_vs_State_of_Madhya_Pradesh_1005201s120333COM503984.pdf",
+          "viewer": "Opened read only in the Euro-Office PDF editor.",
+          "firstPage": "MANU/SC/0431/2012\nEquivalent Citation: 2012AC R2330, AIR2012SC 1956, 2012(3)ALT(C ri)SC 385, 2012C riLJ2882, 2012(2)C rimes271(SC ), 2012(3)J.L.J.R.85,\n2012(3)J"
+        },
+        {
+          "name": "CRA_2392_2008_Judgement_18-Oct-2019.pdf",
+          "viewer": "Opened read only in the Euro-Office PDF editor.",
+          "firstPage": "HIGH COURT OF MADHYA PRADESH, PRINCIPAL SEAT AT\nJABALPUR\nCase No. Criminal Appeal No.2392/2008\nParties Name Shanker Teli\nvs.\nState of Madhya Pradesh,\nDate of Ju"
+        },
+        {
+          "name": "State_of_Rajasthan_vs_Islam_and_Ors_24052011__SCs110597COM442844.pdf",
+          "viewer": "Opened read only in the Euro-Office PDF editor.",
+          "firstPage": "MANU/SC/0665/2011\nEquivalent Citation: 2011(3)AC R2941(SC ), AIR2011SC 2317, 2011(2)C rimes303(SC ), 2011(3)JC C 1927(SC ), JT2011(6)SC 452,\n2011(3)RC R(C rimin"
+        },
+        {
+          "name": "The_State_of_Rajasthan_vs_Kanhaiya_Lal_10042019__SSC20191704191116222COM575205.pdf",
+          "viewer": "Opened read only in the Euro-Office PDF editor.",
+          "firstPage": "MANU/SC/0515/2019\nEquivalent Citation: AIR2019SC 2633, 2019C riLJ3266, 2019(2)C rimes117(SC ), 2019(3)JKJ155[SC ], 2019(2)MLJ(C rl)697, 2019(6)SC ALE244,\n(2019)"
+        },
+        {
+          "name": "Delhi-IndbCh.pdf",
+          "viewer": "Opened read only in the Euro-Office PDF editor.",
+          "firstPage": "<= NET2 NETTOUR AND TRAVEL\nEmail: ne t2ne tholidays @gmail.com\nPhone: 9926834834\n—_— Address: BAIRAM BASHANI 119 SANT RAM SINDHI COLONY UJJAIN\nNEL PH OLD M.L NA"
+        }
+      ]
+    },
+    {
+      "name": "step2-visual-pages",
+      "value": [
+        {
+          "source": "CRA_2392_2008_Judgement_18-Oct-2019.pdf",
+          "page": 1,
+          "kind": "born_digital",
+          "textHead": "HIGH COURT OF MADHYA PRADESH, PRINCIPAL SEAT AT\nJABALPUR\nCase No. Criminal Appeal No.2392/2008\nParties Name Shanker Teli\nvs.\nState of Madhya Pradesh,\nDate of Judgment 18/10/2019\nBench Constituted Justice Atul Sreedharan ",
+          "image": "page-born_digital-CRA2392200-p1.png",
+          "ocr": null
+        },
+        {
+          "source": "Atmaram_and_Ors_vs_State_of_Madhya_Pradesh_1005201s120333COM503984.pdf",
+          "page": 3,
+          "kind": "born_digital",
+          "textHead": "blood stained earth, cycle and sandal of the deceased were seized and the spot map\nwas prepared. On 8th November, 1993, all the accused persons were arrested. Upon\ntheir interrogation and in furtherance to their statemen",
+          "image": "page-born_digital-Atmaramand-p3.png",
+          "ocr": null
+        },
+        {
+          "source": "AGAINST Gurmukh_Singh_vs_State_of_Haryana_25082009__SCs091541COM505229.pdf",
+          "page": 2,
+          "kind": "born_digital",
+          "textHead": "1. Leave granted.\n2 . This appeal is directed against the judgment of the Punjab & Haryana High Court\ndated 4.4.2008 delivered in Criminal Appeal No. 163-DB of 1999.\n3. Brief facts which are necessary to dispose of the a",
+          "image": "page-born_digital-AGAINSTGurm-p2.png",
+          "ocr": null
+        },
+        {
+          "source": "Delhi-IndbCh.pdf",
+          "page": 1,
+          "kind": "ocr",
+          "textHead": "<= NET2 NETTOUR AND TRAVEL\nEmail: ne t2ne tholidays @gmail.com\nPhone: 9926834834\n—_— Address: BAIRAM BASHANI 119 SANT RAM SINDHI COLONY UJJAIN\nNEL PH OLD M.L NAGAR Indore Madhya Prades h India 456010\nBooking Time: Jan 18",
+          "image": "page-ocr-DelhiIndbCh-p1.png",
+          "ocr": {
+            "engine": "tesseract.js",
+            "version": "7.0.0",
+            "confidence": 80
+          }
+        }
+      ]
+    },
+    {
+      "name": "step2-scanned-panel",
+      "value": {
+        "pageLines": "1\n<= NET2 NETTOUR AND TRAVEL\n2\nEmail: ne t2ne tholidays @gmail.com\n3\nPhone: 9926834834\n4\n—_— Address: BAIRAM BASHANI 119 SANT RAM SINDHI COLONY UJJAIN\n5\nNEL PH OLD M.L NAGAR Indore Madhya Prades h India 456010\n6\nBooking Time: Jan 18,2020 8:09PM\n7\nBooking ID: T31098 01459991 El dice RGYWXF\n8\nAirline PNR\n9\nBooking Status: CONFIRMED\n10\nFlight Detail *Please verify flight timings & terminal info with ",
+        "state": "OCR: single reading, not cross-checked (80%)"
+      }
+    },
+    {
+      "name": "step3-notebook",
+      "value": {
+        "events": 90,
+        "confirmed": 89,
+        "rejected": 1,
+        "conflicts": 1,
+        "conflictsResolved": 1,
+        "readiness": {
+          "ready": true,
+          "jobsPending": 0,
+          "openReviewItems": 0
+        },
+        "decisions": [
+          {
+            "conflict": "eb877845-fce1-439e-bfbd-319b7b18fc3b",
+            "eventA": {
+              "date": "24.05.2011",
+              "source": "State_of_Rajasthan_vs_Islam_and_Ors_24052011__SCs110597COM442844.pdf",
+              "description": "Decided On: 24.05.2011 Appellants:State of Rajasthan"
+            },
+            "eventB": {
+              "date": "10.04.2019",
+              "source": "The_State_of_Rajasthan_vs_Kanhaiya_Lal_10042019__SSC20191704191116222COM575205.pdf",
+              "description": "Decided On: 10.04.2019 Appellants: The State of Rajasthan"
+            },
+            "aOk": true,
+            "bOk": true,
+            "resolution": "both"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:2:12:1",
+            "date": "4-4.30",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "rejected",
+            "line": "2. At about 4-4.30 p.m., when they reached near the said village, all of a sudden the"
+          },
+          {
+            "event": "ev:ffcd9ed81e0b9446cef0a434686a6947fdec25cd0a82a7f8e448761cbbcaa791:2:35:1",
+            "date": "18.3.1988",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "on the date of the incident, i.e. 18.3.1988, a meeting was held in the morning for"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:5:44:1",
+            "date": "16-5-1988",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "16-5-1988 while the witnesses were examined after some time. Thus, it may"
+          },
+          {
+            "event": "ev:b70624222d920d88780db9fdf661147c159694bbde685ace984db0f2d579dbce:5:19:1",
+            "date": "10.8.1990",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "10.8.1990 and the deceased succumbed to injury on 15.8.1990 after a lapse"
+          },
+          {
+            "event": "ev:b70624222d920d88780db9fdf661147c159694bbde685ace984db0f2d579dbce:5:19:2",
+            "date": "15.8.1990",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "10.8.1990 and the deceased succumbed to injury on 15.8.1990 after a lapse"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:4:3:3",
+            "date": "11.1.93",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "8.11.93 to 3.3.94 and accused No. 4 Ramchandra from 11.1.93 to 6.1.94 and"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:2:32:1",
+            "date": "November, 1993",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "November, 1993."
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:2:40:1",
+            "date": "6th November, 1993",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "died on the way at about 11.30 p.m. on 6th November, 1993 and his dead body was"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:7:14:1",
+            "date": "6th November, 1993",
+            "kind": "procedural",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "the incident had occurred at about 4.30 p.m. on 6th November, 1993 and the FIR itself"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:2:48:1",
+            "date": "7th November, 1993",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "Choudhary visited the spot of occurrence on 7th November, 1993, from where the"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:3:2:1",
+            "date": "8th November, 1993",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "was prepared. On 8th November, 1993, all the accused persons were arrested. Upon"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:4:1:1",
+            "date": "8.11.93",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "4 9 . During prosecution, accused No. 1 Atmaram from 8.11.93 to 3.3.94,"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:4:2:1",
+            "date": "8.11.93",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "accused No. 2 Gokul from 8.11.93 to 24.6.94, accused No. 3 Vikram from"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:4:3:1",
+            "date": "8.11.93",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "8.11.93 to 3.3.94 and accused No. 4 Ramchandra from 11.1.93 to 6.1.94 and"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:4:4:1",
+            "date": "11.11.93",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "accused No. 5 Umrao from 11.11.93 to 6.1.94, were in judicial custody. Such"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:3:5:1",
+            "date": "3rd December, 1993",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "forensic science laboratory for examination on 3rd December, 1993. The examination"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:3:6:1",
+            "date": "8th December, 1993",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "report was received on 8th December, 1993 and in terms of the Report, no blood stain"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:4:3:4",
+            "date": "6.1.94",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "8.11.93 to 3.3.94 and accused No. 4 Ramchandra from 11.1.93 to 6.1.94 and"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:4:4:2",
+            "date": "6.1.94",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "accused No. 5 Umrao from 11.11.93 to 6.1.94, were in judicial custody. Such"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:4:1:2",
+            "date": "3.3.94",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "4 9 . During prosecution, accused No. 1 Atmaram from 8.11.93 to 3.3.94,"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:4:3:2",
+            "date": "3.3.94",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "8.11.93 to 3.3.94 and accused No. 4 Ramchandra from 11.1.93 to 6.1.94 and"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:4:2:2",
+            "date": "24.6.94",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "accused No. 2 Gokul from 8.11.93 to 24.6.94, accused No. 3 Vikram from"
+          },
+          {
+            "event": "ev:b70624222d920d88780db9fdf661147c159694bbde685ace984db0f2d579dbce:2:7:1",
+            "date": "8.1.1997",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "4. According to the prosecution version, on 8.1.1997 in the morning, deceased Hazoor"
+          },
+          {
+            "event": "ev:b70624222d920d88780db9fdf661147c159694bbde685ace984db0f2d579dbce:2:29:1",
+            "date": "8.1.1997",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "at 4.55 p.m. on 8.1.1997 and referred him to the Civil Hospital, Karnal, Dr. R. M."
+          },
+          {
+            "event": "ev:b70624222d920d88780db9fdf661147c159694bbde685ace984db0f2d579dbce:3:23:1",
+            "date": "8.1.1997",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "(5) The incident took place on 8.1.1997 and the deceased remained"
+          },
+          {
+            "event": "ev:b70624222d920d88780db9fdf661147c159694bbde685ace984db0f2d579dbce:2:27:1",
+            "date": "14.1.1997",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "14.1.1997 after three days on account of the head injury sustained by him."
+          },
+          {
+            "event": "ev:b70624222d920d88780db9fdf661147c159694bbde685ace984db0f2d579dbce:3:24:1",
+            "date": "14.1.1997",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "hospitalized and ultimately died on 14.1.1997;"
+          },
+          {
+            "event": "ev:b70624222d920d88780db9fdf661147c159694bbde685ace984db0f2d579dbce:2:30:1",
+            "date": "15.1.1997",
+            "kind": "procedural",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "Singh P.W.2 who conducted the post-mortem examination on 15.1.1997, Balkar Singh"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:3:10:1",
+            "date": "13th April, 1999",
+            "kind": "procedural",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "7. The learned Trial Court vide its detailed judgment dated 13th April, 1999 held that"
+          },
+          {
+            "event": "ev:ffcd9ed81e0b9446cef0a434686a6947fdec25cd0a82a7f8e448761cbbcaa791:1:41:1",
+            "date": "19.2.2003",
+            "kind": "procedural",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "19.2.2003 passed by the High Court whereby the High Court by its judgment disposed"
+          },
+          {
+            "event": "ev:89a6495e870c812f6a7e74f5c7815ef789905d1df4a51d8bc8dec080974ee95a:1:30:1",
+            "date": "16.5.2007",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "years back. On 16.5.2007 Laxman came to the house of his brother Devideen"
+          },
+          {
+            "event": "ev:89a6495e870c812f6a7e74f5c7815ef789905d1df4a51d8bc8dec080974ee95a:6:27:1",
+            "date": "16.5.2007",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "The incident took place at about 8:30 to 9:00 in the night of 16.5.2007 and"
+          },
+          {
+            "event": "ev:89a6495e870c812f6a7e74f5c7815ef789905d1df4a51d8bc8dec080974ee95a:7:12:1",
+            "date": "16.5.2007",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "examination before the Court. He said that on 16.5.2007 Laxman came"
+          },
+          {
+            "event": "ev:89a6495e870c812f6a7e74f5c7815ef789905d1df4a51d8bc8dec080974ee95a:9:25:1",
+            "date": "16.5.2007",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "incident took place on 16.5.2007 and the Ballam was seized on 21.5.2007."
+          },
+          {
+            "event": "ev:89a6495e870c812f6a7e74f5c7815ef789905d1df4a51d8bc8dec080974ee95a:4:8:1",
+            "date": "17.5.2007",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "Laxman on 17.5.2007. He proved his report Ex.P.11 and said that during"
+          },
+          {
+            "event": "ev:89a6495e870c812f6a7e74f5c7815ef789905d1df4a51d8bc8dec080974ee95a:2:23:1",
+            "date": "21.5.2007",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "the spot by Ex.P.14. On 21.5.2007 police interrogated the accused and"
+          },
+          {
+            "event": "ev:89a6495e870c812f6a7e74f5c7815ef789905d1df4a51d8bc8dec080974ee95a:9:15:1",
+            "date": "21.5.2007",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "He also said that on 21.5.2007 he interrogated the accused and accused"
+          },
+          {
+            "event": "ev:89a6495e870c812f6a7e74f5c7815ef789905d1df4a51d8bc8dec080974ee95a:9:25:2",
+            "date": "21.5.2007",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "incident took place on 16.5.2007 and the Ballam was seized on 21.5.2007."
+          },
+          {
+            "event": "ev:89a6495e870c812f6a7e74f5c7815ef789905d1df4a51d8bc8dec080974ee95a:10:31:1",
+            "date": "21.5.2007",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "26. The accused is confined in custody since 21.5.2007. Therefore, he be"
+          },
+          {
+            "event": "ev:89a6495e870c812f6a7e74f5c7815ef789905d1df4a51d8bc8dec080974ee95a:2:22:1",
+            "date": "25.5.2007",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "another Spot Memo Ex.P.8 on 25.5.2007. Police seized some articles from"
+          },
+          {
+            "event": "ev:89a6495e870c812f6a7e74f5c7815ef789905d1df4a51d8bc8dec080974ee95a:2:31:1",
+            "date": "25.6.2007",
+            "kind": "procedural",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "Court of JMFC Shri S.K.Gupta on 25.6.2007, who registered the Criminal"
+          },
+          {
+            "event": "ev:89a6495e870c812f6a7e74f5c7815ef789905d1df4a51d8bc8dec080974ee95a:3:3:1",
+            "date": "7.7.2007",
+            "kind": "procedural",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "SC/ST Act, Chhatarpur on 7.7.2007. On 21.7.2007 the Special Court"
+          },
+          {
+            "event": "ev:89a6495e870c812f6a7e74f5c7815ef789905d1df4a51d8bc8dec080974ee95a:3:3:2",
+            "date": "21.7.2007",
+            "kind": "procedural",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "SC/ST Act, Chhatarpur on 7.7.2007. On 21.7.2007 the Special Court"
+          },
+          {
+            "event": "ev:89a6495e870c812f6a7e74f5c7815ef789905d1df4a51d8bc8dec080974ee95a:3:4:1",
+            "date": "30.7.2007",
+            "kind": "procedural",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "registered the Case No.122/2007 and on 30.7.2007 the trial court framed"
+          },
+          {
+            "event": "ev:89a6495e870c812f6a7e74f5c7815ef789905d1df4a51d8bc8dec080974ee95a:2:29:1",
+            "date": "25.9.2007",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "dated 25.9.2007, Ex.P.16 was received."
+          },
+          {
+            "event": "ev:89a6495e870c812f6a7e74f5c7815ef789905d1df4a51d8bc8dec080974ee95a:9:21:1",
+            "date": "25.9.2007",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "Ballam as per FSL report No.1199/2007 dated 25.9.2007 Ex.P.6, but this"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:2:5:1",
+            "date": "23rd January, 2008",
+            "kind": "procedural",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "Bench at Indore dated 23rd January, 2008. We may notice the necessary facts giving"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:4:17:1",
+            "date": "23rd January, 2008",
+            "kind": "procedural",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "judgment dated 23rd January, 2008, confirmed the judgment of the Trial Court and"
+          },
+          {
+            "event": "ev:86f05f1c3f0f021e9a6e153a5fad6723b8fdec17d85725aa421cc7bc7738f221:2:22:1",
+            "date": "26.01.2008",
+            "kind": "procedural",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "Nimbaheda being FIR No. 32/2008. It was alleged that on 26.01.2008, when PW-5-Ms."
+          },
+          {
+            "event": "ev:b70624222d920d88780db9fdf661147c159694bbde685ace984db0f2d579dbce:2:3:1",
+            "date": "4.4.2008",
+            "kind": "procedural",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "dated 4.4.2008 delivered in Criminal Appeal No. 163-DB of 1999."
+          },
+          {
+            "event": "ev:89a6495e870c812f6a7e74f5c7815ef789905d1df4a51d8bc8dec080974ee95a:3:9:1",
+            "date": "31.10.2008",
+            "kind": "procedural",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "trial, the Court passed the judgment on 31.10.2008 by which the appellant"
+          },
+          {
+            "event": "ev:89a6495e870c812f6a7e74f5c7815ef789905d1df4a51d8bc8dec080974ee95a:1:21:1",
+            "date": "17.11.2008",
+            "kind": "procedural",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "This criminal appeal has been filed on 17.11.2008 against the judgment"
+          },
+          {
+            "event": "ev:b70624222d920d88780db9fdf661147c159694bbde685ace984db0f2d579dbce:1:5:1",
+            "date": "25.08.2009",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "Decided On: 25.08.2009"
+          },
+          {
+            "event": "ev:ffcd9ed81e0b9446cef0a434686a6947fdec25cd0a82a7f8e448761cbbcaa791:1:6:1",
+            "date": "24.05.2011",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "Decided On: 24.05.2011"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:1:6:1",
+            "date": "10.05.2012",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "Decided On: 10.05.2012"
+          },
+          {
+            "event": "ev:86f05f1c3f0f021e9a6e153a5fad6723b8fdec17d85725aa421cc7bc7738f221:2:15:1",
+            "date": "23.05.2014",
+            "kind": "procedural",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "Court of Judicature for Rajasthan dated 23.05.2014 passed in Criminal Appeal No. 303"
+          },
+          {
+            "event": "ev:89a6495e870c812f6a7e74f5c7815ef789905d1df4a51d8bc8dec080974ee95a:1:22:1",
+            "date": "31.10.2018",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "dated 31.10.2018 passed by the Special Judge, Scheduled Castes & Scheduled"
+          },
+          {
+            "event": "ev:86f05f1c3f0f021e9a6e153a5fad6723b8fdec17d85725aa421cc7bc7738f221:3:37:1",
+            "date": "13.12.2018",
+            "kind": "procedural",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "Rajasthan v. Leela Ram alias Leela Dhar dated 13.12.2018 in Criminal Appeal No. 1441"
+          },
+          {
+            "event": "ev:86f05f1c3f0f021e9a6e153a5fad6723b8fdec17d85725aa421cc7bc7738f221:1:6:1",
+            "date": "10.04.2019",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "Decided On: 10.04.2019"
+          },
+          {
+            "event": "ev:89a6495e870c812f6a7e74f5c7815ef789905d1df4a51d8bc8dec080974ee95a:1:7:1",
+            "date": "18/10/2019",
+            "kind": "procedural",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "Date of Judgment 18/10/2019"
+          },
+          {
+            "event": "ev:89a6495e870c812f6a7e74f5c7815ef789905d1df4a51d8bc8dec080974ee95a:1:19:1",
+            "date": "18.10.2019",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "18.10.2019"
+          },
+          {
+            "event": "ev:b70624222d920d88780db9fdf661147c159694bbde685ace984db0f2d579dbce:1:45:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 1 of 7) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:b70624222d920d88780db9fdf661147c159694bbde685ace984db0f2d579dbce:2:47:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 2 of 7) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:b70624222d920d88780db9fdf661147c159694bbde685ace984db0f2d579dbce:3:44:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 3 of 7) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:b70624222d920d88780db9fdf661147c159694bbde685ace984db0f2d579dbce:4:51:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 4 of 7) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:b70624222d920d88780db9fdf661147c159694bbde685ace984db0f2d579dbce:5:50:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 5 of 7) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:b70624222d920d88780db9fdf661147c159694bbde685ace984db0f2d579dbce:6:42:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 6 of 7) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:b70624222d920d88780db9fdf661147c159694bbde685ace984db0f2d579dbce:7:24:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 7 of 7) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:1:48:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 1 of 11) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:2:49:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 2 of 11) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:3:52:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 3 of 11) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:4:47:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 4 of 11) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:5:54:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 5 of 11) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:6:44:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 6 of 11) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:7:48:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 7 of 11) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:8:53:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 8 of 11) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:9:52:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 9 of 11) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:10:51:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 10 of 11) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:5127e304417a8ba8232660d9b19f8cc120e53131a2df70583d056cafe851087a:11:8:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 11 of 11) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:ffcd9ed81e0b9446cef0a434686a6947fdec25cd0a82a7f8e448761cbbcaa791:1:44:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 1 of 5) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:ffcd9ed81e0b9446cef0a434686a6947fdec25cd0a82a7f8e448761cbbcaa791:2:48:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 2 of 5) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:ffcd9ed81e0b9446cef0a434686a6947fdec25cd0a82a7f8e448761cbbcaa791:3:49:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 3 of 5) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:ffcd9ed81e0b9446cef0a434686a6947fdec25cd0a82a7f8e448761cbbcaa791:4:46:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 4 of 5) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:ffcd9ed81e0b9446cef0a434686a6947fdec25cd0a82a7f8e448761cbbcaa791:5:20:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 5 of 5) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:86f05f1c3f0f021e9a6e153a5fad6723b8fdec17d85725aa421cc7bc7738f221:1:50:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 1 of 6) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:86f05f1c3f0f021e9a6e153a5fad6723b8fdec17d85725aa421cc7bc7738f221:2:50:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 2 of 6) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:86f05f1c3f0f021e9a6e153a5fad6723b8fdec17d85725aa421cc7bc7738f221:3:50:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 3 of 6) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:86f05f1c3f0f021e9a6e153a5fad6723b8fdec17d85725aa421cc7bc7738f221:4:50:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 4 of 6) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:86f05f1c3f0f021e9a6e153a5fad6723b8fdec17d85725aa421cc7bc7738f221:5:49:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 5 of 6) www.manupatra.com Rahul Kaushik"
+          },
+          {
+            "event": "ev:86f05f1c3f0f021e9a6e153a5fad6723b8fdec17d85725aa421cc7bc7738f221:6:11:1",
+            "date": "05-06-2020",
+            "kind": "factual",
+            "reading": "text_layer",
+            "decision": "confirmed",
+            "line": "05-06-2020 (Page 6 of 6) www.manupatra.com Rahul Kaushik"
+          }
+        ],
+        "tenChecks": [
+          {
+            "date": "18.3.1988",
+            "source": "State_of_Rajasthan_vs_Islam_and_Ors_24052011__SCs110597COM442844.pdf",
+            "page": 2,
+            "line": 35,
+            "anchorOk": true,
+            "lineText": "on the date of the incident, i.e. 18.3.1988, a meeting was held in the morning for"
+          },
+          {
+            "date": "16-5-1988",
+            "source": "Atmaram_and_Ors_vs_State_of_Madhya_Pradesh_1005201s120333COM503984.pdf",
+            "page": 5,
+            "line": 44,
+            "anchorOk": true,
+            "lineText": "16-5-1988 while the witnesses were examined after some time. Thus, it may"
+          },
+          {
+            "date": "10.8.1990",
+            "source": "AGAINST Gurmukh_Singh_vs_State_of_Haryana_25082009__SCs091541COM505229.pdf",
+            "page": 5,
+            "line": 19,
+            "anchorOk": true,
+            "lineText": "10.8.1990 and the deceased succumbed to injury on 15.8.1990 after a lapse"
+          },
+          {
+            "date": "15.8.1990",
+            "source": "AGAINST Gurmukh_Singh_vs_State_of_Haryana_25082009__SCs091541COM505229.pdf",
+            "page": 5,
+            "line": 19,
+            "anchorOk": true,
+            "lineText": "10.8.1990 and the deceased succumbed to injury on 15.8.1990 after a lapse"
+          },
+          {
+            "date": "11.1.93",
+            "source": "Atmaram_and_Ors_vs_State_of_Madhya_Pradesh_1005201s120333COM503984.pdf",
+            "page": 4,
+            "line": 3,
+            "anchorOk": true,
+            "lineText": "8.11.93 to 3.3.94 and accused No. 4 Ramchandra from 11.1.93 to 6.1.94 and"
+          },
+          {
+            "date": "November, 1993",
+            "source": "Atmaram_and_Ors_vs_State_of_Madhya_Pradesh_1005201s120333COM503984.pdf",
+            "page": 2,
+            "line": 32,
+            "anchorOk": true,
+            "lineText": "November, 1993."
+          },
+          {
+            "date": "6th November, 1993",
+            "source": "Atmaram_and_Ors_vs_State_of_Madhya_Pradesh_1005201s120333COM503984.pdf",
+            "page": 2,
+            "line": 40,
+            "anchorOk": true,
+            "lineText": "died on the way at about 11.30 p.m. on 6th November, 1993 and his dead body was"
+          },
+          {
+            "date": "6th November, 1993",
+            "source": "Atmaram_and_Ors_vs_State_of_Madhya_Pradesh_1005201s120333COM503984.pdf",
+            "page": 7,
+            "line": 14,
+            "anchorOk": true,
+            "lineText": "the incident had occurred at about 4.30 p.m. on 6th November, 1993 and the FIR itself"
+          },
+          {
+            "date": "7th November, 1993",
+            "source": "Atmaram_and_Ors_vs_State_of_Madhya_Pradesh_1005201s120333COM503984.pdf",
+            "page": 2,
+            "line": 48,
+            "anchorOk": true,
+            "lineText": "Choudhary visited the spot of occurrence on 7th November, 1993, from where the"
+          },
+          {
+            "date": "8th November, 1993",
+            "source": "Atmaram_and_Ors_vs_State_of_Madhya_Pradesh_1005201s120333COM503984.pdf",
+            "page": 3,
+            "line": 2,
+            "anchorOk": true,
+            "lineText": "was prepared. On 8th November, 1993, all the accused persons were arrested. Upon"
+          }
+        ]
+      }
+    },
+    {
+      "name": "step1-restart",
+      "value": {
+        "sources": [
+          {
+            "name": "AGAINST Gurmukh_Singh_vs_State_of_Haryana_25082009__SCs091541COM505229.pdf",
+            "status": "ok"
+          },
+          {
+            "name": "Atmaram_and_Ors_vs_State_of_Madhya_Pradesh_1005201s120333COM503984.pdf",
+            "status": "ok"
+          },
+          {
+            "name": "CRA_2392_2008_Judgement_18-Oct-2019.pdf",
+            "status": "ok"
+          },
+          {
+            "name": "State_of_Rajasthan_vs_Islam_and_Ors_24052011__SCs110597COM442844.pdf",
+            "status": "ok"
+          },
+          {
+            "name": "The_State_of_Rajasthan_vs_Kanhaiya_Lal_10042019__SSC20191704191116222COM575205.pdf",
+            "status": "ok"
+          },
+          {
+            "name": "Delhi-IndbCh.pdf",
+            "status": "ok"
+          }
+        ],
+        "pagesTotal": 41,
+        "events": 90,
+        "confirmed": 89,
+        "readiness": {
+          "ready": true,
+          "jobsPending": 0,
+          "openReviewItems": 0
+        },
+        "integrityNotice": ""
+      }
+    },
+    {
+      "name": "step4-drafts",
+      "value": {
+        "listRevision": {
+          "paragraphs": 90,
+          "anchored": 89,
+          "dates": [
+            "18.03.1988",
+            "16.05.1988",
+            "10.08.1990",
+            "15.08.1990",
+            "11.01.1993",
+            "01.11.1993",
+            "06.11.1993",
+            "06.11.1993",
+            "07.11.1993",
+            "08.11.1993",
+            "08.11.1993",
+            "08.11.1993",
+            "08.11.1993",
+            "11.11.1993",
+            "03.12.1993",
+            "08.12.1993",
+            "06.01.1994",
+            "06.01.1994",
+            "03.03.1994",
+            "03.03.1994",
+            "24.06.1994",
+            "08.01.1997",
+            "08.01.1997",
+            "08.01.1997",
+            "14.01.1997",
+            "14.01.1997",
+            "15.01.1997",
+            "13.04.1999",
+            "19.02.2003",
+            "16.05.2007",
+            "16.05.2007",
+            "16.05.2007",
+            "16.05.2007",
+            "17.05.2007",
+            "21.05.2007",
+            "21.05.2007",
+            "21.05.2007",
+            "21.05.2007",
+            "25.05.2007",
+            "25.06.2007",
+            "07.07.2007",
+            "21.07.2007",
+            "30.07.2007",
+            "25.09.2007",
+            "25.09.2007",
+            "23.01.2008",
+            "23.01.2008",
+            "26.01.2008",
+            "04.04.2008",
+            "31.10.2008",
+            "17.11.2008",
+            "25.08.2009",
+            "24.05.2011",
+            "10.05.2012",
+            "23.05.2014",
+            "31.10.2018",
+            "13.12.2018",
+            "10.04.2019",
+            "18.10.2019",
+            "18.10.2019",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020",
+            "05.06.2020"
+          ]
+        },
+        "listAfter": {
+          "revisions": 3,
+          "headSeq": 3,
+          "headAuthor": "advocate",
+          "headBase": "d8649bbc-333d-4ab4-a309-2d0966fcecf2",
+          "approvedSeq": 3,
+          "approvedSha": "24480b4da374ece5969266d4e6bbaff64c1e78592153cf14dbc982208f7996a1",
+          "anchored": 89,
+          "paragraphs": 90
+        },
+        "synopsis": {
+          "paragraphs": 91,
+          "anchored": 90,
+          "first": [
+            "SYNOPSIS",
+            "On 18.03.1988, on the date of the incident, i.e. 18.3.1988, a meeting was held in the morning for raising some funds for repairing the mosque and in the said meeting, an altercatio",
+            "On 16.05.1988, 16-5-1988 while the witnesses were examined after some time. Thus, it may not be possible for the witnesses to make statements which would be absolute."
+          ]
+        },
+        "shown": [
+          "Paragraph source\nClose\n1988-03-18 — on the date of the incident, i.e. 18.3.1988, a meeting was held in the morning for raising some funds for repairing the mosque and in the said meeting, an altercation\nState_of_Rajasthan_vs_Islam_and_Ors_24052011__SCs110597COM442844.pdf, p. 2, l. 35\nOpen source",
+          "Paragraph source\nClose\n1988-05-16 — 16-5-1988 while the witnesses were examined after some time. Thus, it may not be possible for the witnesses to make statements which would be absolute\nAtmaram_and_Ors_vs_State_of_Madhya_Pradesh_1005201s120333COM503984.pdf, p. 5, l. 44\nOpen source",
+          "Paragraph source\nClose\n1990-08-10 — 10.8.1990 and the deceased succumbed to injury on 15.8.1990 after a lapse of 7 days. Taking the prosecution evidence and medical evidence cumulatively\nAGAINST Gurmukh_Singh_vs_State_of_Haryana_25082009__SCs091541COM505229.pdf, p. 5, l. 19\nOpen source",
+          "Paragraph source\nClose\n1990-08-15 — 10.8.1990 and the deceased succumbed to injury on 15.8.1990 after a lapse of 7 days. Taking the prosecution evidence and medical evidence cumulatively\nAGAINST Gurmukh_Singh_vs_State_of_Haryana_25082009__SCs091541COM505229.pdf, p. 5, l. 19\nOpen source",
+          "Paragraph source\nClose\n1993-01-11 — 8.11.93 to 3.3.94 and accused No. 4 Ramchandra from 11.1.93 to 6.1.94 and accused No. 5 Umrao from 11.11.93 to 6.1.94, were in judicial custody. Such\nAtmaram_and_Ors_vs_State_of_Madhya_Pradesh_1005201s120333COM503984.pdf, p. 4, l. 3\nOpen source"
+        ],
+        "sourceView": {
+          "pageLabel": "Page 2 of 5",
+          "focused": "35\non the date of the incident, i.e. 18.3.1988, a meeting was held in the morning for"
+        },
+        "comparison": {
+          "realListOfDatesRows": 5,
+          "realDates": [
+            "16.05.2007",
+            "16.05.2007",
+            "21.05.2007",
+            "31.10.2008",
+            "18.10.2019"
+          ],
+          "generatedRows": 89,
+          "generatedDates": [
+            "18.03.1988",
+            "16.05.1988",
+            "10.08.1990",
+            "15.08.1990",
+            "11.01.1993",
+            "01.11.1993",
+            "06.11.1993",
+            "07.11.1993",
+            "08.11.1993",
+            "11.11.1993",
+            "03.12.1993",
+            "08.12.1993",
+            "06.01.1994",
+            "03.03.1994",
+            "24.06.1994",
+            "08.01.1997",
+            "14.01.1997",
+            "15.01.1997",
+            "13.04.1999",
+            "19.02.2003",
+            "16.05.2007",
+            "17.05.2007",
+            "21.05.2007",
+            "25.05.2007",
+            "25.06.2007",
+            "07.07.2007",
+            "21.07.2007",
+            "30.07.2007",
+            "25.09.2007",
+            "23.01.2008",
+            "26.01.2008",
+            "04.04.2008",
+            "31.10.2008",
+            "17.11.2008",
+            "25.08.2009",
+            "24.05.2011",
+            "10.05.2012",
+            "23.05.2014",
+            "31.10.2018",
+            "13.12.2018",
+            "10.04.2019",
+            "18.10.2019",
+            "05.06.2020"
+          ],
+          "realDatesAlsoGenerated": [
+            "16.05.2007",
+            "16.05.2007",
+            "21.05.2007",
+            "31.10.2008",
+            "18.10.2019"
+          ],
+          "realDatesMissingFromGenerated": []
+        }
+      }
+    },
+    {
+      "name": "step4-word",
+      "value": {
+        "wordContentControls": 89,
+        "wordParagraphs": 90,
+        "anchorsInStoredFile": 89,
+        "anchorsInWordFile": 89,
+        "textIdentical": true,
+        "tagsFirstThree": [
+          "oa-363bdebaa27e46dea527a680abeb1ae0",
+          "oa-edab1877840a4acfbac6a827d0c54ba9",
+          "oa-621f37019f1d4d61aae71cfc210b470c"
+        ]
+      }
+    }
+  ]
+}
