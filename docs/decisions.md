@@ -28,6 +28,9 @@ This file owns: the accepted decisions, the engineering choices made under them,
 | 13 | **Pi package: `@earendil-works/pi-coding-agent`**, pinned exact. The session is created with our own `ResourceLoader` (no extensions, skills, prompt templates or context files are discovered), an in-memory `SettingsManager`, and `tools: [<our tool names>]` with `customTools`. This is how "only the tools we register" is enforced. | Decision 2 | D2 smoke test; Pi `docs/sdk.md`; `dist/core/sdk.d.ts` (`tools`, `customTools`, `noTools`) |
 | 14 | **Panes: `react-resizable-panels`.** | Task D4 | — |
 | 15 | **Tests: Playwright against the built application** (`_electron.launch`), plus `node:test` for the plain libraries. | Task D4 | — |
+| 16 | **Model credentials: Pi's own credential store.** The application stores no model secret. | Owner, 2026-11-13 | questions.md Q-2 |
+| 17 | **Model selection: pi-ai's model list.** The chat pane lists `ModelRuntime.getAvailable()`. The default is `OPENADVO_MODEL`, then the advocate's saved choice (`settings.json` in user data, resolved with the SDK's `resolveCliModel`), then Pi's own default model setting, then the first available model. A change applies to open sessions through `session.setModel`. Pi's own default is not changed. | Owner, 2026-11-13 | `src/main/agent.ts` |
+| 18 | **Euro-Office: the complete official desktop release, every editor, inside the window.** Hosted like euro-office-lite hosts it (host page, `AscDesktopEditor` bridge, `x2t` backend), but with the release's published editor files, unchanged. Moves Euro-Office hosting to build step 2. | Owner, 2026-11-13 | [euro-office-vendoring.md](euro-office-vendoring.md) |
 
 ## 3. Rulings carried over from earlier records
 

@@ -1,8 +1,8 @@
 # Editor design
 
-Status: design. Code starts at build-plan step 4. This file owns how the editor fits the product. Where the editor comes from is in [euro-office-vendoring.md](euro-office-vendoring.md). Build order is in [build-plan.md](build-plan.md).
+Status: design. Hosting code starts at build-plan step 2; draft editing at step 4. This file owns how the editor fits the product. Where the editor comes from is in [euro-office-vendoring.md](euro-office-vendoring.md). Build order is in [build-plan.md](build-plan.md).
 
-The editor is the official Euro-Office document editor (decision 8). It is part of the product, not a separate application. The advocate drafts in it; the agent edits through it; the matter store keeps every revision.
+The editor is the official Euro-Office suite (decision 8): the Word editor for drafts, the PDF editor for sources, and the other editors, all inside the window. Step 2 hosts it; step 4 uses the Word editor for drafts. It is part of the product, not a separate application. The advocate drafts in it; the agent edits through it; the matter store keeps every revision.
 
 ## 1. Design
 
@@ -17,7 +17,7 @@ The editor is the official Euro-Office document editor (decision 8). It is part 
 | g. Substantive changes | A change that touches a date, an amount, a citation, a party name or a prayer is listed separately. It is never part of Keep all. The advocate decides each one. | 5 |
 | h. Gate | A revision cannot be approved, and no filing PDF can be made, while any agent change is not decided. | 5 (approval), 8 (filing PDF) |
 | i. Store | The matter store owns every revision. The editor works on a working copy in a temp folder. A human save returns the working copy with its base revision, and the matter store makes a new revision or refuses a stale base. | 4 |
-| j. Hosting | The editor runs in its own sandboxed frame or `WebContentsView` in our window. It has no Node integration and no preload of ours other than the host interface it needs. | 4 |
+| j. Hosting | The editors run in their own sandboxed frame or `WebContentsView` in our window (from step 2). It has no Node integration and no preload of ours other than the host interface it needs. | 4 |
 
 ### 1.1 Paragraph anchors
 

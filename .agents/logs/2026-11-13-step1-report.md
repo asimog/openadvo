@@ -158,3 +158,11 @@ Inspector (P9); review inbox (M-03); command bar (M-04); saved layouts (M-02); m
 > **Not in v0.** A second OCR engine and disputes; automatic document type; annexure references; duplicate kind 3; image and DOCX sources; Hindi.
 >
 > **Proof task.** The owner opens each PDF of a real brief, checks three pages of born-digital text and three scanned pages against the page image, and resolves or skips every review item.
+
+## 14. Changes after owner feedback (same day)
+
+- Research: cursory search only. Gates G1 to G7 are in research C3 section 6. Q-1 settled.
+- Credentials: Pi's own. Q-2 settled; decision choice 16.
+- Model: a picker in the chat pane from pi-ai's model list (`ModelRuntime.getAvailable()`), default from Pi's own setting, choice saved and applied with `session.setModel`. Choice 17. Tests: 5 of 5 Playwright tests pass with the live model, including a new picker test.
+- Euro-Office: the vendoring document is rewritten short. Plan: the complete official release (`v9.3.6`), every editor, inside the window, hosted with the same three layers euro-office-lite uses (host page, `AscDesktopEditor` bridge, `x2t` backend) but with the release's published editor files, unchanged. Nothing is built from source: `x2t -create-allfonts` from the release builds the font list (checked: exit 0, about 1 second). Choice 18.
+- Build plan: hosting moves from step 4 to step 2, because the PDF view is the Euro-Office PDF editor. The draft step 2 spec in section 13 is out of date on this point: its PDF view is now the Euro-Office PDF editor, not `pdfjs-dist`. `pdfjs-dist` stays only for text extraction.

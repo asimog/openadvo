@@ -16,7 +16,7 @@ The plan serves [advocate-workflow.md](advocate-workflow.md). The decisions it b
 | Step | Name | Workflow sections | Round |
 |---|---|---|---|
 | 1 | Application skeleton, matter store and dropped files | 2, part of 3 | 1 |
-| 2 | Document intelligence: text, page anchors, PDF view | 4 | 1 |
+| 2 | Document intelligence: text, page anchors, PDF view in the Euro-Office PDF editor | 4 | 1 |
 | 3 | Notebook: sources, procedural history, Factual Matrix, chronology | 5, 6 | 1 |
 | 4 | List of Dates and Synopsis as a DOCX in the editor | 8A, 8B | 1 |
 | 5 | Factual verification and draft consistency | 9A, 9D | 2 |
@@ -26,7 +26,7 @@ The plan serves [advocate-workflow.md](advocate-workflow.md). The decisions it b
 | 9 | Court record capture and client email | 3 | 3 |
 | 10 | Agent-operated filing and voice | 11, 2 | 3 |
 
-The order is the order the task gave. No dependency forces a change. Two notes on the order:
+The order is the order the task gave, with one change forced by a dependency. The owner wants the complete Euro-Office suite, including its PDF editor, inside the app (2026-11-13). The PDF view of step 2 is that PDF editor, so vendoring and hosting Euro-Office moves from step 4 to step 2. Step 4 then uses the Word editor that step 2 already hosts. Two more notes on the order:
 
 - Step 4 needs the Factual Matrix of step 3, and step 5 needs the draft of step 4. The order serves both.
 - Step 9 comes late because step 1 already accepts dropped files. The record can enter the matter before court capture exists.
@@ -52,6 +52,7 @@ Every section and appendix item of the workflow has a row. "v0" means the step's
 | 3. Acquisition is continuous; each artifact an independent task | 1 (each file a separate record); 2 (each file a separate job) | v0 |
 | 4. Hash and preserve original bytes | 1 | v0 |
 | 4. Identify format and readability | 2 | v0 (PDF only; other formats reported "not supported") |
+| 12. The full Euro-Office suite (Word, PDF and the other editors) inside the window | 2 (hosting, PDF editor), 4 (Word editor) | v0 |
 | 4. Detect document type and legal category | 2 | Later. v0: the advocate classifies. |
 | 4. Metadata, annexure and exhibit references | 2 | Later |
 | 4. Born-digital text | 2 | v0 |
@@ -137,17 +138,19 @@ Round 1 steps also list the main-process modules, agent tools, bridge functions,
 
 ### Step 2. Document intelligence: text, page anchors, PDF view
 
-- **Serves:** workflow 4 and Appendix A (event-driven processing), Appendix B-A (capture and ingestion separate). The advocate opens a source and sees the PDF page by page. Each page shows its extracted text, and whether the text is born-digital or OCR. Scanned pages are read by OCR. Files that cannot be read open a review item.
-- **v0:** PDF only. Born-digital text with page and line anchors. One OCR engine (`tesseract.js`, English, WASM, so no per-platform binary). Each OCR reading is marked "single reading, not cross-checked". One job per source, started when the source is added. Review items for unreadable, encrypted or partly readable files. The advocate classifies a source by hand. **Later:** a second OCR engine and critical-token disputes; automatic document type and legal category; annexure and exhibit references; duplication kind 3 (same text after OCR); image files and DOCX sources.
+- **Serves:** workflow 4 and Appendix A (event-driven processing), Appendix B-A (capture and ingestion separate). The advocate opens a source in the Euro-Office PDF editor inside the window and sees it page by page. Each page shows its extracted text, and whether the text is born-digital or OCR. Scanned pages are read by OCR. Files that cannot be read open a review item.
+- **v0:** The complete official Euro-Office release, vendored by script and hosted in the window ([euro-office-vendoring.md](euro-office-vendoring.md)). Sources open in its PDF editor, read only: the blob is never edited. PDF only. Born-digital text with page and line anchors. One OCR engine (`tesseract.js`, English, WASM, so no per-platform binary). Each OCR reading is marked "single reading, not cross-checked". One job per source, started when the source is added. Review items for unreadable, encrypted or partly readable files. The advocate classifies a source by hand. **Later:** a second OCR engine and critical-token disputes; automatic document type and legal category; annexure and exhibit references; duplication kind 3 (same text after OCR); image files and DOCX sources.
+- **Depends on:** [euro-office-vendoring.md](euro-office-vendoring.md). **To verify at step 2:** whether our host can move the PDF editor to a page and mark a line anchor. If it cannot, the anchor is shown in the page-text panel beside the editor.
 - **Input:** the sources of a step 1 matter. **Output:** page records, line anchors and review items in `matter.db`. **Proof task:** the owner opens each PDF of a real brief, checks three pages of born-digital text and three scanned pages against the page image, and resolves or skips every review item.
 - **Port when the step starts:** `deprecated/docs/specs/G-ocr-document-intelligence.md` (pipeline states, review items, OCR gold set G13); `deprecated/docs/specs/F-capture-ingest.md` (ingestion queue); `deprecated/docs/specs/J-documents-editors.md` J01 (PDF viewer requirement: anchors and highlights at page geometry); `deprecated/docs/decisions.md` sections 5C, 5N and 5.4; `research/engineering research/C2-prior-art-repos-review.md` section 6 (ingest, OCR and anchors).
-- **Main-process modules:** `main/ingest.ts` (a queue with one job per source; it calls the library and passes results to `main/matters.ts`, which writes them).
-- **Plain libraries:** `lib/document-intelligence` (wraps `pdfjs-dist` for text with positions, and `tesseract.js` for OCR).
+- **Main-process modules:** `main/ingest.ts` (a queue with one job per source; it calls the library and passes results to `main/matters.ts`, which writes them); `main/editor-host.ts` (serves the vendored Euro-Office files and our host page on a custom protocol; answers the editors' `AscDesktopEditor` calls over IPC; runs conversions).
+- **Plain libraries:** `lib/document-intelligence` (wraps `pdfjs-dist` for text with positions, and `tesseract.js` for OCR); `lib/converter` (selects the release's `x2t` by platform and runs it; builds the font list with `x2t -create-allfonts`).
+- **Scripts:** `scripts/vendor-euro-office.mjs` (fetches and checks the release; see the vendoring document).
 - **Agent tools:** `read_source_text` (one source, a page range); `search_sources` (text search; returns anchors). Both read only.
 - **Bridge functions.** Queries: `getSourcePages`, `getPageText`, `getSourceBytes` (the bytes for the PDF view; the renderer reads no file), `listReviewItems`. Human-only actions: `classifySource`, `resolveReviewItem`, `skipReviewItem`.
-- **Views:** PDF view in the view pane (`pdfjs-dist` renders from bytes the bridge gives), with the page text beside it and the anchor of the selected line; the review item list.
+- **Views:** the Euro-Office PDF editor in the view pane (a sandboxed view), with the page text beside it and the anchor of the selected line; the review item list.
 - **Events written:** `ingest.started`, `ingest.finished`, `ingest.failed`, `page.extracted`, `ocr.read`, `review_item.opened`, `review_item.resolved`, `review_item.skipped`, `source.classified`. **Records read:** sources, blobs, pages, anchors, review items.
-- **Carry over from `advodsh/plugins/workspace-editor`:** none. The plugin has no PDF or OCR code.
+- **Carry over from `advodsh/plugins/workspace-editor`:** `lib/editor/host.html`, `lib/editor/boot.js`, `lib/editor/shim.js` (host page, editor boot, `AscDesktopEditor` answers; follow the official open and save flow, see the vendoring document); `lib/x2t.js` (one conversion at a time, a temp folder per run); `lib/engine/locate.js` (converter SHA-256 check, WD-101). Remove every euro-office-lite part.
 
 ### Step 3. Notebook: sources, procedural history, Factual Matrix, chronology
 
@@ -166,23 +169,20 @@ Round 1 steps also list the main-process modules, agent tools, bridge functions,
 ### Step 4. List of Dates and Synopsis as a DOCX in the editor
 
 - **Serves:** workflow 8 (DOCX working petition, each revision new), 8A, 8B, 10 (approval of one revision), Appendix B-E (file to SLP paragraph). The advocate asks for the List of Dates and the Synopsis. A DOCX opens in the Euro-Office editor inside the window. "Show source of this paragraph" opens the Notebook event and its source line. The advocate edits, saves (a new revision) and approves a revision.
-- **v0:** editor-design items a to d, i and j ([editor-design.md](editor-design.md)). A generator writes the first revision from confirmed events only (Appendix B-C: only checked dates in generated prose). Each generated paragraph carries an anchor that links it to its event ids. Human save makes a new revision with a base revision. "Check citations" is shown as "not available until step 7". The verification state shows "not verified". **Later:** model polishing of the Synopsis with traceability kept (8A); agent edits as tracked changes (editor-design items e to h, step 5).
+- **v0:** the Word editor that step 2 hosts. Editor-design items a to d, i and j ([editor-design.md](editor-design.md)). A generator writes the first revision from confirmed events only (Appendix B-C: only checked dates in generated prose). Each generated paragraph carries an anchor that links it to its event ids. Human save makes a new revision with a base revision. "Check citations" is shown as "not available until step 7". The verification state shows "not verified". **Later:** model polishing of the Synopsis with traceability kept (8A); agent edits as tracked changes (editor-design items e to h, step 5).
 - **Input:** the confirmed events of step 3. **Output:** a draft with revisions in the matter store; the DOCX open in the editor. **Proof task:** the owner generates the List of Dates and Synopsis of a real brief, follows "Show source" for five paragraphs, edits and saves twice, approves one revision, and opens the approved DOCX in Microsoft Word.
-- **Depends on:** [euro-office-vendoring.md](euro-office-vendoring.md), which the owner reads before this step starts.
 - **Port when the step starts:** `deprecated/docs/specs/J-documents-editors.md` (revisions, first-revision writer, editor in a view); `deprecated/docs/decisions.md` section 5.5 (DOCX to PDF/A flow) for the revision rules; `research/architecrture research/C6-document-editor-and-module-architecture.md` sections 4 and 8; the engine rules listed in [editor-design.md](editor-design.md).
-- **Main-process modules:** `main/editor-host.ts` (serves the vendored frontend and our host page on a custom protocol; keeps the working copy folder; runs conversions); `main/drafts.ts` (generation and revisions, through `main/matters.ts`).
-- **Plain libraries:** `lib/drafting` (List of Dates and Synopsis from the event schema to a DOCX, with paragraph anchors; wraps the `docx` npm library); `lib/converter` (selects the `x2t` binary by platform and runs it; one conversion at a time; checks the converter's SHA-256 against the vendor manifest).
+- **Main-process modules:** `main/editor-host.ts` from step 2, extended with the working copy folder and human save; `main/drafts.ts` (generation and revisions, through `main/matters.ts`).
+- **Plain libraries:** `lib/drafting` (List of Dates and Synopsis from the event schema to a DOCX, with paragraph anchors; wraps the `docx` npm library); `lib/converter` from step 2.
 - **Agent tools:** `read_draft` (live text of a revision with its paragraph anchors, read only); `get_paragraph_source` (anchor to event ids and source lines).
 - **Bridge functions.** Queries: `listDrafts`, `getRevision`, `getParagraphSource`. Actions: `generateListOfDates`, `generateSynopsis`, `openRevisionInEditor`. Human-only actions: `saveRevision` (needs a base revision), `approveRevision`.
 - **Views:** the editor view (editor frame plus the harness bar of [editor-design.md](editor-design.md) item c).
 - **Events written:** `draft.generated`, `revision.saved`, `revision.approved`, `editor.opened`, `editor.closed`. **Records read:** events, confirmations, anchors, drafts, revisions, paragraph links.
 - **Carry over from `advodsh/plugins/workspace-editor`:**
-  - `lib/editor/host.html`, `lib/editor/boot.js`, `lib/editor/shim.js`: the host page, the editor boot and the host interface shim. Adapt to the official release. Remove every euro-office-lite part. [euro-office-vendoring.md](euro-office-vendoring.md) section f lists what carries over.
-  - `lib/x2t.js`: one conversion at a time, a cleared temp folder per run, the font cache for PDF export. Replace the Windows paths with the platform module.
+  - The host page, shim and `x2t` code came over at step 2.
   - `lib/docs.js`: the per-document temp layout (`Editor.bin`, `media/`) and the refusal of a write with a stale base or a dirty editor (WD-007 to WD-010).
   - `lib/errors.js`: the document error codes that remain (`DOC_STALE_BASE`, `DOC_EDITOR_DIRTY`, `DOC_STALE_TARGET`).
   - `lib/outline.js`: the heading outline.
-  - `lib/engine/locate.js`: the converter SHA-256 check (WD-101).
   - Not carried: `lib/client.js`, `lib/index.js`, `lib/roles.js`, `lib/fanout/`, `lib/tools/` (DSH plugin and fan-out code).
 
 ### Step 5. Factual verification and draft consistency
@@ -190,7 +190,7 @@ Round 1 steps also list the main-process modules, agent tools, bridge functions,
 - **Serves:** workflow 9A, 9D, the first quality-gate states of 9, and editor-design items e to h. The advocate runs the checks on a draft and sees each defect with its evidence, the affected paragraph, and the action required. The agent proposes corrections as tracked changes, and the advocate keeps or undoes each one.
 - **v0:** every factual statement in the draft has a source anchor; dates match the Factual Matrix; party names and case numbers match the matter; Synopsis agrees with the List of Dates. Agent edits as tracked changes through the Document Builder. **Later:** India Code statutory checks; full cross-reference checks.
 - **Input:** an approved or working revision from step 4. **Output:** review items and quality-gate state. **Proof task:** the owner runs the checks on a real draft with three planted errors and finds all three, and decides every agent change.
-- **Port when the step starts:** `deprecated/docs/specs/K-verification-adapter.md` (state mapping); `deprecated/docs/decisions.md` section 5.3 (verifier states); research C5 section 6.2, gates G1 to G7 (**not found**, see [questions.md](questions.md) Q-1); `advodsh/plugins/workspace-editor/lib/engine/manager.js`, `lib/engine/diff.js`, `lib/model/blocks.js`, `lib/model/session-contract.js`, `lib/review/analyzers.js` (sidecar lifecycle, block diff, live-text rule, commit eligibility, legal analyzers).
+- **Port when the step starts:** `deprecated/docs/specs/K-verification-adapter.md` (state mapping); `deprecated/docs/decisions.md` section 5.3 (verifier states); the Notebook verification gates G1 to G7 in `research/architecrture research/C3-master-research-and-architecture.md` section 6 (no C5 file exists; C3 holds the gates); `advodsh/plugins/workspace-editor/lib/engine/manager.js`, `lib/engine/diff.js`, `lib/model/blocks.js`, `lib/model/session-contract.js`, `lib/review/analyzers.js` (sidecar lifecycle, block diff, live-text rule, commit eligibility, legal analyzers).
 
 ### Step 6. Research, memoranda, case conference, Questions of Law, Grounds
 
@@ -285,6 +285,7 @@ Every link is a stored id, never a text match. A link that cannot be followed is
 | The agent gets a tool that writes, or an extension adds tools. | Unit test: the session's active tool names equal the registered allowlist exactly. Step 1. |
 | Events are edited or deleted. | Unit test: an `UPDATE` or `DELETE` on the event table fails. Step 1. |
 | Page numbers differ between the PDF view and the extracted text. | Test at step 2: page count and page order are equal for every fixture PDF. |
-| The editor frontend and the converter come from different versions. | Startup check at step 4: both versions equal the vendor manifest; refuse to open the editor otherwise. |
+| The editor frontend and the converter come from different versions. | Startup check from step 2: both come from one release file whose sha256 equals the vendoring table; refuse to open the editor otherwise. |
+| A new Euro-Office release adds or changes an `AscDesktopEditor` call. | The round-trip test in [euro-office-vendoring.md](euro-office-vendoring.md): open a DOCX and a PDF, edit, save, reopen, and fail on any call our host does not answer. |
 | An event in the matter store names a Pi session that does not exist. | Test at step 1: the session id in `agent.session_started` equals the Pi session's id. |
 | A date that is not confirmed reaches generated prose. | Test at step 4: an unconfirmed event never appears in the List of Dates or the Synopsis. |

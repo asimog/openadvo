@@ -11,8 +11,6 @@ Each line: the idea, where it came from, and the step it would touch.
 | A command bar that searches commands, matters and records. | Earlier idea M-04 | After round 1 |
 | Saved pane layouts per matter, and navigation history. | Earlier idea M-02 | After round 1 |
 | Matter memory as a markdown file the advocate can read and edit. | Earlier idea M-13 | 6 |
-| A model API key entered in the application and stored through Electron `safeStorage`. Step 1 uses the credentials that Pi already stores for the owner (see [questions.md](questions.md), Q-2). | Step 1 build | 1, second version |
-| A model picker in the chat pane. Step 1 reads the model from the `OPENADVO_MODEL` setting or takes Pi's first available model. | Step 1 build | 1, second version |
 | Pi session persistence to a file in the matter folder, so the chat history survives a restart. Step 1 keeps the chat in memory for one run. | Step 1 build | 1, second version |
 | A matter rename and archive. | Step 1 build | 1, second version |
 | Render the agent's markdown in the chat pane (the proof run shows raw `**bold**`). | Step 1 proof run | 1, second version |

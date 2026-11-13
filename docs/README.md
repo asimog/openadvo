@@ -11,7 +11,7 @@ Read in this order.
 | 5 | [repo-map.md](repo-map.md) | Folders, write boundaries, the reference repositories. |
 | 6 | [specs/](specs/) | One v0 spec per started step. Only [specs/v0-app-and-matter-store.md](specs/v0-app-and-matter-store.md) exists. |
 | 7 | [editor-design.md](editor-design.md) | How the editor fits the product, and the engine rules carried over. |
-| 8 | [euro-office-vendoring.md](euro-office-vendoring.md) | Where each Euro-Office part comes from. The owner reads it before step 4. |
+| 8 | [euro-office-vendoring.md](euro-office-vendoring.md) | Where each Euro-Office part comes from. The owner reads it before step 2. |
 | — | [questions.md](questions.md) | Open questions for the owner, with the default used until answered. |
 | — | [parking.md](parking.md) | Ideas outside the current step (lesson L6). |
 

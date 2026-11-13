@@ -16,7 +16,7 @@
 | `spikes/` | Small proofs that settle one question. Each has a result file. Not product code. | — |
 | `docs/` | Durable documents. See [README.md](README.md). | — |
 | `.agents/logs/` | Work reports, commands run and results. | — |
-| `resources/euro-office/` | The vendored Euro-Office parts, fetched by script at step 4. Never committed and never modified. | The vendor script only. |
+| `resources/euro-office/` | The vendored Euro-Office parts, fetched by script at step 2. Never committed and never modified. | The vendor script only. |
 | `out/` | Build output of electron-vite. Not committed. | — |
 
 ## Data outside the repository
