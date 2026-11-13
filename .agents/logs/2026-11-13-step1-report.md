@@ -194,3 +194,25 @@ Spec: [docs/specs/v0-document-intelligence.md](../../docs/specs/v0-document-inte
 **Known and parked.** At start the editor asks for `oa-eo://app/downloadfile/<key>` (a document-server route) and gets 404. The document still opens through the desktop route, and this is parked. A service worker cannot register on the custom protocol, with no visible effect. The PDF editor still shows its File tab and a save icon. Saving is refused by our host, and the tab is hidden at step 4. Ingestion runs in the main process; moving it to a worker thread is parked.
 
 **Not yet checked.** Linux and macOS vendoring (the tar.xz and dmg paths are written but have not run). Scrolling the PDF editor to a line anchor (parked). The owner's proof task on a real brief with real scanned pages.
+
+## 16. Step 3: the Notebook
+
+Spec: [docs/specs/v0-notebook.md](../../docs/specs/v0-notebook.md).
+
+**Built.**
+- `lib/notebook`: dates in Indian court formats, read day first (`12.03.2024`, `12/03/2024`, `12-03-2024`, `12th March, 2024`, `the 3rd day of January, 2021`, `March 12, 2024`). A two-digit year is an inferred date. A month and year is a range. Impossible dates (31.02) and vague words ("thereafter") are not dates. Each dated line gives one candidate event: the line, joined with the next line when the sentence runs on. Its kind is procedural or factual, by a fixed word list. Two events from different lines that describe the same act with different dates are flagged as a conflict. Method `rules-v1`.
+- In the matter store: events are written once. Decisions are append-only, and a database CHECK allows only the advocate as their author. Date conflicts open review items. Readiness follows Appendix B-D.
+- Extraction runs after ingestion and only once per source. Matters that already exist are extracted when they open.
+- New read-only agent tools `list_events` and `get_chronology`, which the session now has (5 tools in all).
+- The Notebook view: Matter, Sources, Procedural history, Factual Matrix and Chronology tabs; a readiness badge; date conflicts with "Keep <date>" and "Both dates are right"; Confirm, Reject, Exclude and Include. Each row links to its source page and line, and the page-text panel marks the line.
+
+**Defect found by the tests and fixed.** The new triggers were named `event_no_update` and `event_no_delete`, the names already used by the event table. `CREATE TRIGGER IF NOT EXISTS` therefore skipped them silently, so Notebook events could be changed. The unit test found it. The triggers are now named `notebook_event_*`.
+
+**Tests.** `npm run test:unit`: 12 pass (date formats, events, conflicts, and the store with Matters end to end). `npx playwright test`: 5 pass, 2 skipped (the live tests). The step 3 test covers a list of dates with a conflicting judgment date, the readiness badge, Keep, Confirm, Exclude, the chronology toggle, the procedural filter, and a source link that marks the line.
+
+**Proof run (my run).** The real proof matter, with the four court manuals and the scanned page, using the live model:
+- 3 events were extracted from 109 pages: version and revision dates. All are explicit and from the text layer, with no conflicts. Manuals hold few dates, so this is not a brief.
+- One event joined a page footer of spaced-out letters into its description (parked).
+- The agent answered from the Notebook with `get_chronology` and `list_events`. It listed the three events with correct citations, said that no conflict is open, and said that it cannot confirm events. It wrongly called one text-layer reading "OCR" (parked).
+
+**Not yet checked.** The owner's proof task on a real brief: building the chronology, deciding every event, checking ten against the source lines, and resolving every conflict.

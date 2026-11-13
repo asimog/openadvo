@@ -161,9 +161,9 @@ Round 1 steps also list the main-process modules, agent tools, bridge functions,
 - **Main-process modules:** `main/notebook.ts` (runs extraction when a source's ingestion finishes; passes results to `main/matters.ts`).
 - **Plain libraries:** `lib/notebook` (date extraction, event schema, chronology builder, conflict detection, readiness rule). No external library is needed. Indian date formats are parsed by our own tested rules.
 - **Agent tools:** `list_events` (filters: kind, confirmed, date range); `get_event` (with its source anchor); `get_chronology`. All read only.
-- **Bridge functions.** Queries: `getChronology`, `getEvent`, `getReadiness`. Human-only actions: `confirmEvent`, `rejectEvent`, `excludeFromView`, `includeInView`, `resolveDateConflict`.
-- **Views:** the Notebook view with four tabs (Astryx `TabList`), sortable tables (Astryx `Table`), and a source link on every row that opens the step 2 PDF view at the line.
-- **Events written:** `notebook.event_extracted`, `notebook.event_confirmed`, `notebook.event_rejected`, `notebook.view_excluded`, `notebook.view_included`, `notebook.conflict_flagged`, `notebook.conflict_resolved`. **Records read:** pages, anchors, events, confirmations, review items.
+- **Bridge functions (as built).** Query: `getNotebook` (events, conflicts, readiness). Human-only actions: `confirmEvent`, `rejectEvent`, `excludeEvent`, `includeEvent`, `resolveConflict`.
+- **Views (as built):** the Notebook in the view pane, with a Matter tab (matter facts, review items, events) beside the four Notebook tabs (Astryx `TabList`), a readiness badge, the open date conflicts with Keep and "Both dates are right", and a source link on every row that opens the source at the page with the line marked.
+- **Events written (as built):** `notebook.events_extracted` (one per source, with a count), `notebook.conflict_flagged`, `notebook.conflict_resolved`, `notebook.event_confirmed`, `notebook.event_rejected`, `notebook.event_excluded`, `notebook.event_included`, and `review_item.opened` and `review_item.resolved` for conflicts. **Records read:** anchors, pages, jobs, events, decisions, conflicts, review items.
 - **Carry over from `advodsh/plugins/workspace-editor`:** none.
 
 ### Step 4. List of Dates and Synopsis as a DOCX in the editor

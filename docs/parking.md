@@ -18,3 +18,6 @@ Each line: the idea, where it came from, and the step it would touch.
 | Run ingestion in a worker thread, so a very large bundle never slows the window. Step 2 runs it in the main process (109 real pages took about 2.6 seconds). | Step 2 build | 2, second version |
 | Answer the editor's `/downloadfile/<key>` request (it asks a document server for the file; today it gets 404 and opens the file through the desktop route anyway). | Step 2 build | 2, second version |
 | Scroll the PDF editor to a line anchor and mark it. | Step 2 spec | 2, second version |
+| Drop running page headers and footers before joining lines into an event (the proof run joined a footer of spaced-out letters into an event). | Step 3 proof run | 3, second version |
+| Show the Notebook's reading kind more plainly to the agent (it called text-layer text "OCR" twice). | Step 2 and 3 proof runs | 3, second version |
+| Relative dates against the document's header date ("the next day"). | Step 3 spec | 3, second version |
