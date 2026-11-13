@@ -3,24 +3,26 @@
  * Holds one open MatterStore per matter.
  */
 import path from "node:path";
-import {
-  MatterStore,
-  MatterStoreError,
-  listMatters,
-  type AddFileResult,
-  type EventRecord,
-  type MatterSummary,
-  type OriginRecord,
-  type SourceRecord,
-  type WriteContext,
-  type IngestJob,
-  type PageInput,
-  type PageRecord,
-  type AnchorRecord,
-  type ReviewItem,
-  type Notebook,
-  type EventInput,
-  type EventDecision,
+import { MatterStore, MatterStoreError, listMatters } from "../lib/matter-store/index.ts";
+import type {
+  AddFileResult,
+  EventRecord,
+  MatterSummary,
+  OriginRecord,
+  SourceRecord,
+  WriteContext,
+  IngestJob,
+  PageInput,
+  PageRecord,
+  AnchorRecord,
+  ReviewItem,
+  Notebook,
+  EventInput,
+  EventDecision,
+  DraftKind,
+  DraftRecord,
+  RevisionRecord,
+  ParagraphLinkRecord,
 } from "../lib/matter-store/index.ts";
 
 const MATTER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -178,6 +180,70 @@ export class Matters {
 
   async title(matterId: string): Promise<string> {
     return (await this.store(matterId)).matter().title;
+  }
+
+  // ---- Step 4: drafts and revisions. The generation and save paths reach the store only through these. ----
+
+  async listDrafts(matterId: string): Promise<DraftRecord[]> {
+    return (await this.store(matterId)).listDrafts();
+  }
+
+  async getDraft(matterId: string, draftId: string): Promise<DraftRecord> {
+    return (await this.store(matterId)).getDraft(draftId);
+  }
+
+  async getRevision(matterId: string, revisionId: string): Promise<RevisionRecord> {
+    return (await this.store(matterId)).getRevision(revisionId);
+  }
+
+  async revisionBytes(matterId: string, revisionId: string): Promise<Buffer> {
+    return (await this.store(matterId)).revisionBytes(revisionId);
+  }
+
+  async createDraftWithRevision(
+    matterId: string,
+    kind: DraftKind,
+    title: string,
+    docx: Buffer,
+    paragraphs: Array<{ anchor: string; text: string; eventIds: string[] }>,
+    ctx: WriteContext = { actor: "advocate" },
+  ): Promise<{ draft: DraftRecord; revision: RevisionRecord }> {
+    return (await this.store(matterId)).createDraftWithRevision(kind, title, docx, paragraphs, ctx);
+  }
+
+  /** Human-only (decision 5). */
+  async saveDraftRevision(
+    matterId: string,
+    draftId: string,
+    docx: Buffer,
+    baseRevisionId: string,
+    ctx: WriteContext = { actor: "advocate" },
+  ): Promise<RevisionRecord> {
+    return (await this.store(matterId)).saveRevision(draftId, docx, baseRevisionId, ctx);
+  }
+
+  /** Human-only (decision 5). */
+  async approveRevision(matterId: string, revisionId: string): Promise<DraftRecord> {
+    const store = await this.store(matterId);
+    const revision = store.approveRevision(revisionId, { actor: "advocate" });
+    return store.getDraft(revision.draftId);
+  }
+
+  async listParagraphLinks(matterId: string, draftId: string): Promise<ParagraphLinkRecord[]> {
+    return (await this.store(matterId)).listParagraphLinks(draftId);
+  }
+
+  async getParagraphLink(matterId: string, draftId: string, anchor: string): Promise<ParagraphLinkRecord | undefined> {
+    return (await this.store(matterId)).getParagraphLink(draftId, anchor);
+  }
+
+  async recordParagraphLink(matterId: string, draftId: string, anchor: string, revisionId: string, eventIds: string[], text: string): Promise<void> {
+    (await this.store(matterId)).recordParagraphLink(draftId, anchor, revisionId, eventIds, text);
+  }
+
+  /** Any other matter-store event (drafts, editor open and close). */
+  async appendEvent(matterId: string, ctx: WriteContext, action: string, subject: string | null, data: Record<string, unknown> | null): Promise<void> {
+    (await this.store(matterId)).appendEvent(ctx, action, subject, data);
   }
 
   async recordAgentSession(matterId: string, sessionId: string, model: string | null): Promise<void> {

@@ -159,6 +159,92 @@ export interface Notebook {
   readiness: Readiness;
 }
 
+// ---- Step 4: drafts and revisions (work products). The matter store writes them. ----
+
+export type DraftKind = "list_of_dates" | "synopsis";
+
+/** A generator wrote the revision, or the advocate saved it from the editor. */
+export type RevisionAuthor = "generator" | "advocate";
+
+export interface RevisionRecord {
+  id: string;
+  draftId: string;
+  /** 1 for the first revision of a draft. */
+  seq: number;
+  sha256: string;
+  size: number;
+  /** The revision this one is based on. Null for a generator's first revision. */
+  baseRevisionId: string | null;
+  author: RevisionAuthor;
+  createdAt: string;
+  /** Set by the advocate's approval only (decision 5). */
+  approvedAt: string | null;
+  approvedBy: "advocate" | null;
+}
+
+export interface DraftRecord {
+  id: string;
+  kind: DraftKind;
+  title: string;
+  createdAt: string;
+  revisionCount: number;
+  /** The latest revision. */
+  head: RevisionRecord | null;
+  /** The latest approved revision, or null. */
+  approved: RevisionRecord | null;
+}
+
+/** One paragraph of a revision as the DOCX carries it. `anchor` is null for a paragraph without a link. */
+export interface DraftParagraph {
+  anchor: string | null;
+  text: string;
+}
+
+export interface RevisionDetail extends RevisionRecord {
+  paragraphs: DraftParagraph[];
+}
+
+/** The Notebook fields a generated paragraph links to (build-plan section 5.2). */
+export interface ParagraphSourceEvent {
+  id: string;
+  dateStart: string;
+  dateEnd: string;
+  dateText: string;
+  description: string;
+  kind: "procedural" | "factual";
+  reading: "text_layer" | "ocr";
+  sourceId: string;
+  sourceName: string;
+  anchorId: string;
+  page: number;
+  line: number;
+}
+
+export interface ParagraphSource {
+  draftId: string;
+  anchor: string;
+  text: string;
+  eventIds: string[];
+  events: ParagraphSourceEvent[];
+}
+
+export interface GeneratedDraft {
+  draft: DraftRecord;
+  revision: RevisionRecord;
+}
+
+/** One anchor written into a draft's DOCX, and the Notebook events it links to. */
+export interface ParagraphLinkRecord {
+  draftId: string;
+  anchor: string;
+  /** The revision whose DOCX first carried this anchor. */
+  revisionId: string | null;
+  /** The paragraph text when the link was made. */
+  text: string;
+  eventIds: string[];
+  createdAt: string;
+}
+
 /** An event as the extraction rules produce it (input to the matter store). */
 export interface EventInput {
   id: string;

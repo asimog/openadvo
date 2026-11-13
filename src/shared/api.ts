@@ -2,9 +2,9 @@
  * The bridge contract between the preload script and the renderer.
  * Types only. The renderer calls these named functions; it has no other access.
  */
-import type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict } from "./records.ts";
+import type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft } from "./records.ts";
 
-export type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict };
+export type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft };
 
 export type ChatRole = "advocate" | "agent" | "tool" | "notice";
 
@@ -70,4 +70,20 @@ export interface OpenAdvoApi {
   /** resolution: the id of the event whose date is right, or "both". */
   resolveConflict(matterId: string, conflictId: string, resolution: string): Promise<Notebook>;
   onChatEvent(listener: (event: ChatEvent) => void): () => void;
+  // Step 4: drafts and revisions.
+  listDrafts(matterId: string): Promise<DraftRecord[]>;
+  /** One revision with its live paragraphs and the anchor of each (WD-013: live text only). */
+  getRevision(matterId: string, revisionId: string): Promise<RevisionDetail>;
+  /** The Notebook events one paragraph anchor links to, with their source lines. */
+  getParagraphSource(matterId: string, draftId: string, anchor: string): Promise<ParagraphSource | null>;
+  /** Deterministic generation from confirmed Notebook events only. */
+  generateListOfDates(matterId: string): Promise<GeneratedDraft>;
+  generateSynopsis(matterId: string): Promise<GeneratedDraft>;
+  /** Open a revision in the Euro-Office Word editor. Returns the URL for a sandboxed frame. */
+  openRevisionInEditor(matterId: string, revisionId: string): Promise<string>;
+  /** Insert one confirmed event's sentence at the cursor: the anchor is recorded before the editor adds it. */
+  insertFromNotebook(matterId: string, draftId: string, eventId: string): Promise<{ anchor: string; text: string }>;
+  /** Human-only actions (decision 5). `bytes` are the editor's Editor.bin, converted to DOCX in the main process. */
+  saveRevision(matterId: string, draftId: string, bytes: Uint8Array, baseRevisionId: string): Promise<RevisionRecord>;
+  approveRevision(matterId: string, revisionId: string): Promise<DraftRecord>;
 }

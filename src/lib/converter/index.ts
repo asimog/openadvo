@@ -4,7 +4,7 @@
  */
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 let queue: Promise<unknown> = Promise.resolve();
@@ -32,6 +32,47 @@ export function runX2t(x2t: string, args: string[], timeoutMs = 120_000): Promis
   const next = queue.then(() => runOnce(x2t, args, timeoutMs));
   queue = next.catch(() => undefined);
   return next;
+}
+
+/** The release's file format numbers for `m_nFormatTo` (from its own converter parameters). */
+export const FORMAT_DOCX = 65;
+export const FORMAT_PDF = 513;
+export const FORMAT_BIN = 8192;
+
+export interface ConvertRequest {
+  from: string;
+  to: string;
+  format: number;
+  /** x2t's own scratch folder. It must exist and be empty enough for this run. */
+  tempDir: string;
+  /** Extra TaskQueueDataConvert fields, for example the font list a PDF export needs. */
+  extra?: string;
+}
+
+function xmlEscape(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function slashes(value: string): string {
+  return value.replace(/\\/g, "/");
+}
+
+/** One `TaskQueueDataConvert` run: write the parameters, then run x2t on them. */
+export async function convertFile(x2t: string, request: ConvertRequest, timeoutMs = 120_000): Promise<void> {
+  await mkdir(request.tempDir, { recursive: true });
+  const paramsPath = path.join(request.tempDir, `params-${Date.now()}.xml`);
+  const params = `<?xml version="1.0" encoding="utf-8"?>
+<TaskQueueDataConvert xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+<m_sFileFrom>${xmlEscape(slashes(request.from))}</m_sFileFrom>
+<m_sFileTo>${xmlEscape(slashes(request.to))}</m_sFileTo>
+<m_nFormatTo>${request.format}</m_nFormatTo>
+<m_sTempDir>${xmlEscape(slashes(request.tempDir))}</m_sTempDir>
+${request.extra ?? ""}</TaskQueueDataConvert>`;
+  await writeFile(paramsPath, params);
+  const result = await runX2t(x2t, [paramsPath], timeoutMs);
+  if (result.code !== 0) {
+    throw new Error(`x2t failed (${result.code}) converting to format ${request.format}: ${result.output.slice(0, 400)}`);
+  }
 }
 
 export interface FontList {

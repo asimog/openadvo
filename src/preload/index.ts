@@ -28,6 +28,16 @@ const api: OpenAdvoApi = {
   excludeEvent: (matterId, eventId) => ipcRenderer.invoke("notebook:excluded", matterId, eventId),
   includeEvent: (matterId, eventId) => ipcRenderer.invoke("notebook:included", matterId, eventId),
   resolveConflict: (matterId, conflictId, resolution) => ipcRenderer.invoke("notebook:resolveConflict", matterId, conflictId, resolution),
+  // Step 4: drafts and revisions (decision 4; human-only actions are decision 5).
+  listDrafts: (matterId) => ipcRenderer.invoke("drafts:list", matterId),
+  getRevision: (matterId, revisionId) => ipcRenderer.invoke("drafts:getRevision", matterId, revisionId),
+  getParagraphSource: (matterId, draftId, anchor) => ipcRenderer.invoke("drafts:paragraphSource", matterId, draftId, anchor),
+  generateListOfDates: (matterId) => ipcRenderer.invoke("drafts:generateListOfDates", matterId),
+  generateSynopsis: (matterId) => ipcRenderer.invoke("drafts:generateSynopsis", matterId),
+  openRevisionInEditor: (matterId, revisionId) => ipcRenderer.invoke("drafts:openRevision", matterId, revisionId),
+  insertFromNotebook: (matterId, draftId, eventId) => ipcRenderer.invoke("drafts:insertFromNotebook", matterId, draftId, eventId),
+  saveRevision: (matterId, draftId, bytes, baseRevisionId) => ipcRenderer.invoke("drafts:saveRevision", matterId, draftId, bytes, baseRevisionId),
+  approveRevision: (matterId, revisionId) => ipcRenderer.invoke("drafts:approveRevision", matterId, revisionId),
   onIngestUpdate: (listener) => {
     const handler = (_event: unknown, matterId: string) => listener(matterId);
     ipcRenderer.on("ingest:update", handler);

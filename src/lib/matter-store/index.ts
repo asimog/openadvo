@@ -11,9 +11,9 @@ import { createReadStream } from "node:fs";
 import { mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus } from "../../shared/records.ts";
+import type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus, DraftKind, RevisionAuthor, DraftRecord, RevisionRecord, ParagraphLinkRecord } from "../../shared/records.ts";
 
-export type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus };
+export type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus, DraftKind, RevisionAuthor, DraftRecord, RevisionRecord, ParagraphLinkRecord };
 
 /** An anchor id: the source's SHA-256, the page and the line. It survives a rename. */
 export function anchorId(sha256: string, page: number, line: number): string {
@@ -176,6 +176,46 @@ CREATE TRIGGER IF NOT EXISTS notebook_event_no_delete BEFORE DELETE ON notebook_
 CREATE TRIGGER IF NOT EXISTS decision_no_update BEFORE UPDATE ON event_decision BEGIN SELECT RAISE(ABORT, 'decisions are append-only'); END;
 CREATE TRIGGER IF NOT EXISTS decision_no_delete BEFORE DELETE ON event_decision BEGIN SELECT RAISE(ABORT, 'decisions are append-only'); END;
 CREATE TRIGGER IF NOT EXISTS conflict_no_delete BEFORE DELETE ON date_conflict BEGIN SELECT RAISE(ABORT, 'conflicts are marked, never deleted'); END;
+
+-- Step 4: drafts and revisions (work products). A revision is append-only; an approval is its own row.
+CREATE TABLE IF NOT EXISTS draft (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL CHECK (kind IN ('list_of_dates', 'synopsis')),
+  title TEXT NOT NULL,
+  created_at TEXT NOT NULL
+) STRICT;
+CREATE TABLE IF NOT EXISTS revision (
+  id TEXT PRIMARY KEY,
+  draft_id TEXT NOT NULL REFERENCES draft(id),
+  seq INTEGER NOT NULL,
+  sha256 TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  base_revision_id TEXT REFERENCES revision(id),
+  author TEXT NOT NULL CHECK (author IN ('generator', 'advocate')),
+  created_at TEXT NOT NULL,
+  UNIQUE (draft_id, seq)
+) STRICT;
+CREATE TABLE IF NOT EXISTS revision_approval (
+  revision_id TEXT PRIMARY KEY REFERENCES revision(id),
+  at TEXT NOT NULL,
+  actor TEXT NOT NULL CHECK (actor = 'advocate')
+) STRICT;
+CREATE TABLE IF NOT EXISTS paragraph_link (
+  draft_id TEXT NOT NULL REFERENCES draft(id),
+  anchor TEXT NOT NULL,
+  revision_id TEXT REFERENCES revision(id),
+  event_ids TEXT NOT NULL,
+  text TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (draft_id, anchor)
+) STRICT;
+CREATE TRIGGER IF NOT EXISTS draft_no_delete BEFORE DELETE ON draft BEGIN SELECT RAISE(ABORT, 'drafts are never deleted'); END;
+CREATE TRIGGER IF NOT EXISTS revision_no_update BEFORE UPDATE ON revision BEGIN SELECT RAISE(ABORT, 'revisions are append-only'); END;
+CREATE TRIGGER IF NOT EXISTS revision_no_delete BEFORE DELETE ON revision BEGIN SELECT RAISE(ABORT, 'revisions are append-only'); END;
+CREATE TRIGGER IF NOT EXISTS approval_no_update BEFORE UPDATE ON revision_approval BEGIN SELECT RAISE(ABORT, 'approvals are append-only'); END;
+CREATE TRIGGER IF NOT EXISTS approval_no_delete BEFORE DELETE ON revision_approval BEGIN SELECT RAISE(ABORT, 'approvals are append-only'); END;
+CREATE TRIGGER IF NOT EXISTS paragraph_link_no_update BEFORE UPDATE ON paragraph_link BEGIN SELECT RAISE(ABORT, 'paragraph links are append-only'); END;
+CREATE TRIGGER IF NOT EXISTS paragraph_link_no_delete BEFORE DELETE ON paragraph_link BEGIN SELECT RAISE(ABORT, 'paragraph links are never deleted'); END;
 `;
 
 function now(): string {
@@ -288,6 +328,26 @@ export class MatterStore {
   blobPath(sha256: string): string {
     if (!/^[0-9a-f]{64}$/.test(sha256)) throw new MatterStoreError("BAD_HASH", sha256);
     return path.join(this.folder, BLOBS, sha256);
+  }
+
+  /** Store bytes once, at `blobs/<sha256>`. Returns the hash that names them. */
+  async putBlob(bytes: Buffer): Promise<{ sha256: string; size: number }> {
+    const sha256 = createHash("sha256").update(bytes).digest("hex");
+    const blob = this.blobPath(sha256);
+    if (!(await exists(blob))) {
+      const tmp = `${blob}.${randomUUID()}.tmp`;
+      await writeFile(tmp, bytes, { flag: "wx" });
+      await rename(tmp, blob);
+    }
+    return { sha256, size: bytes.length };
+  }
+
+  /** Read a blob and check it against its own SHA-256. A changed file is reported, never trusted. */
+  async readBlob(sha256: string): Promise<Buffer> {
+    const bytes = await readFile(this.blobPath(sha256));
+    const actual = createHash("sha256").update(bytes).digest("hex");
+    if (actual !== sha256) throw new MatterStoreError("BLOB_CHANGED", `blob ${sha256} now hashes to ${actual}`);
+    return bytes;
   }
 
   /** Add one file. The same bytes are stored once; a second add records an origin. */
@@ -696,6 +756,172 @@ export class MatterStore {
 
   notebook(): Notebook {
     return { events: this.listNotebookEvents(), conflicts: this.listConflicts(), readiness: this.readiness() };
+  }
+
+  // ---- Drafts and revisions (step 4). Computed by lib/drafting; written only here. ----
+
+  private revisionFromRow(r: Record<string, unknown>): RevisionRecord {
+    return {
+      id: String(r.id),
+      draftId: String(r.draft_id),
+      seq: Number(r.seq),
+      sha256: String(r.sha256),
+      size: Number(r.size),
+      baseRevisionId: r.base_revision_id == null ? null : String(r.base_revision_id),
+      author: r.author as RevisionAuthor,
+      createdAt: String(r.created_at),
+      approvedAt: r.approved_at == null ? null : String(r.approved_at),
+      approvedBy: r.approved_at == null ? null : "advocate",
+    };
+  }
+
+  /** The revisions of one draft, oldest first. */
+  private revisionsOf(draftId: string): RevisionRecord[] {
+    const rows = this.db
+      .prepare(
+        `SELECT r.*, a.at AS approved_at FROM revision r
+         LEFT JOIN revision_approval a ON a.revision_id = r.id
+         WHERE r.draft_id = ? ORDER BY r.seq`,
+      )
+      .all(draftId) as Array<Record<string, unknown>>;
+    return rows.map((r) => this.revisionFromRow(r));
+  }
+
+  private draftFromRow(r: Record<string, unknown>): DraftRecord {
+    const id = String(r.id);
+    const revisions = this.revisionsOf(id);
+    const head = revisions.length > 0 ? revisions[revisions.length - 1] : null;
+    const approved = [...revisions].reverse().find((x) => x.approvedAt !== null) ?? null;
+    return {
+      id,
+      kind: r.kind as DraftKind,
+      title: String(r.title),
+      createdAt: String(r.created_at),
+      revisionCount: revisions.length,
+      head,
+      approved,
+    };
+  }
+
+  listDrafts(): DraftRecord[] {
+    const rows = this.db.prepare("SELECT id, kind, title, created_at FROM draft ORDER BY created_at").all() as Array<Record<string, unknown>>;
+    return rows.map((r) => this.draftFromRow(r));
+  }
+
+  getDraft(draftId: string): DraftRecord {
+    const row = this.db.prepare("SELECT id, kind, title, created_at FROM draft WHERE id = ?").get(draftId) as Record<string, unknown> | undefined;
+    if (!row) throw new MatterStoreError("DRAFT_NOT_FOUND", draftId);
+    return this.draftFromRow(row);
+  }
+
+  getRevision(revisionId: string): RevisionRecord {
+    const row = this.db
+      .prepare("SELECT r.*, a.at AS approved_at FROM revision r LEFT JOIN revision_approval a ON a.revision_id = r.id WHERE r.id = ?")
+      .get(revisionId) as Record<string, unknown> | undefined;
+    if (!row) throw new MatterStoreError("REVISION_NOT_FOUND", revisionId);
+    return this.revisionFromRow(row);
+  }
+
+  headRevision(draftId: string): RevisionRecord | null {
+    const revisions = this.revisionsOf(draftId);
+    return revisions.length > 0 ? revisions[revisions.length - 1] : null;
+  }
+
+  /** The DOCX bytes of one revision, checked against the revision's SHA-256. */
+  async revisionBytes(revisionId: string): Promise<Buffer> {
+    return this.readBlob(this.getRevision(revisionId).sha256);
+  }
+
+  /**
+   * Create a draft with its first revision (author `generator`) and the paragraph links.
+   * One transaction for the rows; the blob is written before it.
+   */
+  async createDraftWithRevision(
+    kind: DraftKind,
+    title: string,
+    docx: Buffer,
+    paragraphs: Array<{ anchor: string; text: string; eventIds: string[] }>,
+    ctx: WriteContext,
+  ): Promise<{ draft: DraftRecord; revision: RevisionRecord }> {
+    const { sha256, size } = await this.putBlob(docx);
+    const draftId = randomUUID();
+    const revisionId = randomUUID();
+    const at = now();
+    this.db.exec("BEGIN");
+    try {
+      this.db.prepare("INSERT INTO draft (id, kind, title, created_at) VALUES (?, ?, ?, ?)").run(draftId, kind, title, at);
+      this.db
+        .prepare("INSERT INTO revision (id, draft_id, seq, sha256, size, base_revision_id, author, created_at) VALUES (?, ?, 1, ?, ?, NULL, 'generator', ?)")
+        .run(revisionId, draftId, sha256, size, at);
+      const insert = this.db.prepare(
+        "INSERT INTO paragraph_link (draft_id, anchor, revision_id, event_ids, text, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+      );
+      for (const p of paragraphs) insert.run(draftId, p.anchor, revisionId, JSON.stringify(p.eventIds), p.text, at);
+      this.db.exec("COMMIT");
+    } catch (e) {
+      this.db.exec("ROLLBACK");
+      throw e;
+    }
+    this.appendEvent(ctx, "draft.generated", draftId, { kind, title, revisionId, paragraphs: paragraphs.length });
+    return { draft: this.getDraft(draftId), revision: this.getRevision(revisionId) };
+  }
+
+  /**
+   * A human save: a new revision based on the current head (WD-007 to WD-010).
+   * A save with no base revision is refused; a stale base is refused.
+   */
+  async saveRevision(draftId: string, docx: Buffer, baseRevisionId: string, ctx: WriteContext): Promise<RevisionRecord> {
+    if (ctx.actor !== "advocate") throw new MatterStoreError("HUMAN_ONLY", "only the advocate saves a revision");
+    if (!baseRevisionId) throw new MatterStoreError("BASE_REQUIRED", "a human save needs a base revision");
+    const draft = this.getDraft(draftId);
+    const head = draft.head;
+    if (!head) throw new MatterStoreError("DRAFT_NOT_FOUND", draftId);
+    if (head.id !== baseRevisionId) {
+      throw new MatterStoreError("DOC_STALE_BASE", `the draft now has revision ${head.seq} (base was ${baseRevisionId})`);
+    }
+    const { sha256, size } = await this.putBlob(docx);
+    const id = randomUUID();
+    const at = now();
+    this.db
+      .prepare("INSERT INTO revision (id, draft_id, seq, sha256, size, base_revision_id, author, created_at) VALUES (?, ?, ?, ?, ?, ?, 'advocate', ?)")
+      .run(id, draftId, head.seq + 1, sha256, size, head.id, at);
+    this.appendEvent(ctx, "revision.saved", id, { draftId, base: head.id, sha256, size });
+    return this.getRevision(id);
+  }
+
+  /** A human approval of one revision (decision 5). */
+  approveRevision(revisionId: string, ctx: WriteContext): RevisionRecord {
+    if (ctx.actor !== "advocate") throw new MatterStoreError("HUMAN_ONLY", "only the advocate approves a revision");
+    const revision = this.getRevision(revisionId);
+    this.db.prepare("INSERT OR IGNORE INTO revision_approval (revision_id, at, actor) VALUES (?, ?, 'advocate')").run(revisionId, now());
+    this.appendEvent(ctx, "revision.approved", revisionId, { draftId: revision.draftId, seq: revision.seq });
+    return this.getRevision(revisionId);
+  }
+
+  listParagraphLinks(draftId: string): ParagraphLinkRecord[] {
+    const rows = this.db
+      .prepare("SELECT draft_id, anchor, revision_id, event_ids, text, created_at FROM paragraph_link WHERE draft_id = ? ORDER BY created_at")
+      .all(draftId) as Array<Record<string, unknown>>;
+    return rows.map((r) => ({
+      draftId: String(r.draft_id),
+      anchor: String(r.anchor),
+      revisionId: r.revision_id == null ? null : String(r.revision_id),
+      text: String(r.text),
+      eventIds: JSON.parse(String(r.event_ids)) as string[],
+      createdAt: String(r.created_at),
+    }));
+  }
+
+  getParagraphLink(draftId: string, anchor: string): ParagraphLinkRecord | undefined {
+    return this.listParagraphLinks(draftId).find((l) => l.anchor === anchor);
+  }
+
+  /** Record the link for an anchor the editor inserted. One link per anchor per draft. */
+  recordParagraphLink(draftId: string, anchor: string, revisionId: string, eventIds: string[], text: string): void {
+    this.getDraft(draftId);
+    this.db
+      .prepare("INSERT INTO paragraph_link (draft_id, anchor, revision_id, event_ids, text, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(draftId, anchor, revisionId, JSON.stringify(eventIds), text, now());
   }
 
   listEvents(limit = 500): EventRecord[] {
