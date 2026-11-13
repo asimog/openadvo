@@ -6,6 +6,7 @@ import { TextInput } from "@astryxdesign/core/TextInput";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Text } from "@astryxdesign/core/Text";
 import { Badge } from "@astryxdesign/core/Badge";
+import { Selector } from "@astryxdesign/core/Selector";
 import { Table, pixel, proportional, useTableSortable, useTableSortableState } from "@astryxdesign/core/Table";
 import type {
   AddFileResult,
@@ -13,6 +14,7 @@ import type {
   ChatMessage,
   EventRecord,
   MatterSummary,
+  ModelChoice,
   OriginRecord,
   SourceRecord,
 } from "../../shared/api.ts";
@@ -171,6 +173,42 @@ function EventTable(props: { events: EventRecord[] }) {
   );
 }
 
+/** The model picker: pi-ai's list of models that have credentials (Pi's own sign-in). */
+function ModelPicker(props: { isDisabled: boolean }) {
+  const [models, setModels] = useState<ModelChoice[]>([]);
+  const [current, setCurrent] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    void api.listModels().then(setModels, (e: Error) => setError(e.message));
+    void api.getModel().then(setCurrent);
+  }, []);
+  const providers = [...new Set(models.map((m) => m.provider))];
+  const options = providers.map((p) => ({
+    type: "section" as const,
+    title: p,
+    options: models.filter((m) => m.provider === p).map((m) => ({ value: m.key, label: m.name || m.id, description: m.key })),
+  }));
+  return (
+    <Selector
+      label="Model"
+      isLabelHidden
+      size="sm"
+      variant="ghost"
+      hasSearch
+      options={options}
+      value={current ?? undefined}
+      placeholder={models.length ? "Choose a model" : "No model signed in"}
+      emptyText="No model is signed in. Sign in with Pi first."
+      isDisabled={props.isDisabled || models.length === 0}
+      status={error ? { type: "error", message: error } : undefined}
+      onChange={(key) => {
+        if (!key) return;
+        void api.setModel(key).then(setCurrent, (e: Error) => setError(e.message));
+      }}
+    />
+  );
+}
+
 function ChatPane(props: { matterId: string | null }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [busy, setBusy] = useState(false);
@@ -219,7 +257,8 @@ function ChatPane(props: { matterId: string | null }) {
     <div className="pane" aria-label="Chat">
       <div className="pane-header">
         <Heading level={2}>Agent</Heading>
-        <Text type="supporting">{busy ? "Working…" : model ?? ""}</Text>
+        {busy ? <Text type="supporting">Working…</Text> : null}
+        <ModelPicker isDisabled={busy} key={model ?? "none"} />
       </div>
       <div className="chat-log" ref={logRef} data-testid="chat-log">
         {!props.matterId ? <Text type="supporting">Open a matter to talk to the agent.</Text> : null}

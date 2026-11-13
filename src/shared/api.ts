@@ -26,6 +26,14 @@ export interface ChatState {
   model: string | null;
 }
 
+/** One model from pi-ai's list of models that have credentials. */
+export interface ModelChoice {
+  key: string; // "provider/id"
+  provider: string;
+  id: string;
+  name: string;
+}
+
 export interface OpenAdvoApi {
   // Queries
   listMatters(): Promise<MatterSummary[]>;
@@ -34,11 +42,14 @@ export interface OpenAdvoApi {
   listOrigins(matterId: string, sourceId: string): Promise<OriginRecord[]>;
   listEvents(matterId: string): Promise<EventRecord[]>;
   getChat(matterId: string): Promise<ChatState>;
+  listModels(): Promise<ModelChoice[]>;
+  getModel(): Promise<string | null>;
   // Actions
   createMatter(title: string): Promise<MatterSummary>;
   addFiles(matterId: string, paths: string[]): Promise<AddFileResult[]>;
   pickFiles(): Promise<string[]>;
   pathsForFiles(files: File[]): string[];
   sendChat(matterId: string, text: string): Promise<void>;
+  setModel(key: string): Promise<string>;
   onChatEvent(listener: (event: ChatEvent) => void): () => void;
 }

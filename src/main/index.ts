@@ -3,6 +3,7 @@
  */
 import { app, BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from "electron";
 import path from "node:path";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { Matters } from "./matters.ts";
 import { Agent } from "./agent.ts";
@@ -63,6 +64,9 @@ function registerBridge(): void {
     return result.canceled ? [] : result.filePaths;
   });
   handle("chat:get", (matterId: string) => agent.getChat(matterId));
+  handle("models:list", () => agent.listModels());
+  handle("models:get", () => agent.currentModel());
+  handle("models:set", (key: string) => agent.setModel(String(key ?? "")));
   handle("chat:send", (matterId: string, text: string) => {
     // The turn runs in the background; progress arrives as chat events.
     void agent.send(matterId, String(text ?? ""));
@@ -98,6 +102,24 @@ function createWindow(): void {
   });
 }
 
+/** Non-secret application settings in the user data folder. */
+function settingsFile(): string {
+  return path.join(app.getPath("userData"), "settings.json");
+}
+
+function readSettings(): Record<string, unknown> {
+  try {
+    return JSON.parse(readFileSync(settingsFile(), "utf8")) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
+function writeSetting(key: string, value: unknown): void {
+  mkdirSync(path.dirname(settingsFile()), { recursive: true });
+  writeFileSync(settingsFile(), JSON.stringify({ ...readSettings(), [key]: value }, null, 2));
+}
+
 function exposeTestHooks(): void {
   // Read-only hooks for the Playwright tests. Present only when OPENADVO_TEST=1.
   if (process.env.OPENADVO_TEST !== "1") return;
@@ -116,6 +138,11 @@ app.whenReady().then(() => {
       matterTitle: (id) => matters.title(id),
       recordSession: (id, sessionId, model) => matters.recordAgentSession(id, sessionId, model),
       emit: emitChat,
+      loadModelKey: () => {
+        const v = readSettings().model;
+        return typeof v === "string" && v ? v : null;
+      },
+      saveModelKey: (key) => writeSetting("model", key),
     },
     { agentDir: path.join(app.getPath("userData"), "pi-agent"), model: process.env.OPENADVO_MODEL || undefined },
   );

@@ -121,8 +121,8 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
   expect(probe.process).toBe("undefined");
   expect(probe.bridge).toEqual(
     [
-      "addFiles", "createMatter", "getChat", "listEvents", "listMatters", "listOrigins",
-      "listSources", "onChatEvent", "openMatter", "pathsForFiles", "pickFiles", "sendChat",
+      "addFiles", "createMatter", "getChat", "getModel", "listEvents", "listMatters", "listModels", "listOrigins",
+      "listSources", "onChatEvent", "openMatter", "pathsForFiles", "pickFiles", "sendChat", "setModel",
     ].sort(),
   );
   await app.close();
@@ -158,4 +158,22 @@ test("live: the agent lists the sources (needs OPENADVO_LIVE_MODEL)", async () =
   await expect(log).toContainText("Used tool: list_sources", { timeout: 90_000 });
   await expect(log.locator('[data-role="agent"]').last()).toContainText("writ-petition.pdf", { timeout: 90_000 });
   await app.close();
+});
+
+test("live: the model picker lists pi-ai models and switches the session model (needs OPENADVO_LIVE_MODEL)", async () => {
+  test.skip(!process.env.OPENADVO_LIVE_MODEL, "set OPENADVO_LIVE_MODEL=provider/model to run against a real model");
+  const dirs = await makeDirs();
+  const { app, page } = await launch(dirs);
+  await createMatter(page, "Model picker");
+  const models: Array<{ key: string }> = await page.evaluate(() => (globalThis as any).openadvo.listModels());
+  expect(models.length).toBeGreaterThan(0);
+  const target = models.find((m) => m.key === process.env.OPENADVO_LIVE_MODEL) ?? models[0];
+  const chosen = await page.evaluate((k) => (globalThis as any).openadvo.setModel(k), target.key);
+  expect(chosen).toBe(target.key);
+  expect(await page.evaluate(() => (globalThis as any).openadvo.getModel())).toBe(target.key);
+  await app.close();
+  // The choice is saved for the next run.
+  const again = await launch(dirs);
+  expect(await again.page.evaluate(() => (globalThis as any).openadvo.getModel())).toBe(target.key);
+  await again.app.close();
 });
