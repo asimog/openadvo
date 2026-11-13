@@ -26,6 +26,14 @@ Date: 2026-11-14. Repository: `C:\dev\openadvo`. Nothing pushed.
 | Dock at its 300 px minimum | 0 elements overflow the dock; the model and effort controls wrap |
 | `Menu.getApplicationMenu() === null` in the running app | true |
 
+## Later in the session
+
+| Step | Result |
+|---|---|
+| Owner: a readable PDF shows no page-text panel; title bar merged with the view | built; `npx playwright test`: 7 passed, 2 skipped |
+| Owner: adopt AG-UI (decisions.md choice 21) | `npm install --save-exact @ag-ui/core` (1.0.4) |
+| One real turn on `CRA_2392_2008_Judgement_18-Oct-2019.pdf`, default model | 124 events: 1 CUSTOM, 1 RUN_STARTED, 7 TOOL_CALL_START, 7 TOOL_CALL_END, 1 TEXT_MESSAGE_START, 105 TEXT_MESSAGE_CONTENT, 1 TEXT_MESSAGE_END, 1 RUN_FINISHED; 0 invalid against `EventSchemas`; the dock showed 9 messages, equal to the stored conversation |
+
 ## Findings
 
 - A failed model call ended the turn with no message. `src/main/agent.ts` now shows the provider's reason as a notice.

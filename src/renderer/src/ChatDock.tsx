@@ -18,6 +18,7 @@ import { Selector } from "@astryxdesign/core/Selector";
 import { Spinner } from "@astryxdesign/core/Spinner";
 import { Text } from "@astryxdesign/core/Text";
 import { ArrowLeftIcon, ChatBubbleLeftRightIcon, PaperClipIcon } from "@heroicons/react/24/outline";
+import { CHAT_MESSAGE_EVENT } from "../../shared/api.ts";
 import type { ChatEvent, ChatMessage as ChatRecord, EffortLevel, EffortState, ModelChoice } from "../../shared/api.ts";
 
 const api = window.openadvo;
@@ -158,11 +159,20 @@ export function ChatDock(props: {
       },
       (e: Error) => live && setError(`The agent could not start: ${e.message}`),
     );
+    // The stream is AG-UI protocol events (decisions.md choice 21).
     const off = api.onChatEvent((ev: ChatEvent) => {
       if (ev.matterId !== props.matterId) return;
-      if (ev.type === "message") setMessages((m) => [...m, ev.message]);
-      else if (ev.type === "delta") setMessages((m) => m.map((x) => (x.id === ev.messageId ? { ...x, text: x.text + ev.delta } : x)));
-      else if (ev.type === "busy") setBusy(ev.busy);
+      const e = ev.event as unknown as { type: string } & Record<string, unknown>;
+      const add = (message: ChatRecord) => setMessages((m) => (m.some((x) => x.id === message.id) ? m : [...m, message]));
+      if (e.type === "RUN_STARTED") setBusy(true);
+      else if (e.type === "RUN_FINISHED") setBusy(false);
+      else if (e.type === "RUN_ERROR") {
+        setBusy(false);
+        add({ id: `error-${String(e.timestamp)}`, role: "notice", text: String(e.message) });
+      } else if (e.type === "TEXT_MESSAGE_START") add({ id: String(e.messageId), role: "agent", text: "" });
+      else if (e.type === "TEXT_MESSAGE_CONTENT") setMessages((m) => m.map((x) => (x.id === e.messageId ? { ...x, text: x.text + String(e.delta) } : x)));
+      else if (e.type === "TOOL_CALL_START") add({ id: String(e.toolCallId), role: "tool", text: `Used tool: ${String(e.toolCallName)}` });
+      else if (e.type === "CUSTOM" && e.name === CHAT_MESSAGE_EVENT) add(e.value as ChatRecord);
     });
     return () => {
       live = false;

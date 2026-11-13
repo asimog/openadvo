@@ -1,9 +1,12 @@
 /**
  * The bridge contract between the preload script and the renderer.
- * Types only. The renderer calls these named functions; it has no other access.
+ * Types, and one constant name. The renderer calls these named functions; it has no other access.
  */
 import type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft, DraftCheck, DraftDefect } from "./records.ts";
 
+import type { AGUIEvent } from "@ag-ui/core";
+
+export type { AGUIEvent };
 export type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft, DraftCheck, DraftDefect };
 
 export type ChatRole = "advocate" | "agent" | "tool" | "notice";
@@ -14,11 +17,19 @@ export interface ChatMessage {
   text: string;
 }
 
-/** Streamed from the main process while the agent works. */
-export type ChatEvent =
-  | { matterId: string; type: "message"; message: ChatMessage }
-  | { matterId: string; type: "delta"; messageId: string; delta: string }
-  | { matterId: string; type: "busy"; busy: boolean };
+/**
+ * Streamed from the main process while the agent works: AG-UI protocol events
+ * (decisions.md choice 21), one matter each. A run is RUN_STARTED, then text and tool-call
+ * events, then RUN_FINISHED or RUN_ERROR. An advocate message or a notice of the
+ * application is a CUSTOM event named CHAT_MESSAGE_EVENT whose value is a ChatMessage.
+ */
+export interface ChatEvent {
+  matterId: string;
+  event: AGUIEvent;
+}
+
+/** The name of the CUSTOM event that carries one ChatMessage of the application. */
+export const CHAT_MESSAGE_EVENT = "openadvo.chat_message";
 
 export interface ChatState {
   messages: ChatMessage[];

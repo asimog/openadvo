@@ -21,6 +21,8 @@ import {
 import { Type } from "typebox";
 import { randomUUID } from "node:crypto";
 import type { AnchorRecord, PageRecord, SourceRecord, Notebook, NotebookEvent } from "../lib/matter-store/index.ts";
+import { EventType, type AGUIEvent } from "@ag-ui/core";
+import { CHAT_MESSAGE_EVENT } from "../shared/api.ts";
 import type { ChatEvent, ChatMessage, ChatState, EffortLevel, EffortState, ModelChoice } from "../shared/api.ts";
 
 type ThinkingLevel = EffortLevel;
@@ -458,9 +460,11 @@ export class Agent {
     if (!clean) return;
     const chat = await this.chat(matterId);
     const { session, state } = chat;
+    const emit = (event: Record<string, unknown>) => this.host.emit({ matterId, event: { timestamp: Date.now(), ...event } as unknown as AGUIEvent });
+    /** A message of the application itself (the advocate's text, a notice): stored, and sent as a CUSTOM event. */
     const push = (message: ChatMessage) => {
       state.messages.push(message);
-      this.host.emit({ matterId, type: "message", message });
+      emit({ type: EventType.CUSTOM, name: CHAT_MESSAGE_EVENT, value: message });
     };
     push({ id: randomUUID(), role: "advocate", text: clean });
     if (!session.model) {
@@ -471,40 +475,55 @@ export class Agent {
       push({ id: randomUUID(), role: "notice", text: "The agent is still working. Wait for the answer, then send again." });
       return;
     }
+    const threadId = session.sessionId;
+    const runId = randomUUID();
     state.busy = true;
-    this.host.emit({ matterId, type: "busy", busy: true });
+    emit({ type: EventType.RUN_STARTED, threadId, runId });
     let current: ChatMessage | null = null;
+    let failure: string | null = null;
+    const endText = () => {
+      if (current) emit({ type: EventType.TEXT_MESSAGE_END, messageId: current.id });
+      current = null;
+    };
     const unsubscribe = session.subscribe((event) => {
       if (event.type === "message_update" && event.assistantMessageEvent.type === "text_delta") {
         if (!current) {
           current = { id: randomUUID(), role: "agent", text: "" };
-          push({ ...current });
+          state.messages.push(current);
+          emit({ type: EventType.TEXT_MESSAGE_START, messageId: current.id, role: "assistant" });
         }
-        current.text += event.assistantMessageEvent.delta;
-        const target = state.messages.find((m) => m.id === current!.id);
-        if (target) target.text = current.text;
-        this.host.emit({ matterId, type: "delta", messageId: current.id, delta: event.assistantMessageEvent.delta });
+        const delta = event.assistantMessageEvent.delta;
+        current.text += delta;
+        // AG-UI refuses an empty delta.
+        if (delta) emit({ type: EventType.TEXT_MESSAGE_CONTENT, messageId: current.id, delta });
       } else if (event.type === "message_end") {
-        current = null;
-        // A failed model call ends the turn without an exception. Show it; never leave the advocate with silence.
+        endText();
+        // A failed model call ends the turn without an exception. It becomes RUN_ERROR; never silence.
         const ended = event.message as { role?: string; stopReason?: string; errorMessage?: string };
-        if (ended.role === "assistant" && ended.stopReason === "error") {
-          push({ id: randomUUID(), role: "notice", text: `The model call failed: ${ended.errorMessage || "no reason given"}` });
-        }
+        if (ended.role === "assistant" && ended.stopReason === "error") failure = `The model call failed: ${ended.errorMessage || "no reason given"}`;
       } else if (event.type === "tool_execution_start") {
-        push({ id: randomUUID(), role: "tool", text: `Used tool: ${event.toolName}` });
-      } else if (event.type === "tool_execution_end" && event.isError) {
-        push({ id: randomUUID(), role: "tool", text: `Tool failed: ${event.toolName}` });
+        endText();
+        state.messages.push({ id: event.toolCallId, role: "tool", text: `Used tool: ${event.toolName}` });
+        emit({ type: EventType.TOOL_CALL_START, toolCallId: event.toolCallId, toolCallName: event.toolName });
+      } else if (event.type === "tool_execution_end") {
+        emit({ type: EventType.TOOL_CALL_END, toolCallId: event.toolCallId });
+        if (event.isError) push({ id: randomUUID(), role: "tool", text: `Tool failed: ${event.toolName}` });
       }
     });
     try {
       await session.prompt(clean);
     } catch (e) {
-      push({ id: randomUUID(), role: "notice", text: `The agent stopped with an error: ${(e as Error).message}` });
+      failure = `The agent stopped with an error: ${(e as Error).message}`;
     } finally {
       unsubscribe();
+      endText();
       state.busy = false;
-      this.host.emit({ matterId, type: "busy", busy: false });
+      if (failure) {
+        state.messages.push({ id: randomUUID(), role: "notice", text: failure });
+        emit({ type: EventType.RUN_ERROR, message: failure });
+      } else {
+        emit({ type: EventType.RUN_FINISHED, threadId, runId, outcome: { type: "success" } });
+      }
     }
   }
 
