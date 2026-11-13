@@ -1,0 +1,26 @@
+{
+  "electron": "45.3.2",
+  "node": "24.22.2",
+  "isMainProcess": true,
+  "sqlite": {
+    "ok": true,
+    "module": "node:sqlite",
+    "file": "C:\\Users\\RAHULK~1\\AppData\\Local\\Temp\\oa-d2-CbXukW"
+  },
+  "pi": {
+    "ok": true,
+    "activeTools": [
+      "list_sources"
+    ],
+    "allTools": [
+      "list_sources"
+    ],
+    "availableModels": 32,
+    "model": "opencode-go/deepseek-v4.1-flash"
+  },
+  "onlyOurTool": true,
+  "promptRun": {
+    "toolCalls": 1,
+    "reply": "Here are the sources for this matter:\n\n1. **impugned-judgment.pdf** (sha256: abc)"
+  }
+}
