@@ -9,10 +9,13 @@ import { Badge } from "@astryxdesign/core/Badge";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Table, pixel, proportional, useTableSortable, useTableSortableState } from "@astryxdesign/core/Table";
 import { NotebookView, type SourceLink } from "./Notebook.tsx";
+import { DraftsSection } from "./Drafts.tsx";
+import { DraftView } from "./DraftView.tsx";
 import type {
   AddFileResult,
   ChatEvent,
   ChatMessage,
+  DraftRecord,
   EventRecord,
   MatterSummary,
   ModelChoice,
@@ -21,6 +24,7 @@ import type {
   PageRecord,
   ReviewItem,
   Notebook,
+  RevisionRecord,
   SourceRecord,
 } from "../../shared/api.ts";
 
@@ -446,6 +450,9 @@ export function App() {
   const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
   const [version, setVersion] = useState(0);
   const [nb, setNb] = useState<Notebook | null>(null);
+  const [drafts, setDrafts] = useState<DraftRecord[]>([]);
+  const [openDraft, setOpenDraft] = useState<DraftRecord | null>(null);
+  const [openRevision, setOpenRevision] = useState<RevisionRecord | null>(null);
   const [focus, setFocus] = useState<SourceLink | null>(null);
   const [sourceId, setSourceId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -463,6 +470,7 @@ export function App() {
     setJobs(await api.listJobs(id));
     setReviewItems(await api.listReviewItems(id));
     setNb(await api.getNotebook(id));
+    setDrafts(await api.listDrafts(id));
     setVersion((v) => v + 1);
   }, []);
 
@@ -478,12 +486,15 @@ export function App() {
       setMatterId(id);
       setSourceId(null);
       setNotice(null);
+      setOpenDraft(null);
+      setOpenRevision(null);
       const checked = await api.openMatter(id);
       setSources(checked);
       setEvents(await api.listEvents(id));
       setJobs(await api.listJobs(id));
       setReviewItems(await api.listReviewItems(id));
       setNb(await api.getNotebook(id));
+      setDrafts(await api.listDrafts(id));
       const bad = checked.filter((s) => s.status !== "ok");
       if (bad.length) setNotice(`${bad.length} source file(s) are missing or changed: ${bad.map((s) => `${s.name} (${s.status})`).join(", ")}.`);
     },
@@ -516,7 +527,7 @@ export function App() {
   return (
     <div className="app">
       <Group orientation="horizontal" style={{ height: "100%" }}>
-        <Panel id="left" defaultSize="34%" minSize="22%">
+        <Panel id="left" defaultSize="30%" minSize="24%">
           <div className="pane" aria-label="Matters and sources">
             <div className="pane-header">
               <Heading level={2}>Matters</Heading>
@@ -560,16 +571,47 @@ export function App() {
           </div>
         </Panel>
         <Separator className="separator" />
-        <Panel id="view" defaultSize="38%" minSize="25%">
+        <Panel id="view" defaultSize="46%" minSize="30%">
           <div className="pane" aria-label="View">
             <div className="pane-header">
               <Heading level={2}>{matter ? matter.title : "Open Advocate"}</Heading>
-              {source ? <Button label="Back to matter" size="sm" variant="ghost" onClick={() => setSourceId(null)} /> : null}
+              {source || openDraft ? (
+                <Button
+                  label="Back to matter"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setSourceId(null);
+                    setOpenDraft(null);
+                    setOpenRevision(null);
+                  }}
+                />
+              ) : null}
             </div>
-            <div className="pane-scroll">
+            <div className={openDraft ? "pane-scroll pane-scroll-fixed" : "pane-scroll"}>
               {!matter ? <Text type="supporting">Create or open a matter. Then drop the PDFs of the brief into it.</Text> : null}
-              {matter && source ? <SourceDetail matterId={matter.id} source={source} events={events} version={version} focus={focus} /> : null}
-              {matter && !source ? (
+              {matter && openDraft && openRevision ? (
+                <DraftView
+                  matterId={matter.id}
+                  draft={openDraft}
+                  revision={openRevision}
+                  onClose={() => {
+                    setOpenDraft(null);
+                    setOpenRevision(null);
+                  }}
+                  onChanged={async () => {
+                    await refreshMatter(matter.id);
+                  }}
+                  onOpenSource={(link: SourceLink) => {
+                    setOpenDraft(null);
+                    setOpenRevision(null);
+                    setFocus(link);
+                    setSourceId(link.sourceId);
+                  }}
+                />
+              ) : null}
+              {matter && !openDraft && source ? <SourceDetail matterId={matter.id} source={source} events={events} version={version} focus={focus} /> : null}
+              {matter && !openDraft && !source ? (
                 <NotebookView
                   matterId={matter.id}
                   nb={nb}
@@ -591,6 +633,18 @@ export function App() {
                     <dt>Created</dt><dd>{matter.createdAt}</dd>
                     <dt>Parties, court, case number, CNR</dt><dd>Not recorded</dd>
                   </dl>
+                  <DraftsSection
+                    matterId={matter.id}
+                    drafts={drafts}
+                    onRefresh={async () => {
+                      await refreshMatter(matter.id);
+                    }}
+                    onOpen={(draft, revision) => {
+                      setSourceId(null);
+                      setOpenDraft(draft);
+                      setOpenRevision(revision);
+                    }}
+                  />
                   <Heading level={3}>Review items</Heading>
                   <ReviewList matterId={matter.id} items={reviewItems} sources={sources} onChange={() => void refreshMatter(matter.id)} />
                   <Heading level={3}>Events</Heading>
@@ -603,7 +657,7 @@ export function App() {
           </div>
         </Panel>
         <Separator className="separator" />
-        <Panel id="chat" defaultSize="28%" minSize="18%">
+        <Panel id="chat" defaultSize="24%" minSize="18%">
           <ChatPane matterId={matterId} />
         </Panel>
       </Group>

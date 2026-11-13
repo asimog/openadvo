@@ -8,9 +8,11 @@ import { pathToFileURL } from "node:url";
 import { Matters } from "./matters.ts";
 import { Agent } from "./agent.ts";
 import { Ingest } from "./ingest.ts";
+import { Drafts } from "./drafts.ts";
 import { EditorHost, registerEditorScheme, EO_ORIGIN } from "./editor-host.ts";
-import { platformKey } from "../lib/euro-office/platform.ts";
+import { euroOfficePaths, platformKey } from "../lib/euro-office/platform.ts";
 import type { ChatEvent } from "../shared/api.ts";
+import type { DraftKind } from "../shared/records.ts";
 
 // Tests and the proof run may point the application at separate folders.
 if (process.env.OPENADVO_USER_DATA) app.setPath("userData", path.resolve(process.env.OPENADVO_USER_DATA));
@@ -26,6 +28,7 @@ let editorHost: EditorHost;
 let matters: Matters;
 let agent: Agent;
 let ingest: Ingest;
+let drafts: Drafts;
 
 function mattersRoot(): string {
   if (process.env.OPENADVO_HOME) return path.resolve(process.env.OPENADVO_HOME);
@@ -83,7 +86,27 @@ function registerBridge(): void {
     const file = await matters.sourceFile(matterId, sourceId);
     return editorHost.open(file.path, file.name, "pdf", true);
   });
-  handle("view:close", (token: string) => editorHost.close(String(token ?? "")));
+  handle("view:close", async (token: string) => {
+    editorHost.close(String(token ?? ""));
+    await drafts.closeWorkingCopy(String(token ?? ""));
+  });
+  // Step 4: drafts and revisions. The store is reached only through main/matters.ts.
+  handle("drafts:list", (matterId: string) => drafts.list(matterId));
+  handle("drafts:getRevision", (matterId: string, revisionId: string) => drafts.revisionDetail(matterId, revisionId));
+  handle("drafts:paragraphSource", (matterId: string, draftId: string, anchor: string) => drafts.paragraphSource(matterId, draftId, anchor));
+  handle("drafts:generateListOfDates", (matterId: string) => drafts.generate(matterId, "list_of_dates" satisfies DraftKind));
+  handle("drafts:generateSynopsis", (matterId: string) => drafts.generate(matterId, "synopsis" satisfies DraftKind));
+  handle("drafts:openRevision", (matterId: string, revisionId: string) => drafts.openInEditor(matterId, revisionId));
+  handle("drafts:insertFromNotebook", (matterId: string, draftId: string, eventId: string) =>
+    drafts.insertFromNotebook(matterId, draftId, eventId),
+  );
+  // Human-only actions (decision 5): the advocate saves and approves a revision.
+  handle("drafts:saveRevision", (matterId: string, draftId: string, bytes: unknown, baseRevisionId: string) => {
+    const raw = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes as ArrayBuffer | number[]);
+    if (raw.length === 0) throw new Error("DOC_SAVE_FAILED: the editor sent no bytes");
+    return drafts.saveRevision(matterId, draftId, raw, baseRevisionId);
+  });
+  handle("drafts:approveRevision", (matterId: string, revisionId: string) => drafts.approveRevision(matterId, revisionId));
   handle("dialog:pickFiles", async () => {
     if (!window) return [];
     const result = await dialog.showOpenDialog(window, {
@@ -181,12 +204,21 @@ app.whenReady().then(() => {
   });
   editorHost.register();
   matters = new Matters(mattersRoot());
+  const workingRoot = path.join(app.getPath("userData"), "draft-work");
+  mkdirSync(workingRoot, { recursive: true });
+  drafts = new Drafts(matters, {
+    x2t: euroOfficePaths(euroOfficeRoot()).x2t,
+    workingRoot,
+    openInEditor: (file, name, kind, readOnly, meta) => editorHost.open(file, name, kind, readOnly, meta),
+  });
   agent = new Agent(
     {
       listSources: (id) => matters.listSources(id),
       listPages: (id, sourceId, from, to) => matters.listPages(id, sourceId, from, to),
       searchLines: (id, query, limit) => matters.searchLines(id, query, limit),
       notebook: (id) => matters.notebook(id),
+      drafts: (id, kind) => drafts.readDrafts(id, kind),
+      paragraphSource: (id, anchor) => drafts.paragraphSourceAnywhere(id, anchor),
       matterTitle: (id) => matters.title(id),
       recordSession: (id, sessionId, model) => matters.recordAgentSession(id, sessionId, model),
       emit: emitChat,

@@ -23,19 +23,38 @@ import { randomUUID } from "node:crypto";
 import type { AnchorRecord, PageRecord, SourceRecord, Notebook, NotebookEvent } from "../lib/matter-store/index.ts";
 import type { ChatEvent, ChatMessage, ChatState, ModelChoice } from "../shared/api.ts";
 import type { Api, Model } from "@earendil-works/pi-ai";
+import type { DraftKind, ParagraphSource, RevisionRecord } from "../shared/records.ts";
 
-/** The allowlist. Step 1 has one read-only tool (spec rule 5). */
-/** The allowlist. Every tool is read only (decision 2; step 1 rule 5). */
-export const AGENT_TOOLS = ["list_sources", "read_source_text", "search_sources", "list_events", "get_chronology"] as const;
+/** The allowlist. Every tool is read only (decision 2; step 1 rule 5, step 4). */
+export const AGENT_TOOLS = [
+  "list_sources",
+  "read_source_text",
+  "search_sources",
+  "list_events",
+  "get_chronology",
+  "read_draft",
+  "get_paragraph_source",
+] as const;
 
 /** At most this many pages per read_source_text call, so one result never crowds the model out. */
 export const MAX_PAGES_PER_READ = 10;
+
+/** One draft of the matter, as `read_draft` returns it. */
+export interface AgentDraft {
+  draftId: string;
+  kind: DraftKind;
+  title: string;
+  revision: RevisionRecord;
+  paragraphs: Array<{ anchor: string | null; text: string; eventIds: string[] }>;
+}
 
 export interface AgentHost {
   listSources(matterId: string): Promise<SourceRecord[]>;
   listPages(matterId: string, sourceId: string, from: number, to: number): Promise<PageRecord[]>;
   searchLines(matterId: string, query: string, limit: number): Promise<AnchorRecord[]>;
   notebook(matterId: string): Promise<Notebook>;
+  drafts(matterId: string, kind?: DraftKind): Promise<AgentDraft[]>;
+  paragraphSource(matterId: string, anchor: string): Promise<ParagraphSource | null>;
   matterTitle(matterId: string): Promise<string>;
   recordSession(matterId: string, sessionId: string, model: string | null): Promise<void>;
   emit(event: ChatEvent): void;
@@ -57,6 +76,7 @@ function systemPrompt(title: string): string {
     `The open matter is: ${title}.`,
     "Your tools are read only: list_sources (the source files), read_source_text (the text of pages of one source, line by line) and search_sources (find a phrase; returns source, page and line).",
     "The Notebook holds dated events extracted by fixed rules: list_events (every field, with filters) and get_chronology (the events the advocate has not excluded, by date). Events are candidates until the advocate confirms them. You cannot confirm, reject or exclude anything.",
+    "The drafts are the generated List of Dates and the Synopsis: read_draft reads the live text of the latest revision of each draft, with the anchor of every paragraph, and get_paragraph_source follows one anchor to its Notebook events and source lines. No model writes the generated text. You cannot change a draft.",
     "When you state a fact from a source, cite it as [source name, p. N, l. M]. OCR text is a single reading, not cross-checked: say so when you rely on it.",
     "You cannot add, change or delete anything in the matter. The advocate decides every legal point.",
     "When a request needs a capability you do not have, say so plainly. Never invent sources, hashes or facts.",
@@ -103,8 +123,24 @@ export function formatEvent(e: NotebookEvent): string {
   return `${date} (${e.dateText}) [${e.kind}; ${flags}] ${e.description} — [${e.sourceName}, p. ${e.page}, l. ${e.line}] id ${e.id}`;
 }
 
-function formatSources(sources: SourceRecord[]): string {
-  if (sources.length === 0) return "The matter has no sources.";
+export function formatDraft(d: AgentDraft): string {
+  const head = `== ${d.title} (${d.kind}), revision ${d.revision.seq}, sha256 ${d.revision.sha256}`;
+  return [head, ...d.paragraphs.map((p) => (p.anchor ? `[anchor ${p.anchor}] ${p.text}` : `[no anchor] ${p.text}`))].join("\n");
+}
+
+export function formatParagraphSource(s: ParagraphSource): string {
+  const head = `Paragraph ${s.anchor}. ${s.events.length} Notebook event(s):`;
+  return [
+    head,
+    ...s.events.map((e) => {
+      const date = e.dateStart === e.dateEnd ? e.dateStart : `${e.dateStart} to ${e.dateEnd}`;
+      const reading = e.reading === "ocr" ? ", OCR single reading" : "";
+      return `${date} (${e.dateText}) ${e.description} — [${e.sourceName}, p. ${e.page}, l. ${e.line}${reading}] id ${e.id}`;
+    }),
+  ].join("\n");
+}
+
+function formatSources(sources: SourceRecord[]): string {  if (sources.length === 0) return "The matter has no sources.";
   const lines = sources.map(
     (s, i) => `${i + 1}. ${s.name} | sha256 ${s.sha256} | ${s.size} bytes | status ${s.status} | added ${s.origins} time(s)`,
   );
@@ -299,6 +335,34 @@ export class Agent {
         return { content: [{ type: "text", text: events.length ? events.map(formatEvent).join("\n") : "The chronology is empty." }], details: { events: events.length } };
       },
     });
+    const readDraft = defineTool({
+      name: "read_draft",
+      label: "Read draft",
+      description: "Read the live text of the latest revision of the List of Dates and the Synopsis, paragraph by paragraph, with the anchor of each paragraph.",
+      parameters: Type.Object({
+        kind: Type.Optional(Type.Union([Type.Literal("list_of_dates"), Type.Literal("synopsis")])),
+      }),
+      execute: async (_id, params) => {
+        const drafts = await host.drafts(matterId, params.kind);
+        const text = drafts.length
+          ? drafts.map(formatDraft).join("\n\n")
+          : "The matter has no draft yet. The advocate generates one from confirmed Notebook events.";
+        return { content: [{ type: "text", text }], details: { drafts: drafts.length } };
+      },
+    });
+    const getParagraphSource = defineTool({
+      name: "get_paragraph_source",
+      label: "Get paragraph source",
+      description: "Follow one paragraph anchor (from read_draft) to its Notebook events and their source lines.",
+      parameters: Type.Object({
+        anchor: Type.String({ description: "The anchor of one draft paragraph." }),
+      }),
+      execute: async (_id, params) => {
+        const source = await host.paragraphSource(matterId, params.anchor);
+        const text = source ? formatParagraphSource(source) : `No paragraph link matches "${params.anchor}". Use read_draft to see the anchors.`;
+        return { content: [{ type: "text", text }], details: { events: source?.events.length ?? 0 } };
+      },
+    });
     const runtime = await this.modelRuntime();
     const model = await this.model();
     const { session } = await createAgentSession({
@@ -311,7 +375,7 @@ export class Agent {
       settingsManager: SettingsManager.inMemory({ compaction: { enabled: false } }),
       sessionManager: SessionManager.inMemory(this.options.agentDir),
       tools: [...AGENT_TOOLS],
-      customTools: [listSources, readSourceText, searchSources, listEvents, getChronology],
+      customTools: [listSources, readSourceText, searchSources, listEvents, getChronology, readDraft, getParagraphSource],
     });
     const active = session.getActiveToolNames();
     if (active.length !== AGENT_TOOLS.length || !AGENT_TOOLS.every((t) => active.includes(t))) {

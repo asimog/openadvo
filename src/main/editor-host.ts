@@ -30,11 +30,19 @@ export function registerEditorScheme(): void {
 
 export type DocKind = "pdf" | "word";
 
+/** What the host page and the window need to know about the open document. */
+export interface OpenDocMeta {
+  matterId?: string;
+  draftId?: string;
+  revisionId?: string;
+}
+
 interface OpenDoc {
   file: string;
   name: string;
   kind: DocKind;
   readOnly: boolean;
+  meta: OpenDocMeta;
 }
 
 export interface EditorHostOptions {
@@ -85,13 +93,18 @@ export class EditorHost {
     return this.fonts;
   }
 
-  /** Open a file for viewing. Returns the URL of the host page for a sandboxed frame. */
-  async open(file: string, name: string, kind: DocKind, readOnly = true): Promise<string> {
+  /** Open a file for viewing or editing. Returns the URL of the host page for a sandboxed frame. */
+  async open(file: string, name: string, kind: DocKind, readOnly = true, meta: OpenDocMeta = {}): Promise<string> {
     if (!(await this.available())) throw new Error("Euro-Office is not vendored. Run: npm run vendor");
     await this.fontList();
     const token = randomUUID();
-    this.docs.set(token, { file, name, kind, readOnly });
+    this.docs.set(token, { file, name, kind, readOnly, meta });
     return `${EO_ORIGIN}/host/host.html?doc=${token}`;
+  }
+
+  /** The document behind one view token, if it is still open. */
+  info(token: string): OpenDoc | undefined {
+    return this.docs.get(token);
   }
 
   close(token: string): void {
@@ -129,7 +142,16 @@ export class EditorHost {
       if (p === "/api/info" || p === "/api/bin") {
         const doc = this.docs.get(url.searchParams.get("doc") ?? "");
         if (!doc) return notFound();
-        if (p === "/api/info") return Response.json({ name: doc.name, kind: doc.kind, readOnly: doc.readOnly });
+        if (p === "/api/info") {
+          return Response.json({
+            name: doc.name,
+            kind: doc.kind,
+            readOnly: doc.readOnly,
+            matterId: doc.meta.matterId ?? null,
+            draftId: doc.meta.draftId ?? null,
+            revisionId: doc.meta.revisionId ?? null,
+          });
+        }
         return net.fetch(pathToFileURL(doc.file).toString());
       }
       if (p === "/api/log" && request.method === "POST") {
