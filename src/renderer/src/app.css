@@ -1,37 +1,74 @@
 html, body, #root { height: 100%; margin: 0; }
 body { background: var(--color-background-body); color: var(--color-text-primary); }
 body { overflow: hidden; }
-.app { height: 100vh; display: flex; flex-direction: column; }
-.pane { height: 100%; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
-.pane-scroll { flex: 1; overflow: auto; padding: 12px; }
-.pane-header { padding: 10px 12px; border-bottom: 1px solid var(--color-border); display: flex; gap: 8px; align-items: center; justify-content: space-between; }
-.separator { width: 4px; background: var(--color-border); }
+
+/* The window: Astryx AppShell with a side navigation that can be hidden. The rules below lay out the content area. */
+.nav-empty { padding: 4px 12px; }
+
+/* The title bar: the one bar of the window. It drags the window. The system draws the window controls
+   over its end; the env() values keep our content clear of them on every platform. */
+.titlebar { height: 40px; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 0 8px; margin-left: env(titlebar-area-x, 0px); width: env(titlebar-area-width, 100%); -webkit-app-region: drag; user-select: none; font-size: 13px; }
+.titlebar-control { display: inline-flex; -webkit-app-region: no-drag; }
+.titlebar-name { font-weight: 600; }
+.titlebar-matter { color: var(--color-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.titlebar-matter::before { content: "/"; margin-right: 8px; opacity: 0.5; }
+
+/* A matter: the chat docked on the left, the view on the right. */
+.matter { height: 100%; min-height: 0; }
+.separator { width: 1px; background: var(--color-border); position: relative; }
+.separator::after { content: ""; position: absolute; inset: 0 -3px; }
 .separator[data-separator="active"], .separator:hover { background: var(--color-accent); }
-.matter-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.matter-item { width: 100%; text-align: left; padding: 6px 8px; border: 1px solid transparent; border-radius: 6px; background: none; cursor: pointer; font: inherit; color: var(--color-text-primary); }
-.matter-item[aria-current="true"] { border-color: var(--color-accent); background: var(--color-background-muted); }
-.dropzone { border: 2px dashed var(--color-border); border-radius: 8px; padding: 12px; margin: 8px 0; text-align: center; }
-.dropzone[data-over="true"] { border-color: var(--color-accent); }
+.separator-horizontal { width: auto; height: 1px; }
+.separator-horizontal::after { inset: -3px 0; }
+/* An editor frame under the pointer would take the drag away from a separator. */
+.matter:has(.separator[data-separator="active"]) iframe { pointer-events: none; }
+
+/* The chat dock. */
+.dock { height: 100%; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.dock-header { flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; padding: 12px 12px 8px; border-bottom: 1px solid var(--color-border); max-height: 55%; overflow: auto; }
+.dock-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.dock-title h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.dock-busy { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.dock-open { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.dock-open-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.dock-slot { display: flex; flex-direction: column; gap: 8px; }
+.dock-slot:empty { display: none; }
+.dock-card { display: flex; flex-direction: column; gap: 4px; }
+.dock-card-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dock-chat { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.dock-chat > .astryx-chat-layout { flex: 1 1 auto; min-height: 0; }
+.dock-notice { margin: 8px 12px 0; }
+/* The empty composer input keeps one line of height, so it can be clicked. */
+.dock-chat [role="textbox"] { min-height: 1.5em; }
+/* The composer tools wrap when the dock is narrow, so no control is cut off. */
+.composer-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 4px; min-width: 0; }
+.chat-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* The view: the Notebook scrolls with padding; a source or a draft fills the whole view. */
+.work { height: 100%; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.work-scroll { flex: 1; overflow: auto; padding: 16px 20px; }
+.work-pad { padding: 16px 20px; }
+.work-frame { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
+.draft-view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.draft-view .work-frame { flex: 1 1 auto; min-height: 0; height: auto; }
+.source-view { flex: 1; min-height: 0; }
+.source-info { height: 100%; overflow: auto; padding: 12px 20px; display: flex; flex-direction: column; gap: 8px; }
+
+.section-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.sources { display: flex; flex-direction: column; gap: 8px; }
+.dropzone { border: 1px dashed var(--color-border); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+.dropzone[data-over="true"] { border-color: var(--color-accent); background: var(--color-background-muted); }
 .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; word-break: break-all; }
-.notice { margin: 8px 0; padding: 8px; border-radius: 6px; background: var(--color-background-muted); color: var(--color-text-primary); }
-.chat-log { flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
-.chat-msg { padding: 8px 10px; border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
-.chat-msg[data-role="advocate"] { align-self: flex-end; background: var(--color-background-muted); max-width: 90%; }
-.chat-msg[data-role="agent"] { align-self: flex-start; border: 1px solid var(--color-border); max-width: 95%; }
-.chat-msg[data-role="tool"], .chat-msg[data-role="notice"] { align-self: center; font-size: 12px; opacity: 0.8; }
-.chat-input { border-top: 1px solid var(--color-border); padding: 8px; display: flex; gap: 8px; align-items: flex-end; }
-.chat-input textarea { flex: 1; min-height: 56px; resize: vertical; font: inherit; padding: 6px; }
+.notice { margin: 0 0 12px; padding: 8px 10px; border-radius: 6px; background: var(--color-background-muted); color: var(--color-text-primary); }
 dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; margin: 8px 0 16px; }
 dl.facts dt { font-weight: 600; }
 dl.facts dd { margin: 0; }
 table.plain { border-collapse: collapse; width: 100%; font-size: 13px; }
 table.plain th, table.plain td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--color-border); vertical-align: top; }
-.source-detail { display: flex; flex-direction: column; gap: 8px; }
-.source-frame { width: 100%; height: 72vh; border: 1px solid var(--color-border); border-radius: 6px; background: #fff; }
 details > summary { cursor: pointer; margin: 8px 0; }
 .page-text { border: 1px solid var(--color-border); border-radius: 6px; padding: 8px; }
 .page-text-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
-.page-lines { list-style: none; margin: 0; padding: 0; max-height: 40vh; overflow: auto; font-size: 13px; }
+.page-lines { list-style: none; margin: 0; padding: 0; font-size: 13px; }
 .page-lines li { display: flex; gap: 8px; padding: 2px 0; border-bottom: 1px solid var(--color-border); }
 .line-no { flex: 0 0 2.5em; text-align: right; opacity: 0.6; font-variant-numeric: tabular-nums; }
 .review-list { list-style: none; margin: 6px 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
@@ -53,30 +90,21 @@ button.link { background: none; border: 0; padding: 0; color: var(--color-text-a
 .page-lines li[data-focus="true"] { background: var(--color-background-yellow); }
 .toggle { display: inline-flex; gap: 6px; align-items: center; margin-bottom: 6px; }
 /* Step 4: the Drafts section in the Matter overview. */
-.drafts { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.drafts { display: flex; flex-direction: column; gap: 8px; margin: 16px 0; }
 .drafts-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .drafts-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .draft-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .draft-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--color-border); border-radius: 6px; padding: 8px; }
 .draft-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .draft-actions { display: flex; gap: 6px; flex: 0 0 auto; }
-/* Step 4: the draft editor view. The harness bar is outside the editor frame. */
-.draft-view { display: flex; flex-direction: column; gap: 8px; }
-/* The draft view owns the pane: the harness bar stays visible and the editor frame fills the rest. */
-.pane-scroll-fixed { overflow: hidden; padding: 0; display: flex; flex-direction: column; }
-.pane-scroll-fixed .draft-view { flex: 1; min-height: 0; height: 100%; padding: 8px; }
-.draft-view .harness-bar { flex: 0 0 auto; }
-.draft-view .source-panel { flex: 0 1 auto; max-height: 30%; overflow: auto; }
-.draft-view .draft-frame { flex: 1 1 auto; min-height: 0; height: auto; }
-.harness-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 0; border-bottom: 1px solid var(--color-border); }
+/* Step 4: the harness bar of a draft. It sits in the chat dock, outside the editor frame. */
+.harness-bar { display: flex; flex-direction: column; gap: 8px; }
 .harness-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .harness-citations { display: inline-flex; align-items: center; gap: 6px; }
-.harness-status { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1 0 100%; margin-left: 0; padding: 4px 8px; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-background-muted); color: var(--color-text-primary); }
-.draft-frame { width: 100%; min-height: 520px; height: calc(100vh - 260px); border: 1px solid var(--color-border); border-radius: 6px; background: #fff; }
+.harness-status { display: flex; align-items: center; gap: 4px 8px; flex-wrap: wrap; padding: 6px 8px; border-radius: 6px; background: var(--color-background-muted); color: var(--color-text-primary); }
 .source-panel { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--color-border); border-radius: 6px; padding: 8px; background: var(--color-background-muted); color: var(--color-text-primary); }
 .source-panel-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .source-event-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .source-event { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--color-border); padding-top: 6px; }
 .insert-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 50vh; overflow: auto; }
 .insert-item { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--color-border); padding-top: 6px; align-items: flex-start; }
-

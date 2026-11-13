@@ -36,6 +36,7 @@
     "@astryxdesign/theme-neutral": "0.7.15",
     "@earendil-works/pi-ai": "1.5.2",
     "@earendil-works/pi-coding-agent": "1.5.2",
+    "@heroicons/react": "2.2.0",
     "@napi-rs/canvas": "1.1.1",
     "@stylexjs/stylex": "0.19.2",
     "@tesseract.js-data/eng": "1.0.0",

@@ -82,6 +82,7 @@ test("generate, show source, edit and save twice, approve", async () => {
   const matterId: string = await page.evaluate(async () => (await (globalThis as any).openadvo.listMatters())[0].id);
 
   // Rule 1 of the spec: nothing unconfirmed enters generated prose.
+  await page.getByRole("tab", { name: "Matter", exact: true }).click();
   await page.getByRole("button", { name: "Generate List of Dates" }).click();
   await expect(page.getByTestId("drafts-error")).toContainText("confirm at least one Notebook event");
 
@@ -91,11 +92,18 @@ test("generate, show source, edit and save twice, approve", async () => {
     return (await (globalThis as any).openadvo.getNotebook(id)).events.length;
   }, matterId);
   expect(confirmed).toBe(3);
-  // Generate the List of Dates; the DOCX opens in the Word editor with the harness bar.
+  // Generate the List of Dates; the DOCX opens in the Word editor, with the harness bar in the chat dock.
   await page.getByRole("button", { name: "Generate List of Dates" }).click();
   const frame = page.getByTestId("draft-frame");
   await expect(frame).toBeVisible({ timeout: 120_000 });
   await expect(page.getByTestId("draft-status")).toContainText("Revision 1");
+  // The editor fills the view to its top edge; the harness bar sits in the chat dock, left of the editor.
+  const view = (await page.getByTestId("work-view").boundingBox())!;
+  const frameBox = (await frame.boundingBox())!;
+  expect(Math.abs(frameBox.y - view.y)).toBeLessThan(2);
+  expect(Math.abs(frameBox.height - view.height)).toBeLessThan(2);
+  const bar = (await page.getByTestId("harness-bar").boundingBox())!;
+  expect(bar.x + bar.width).toBeLessThanOrEqual(frameBox.x);
   const editor = await editorFrame(page);
   await expect(page.getByText("Opening the Word editor…")).toBeHidden({ timeout: 120_000 });
 
@@ -174,7 +182,7 @@ test("generate, show source, edit and save twice, approve", async () => {
   }, matterId);
   expect(stored).toBe(3);
   // Leave the editor before closing the application: the editor frame holds the document.
-  await page.getByRole("button", { name: "Back to matter" }).first().click();
+  await page.getByRole("button", { name: "Back to matter" }).click();
   await expect(page.getByTestId("draft-frame")).toBeHidden({ timeout: 30_000 });
   await app.close();
 });

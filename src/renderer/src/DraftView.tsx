@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Button } from "@astryxdesign/core/Button";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
@@ -68,14 +69,16 @@ function ParagraphSourcePanel(props: { source: ParagraphSource; onClose: () => v
 }
 
 /**
- * The Word editor of one draft revision, with our harness bar above the editor frame
+ * The Word editor of one draft revision. The editor frame fills the view, so its ribbon reaches the top.
+ * Our harness bar is outside the editor frame, in the chat dock (`dock`), beside the editor
  * (editor-design items b, c and i; the frame protocol is fixed by the editor host).
  */
 export function DraftView(props: {
   matterId: string;
   draft: DraftRecord;
   revision: RevisionRecord;
-  onClose: () => void;
+  /** The place in the chat dock that holds the harness bar. */
+  dock: HTMLElement | null;
   onChanged: () => Promise<void>;
   onOpenSource: (link: SourceLink) => void;
 }) {
@@ -351,51 +354,55 @@ export function DraftView(props: {
     }
   };
 
-  return (
-    <div className="draft-view" data-testid="draft-view">
+  const harness = (
+    <>
       <div className="harness-bar" data-testid="harness-bar">
-        <Button label="Back to matter" size="sm" variant="ghost" onClick={props.onClose} />
-        <Selector
-          label="View"
-          isLabelHidden
-          size="sm"
-          variant="ghost"
-          options={VIEW_OPTIONS}
-          value={displayMode}
-          onChange={(value) => {
-            const mode: DisplayMode = value === "edit" ? "edit" : value === "original" ? "original" : "final";
-            setDisplayMode(mode);
-            if (frameOpened.current) sendDisplayMode(mode);
-          }}
-        />
-        <div className="harness-actions">
-          <Button label="Save revision" size="sm" isDisabled={!doc || saveBlocked} clickAction={save} />
-          <Button label="Insert from Notebook" size="sm" isDisabled={!doc} clickAction={openInsertDialog} />
-          <Button label="Show source of this paragraph" size="sm" isDisabled={!doc} onClick={showParagraphSource} />
-          <span className="harness-citations">
-            <Button label="Check citations" size="sm" isDisabled />
-            <Text type="supporting">not available until step 7</Text>
-          </span>
-          <Button label="Approve revision" size="sm" isDisabled={approved || approving} clickAction={approve} />
-        </div>
         <div className="harness-status" data-testid="draft-status" role="status">
           <Text weight="semibold">Revision {revisionInfo.seq}</Text>
           <span className="mono" title={revisionInfo.sha256}>
             {shortHash(revisionInfo.sha256)}
           </span>
-          <Text type="supporting">Verification: not verified</Text>
           <Text weight="semibold">{dirty ? "Unsaved changes" : "Saved"}</Text>
           {approved ? <Badge variant="success" label="Approved by advocate" /> : null}
+          <Text type="supporting">Verification: not verified</Text>
           {message ? (
             <Text type="supporting" data-testid="draft-message">
               {message}
             </Text>
           ) : null}
         </div>
+        <div className="harness-actions">
+          <Selector
+            label="View"
+            isLabelHidden
+            size="sm"
+            options={VIEW_OPTIONS}
+            value={displayMode}
+            onChange={(value) => {
+              const mode: DisplayMode = value === "edit" ? "edit" : value === "original" ? "original" : "final";
+              setDisplayMode(mode);
+              if (frameOpened.current) sendDisplayMode(mode);
+            }}
+          />
+          <Button label="Save revision" size="sm" variant="primary" isDisabled={!doc || saveBlocked} clickAction={save} />
+          <Button label="Approve revision" size="sm" isDisabled={approved || approving} clickAction={approve} />
+          <Button label="Show source of this paragraph" size="sm" isDisabled={!doc} onClick={showParagraphSource} />
+          <Button label="Insert from Notebook" size="sm" isDisabled={!doc} clickAction={openInsertDialog} />
+          <span className="harness-citations">
+            <Button label="Check citations" size="sm" isDisabled />
+            <Text type="supporting">not available until step 7</Text>
+          </span>
+        </div>
       </div>
       {source ? <ParagraphSourcePanel source={source} onClose={() => setSource(null)} onOpenSource={props.onOpenSource} /> : null}
+    </>
+  );
+
+  return (
+    <div className="draft-view" data-testid="draft-view">
+      {props.dock ? createPortal(harness, props.dock) : null}
       {frameError ? (
-        <div className="notice" role="alert" data-testid="draft-error">
+        <div className="notice work-pad" role="alert" data-testid="draft-error">
           {frameError}
         </div>
       ) : null}
@@ -403,14 +410,16 @@ export function DraftView(props: {
         <iframe
           key={url}
           ref={frameRef}
-          className="draft-frame"
+          className="work-frame"
           data-testid="draft-frame"
           title="Draft document"
           src={url}
           sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads"
         />
       ) : !frameError ? (
-        <Text type="supporting">Opening the Word editor…</Text>
+        <div className="work-pad">
+          <Text type="supporting">Opening the Word editor…</Text>
+        </div>
       ) : null}
       <Dialog isOpen={insertOpen} onOpenChange={setInsertOpen} purpose="form" width={560} padding={4}>
         <DialogHeader title="Insert from Notebook" onOpenChange={setInsertOpen} />

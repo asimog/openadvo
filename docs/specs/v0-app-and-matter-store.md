@@ -16,10 +16,10 @@ Step 1 of [../build-plan.md](../build-plan.md). Serves workflow sections 2 and p
 
 **Surfaces.**
 
-- One window with three fixed panes, left to right: matters and sources; view; chat. Panes resize (`react-resizable-panels`).
+- One window, laid out by [decisions.md](../decisions.md) choice 20 (2026-11-14; it replaced the three panes matters, view, chat): a side navigation that hides, the chat landing page, and in a matter the chat dock on the left with the view on the right. The dock and the view resize (`react-resizable-panels`).
 - Bridge functions: `createMatter(title)` and `addFiles(matterId, paths)`. Queries: `listMatters`, `listSources`, `listEvents`. Chat: `sendChat(text)` and a chat event stream.
 - One agent tool: `list_sources` (the open matter's sources: name, SHA-256, size, status).
-- The chat pane shows one Pi session for the open matter.
+- The chat dock shows one Pi session for the open matter. A failed model call shows a notice with the provider's reason.
 
 A file that is not a PDF (by its first bytes, `%PDF-`) is refused with a visible message. It is not stored.
 

@@ -3,7 +3,7 @@ import { TabList, Tab } from "@astryxdesign/core/TabList";
 import { Button } from "@astryxdesign/core/Button";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Text } from "@astryxdesign/core/Text";
-import type { DateConflict, IngestJob, Notebook, NotebookEvent, SourceRecord } from "../../shared/api.ts";
+import type { DateConflict, Notebook, NotebookEvent } from "../../shared/api.ts";
 
 const api = window.openadvo;
 
@@ -124,13 +124,16 @@ function EventsTable(props: {
 export function NotebookView(props: {
   matterId: string;
   nb: Notebook | null;
-  sources: SourceRecord[];
-  jobs: IngestJob[];
+  /** The open tab. The window owns it, so closing a source or a draft returns to the same tab. */
+  tab: string;
+  onTab: (tab: string) => void;
   overview: ReactNode;
+  /** The Sources tab: add files and the list of sources. */
+  sourcesPanel: ReactNode;
   onChange: (nb: Notebook) => void;
   onOpen: (l: SourceLink) => void;
 }) {
-  const [tab, setTab] = useState("matter");
+  const { tab, onTab: setTab } = props;
   const [showExcluded, setShowExcluded] = useState(false);
   const nb = props.nb;
   const events = nb?.events ?? [];
@@ -159,20 +162,7 @@ export function NotebookView(props: {
       <div className="notebook-body">
         {tab !== "matter" && nb ? <Conflicts matterId={props.matterId} nb={nb} onChange={props.onChange} onOpen={props.onOpen} /> : null}
         {tab === "matter" ? props.overview : null}
-        {tab === "sources" ? (
-          <table className="plain" aria-label="Notebook sources">
-            <thead><tr><th>Source</th><th>Pages</th><th>Events</th></tr></thead>
-            <tbody>
-              {props.sources.map((s) => (
-                <tr key={s.id}>
-                  <td><button type="button" className="link" onClick={() => props.onOpen({ sourceId: s.id, page: 1, line: 0 })}>{s.name}</button></td>
-                  <td>{props.jobs.find((j) => j.sourceId === s.id)?.pages ?? "—"}</td>
-                  <td>{events.filter((e) => e.sourceId === s.id).length}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : null}
+        {tab === "sources" ? props.sourcesPanel : null}
         {tab === "procedural" ? (
           <EventsTable label="Procedural history" events={events.filter((e) => e.kind === "procedural")} full={false} matterId={props.matterId} onChange={props.onChange} onOpen={props.onOpen} />
         ) : null}

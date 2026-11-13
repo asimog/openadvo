@@ -1,7 +1,7 @@
 /**
  * Electron main process: the window, the bridge handlers, the matter store and the agent.
  */
-import { app, BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from "electron";
+import { Menu, app, BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from "electron";
 import path from "node:path";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -120,13 +120,22 @@ function registerBridge(): void {
   handle("models:list", () => agent.listModels());
   handle("models:get", () => agent.currentModel());
   handle("models:set", (key: string) => agent.setModel(String(key ?? "")));
+  handle("effort:get", () => agent.getEffort());
+  handle("effort:set", (level: string) => agent.setEffort(String(level ?? "")));
   handle("chat:send", (matterId: string, text: string) => {
     // The turn runs in the background; progress arrives as chat events.
     void agent.send(matterId, String(text ?? ""));
   });
 }
 
+/** The height of our title bar. The renderer's bar and the window controls use the same value. */
+const TITLE_BAR_HEIGHT = 40;
+
 function createWindow(): void {
+  // No File, Edit, View, Window bar. macOS keeps the menus that carry its standard shortcuts.
+  Menu.setApplicationMenu(
+    process.platform === "darwin" ? Menu.buildFromTemplate([{ role: "appMenu" }, { role: "editMenu" }, { role: "windowMenu" }]) : null,
+  );
   window = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -134,6 +143,9 @@ function createWindow(): void {
     minHeight: 600,
     title: "Open Advocate",
     show: false,
+    // One title bar of our own: the renderer draws it, the system draws only the window controls over it.
+    titleBarStyle: "hidden",
+    titleBarOverlay: { color: "#f1f1f1", symbolColor: "#1c1c1c", height: TITLE_BAR_HEIGHT },
     webPreferences: {
       preload: path.join(here, "../preload/index.cjs"),
       contextIsolation: true,
@@ -227,6 +239,11 @@ app.whenReady().then(() => {
         return typeof v === "string" && v ? v : null;
       },
       saveModelKey: (key) => writeSetting("model", key),
+      loadEffort: () => {
+        const v = readSettings().effort;
+        return typeof v === "string" && v ? v : null;
+      },
+      saveEffort: (level) => writeSetting("effort", level),
     },
     { agentDir: path.join(app.getPath("userData"), "pi-agent"), model: process.env.OPENADVO_MODEL || undefined },
   );

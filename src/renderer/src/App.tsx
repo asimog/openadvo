@@ -1,27 +1,27 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
+import { AppShell } from "@astryxdesign/core/AppShell";
+import { Icon } from "@astryxdesign/core/Icon";
+import { SideNavCollapseButton } from "@astryxdesign/core/SideNav";
+import { ScaleIcon } from "@heroicons/react/24/outline";
 import { Button } from "@astryxdesign/core/Button";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Text } from "@astryxdesign/core/Text";
-import { Badge } from "@astryxdesign/core/Badge";
-import { Selector } from "@astryxdesign/core/Selector";
-import { Table, pixel, proportional, useTableSortable, useTableSortableState } from "@astryxdesign/core/Table";
+import { AppNav } from "./AppNav.tsx";
+import { ChatDock } from "./ChatDock.tsx";
+import { Landing, type Carry } from "./Landing.tsx";
 import { NotebookView, type SourceLink } from "./Notebook.tsx";
 import { DraftsSection } from "./Drafts.tsx";
 import { DraftView } from "./DraftView.tsx";
+import { EventTable, SourceDetail, SourcesPanel } from "./Sources.tsx";
 import type {
   AddFileResult,
-  ChatEvent,
-  ChatMessage,
   DraftRecord,
   EventRecord,
   MatterSummary,
-  ModelChoice,
-  OriginRecord,
   IngestJob,
-  PageRecord,
   ReviewItem,
   Notebook,
   RevisionRecord,
@@ -30,25 +30,9 @@ import type {
 
 const api = window.openadvo;
 
-// Stop a file dropped outside the drop zone from navigating the window.
+// Stop a file dropped outside a drop target from navigating the window.
 window.addEventListener("dragover", (e) => e.preventDefault());
 window.addEventListener("drop", (e) => e.preventDefault());
-
-function shortHash(h: string): string {
-  return `${h.slice(0, 12)}…`;
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function statusBadge(status: SourceRecord["status"]) {
-  const variant = status === "ok" ? "success" : status === "missing" ? "error" : "warning";
-  const label = status === "ok" ? "OK" : status === "missing" ? "Missing" : "Changed";
-  return <Badge variant={variant} label={label} />;
-}
 
 function summarise(results: AddFileResult[]): string {
   const added = results.filter((r) => r.outcome === "added").length;
@@ -62,60 +46,6 @@ function summarise(results: AddFileResult[]): string {
 
 function baseName(p: string): string {
   return p.split(/[\\/]/).pop() ?? p;
-}
-
-type SourceRow = SourceRecord & Record<string, unknown>;
-
-function textState(job: IngestJob | undefined): { label: string; variant: "neutral" | "info" | "success" | "error" } {
-  if (!job || job.state === "queued") return { label: "Queued", variant: "neutral" };
-  if (job.state === "running") return { label: "Reading…", variant: "info" };
-  if (job.state === "failed") return { label: "Failed", variant: "error" };
-  return { label: `${job.pages} pp.`, variant: "success" };
-}
-
-function SourcesTable(props: { sources: SourceRecord[]; jobs: IngestJob[]; selected: string | null; onSelect: (id: string) => void }) {
-  const data = props.sources as SourceRow[];
-  const { sortedData, sortConfig } = useTableSortableState<SourceRow>({ data });
-  const sortable = useTableSortable<SourceRow>(sortConfig);
-  return (
-    <Table<SourceRow>
-      data={sortedData}
-      idKey="id"
-      density="compact"
-      plugins={{ sortable }}
-      columns={[
-        {
-          key: "name",
-          header: "Name",
-          width: proportional(1, { minWidth: 140 }),
-          sortable: true,
-          renderCell: (s) => (
-            <button
-              type="button"
-              className="matter-item"
-              aria-current={props.selected === s.id}
-              onClick={() => props.onSelect(s.id)}
-              title={s.name}
-            >
-              {s.name}
-            </button>
-          ),
-        },
-        { key: "sha256", header: "SHA-256", width: pixel(118), sortable: true, renderCell: (s) => <span className="mono" title={s.sha256}>{shortHash(s.sha256)}</span> },
-        { key: "size", header: "Size", width: pixel(78), sortable: true, renderCell: (s) => formatSize(s.size) },
-        { key: "status", header: "File", width: pixel(92), sortable: true, renderCell: (s) => statusBadge(s.status) },
-        {
-          key: "text",
-          header: "Text",
-          width: pixel(104),
-          renderCell: (s) => {
-            const t = textState(props.jobs.find((j) => j.sourceId === s.id));
-            return <Badge variant={t.variant} label={t.label} />;
-          },
-        },
-      ]}
-    />
-  );
 }
 
 function NewMatterDialog(props: { isOpen: boolean; onOpenChange: (open: boolean) => void; onCreate: (title: string) => Promise<void> }) {
@@ -147,105 +77,7 @@ function NewMatterDialog(props: { isOpen: boolean; onOpenChange: (open: boolean)
   );
 }
 
-/** The Euro-Office PDF editor, read only, in a sandboxed frame (editor-design item j). */
-function SourceViewer(props: { matterId: string; sourceId: string }) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    let live = true;
-    let opened: string | null = null;
-    setUrl(null);
-    setError(null);
-    api.openSourceView(props.matterId, props.sourceId).then(
-      (u) => {
-        opened = u;
-        if (live) setUrl(u);
-        else void api.closeView(u);
-      },
-      (e: Error) => live && setError(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, "")),
-    );
-    return () => {
-      live = false;
-      if (opened) void api.closeView(opened);
-    };
-  }, [props.matterId, props.sourceId]);
-  if (error) return <div className="notice" data-testid="viewer-error">{error}</div>;
-  if (!url) return <Text type="supporting">Opening the PDF editor…</Text>;
-  return (
-    <>
-    <ViewerState url={url} />
-    <iframe
-      className="source-frame"
-      title="Source document"
-      data-testid="source-frame"
-      src={url}
-      sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads"
-    />
-    </>
-  );
-}
-
-/** The state the editor host page reports: opened, error or failed. */
-function ViewerState(props: { url: string }) {
-  const [state, setState] = useState<{ state: string; detail: string } | null>(null);
-  useEffect(() => {
-    const doc = new URL(props.url).searchParams.get("doc");
-    const onMessage = (e: MessageEvent) => {
-      if (e.origin !== "oa-eo://app") return;
-      const d = e.data as { type?: string; doc?: string; state?: string; detail?: string };
-      if (d?.type === "oa-editor/state" && d.doc === doc) setState({ state: String(d.state), detail: String(d.detail ?? "") });
-    };
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, [props.url]);
-  if (!state) return <Text type="supporting">Starting the PDF editor…</Text>;
-  if (state.state === "opened") return <Text type="supporting" data-testid="viewer-state">Opened read only in the Euro-Office PDF editor.</Text>;
-  return <div className="notice" data-testid="viewer-state">The PDF editor reported a problem: {state.detail}</div>;
-}
-
-const KIND_TEXT: Record<string, string> = {
-  born_digital: "Text layer",
-  ocr: "OCR: single reading, not cross-checked",
-  none: "No text found",
-};
-
-/** The stored text of each page, line by line, with the anchor of every line. */
-function PageText(props: { matterId: string; sourceId: string; version: number; focus?: SourceLink | null }) {
-  const [pages, setPages] = useState<PageRecord[]>([]);
-  const [page, setPage] = useState(props.focus?.page ?? 1);
-  useEffect(() => {
-    if (props.focus) setPage(props.focus.page);
-  }, [props.focus]);
-  const focusLine = props.focus && props.focus.page === page ? props.focus.line : 0;
-  useEffect(() => {
-    void api.getSourcePages(props.matterId, props.sourceId).then(setPages);
-  }, [props.matterId, props.sourceId, props.version]);
-  if (pages.length === 0) return <Text type="supporting">No page text is stored yet. Text extraction runs after a file is added.</Text>;
-  const current = pages.find((p) => p.page === page) ?? pages[0];
-  return (
-    <section className="page-text" aria-label="Page text">
-      <div className="page-text-bar">
-        <Button label="Previous page" size="sm" variant="ghost" isDisabled={current.page <= 1} onClick={() => setPage(current.page - 1)} />
-        <Text>Page {current.page} of {pages.length}</Text>
-        <Button label="Next page" size="sm" variant="ghost" isDisabled={current.page >= pages.length} onClick={() => setPage(current.page + 1)} />
-        <Badge
-          variant={current.kind === "born_digital" ? "success" : current.kind === "ocr" ? "warning" : "error"}
-          label={KIND_TEXT[current.kind] + (current.ocr ? ` (${Math.round(current.ocr.confidence)}%)` : "")}
-        />
-      </div>
-      <ol className="page-lines" data-testid="page-lines">
-        {current.lines.map((l) => (
-          <li key={l.id} data-focus={l.line === focusLine} ref={l.line === focusLine ? (el) => el?.scrollIntoView({ block: "center" }) : undefined} title={`Anchor ${l.sha256.slice(0, 12)}…:${l.page}:${l.line}`}>
-            <span className="line-no">{l.line}</span>
-            <span>{l.text}</span>
-          </li>
-        ))}
-      </ol>
-    </section>
-  );
-}
-
-function ReviewList(props: { matterId: string; items: ReviewItem[]; sources: SourceRecord[]; onChange: () => void }) {
+function ReviewList(props: { matterId: string; items: ReviewItem[]; onChange: () => void }) {
   const open = props.items.filter((i) => i.status === "open");
   const decided = props.items.length - open.length;
   if (props.items.length === 0) return <Text type="supporting">No review items.</Text>;
@@ -271,176 +103,11 @@ function ReviewList(props: { matterId: string; items: ReviewItem[]; sources: Sou
   );
 }
 
-function SourceDetail(props: { matterId: string; source: SourceRecord; events: EventRecord[]; version: number; focus: SourceLink | null }) {
-  const [origins, setOrigins] = useState<OriginRecord[]>([]);
-  useEffect(() => {
-    void api.listOrigins(props.matterId, props.source.id).then(setOrigins);
-  }, [props.matterId, props.source.id, props.source.origins]);
-  const events = props.events.filter((e) => e.subject === props.source.id);
-  return (
-    <div className="source-detail">
-      <Heading level={2}>{props.source.name}</Heading>
-      <SourceViewer matterId={props.matterId} sourceId={props.source.id} />
-      <PageText matterId={props.matterId} sourceId={props.source.id} version={props.version} focus={props.focus} />
-      <details>
-      <summary>Hash, origins and events</summary>
-      <dl className="facts">
-        <dt>SHA-256</dt>
-        <dd className="mono" data-testid="detail-sha256">{props.source.sha256}</dd>
-        <dt>Size</dt>
-        <dd>{formatSize(props.source.size)} ({props.source.size} bytes)</dd>
-        <dt>Status</dt>
-        <dd>{statusBadge(props.source.status)} {props.source.checkedAt ? <Text type="supporting">checked {props.source.checkedAt}</Text> : null}</dd>
-        <dt>Added</dt>
-        <dd>{props.source.addedAt}</dd>
-      </dl>
-      <Heading level={3}>Origins</Heading>
-      <table className="plain">
-        <thead><tr><th>When</th><th>Name</th><th>From</th><th>By</th></tr></thead>
-        <tbody>
-          {origins.map((o) => (
-            <tr key={o.id}><td>{o.addedAt}</td><td>{o.originalName}</td><td className="mono">{o.originalPath}</td><td>{o.actor}</td></tr>
-          ))}
-        </tbody>
-      </table>
-      <Heading level={3}>Events</Heading>
-      <EventTable events={events} />
-      </details>
-    </div>
-  );
-}
-
-function EventTable(props: { events: EventRecord[] }) {
-  if (props.events.length === 0) return <Text type="supporting">No events.</Text>;
-  return (
-    <table className="plain" aria-label="Events">
-      <thead><tr><th>#</th><th>When</th><th>Who</th><th>What</th><th>Session</th></tr></thead>
-      <tbody>
-        {props.events.map((e) => (
-          <tr key={e.seq}>
-            <td>{e.seq}</td><td>{e.at}</td><td>{e.actor}</td><td>{e.action}</td>
-            <td className="mono">{e.sessionId ? e.sessionId.slice(0, 8) : ""}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-/** The model picker: pi-ai's list of models that have credentials (Pi's own sign-in). */
-function ModelPicker(props: { isDisabled: boolean }) {
-  const [models, setModels] = useState<ModelChoice[]>([]);
-  const [current, setCurrent] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    void api.listModels().then(setModels, (e: Error) => setError(e.message));
-    void api.getModel().then(setCurrent);
-  }, []);
-  const providers = [...new Set(models.map((m) => m.provider))];
-  const options = providers.map((p) => ({
-    type: "section" as const,
-    title: p,
-    options: models.filter((m) => m.provider === p).map((m) => ({ value: m.key, label: m.name || m.id, description: m.key })),
-  }));
-  return (
-    <Selector
-      label="Model"
-      isLabelHidden
-      size="sm"
-      variant="ghost"
-      hasSearch
-      options={options}
-      value={current ?? undefined}
-      placeholder={models.length ? "Choose a model" : "No model signed in"}
-      emptyText="No model is signed in. Sign in with Pi first."
-      isDisabled={props.isDisabled || models.length === 0}
-      status={error ? { type: "error", message: error } : undefined}
-      onChange={(key) => {
-        if (!key) return;
-        void api.setModel(key).then(setCurrent, (e: Error) => setError(e.message));
-      }}
-    />
-  );
-}
-
-function ChatPane(props: { matterId: string | null }) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [model, setModel] = useState<string | null>(null);
-  const [text, setText] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const logRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setMessages([]);
-    setError(null);
-    if (!props.matterId) return;
-    let live = true;
-    api.getChat(props.matterId).then(
-      (s) => {
-        if (!live) return;
-        setMessages(s.messages);
-        setBusy(s.busy);
-        setModel(s.model);
-      },
-      (e: Error) => live && setError(`The agent could not start: ${e.message}`),
-    );
-    const off = api.onChatEvent((ev: ChatEvent) => {
-      if (ev.matterId !== props.matterId) return;
-      if (ev.type === "message") setMessages((m) => [...m, ev.message]);
-      else if (ev.type === "delta") setMessages((m) => m.map((x) => (x.id === ev.messageId ? { ...x, text: x.text + ev.delta } : x)));
-      else if (ev.type === "busy") setBusy(ev.busy);
-    });
-    return () => {
-      live = false;
-      off();
-    };
-  }, [props.matterId]);
-
-  useEffect(() => {
-    logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
-  }, [messages]);
-
-  const send = () => {
-    if (!props.matterId || !text.trim()) return;
-    void api.sendChat(props.matterId, text);
-    setText("");
-  };
-
-  return (
-    <div className="pane" aria-label="Chat">
-      <div className="pane-header">
-        <Heading level={2}>Agent</Heading>
-        {busy ? <Text type="supporting">Working…</Text> : null}
-        <ModelPicker isDisabled={busy} key={model ?? "none"} />
-      </div>
-      <div className="chat-log" ref={logRef} data-testid="chat-log">
-        {!props.matterId ? <Text type="supporting">Open a matter to talk to the agent.</Text> : null}
-        {error ? <div className="notice">{error}</div> : null}
-        {messages.map((m) => (
-          <div key={m.id} className="chat-msg" data-role={m.role}>{m.text}</div>
-        ))}
-      </div>
-      <div className="chat-input">
-        <textarea
-          aria-label="Message to the agent"
-          value={text}
-          disabled={!props.matterId}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              send();
-            }
-          }}
-          placeholder="For example: list the sources"
-        />
-        <Button label="Send" variant="primary" isDisabled={!props.matterId || !text.trim() || busy} onClick={send} />
-      </div>
-    </div>
-  );
-}
-
+/**
+ * The window. A side navigation that can be hidden; the chat landing page when no matter is open;
+ * in a matter, the chat docked on the left and the Notebook, a source or the Word editor on the right
+ * (decisions.md choice 20).
+ */
 export function App() {
   const [matters, setMatters] = useState<MatterSummary[]>([]);
   const [matterId, setMatterId] = useState<string | null>(null);
@@ -455,9 +122,18 @@ export function App() {
   const [openRevision, setOpenRevision] = useState<RevisionRecord | null>(null);
   const [focus, setFocus] = useState<SourceLink | null>(null);
   const [sourceId, setSourceId] = useState<string | null>(null);
+  const [tab, setTab] = useState("matter");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [dragOver, setDragOver] = useState(false);
+  const [navCollapsed, setNavCollapsed] = useState(false);
+  /** True while the navigation is folded because a document opened, not because the advocate folded it. */
+  const navFoldedForDocument = useRef(false);
+  /** Where the open document puts its controls in the chat dock. */
+  const [dockSlot, setDockSlot] = useState<HTMLElement | null>(null);
+  /** Text carried from the landing page into the dock's composer. */
+  const [dockCarry, setDockCarry] = useState<{ id: number; text: string } | null>(null);
+  /** The instruction and files that wait for the advocate to create the matter. */
+  const pendingCarry = useRef<Carry | null>(null);
 
   const refreshMatters = useCallback(async () => setMatters(await api.listMatters()), []);
   useEffect(() => {
@@ -481,15 +157,21 @@ export function App() {
     });
   }, [matterId, refreshMatter]);
 
+  const closeDocument = useCallback(() => {
+    setSourceId(null);
+    setOpenDraft(null);
+    setOpenRevision(null);
+  }, []);
+
   const openMatter = useCallback(
     async (id: string) => {
       setMatterId(id);
-      setSourceId(null);
       setNotice(null);
-      setOpenDraft(null);
-      setOpenRevision(null);
+      closeDocument();
       const checked = await api.openMatter(id);
       setSources(checked);
+      // A matter with no sources opens where the files are added.
+      setTab(checked.length === 0 ? "sources" : "matter");
       setEvents(await api.listEvents(id));
       setJobs(await api.listJobs(id));
       setReviewItems(await api.listReviewItems(id));
@@ -498,170 +180,219 @@ export function App() {
       const bad = checked.filter((s) => s.status !== "ok");
       if (bad.length) setNotice(`${bad.length} source file(s) are missing or changed: ${bad.map((s) => `${s.name} (${s.status})`).join(", ")}.`);
     },
-    [],
+    [closeDocument],
   );
+
+  const goHome = () => {
+    setMatterId(null);
+    setNotice(null);
+    closeDocument();
+  };
+
+  const addPathsTo = useCallback(
+    async (id: string, paths: string[]) => {
+      if (paths.length === 0) return;
+      const results = await api.addFiles(id, paths);
+      setNotice(summarise(results));
+      await refreshMatter(id);
+    },
+    [refreshMatter],
+  );
+
+  /** Open a matter from the landing page: add the attached files, then send or carry the instruction. */
+  const openWithCarry = async (id: string, carry: Carry, send: boolean) => {
+    await openMatter(id);
+    if (carry.paths.length) {
+      await addPathsTo(id, carry.paths);
+      setTab("sources");
+    }
+    const text = carry.text.trim();
+    if (!text) return;
+    if (send) void api.sendChat(id, text);
+    else setDockCarry({ id: Date.now(), text });
+  };
 
   const createMatter = async (title: string) => {
     const m = await api.createMatter(title);
     await refreshMatters();
-    await openMatter(m.id);
+    const carry = pendingCarry.current;
+    pendingCarry.current = null;
+    // The advocate's instruction started this matter, so it is sent as the first message.
+    await openWithCarry(m.id, carry ?? { text: "", paths: [] }, true);
   };
 
-  const addPaths = async (paths: string[]) => {
-    if (!matterId || paths.length === 0) return;
-    const results = await api.addFiles(matterId, paths);
-    setNotice(summarise(results));
-    await refreshMatter(matterId);
-  };
-
-  const onDrop = (e: DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-    const files = Array.from(e.dataTransfer.files);
-    void addPaths(api.pathsForFiles(files));
+  const askNewMatter = (carry: Carry | null) => {
+    pendingCarry.current = carry;
+    setDialogOpen(true);
   };
 
   const matter = useMemo(() => matters.find((m) => m.id === matterId) ?? null, [matters, matterId]);
   const source = sources.find((s) => s.id === sourceId) ?? null;
+  const eventCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const e of nb?.events ?? []) counts.set(e.sourceId, (counts.get(e.sourceId) ?? 0) + 1);
+    return counts;
+  }, [nb]);
+
+  const openSource = (link: SourceLink) => {
+    setOpenDraft(null);
+    setOpenRevision(null);
+    setFocus(link);
+    setSourceId(link.sourceId);
+  };
+
+  const draftOpen = matter && openDraft && openRevision;
+  const openItem = draftOpen ? openDraft.title : matter && source ? source.name : null;
+
+  // A source or a draft gets the width of the window: the navigation folds to its icon rail
+  // while one is open, and unfolds when it closes. A fold the advocate made stays.
+  const documentOpen = openItem !== null;
+  useEffect(() => {
+    if (documentOpen) {
+      setNavCollapsed((collapsed) => {
+        if (!collapsed) navFoldedForDocument.current = true;
+        return true;
+      });
+    } else if (navFoldedForDocument.current) {
+      navFoldedForDocument.current = false;
+      setNavCollapsed(false);
+    }
+  }, [documentOpen]);
+
+  const setNavByHand = (collapsed: boolean) => {
+    navFoldedForDocument.current = false;
+    setNavCollapsed(collapsed);
+  };
 
   return (
-    <div className="app">
-      <Group orientation="horizontal" style={{ height: "100%" }}>
-        <Panel id="left" defaultSize="30%" minSize="24%">
-          <div className="pane" aria-label="Matters and sources">
-            <div className="pane-header">
-              <Heading level={2}>Matters</Heading>
-              <Button label="New matter" size="sm" onClick={() => setDialogOpen(true)} />
-            </div>
-            <div className="pane-scroll">
-              {matters.length === 0 ? <Text type="supporting">No matters yet. Create one.</Text> : null}
-              <ul className="matter-list" aria-label="Matter list">
-                {matters.map((m) => (
-                  <li key={m.id}>
-                    <button type="button" className="matter-item" aria-current={m.id === matterId} onClick={() => void openMatter(m.id)}>
-                      {m.title}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              {matter ? (
-                <section aria-label="Sources">
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <Heading level={3}>Sources ({sources.length})</Heading>
-                    <Button label="Add files…" size="sm" onClick={async () => void addPaths(await api.pickFiles())} />
-                  </div>
-                  <div
-                    className="dropzone"
-                    data-over={dragOver}
-                    data-testid="dropzone"
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setDragOver(true);
-                    }}
-                    onDragLeave={() => setDragOver(false)}
-                    onDrop={onDrop}
-                  >
-                    <Text type="supporting">Drop PDF files here</Text>
-                  </div>
-                  {notice ? <div className="notice" role="status" data-testid="notice">{notice}</div> : null}
-                  <SourcesTable sources={sources} jobs={jobs} selected={sourceId} onSelect={(id) => { setFocus(null); setSourceId(id); }} />
-                </section>
-              ) : null}
-            </div>
-          </div>
-        </Panel>
-        <Separator className="separator" />
-        <Panel id="view" defaultSize="46%" minSize="30%">
-          <div className="pane" aria-label="View">
-            <div className="pane-header">
-              <Heading level={2}>{matter ? matter.title : "Open Advocate"}</Heading>
-              {source || openDraft ? (
-                <Button
-                  label="Back to matter"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setSourceId(null);
-                    setOpenDraft(null);
-                    setOpenRevision(null);
-                  }}
-                />
-              ) : null}
-            </div>
-            <div className={openDraft ? "pane-scroll pane-scroll-fixed" : "pane-scroll"}>
-              {!matter ? <Text type="supporting">Create or open a matter. Then drop the PDFs of the brief into it.</Text> : null}
-              {matter && openDraft && openRevision ? (
-                <DraftView
+    <>
+      <AppShell
+        contentPadding={0}
+        mobileNav={false}
+        topNav={
+          // The only bar of the window. It drags the window; the system draws the window controls at its end.
+          <header className="titlebar" data-testid="titlebar">
+            <span className="titlebar-control">
+              <SideNavCollapseButton size="sm" collapsible={{ isCollapsed: navCollapsed, onCollapsedChange: setNavByHand }} />
+            </span>
+            <Icon icon={ScaleIcon} size="sm" color="secondary" />
+            <span className="titlebar-name">Open Advocate</span>
+            {matter ? <span className="titlebar-matter">{matter.title}</span> : null}
+          </header>
+        }
+        sideNav={
+          <AppNav
+            matters={matters}
+            matterId={matterId}
+            isCollapsed={navCollapsed}
+            onCollapsedChange={setNavByHand}
+            onHome={goHome} onNewMatter={() => askNewMatter(null)} onOpenMatter={(id) => void openMatter(id)}
+          />
+        }
+      >
+        {!matter ? (
+          <Landing matters={matters} onOpenMatter={(id, carry) => void openWithCarry(id, carry, false)} onNewMatter={askNewMatter} />
+        ) : (
+          <div className="matter" data-testid="matter-view">
+            <Group orientation="horizontal" style={{ height: "100%" }}>
+              <Panel id="chat" defaultSize="32%" minSize="300px" maxSize="60%">
+                <ChatDock
                   matterId={matter.id}
-                  draft={openDraft}
-                  revision={openRevision}
-                  onClose={() => {
-                    setOpenDraft(null);
-                    setOpenRevision(null);
-                  }}
-                  onChanged={async () => {
-                    await refreshMatter(matter.id);
-                  }}
-                  onOpenSource={(link: SourceLink) => {
-                    setOpenDraft(null);
-                    setOpenRevision(null);
-                    setFocus(link);
-                    setSourceId(link.sourceId);
-                  }}
+                  title={matter.title}
+                  openItem={openItem}
+                  onBack={closeDocument}
+                  slotRef={setDockSlot}
+                  carry={dockCarry}
+                  onAddPaths={(paths) => addPathsTo(matter.id, paths)}
                 />
-              ) : null}
-              {matter && !openDraft && source ? <SourceDetail matterId={matter.id} source={source} events={events} version={version} focus={focus} /> : null}
-              {matter && !openDraft && !source ? (
-                <NotebookView
-                  matterId={matter.id}
-                  nb={nb}
-                  sources={sources}
-                  jobs={jobs}
-                  onChange={(next) => {
-                    setNb(next);
-                    void refreshMatter(matter.id);
-                  }}
-                  onOpen={(link) => {
-                    setFocus(link);
-                    setSourceId(link.sourceId);
-                  }}
-                  overview={
-                <div>
-                  <dl className="facts">
-                    <dt>Sources</dt><dd>{sources.length}</dd>
-                    <dt>Matter folder</dt><dd className="mono">{matter.folder}</dd>
-                    <dt>Created</dt><dd>{matter.createdAt}</dd>
-                    <dt>Parties, court, case number, CNR</dt><dd>Not recorded</dd>
-                  </dl>
-                  <DraftsSection
-                    matterId={matter.id}
-                    drafts={drafts}
-                    onRefresh={async () => {
-                      await refreshMatter(matter.id);
-                    }}
-                    onOpen={(draft, revision) => {
-                      setSourceId(null);
-                      setOpenDraft(draft);
-                      setOpenRevision(revision);
-                    }}
-                  />
-                  <Heading level={3}>Review items</Heading>
-                  <ReviewList matterId={matter.id} items={reviewItems} sources={sources} onChange={() => void refreshMatter(matter.id)} />
-                  <Heading level={3}>Events</Heading>
-                  <EventTable events={events} />
+              </Panel>
+              <Separator className="separator" />
+              <Panel id="view" minSize="30%">
+                <div className="work" aria-label="View" data-testid="work-view">
+                  {draftOpen ? (
+                    <DraftView
+                      matterId={matter.id}
+                      draft={openDraft}
+                      revision={openRevision}
+                      dock={dockSlot}
+                      onChanged={async () => {
+                        await refreshMatter(matter.id);
+                      }}
+                      onOpenSource={openSource}
+                    />
+                  ) : source ? (
+                    <SourceDetail matterId={matter.id} source={source} events={events} version={version} focus={focus} dock={dockSlot} />
+                  ) : (
+                    <div className="work-scroll">
+                      {notice ? <div className="notice" role="status" data-testid="notice">{notice}</div> : null}
+                      <NotebookView
+                        matterId={matter.id}
+                        nb={nb}
+                        tab={tab}
+                        onTab={setTab}
+                        onChange={(next) => {
+                          setNb(next);
+                          void refreshMatter(matter.id);
+                        }}
+                        onOpen={(link) => {
+                          setFocus(link);
+                          setSourceId(link.sourceId);
+                        }}
+                        sourcesPanel={
+                          <SourcesPanel
+                            sources={sources}
+                            jobs={jobs}
+                            eventCounts={eventCounts}
+                            onAddPaths={(paths) => addPathsTo(matter.id, paths)}
+                            onSelect={(id) => {
+                              setFocus(null);
+                              setSourceId(id);
+                            }}
+                          />
+                        }
+                        overview={
+                          <div>
+                            <dl className="facts">
+                              <dt>Sources</dt><dd>{sources.length}</dd>
+                              <dt>Matter folder</dt><dd className="mono">{matter.folder}</dd>
+                              <dt>Created</dt><dd>{matter.createdAt}</dd>
+                              <dt>Parties, court, case number, CNR</dt><dd>Not recorded</dd>
+                            </dl>
+                            <DraftsSection
+                              matterId={matter.id}
+                              drafts={drafts}
+                              onRefresh={async () => {
+                                await refreshMatter(matter.id);
+                              }}
+                              onOpen={(draft, revision) => {
+                                setSourceId(null);
+                                setOpenDraft(draft);
+                                setOpenRevision(revision);
+                              }}
+                            />
+                            <Heading level={3}>Review items</Heading>
+                            <ReviewList matterId={matter.id} items={reviewItems} onChange={() => void refreshMatter(matter.id)} />
+                            <Heading level={3}>Events</Heading>
+                            <EventTable events={events} />
+                          </div>
+                        }
+                      />
+                    </div>
+                  )}
                 </div>
-                  }
-                />
-              ) : null}
-            </div>
+              </Panel>
+            </Group>
           </div>
-        </Panel>
-        <Separator className="separator" />
-        <Panel id="chat" defaultSize="24%" minSize="18%">
-          <ChatPane matterId={matterId} />
-        </Panel>
-      </Group>
-      <NewMatterDialog isOpen={dialogOpen} onOpenChange={setDialogOpen} onCreate={createMatter} />
-    </div>
+        )}
+      </AppShell>
+      <NewMatterDialog
+        isOpen={dialogOpen}
+        onOpenChange={(open) => {
+          if (!open) pendingCarry.current = null;
+          setDialogOpen(open);
+        }}
+        onCreate={createMatter}
+      />
+    </>
   );
 }

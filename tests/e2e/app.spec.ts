@@ -50,6 +50,11 @@ async function createMatter(page: Page, title: string): Promise<void> {
   await expect(page.getByRole("heading", { level: 2, name: title })).toBeVisible();
 }
 
+/** The width of the side navigation in the window. */
+function navWidth(page: Page): Promise<number> {
+  return page.evaluate(() => (globalThis as any).document.querySelector(".astryx-app-shell-sidenav").getBoundingClientRect().width);
+}
+
 async function matterId(app: ElectronApplication): Promise<string> {
   const root: string = await app.evaluate(() => (globalThis as any).__openadvoTest.mattersRoot());
   const entries = await readdir(root);
@@ -88,8 +93,11 @@ test("create, add, duplicate, refuse, restart, integrity", async () => {
   // Restart: every source is listed with its hash.
   ({ app, page } = await launch(dirs));
   await page.getByRole("button", { name: "Petitioner v. Respondent" }).click();
+  await page.getByRole("tab", { name: "Sources" }).click();
   await expect(page.getByRole("heading", { name: "Sources (2)" })).toBeVisible();
   await page.getByRole("button", { name: "impugned-judgment.pdf" }).click();
+  // The side navigation folds while a source is open; wait for the fold to finish.
+  await expect(page.getByText("Hash, origins and events")).toHaveCount(1);
   await page.getByText("Hash, origins and events").click();
   await expect(page.getByTestId("detail-sha256")).toHaveText(/^[0-9a-f]{64}$/);
   const sha = (await page.getByTestId("detail-sha256").textContent())!;
@@ -104,10 +112,67 @@ test("create, add, duplicate, refuse, restart, integrity", async () => {
   ({ app, page } = await launch(dirs));
   await page.getByRole("button", { name: "Petitioner v. Respondent" }).click();
   await expect(page.getByTestId("notice")).toContainText("missing or changed");
+  await page.getByRole("tab", { name: "Sources" }).click();
   await expect(page.getByText("Missing", { exact: true })).toBeVisible();
   await expect(page.getByText("Changed", { exact: true })).toBeVisible();
+  await page.getByRole("tab", { name: "Matter", exact: true }).click();
   await expect(page.getByRole("table", { name: "Events" })).toContainText("source.missing");
   await expect(page.getByRole("table", { name: "Events" })).toContainText("source.changed");
+  await app.close();
+});
+
+test("the window: chat landing page, side navigation that hides, chat docked left of the view", async () => {
+  const dirs = await makeDirs();
+  const file = path.join(dirs.inbox, "writ-petition.pdf");
+  await writeFile(file, pdf("writ"));
+  const { app, page } = await launch(dirs);
+
+  // The application starts on the chat landing page. No matter is open.
+  await expect(page.getByRole("heading", { level: 1, name: "What is the instruction?" })).toBeVisible();
+  await expect(page.getByTestId("matter-view")).toHaveCount(0);
+
+  // A file attached on the landing page goes into the matter that the advocate then creates.
+  await stubFilePicker(app, [file]);
+  await page.getByRole("button", { name: "Attach PDF files" }).click();
+  await expect(page.getByText("writ-petition.pdf")).toBeVisible();
+  await page.getByRole("button", { name: "Choose matter" }).click();
+  await page.getByRole("menuitem", { name: "New matter" }).click();
+  await page.getByLabel("Matter title").fill("Landing v. Dock");
+  await page.getByRole("button", { name: "Create matter" }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Landing v. Dock" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sources (1)" })).toBeVisible();
+
+  // In a matter the chat is docked on the left and the view fills the right. There is no pane right of the view.
+  const windowWidth = await page.evaluate(() => (globalThis as any).document.documentElement.clientWidth);
+  const dock = (await page.getByTestId("chat-dock").boundingBox())!;
+  const view = (await page.getByTestId("work-view").boundingBox())!;
+  expect(dock.x + dock.width).toBeLessThanOrEqual(view.x);
+  expect(view.x + view.width).toBeGreaterThan(windowWidth - 24);
+
+  // Home returns to the landing page. An instruction typed there is carried into the matter chosen for it.
+  await page.getByRole("button", { name: "Home" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "What is the instruction?" })).toBeVisible();
+  await page.getByLabel("Instruction to the agent").click();
+  await page.keyboard.type("list the sources");
+  await page.getByRole("button", { name: "Choose matter" }).click();
+  await page.getByRole("menuitem", { name: "Landing v. Dock" }).click();
+  await expect(page.getByLabel("Message to the agent")).toContainText("list the sources");
+
+  // The side navigation hides to an icon rail and comes back.
+  const open = await navWidth(page);
+  expect(open).toBeGreaterThan(180);
+  await page.getByRole("button", { name: /collapse/i }).click();
+  await expect.poll(() => navWidth(page)).toBeLessThan(100);
+  await page.getByRole("button", { name: /expand/i }).click();
+  await expect.poll(() => navWidth(page)).toBe(open);
+
+  // An open source takes the width: the navigation folds while it is open and unfolds when it closes.
+  await page.getByRole("tab", { name: "Sources" }).click();
+  await page.getByRole("button", { name: "writ-petition.pdf" }).click();
+  await expect(page.getByTestId("source-view")).toBeVisible();
+  await expect.poll(() => navWidth(page)).toBeLessThan(100);
+  await page.getByRole("button", { name: "Back to matter" }).click();
+  await expect.poll(() => navWidth(page)).toBe(open);
   await app.close();
 });
 
@@ -125,7 +190,7 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
     [
       "addFiles", "createMatter", "getChat", "getModel", "listEvents", "listMatters", "listModels", "listOrigins",
       "closeView", "listSources", "onChatEvent", "openMatter", "openSourceView", "pathsForFiles", "pickFiles", "sendChat", "setModel",
-      "getSourcePages", "listJobs", "listReviewItems", "onIngestUpdate", "resolveReviewItem", "skipReviewItem",
+      "getEffort", "setEffort", "getSourcePages", "listJobs", "listReviewItems", "onIngestUpdate", "resolveReviewItem", "skipReviewItem",
       "getNotebook", "confirmEvent", "rejectEvent", "excludeEvent", "includeEvent", "resolveConflict",
       "listDrafts", "getRevision", "getParagraphSource", "generateListOfDates", "generateSynopsis",
       "openRevisionInEditor", "insertFromNotebook", "saveRevision", "approveRevision",
@@ -166,7 +231,8 @@ test("live: the agent lists the sources (needs OPENADVO_LIVE_MODEL)", async () =
   await createMatter(page, "Live agent");
   await stubFilePicker(app, [file]);
   await page.getByRole("button", { name: "Add files" }).click();
-  await page.getByLabel("Message to the agent").fill("list the sources");
+  await page.getByLabel("Message to the agent").click();
+  await page.keyboard.type("list the sources");
   await page.getByRole("button", { name: "Send" }).click();
   const log = page.getByTestId("chat-log");
   await expect(log).toContainText("Used tool: list_sources", { timeout: 90_000 });

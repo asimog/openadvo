@@ -21,7 +21,10 @@ import {
 import { Type } from "typebox";
 import { randomUUID } from "node:crypto";
 import type { AnchorRecord, PageRecord, SourceRecord, Notebook, NotebookEvent } from "../lib/matter-store/index.ts";
-import type { ChatEvent, ChatMessage, ChatState, ModelChoice } from "../shared/api.ts";
+import type { ChatEvent, ChatMessage, ChatState, EffortLevel, EffortState, ModelChoice } from "../shared/api.ts";
+
+type ThinkingLevel = EffortLevel;
+const EFFORT_LEVELS: readonly EffortLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { DraftKind, ParagraphSource, RevisionRecord } from "../shared/records.ts";
 
@@ -61,7 +64,13 @@ export interface AgentHost {
   /** The model the advocate chose last ("provider/id"), or null. Not a secret. */
   loadModelKey(): string | null;
   saveModelKey(key: string): void;
+  /** The reasoning effort the advocate chose last, or null. */
+  loadEffort(): string | null;
+  saveEffort(level: string): void;
 }
+
+/** The application's default model (owner, 2026-11-14; decisions.md choice 17). Used when it has credentials. */
+export const DEFAULT_MODEL = "opencode-go/deepseek-v4.1-flash";
 
 export interface AgentOptions {
   /** Pi's own folder for this application. Never the owner's ~/.pi. */
@@ -193,7 +202,8 @@ export class Agent {
 
   /**
    * The model for new sessions. Order: OPENADVO_MODEL, the advocate's saved choice,
-   * Pi's own default model setting, then pi-ai's first available model.
+   * the application default (DEFAULT_MODEL), Pi's own default model setting,
+   * then pi-ai's first available model.
    */
   private model(): Promise<Model<Api> | undefined> {
     this.selected ??= (async () => {
@@ -203,6 +213,8 @@ export class Agent {
         const r = resolveCliModel({ cliModel: wanted, modelRuntime: runtime });
         if (r.model && runtime.hasConfiguredAuth(r.model.provider)) return r.model;
       }
+      const ours = (await runtime.getAvailable()).find((m) => keyOf(m) === DEFAULT_MODEL);
+      if (ours) return ours;
       const piSettings = SettingsManager.create(this.options.agentDir, getAgentDir());
       const provider = piSettings.getDefaultProvider();
       const id = piSettings.getDefaultModel();
@@ -243,6 +255,38 @@ export class Agent {
       c.state.model = key;
     }
     return key;
+  }
+
+  /** The reasoning effort for new sessions: the advocate's saved choice, else "off". */
+  private effort(): ThinkingLevel {
+    const saved = this.host.loadEffort();
+    return (EFFORT_LEVELS as readonly string[]).includes(saved ?? "") ? (saved as ThinkingLevel) : "off";
+  }
+
+  /**
+   * The reasoning effort in use and the levels the current model accepts.
+   * A model with no reasoning accepts only "off". An open session reports what it really uses.
+   */
+  async getEffort(): Promise<EffortState> {
+    for (const chat of this.chats.values()) {
+      const c = await chat.catch(() => null);
+      if (c) return { level: c.session.thinkingLevel, available: c.session.getAvailableThinkingLevels() };
+    }
+    const model = await this.model();
+    const wanted = this.effort();
+    if (!model?.reasoning) return { level: "off", available: ["off"] };
+    return { level: wanted, available: [...EFFORT_LEVELS] };
+  }
+
+  /** Set the reasoning effort for every open session and for new ones. The session clamps it to what its model accepts. */
+  async setEffort(level: string): Promise<EffortState> {
+    if (!(EFFORT_LEVELS as readonly string[]).includes(level)) throw new Error(`unknown reasoning effort: ${level}`);
+    this.host.saveEffort(level);
+    for (const chat of this.chats.values()) {
+      const c = await chat.catch(() => null);
+      if (c) c.session.setThinkingLevel(level as ThinkingLevel);
+    }
+    return this.getEffort();
   }
 
   private chat(matterId: string): Promise<MatterChat> {
@@ -370,7 +414,7 @@ export class Agent {
       agentDir: this.options.agentDir,
       modelRuntime: runtime,
       model,
-      thinkingLevel: "off",
+      thinkingLevel: this.effort(),
       resourceLoader: resourceLoader(title),
       settingsManager: SettingsManager.inMemory({ compaction: { enabled: false } }),
       sessionManager: SessionManager.inMemory(this.options.agentDir),
@@ -442,6 +486,11 @@ export class Agent {
         this.host.emit({ matterId, type: "delta", messageId: current.id, delta: event.assistantMessageEvent.delta });
       } else if (event.type === "message_end") {
         current = null;
+        // A failed model call ends the turn without an exception. Show it; never leave the advocate with silence.
+        const ended = event.message as { role?: string; stopReason?: string; errorMessage?: string };
+        if (ended.role === "assistant" && ended.stopReason === "error") {
+          push({ id: randomUUID(), role: "notice", text: `The model call failed: ${ended.errorMessage || "no reason given"}` });
+        }
       } else if (event.type === "tool_execution_start") {
         push({ id: randomUUID(), role: "tool", text: `Used tool: ${event.toolName}` });
       } else if (event.type === "tool_execution_end" && event.isError) {

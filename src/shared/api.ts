@@ -34,6 +34,15 @@ export interface ModelChoice {
   name: string;
 }
 
+/** How much the model reasons before it answers. The model decides which levels it accepts. */
+export type EffortLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+
+export interface EffortState {
+  level: EffortLevel;
+  /** The levels the current model accepts. A model with no reasoning accepts only "off". */
+  available: EffortLevel[];
+}
+
 export interface OpenAdvoApi {
   // Queries
   listMatters(): Promise<MatterSummary[]>;
@@ -51,6 +60,8 @@ export interface OpenAdvoApi {
   pathsForFiles(files: File[]): string[];
   sendChat(matterId: string, text: string): Promise<void>;
   setModel(key: string): Promise<string>;
+  getEffort(): Promise<EffortState>;
+  setEffort(level: EffortLevel): Promise<EffortState>;
   /** Open a source read only in the Euro-Office PDF editor. Returns the URL for a sandboxed frame. */
   openSourceView(matterId: string, sourceId: string): Promise<string>;
   closeView(url: string): Promise<void>;

@@ -57,12 +57,14 @@ test("a dropped PDF is read: text layer, OCR, a review item for the blank page, 
   await expect(page.getByText("3 pp.")).toBeVisible({ timeout: 60_000 });
 
   // The blank page opened a review item; the advocate skips it.
+  await page.getByRole("tab", { name: "Matter", exact: true }).click();
   const review = page.getByRole("list", { name: "Review items" });
   await expect(review).toContainText("Page 3 of brief.pdf has no text layer");
   await review.getByRole("button", { name: "Skip" }).click();
   await expect(review).toContainText("Skipped by advocate");
 
   // The page text, line by line.
+  await page.getByRole("tab", { name: "Sources" }).click();
   await page.getByRole("button", { name: "brief.pdf" }).click();
   const lines = page.getByTestId("page-lines");
   await expect(lines).toContainText("IN THE SUPREME COURT OF INDIA");
