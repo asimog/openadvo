@@ -148,7 +148,7 @@ Round 1 steps also list the main-process modules, agent tools, bridge functions,
 - **Scripts:** `scripts/vendor-euro-office.ts` (fetches and checks the release; see the vendoring document).
 - **Agent tools:** `read_source_text` (one source, a page range); `search_sources` (text search; returns anchors). Both read only.
 - **Bridge functions (as built).** Queries: `listJobs`, `getSourcePages`, `listReviewItems`, `openSourceView`, `closeView`; an `onIngestUpdate` event. Human-only actions: `resolveReviewItem`, `skipReviewItem`.
-- **Views:** the Euro-Office PDF editor in the view (a sandboxed frame that fills the view to its top edge), with the page text below it and the anchor of the selected line; the review item list.
+- **Views:** the Euro-Office PDF editor in the view (a sandboxed frame that fills the view to its top edge), with the page text below it only when a page was read by OCR or has no text, or when a source link asks for one line (owner, 2026-11-14: a readable PDF shows the editor alone); the review item list.
 - **Events written (as built):** `ingest.started`, `ingest.finished` (with page counts by kind), `ingest.failed`, `ocr.read`, `review_item.opened`, `review_item.resolved`, `review_item.skipped`. **Records read:** sources, blobs, pages, anchors, OCR readings, jobs, review items.
 - **Carry over from `advodsh/plugins/workspace-editor`:** `lib/editor/host.html`, `lib/editor/boot.js`, `lib/editor/shim.js` (host page, editor boot, `AscDesktopEditor` answers; follow the official open and save flow, see the vendoring document); `lib/x2t.js` (one conversion at a time, a temp folder per run); `lib/engine/locate.js` (converter SHA-256 check, WD-101). Remove every euro-office-lite part.
 

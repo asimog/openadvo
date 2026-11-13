@@ -185,17 +185,13 @@ const KIND_TEXT: Record<string, string> = {
 };
 
 /** The stored text of each page, line by line, with the anchor of every line. */
-function PageText(props: { matterId: string; sourceId: string; version: number; focus?: SourceLink | null }) {
-  const [pages, setPages] = useState<PageRecord[]>([]);
+function PageText(props: { pages: PageRecord[]; focus?: SourceLink | null }) {
+  const { pages } = props;
   const [page, setPage] = useState(props.focus?.page ?? 1);
   useEffect(() => {
     if (props.focus) setPage(props.focus.page);
   }, [props.focus]);
   const focusLine = props.focus && props.focus.page === page ? props.focus.line : 0;
-  useEffect(() => {
-    void api.getSourcePages(props.matterId, props.sourceId).then(setPages);
-  }, [props.matterId, props.sourceId, props.version]);
-  if (pages.length === 0) return <Text type="supporting">No page text is stored yet. Text extraction runs after a file is added.</Text>;
   const current = pages.find((p) => p.page === page) ?? pages[0];
   return (
     <section className="page-text" aria-label="Page text">
@@ -237,10 +233,14 @@ export function EventTable(props: { events: EventRecord[] }) {
   );
 }
 
+const FRAME_SANDBOX = "allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads";
+
 /**
- * One source in the view: the Euro-Office PDF editor fills the top and reaches the top edge of the view;
- * the stored page text and the record of the source sit below it (editor-design item j).
- * The file facts of the source go to the chat dock through `dock`.
+ * One source in the view: the Euro-Office PDF editor fills the view to its top edge (editor-design item j).
+ * The stored page text appears below it only when it is needed: when a page was read by OCR or has no
+ * text (the advocate compares the reading with the page), or when a source link asks for one line.
+ * A PDF with a text layer on every page shows the editor alone.
+ * The file facts and the record of the source go to the chat dock through `dock`.
  */
 export function SourceDetail(props: {
   matterId: string;
@@ -251,11 +251,25 @@ export function SourceDetail(props: {
   dock: HTMLElement | null;
 }) {
   const [origins, setOrigins] = useState<OriginRecord[]>([]);
+  const [pages, setPages] = useState<PageRecord[]>([]);
   useEffect(() => {
     void api.listOrigins(props.matterId, props.source.id).then(setOrigins);
   }, [props.matterId, props.source.id, props.source.origins]);
+  useEffect(() => {
+    setPages([]);
+    void api.getSourcePages(props.matterId, props.source.id).then(setPages);
+  }, [props.matterId, props.source.id, props.version]);
   const events = props.events.filter((e) => e.subject === props.source.id);
   const view = useSourceView(props.matterId, props.source.id);
+  const unreadable = pages.filter((p) => p.kind !== "born_digital").length;
+  const showText = pages.length > 0 && (unreadable > 0 || props.focus !== null);
+  const frame = (
+    <>
+      {view.error ? <div className="notice work-pad" data-testid="viewer-error">{view.error}</div> : null}
+      {!view.error && !view.url ? <div className="work-pad"><Text type="supporting">Opening the PDF editor…</Text></div> : null}
+      {view.url ? <iframe className="work-frame" title="Source document" data-testid="source-frame" src={view.url} sandbox={FRAME_SANDBOX} /> : null}
+    </>
+  );
   return (
     <div className="source-view" data-testid="source-view">
       {props.dock
@@ -265,57 +279,57 @@ export function SourceDetail(props: {
                 {statusBadge(props.source.status)}
                 <Text type="supporting">{formatSize(props.source.size)}</Text>
                 <span className="mono" title={props.source.sha256}>{shortHash(props.source.sha256)}</span>
+                {pages.length > 0 ? (
+                  <Badge
+                    variant={unreadable > 0 ? "warning" : "success"}
+                    label={unreadable > 0 ? `${unreadable} of ${pages.length} pp. read by OCR or without text` : `Text layer, ${pages.length} pp.`}
+                  />
+                ) : null}
               </div>
               {view.url ? <ViewerState url={view.url} /> : null}
+              <details>
+                <summary>Hash, origins and events</summary>
+                <dl className="facts">
+                  <dt>SHA-256</dt>
+                  <dd className="mono" data-testid="detail-sha256">{props.source.sha256}</dd>
+                  <dt>Size</dt>
+                  <dd>{formatSize(props.source.size)} ({props.source.size} bytes)</dd>
+                  <dt>Status</dt>
+                  <dd>{statusBadge(props.source.status)} {props.source.checkedAt ? <Text type="supporting">checked {props.source.checkedAt}</Text> : null}</dd>
+                  <dt>Added</dt>
+                  <dd>{props.source.addedAt}</dd>
+                </dl>
+                <Heading level={3}>Origins</Heading>
+                <table className="plain">
+                  <thead><tr><th>When</th><th>Name</th><th>From</th><th>By</th></tr></thead>
+                  <tbody>
+                    {origins.map((o) => (
+                      <tr key={o.id}><td>{o.addedAt}</td><td>{o.originalName}</td><td className="mono">{o.originalPath}</td><td>{o.actor}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+                <Heading level={3}>Events</Heading>
+                <EventTable events={events} />
+              </details>
             </div>,
             props.dock,
           )
         : null}
-      <Group orientation="vertical" style={{ height: "100%" }}>
-        <Panel id="source-frame" defaultSize="62%" minSize="20%">
-          {view.error ? <div className="notice work-pad" data-testid="viewer-error">{view.error}</div> : null}
-          {!view.error && !view.url ? <div className="work-pad"><Text type="supporting">Opening the PDF editor…</Text></div> : null}
-          {view.url ? (
-            <iframe
-              className="work-frame"
-              title="Source document"
-              data-testid="source-frame"
-              src={view.url}
-              sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads"
-            />
-          ) : null}
-        </Panel>
-        <Separator className="separator separator-horizontal" />
-        <Panel id="source-text" minSize="12%">
-          <div className="source-info">
-            <PageText matterId={props.matterId} sourceId={props.source.id} version={props.version} focus={props.focus} />
-            <details>
-              <summary>Hash, origins and events</summary>
-              <dl className="facts">
-                <dt>SHA-256</dt>
-                <dd className="mono" data-testid="detail-sha256">{props.source.sha256}</dd>
-                <dt>Size</dt>
-                <dd>{formatSize(props.source.size)} ({props.source.size} bytes)</dd>
-                <dt>Status</dt>
-                <dd>{statusBadge(props.source.status)} {props.source.checkedAt ? <Text type="supporting">checked {props.source.checkedAt}</Text> : null}</dd>
-                <dt>Added</dt>
-                <dd>{props.source.addedAt}</dd>
-              </dl>
-              <Heading level={3}>Origins</Heading>
-              <table className="plain">
-                <thead><tr><th>When</th><th>Name</th><th>From</th><th>By</th></tr></thead>
-                <tbody>
-                  {origins.map((o) => (
-                    <tr key={o.id}><td>{o.addedAt}</td><td>{o.originalName}</td><td className="mono">{o.originalPath}</td><td>{o.actor}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-              <Heading level={3}>Events</Heading>
-              <EventTable events={events} />
-            </details>
-          </div>
-        </Panel>
-      </Group>
+      {showText ? (
+        <Group orientation="vertical" style={{ height: "100%" }}>
+          <Panel id="source-frame" defaultSize="62%" minSize="20%">
+            {frame}
+          </Panel>
+          <Separator className="separator separator-horizontal" />
+          <Panel id="source-text" minSize="12%">
+            <div className="source-info">
+              <PageText pages={pages} focus={props.focus} />
+            </div>
+          </Panel>
+        </Group>
+      ) : (
+        frame
+      )}
     </div>
   );
 }

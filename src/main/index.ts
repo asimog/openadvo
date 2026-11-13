@@ -146,7 +146,7 @@ function createWindow(): void {
     show: false,
     // One title bar of our own: the renderer draws it, the system draws only the window controls over it.
     titleBarStyle: "hidden",
-    titleBarOverlay: { color: "#f1f1f1", symbolColor: "#1c1c1c", height: TITLE_BAR_HEIGHT },
+    titleBarOverlay: { color: "#ffffff", symbolColor: "#1c1c1c", height: TITLE_BAR_HEIGHT },
     webPreferences: {
       preload: path.join(here, "../preload/index.cjs"),
       contextIsolation: true,

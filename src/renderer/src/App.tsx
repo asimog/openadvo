@@ -268,6 +268,7 @@ export function App() {
     <>
       <AppShell
         contentPadding={0}
+        variant="surface"
         mobileNav={false}
         topNav={
           // The only bar of the window. It drags the window; the system draws the window controls at its end.
