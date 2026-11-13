@@ -124,6 +124,7 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
     [
       "addFiles", "createMatter", "getChat", "getModel", "listEvents", "listMatters", "listModels", "listOrigins",
       "closeView", "listSources", "onChatEvent", "openMatter", "openSourceView", "pathsForFiles", "pickFiles", "sendChat", "setModel",
+      "getSourcePages", "listJobs", "listReviewItems", "onIngestUpdate", "resolveReviewItem", "skipReviewItem",
     ].sort(),
   );
   await app.close();
@@ -135,7 +136,7 @@ test("the agent session has exactly our tool, and its id is recorded", async () 
   await createMatter(page, "Tool allowlist");
   const id = await matterId(app);
   const tools = await app.evaluate((_e, m) => (globalThis as any).__openadvoTest.agentToolNames(m), id);
-  expect(tools).toEqual(["list_sources"]);
+  expect(tools).toEqual(["list_sources", "read_source_text", "search_sources"]);
   const sessionId = await app.evaluate((_e, m) => (globalThis as any).__openadvoTest.agentSessionId(m), id);
   const events = await page.evaluate((m) => (globalThis as any).openadvo.listEvents(m), id);
   const started = events.find((e: any) => e.action === "agent.session_started");

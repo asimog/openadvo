@@ -13,6 +13,11 @@ import {
   type OriginRecord,
   type SourceRecord,
   type WriteContext,
+  type IngestJob,
+  type PageInput,
+  type PageRecord,
+  type AnchorRecord,
+  type ReviewItem,
 } from "../lib/matter-store/index.ts";
 
 const MATTER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -76,6 +81,60 @@ export class Matters {
 
   async listEvents(matterId: string): Promise<EventRecord[]> {
     return (await this.store(matterId)).listEvents();
+  }
+
+  // ---- Step 2: document intelligence. The ingest queue reaches the matter store only through these. ----
+
+  async sourcesToIngest(matterId: string): Promise<SourceRecord[]> {
+    return (await this.store(matterId)).sourcesToIngest();
+  }
+
+  /** Start a job. A job left running with partial pages by an earlier run is marked failed instead. */
+  async startJob(matterId: string, sourceId: string): Promise<boolean> {
+    const store = await this.store(matterId);
+    try {
+      store.startJob(sourceId);
+      return true;
+    } catch (e) {
+      if ((e as MatterStoreError).code === "ALREADY_INGESTED") {
+        store.failJob(sourceId, "an earlier run stopped part way; some pages are stored");
+        return false;
+      }
+      throw e;
+    }
+  }
+
+  async recordPage(matterId: string, sourceId: string, page: PageInput): Promise<void> {
+    (await this.store(matterId)).recordPage(sourceId, page);
+  }
+
+  async finishJob(matterId: string, sourceId: string, pages: number): Promise<void> {
+    (await this.store(matterId)).finishJob(sourceId, pages);
+  }
+
+  async failJob(matterId: string, sourceId: string, error: string): Promise<void> {
+    (await this.store(matterId)).failJob(sourceId, error);
+  }
+
+  async listJobs(matterId: string): Promise<IngestJob[]> {
+    return (await this.store(matterId)).listJobs();
+  }
+
+  async listPages(matterId: string, sourceId: string, from?: number, to?: number): Promise<PageRecord[]> {
+    return (await this.store(matterId)).listPages(sourceId, from, to);
+  }
+
+  async searchLines(matterId: string, query: string, limit?: number): Promise<AnchorRecord[]> {
+    return (await this.store(matterId)).searchLines(query, limit);
+  }
+
+  async listReviewItems(matterId: string): Promise<ReviewItem[]> {
+    return (await this.store(matterId)).listReviewItems();
+  }
+
+  /** Human-only (decision 5): reached from the bridge, never from an agent tool. */
+  async decideReviewItem(matterId: string, itemId: string, status: "resolved" | "skipped"): Promise<ReviewItem> {
+    return (await this.store(matterId)).decideReviewItem(itemId, status, { actor: "advocate" });
   }
 
   async title(matterId: string): Promise<string> {

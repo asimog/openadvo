@@ -16,6 +16,9 @@ import type {
   MatterSummary,
   ModelChoice,
   OriginRecord,
+  IngestJob,
+  PageRecord,
+  ReviewItem,
   SourceRecord,
 } from "../../shared/api.ts";
 
@@ -57,7 +60,14 @@ function baseName(p: string): string {
 
 type SourceRow = SourceRecord & Record<string, unknown>;
 
-function SourcesTable(props: { sources: SourceRecord[]; selected: string | null; onSelect: (id: string) => void }) {
+function textState(job: IngestJob | undefined): { label: string; variant: "neutral" | "info" | "success" | "error" } {
+  if (!job || job.state === "queued") return { label: "Queued", variant: "neutral" };
+  if (job.state === "running") return { label: "Reading…", variant: "info" };
+  if (job.state === "failed") return { label: "Failed", variant: "error" };
+  return { label: `${job.pages} pp.`, variant: "success" };
+}
+
+function SourcesTable(props: { sources: SourceRecord[]; jobs: IngestJob[]; selected: string | null; onSelect: (id: string) => void }) {
   const data = props.sources as SourceRow[];
   const { sortedData, sortConfig } = useTableSortableState<SourceRow>({ data });
   const sortable = useTableSortable<SourceRow>(sortConfig);
@@ -87,7 +97,16 @@ function SourcesTable(props: { sources: SourceRecord[]; selected: string | null;
         },
         { key: "sha256", header: "SHA-256", width: pixel(118), sortable: true, renderCell: (s) => <span className="mono" title={s.sha256}>{shortHash(s.sha256)}</span> },
         { key: "size", header: "Size", width: pixel(78), sortable: true, renderCell: (s) => formatSize(s.size) },
-        { key: "status", header: "Status", width: pixel(92), sortable: true, renderCell: (s) => statusBadge(s.status) },
+        { key: "status", header: "File", width: pixel(92), sortable: true, renderCell: (s) => statusBadge(s.status) },
+        {
+          key: "text",
+          header: "Text",
+          width: pixel(104),
+          renderCell: (s) => {
+            const t = textState(props.jobs.find((j) => j.sourceId === s.id));
+            return <Badge variant={t.variant} label={t.label} />;
+          },
+        },
       ]}
     />
   );
@@ -147,6 +166,8 @@ function SourceViewer(props: { matterId: string; sourceId: string }) {
   if (error) return <div className="notice" data-testid="viewer-error">{error}</div>;
   if (!url) return <Text type="supporting">Opening the PDF editor…</Text>;
   return (
+    <>
+    <ViewerState url={url} />
     <iframe
       className="source-frame"
       title="Source document"
@@ -154,10 +175,93 @@ function SourceViewer(props: { matterId: string; sourceId: string }) {
       src={url}
       sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads"
     />
+    </>
   );
 }
 
-function SourceDetail(props: { matterId: string; source: SourceRecord; events: EventRecord[] }) {
+/** The state the editor host page reports: opened, error or failed. */
+function ViewerState(props: { url: string }) {
+  const [state, setState] = useState<{ state: string; detail: string } | null>(null);
+  useEffect(() => {
+    const doc = new URL(props.url).searchParams.get("doc");
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin !== "oa-eo://app") return;
+      const d = e.data as { type?: string; doc?: string; state?: string; detail?: string };
+      if (d?.type === "oa-editor/state" && d.doc === doc) setState({ state: String(d.state), detail: String(d.detail ?? "") });
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [props.url]);
+  if (!state) return <Text type="supporting">Starting the PDF editor…</Text>;
+  if (state.state === "opened") return <Text type="supporting" data-testid="viewer-state">Opened read only in the Euro-Office PDF editor.</Text>;
+  return <div className="notice" data-testid="viewer-state">The PDF editor reported a problem: {state.detail}</div>;
+}
+
+const KIND_TEXT: Record<string, string> = {
+  born_digital: "Text layer",
+  ocr: "OCR: single reading, not cross-checked",
+  none: "No text found",
+};
+
+/** The stored text of each page, line by line, with the anchor of every line. */
+function PageText(props: { matterId: string; sourceId: string; version: number }) {
+  const [pages, setPages] = useState<PageRecord[]>([]);
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    void api.getSourcePages(props.matterId, props.sourceId).then(setPages);
+  }, [props.matterId, props.sourceId, props.version]);
+  if (pages.length === 0) return <Text type="supporting">No page text is stored yet. Text extraction runs after a file is added.</Text>;
+  const current = pages.find((p) => p.page === page) ?? pages[0];
+  return (
+    <section className="page-text" aria-label="Page text">
+      <div className="page-text-bar">
+        <Button label="Previous page" size="sm" variant="ghost" isDisabled={current.page <= 1} onClick={() => setPage(current.page - 1)} />
+        <Text>Page {current.page} of {pages.length}</Text>
+        <Button label="Next page" size="sm" variant="ghost" isDisabled={current.page >= pages.length} onClick={() => setPage(current.page + 1)} />
+        <Badge
+          variant={current.kind === "born_digital" ? "success" : current.kind === "ocr" ? "warning" : "error"}
+          label={KIND_TEXT[current.kind] + (current.ocr ? ` (${Math.round(current.ocr.confidence)}%)` : "")}
+        />
+      </div>
+      <ol className="page-lines" data-testid="page-lines">
+        {current.lines.map((l) => (
+          <li key={l.id} title={`Anchor ${l.sha256.slice(0, 12)}…:${l.page}:${l.line}`}>
+            <span className="line-no">{l.line}</span>
+            <span>{l.text}</span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function ReviewList(props: { matterId: string; items: ReviewItem[]; sources: SourceRecord[]; onChange: () => void }) {
+  const open = props.items.filter((i) => i.status === "open");
+  const decided = props.items.length - open.length;
+  if (props.items.length === 0) return <Text type="supporting">No review items.</Text>;
+  return (
+    <div>
+      <Text type="supporting">{open.length} open, {decided} decided.</Text>
+      <ul className="review-list" aria-label="Review items">
+        {props.items.map((item) => (
+          <li key={item.id} data-status={item.status}>
+            <div>{item.detail}</div>
+            {item.status === "open" ? (
+              <div className="review-actions">
+                <Button label="Resolve" size="sm" clickAction={async () => { await api.resolveReviewItem(props.matterId, item.id); props.onChange(); }} />
+                <Button label="Skip" size="sm" variant="ghost" clickAction={async () => { await api.skipReviewItem(props.matterId, item.id); props.onChange(); }} />
+              </div>
+            ) : (
+              <Text type="supporting">{item.status === "resolved" ? "Resolved" : "Skipped"} by {item.decidedBy}</Text>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function SourceDetail(props: { matterId: string; source: SourceRecord; events: EventRecord[]; version: number }) {
   const [origins, setOrigins] = useState<OriginRecord[]>([]);
   useEffect(() => {
     void api.listOrigins(props.matterId, props.source.id).then(setOrigins);
@@ -167,6 +271,7 @@ function SourceDetail(props: { matterId: string; source: SourceRecord; events: E
     <div className="source-detail">
       <Heading level={2}>{props.source.name}</Heading>
       <SourceViewer matterId={props.matterId} sourceId={props.source.id} />
+      <PageText matterId={props.matterId} sourceId={props.source.id} version={props.version} />
       <details>
       <summary>Hash, origins and events</summary>
       <dl className="facts">
@@ -331,6 +436,9 @@ export function App() {
   const [matterId, setMatterId] = useState<string | null>(null);
   const [sources, setSources] = useState<SourceRecord[]>([]);
   const [events, setEvents] = useState<EventRecord[]>([]);
+  const [jobs, setJobs] = useState<IngestJob[]>([]);
+  const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
+  const [version, setVersion] = useState(0);
   const [sourceId, setSourceId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -344,7 +452,17 @@ export function App() {
   const refreshMatter = useCallback(async (id: string) => {
     setSources(await api.listSources(id));
     setEvents(await api.listEvents(id));
+    setJobs(await api.listJobs(id));
+    setReviewItems(await api.listReviewItems(id));
+    setVersion((v) => v + 1);
   }, []);
+
+  useEffect(() => {
+    if (!matterId) return;
+    return api.onIngestUpdate((id) => {
+      if (id === matterId) void refreshMatter(id);
+    });
+  }, [matterId, refreshMatter]);
 
   const openMatter = useCallback(
     async (id: string) => {
@@ -354,6 +472,8 @@ export function App() {
       const checked = await api.openMatter(id);
       setSources(checked);
       setEvents(await api.listEvents(id));
+      setJobs(await api.listJobs(id));
+      setReviewItems(await api.listReviewItems(id));
       const bad = checked.filter((s) => s.status !== "ok");
       if (bad.length) setNotice(`${bad.length} source file(s) are missing or changed: ${bad.map((s) => `${s.name} (${s.status})`).join(", ")}.`);
     },
@@ -423,7 +543,7 @@ export function App() {
                     <Text type="supporting">Drop PDF files here</Text>
                   </div>
                   {notice ? <div className="notice" role="status" data-testid="notice">{notice}</div> : null}
-                  <SourcesTable sources={sources} selected={sourceId} onSelect={setSourceId} />
+                  <SourcesTable sources={sources} jobs={jobs} selected={sourceId} onSelect={setSourceId} />
                 </section>
               ) : null}
             </div>
@@ -438,7 +558,7 @@ export function App() {
             </div>
             <div className="pane-scroll">
               {!matter ? <Text type="supporting">Create or open a matter. Then drop the PDFs of the brief into it.</Text> : null}
-              {matter && source ? <SourceDetail matterId={matter.id} source={source} events={events} /> : null}
+              {matter && source ? <SourceDetail matterId={matter.id} source={source} events={events} version={version} /> : null}
               {matter && !source ? (
                 <div>
                   <dl className="facts">
@@ -447,6 +567,8 @@ export function App() {
                     <dt>Created</dt><dd>{matter.createdAt}</dd>
                     <dt>Parties, court, case number, CNR</dt><dd>Not recorded</dd>
                   </dl>
+                  <Heading level={3}>Review items</Heading>
+                  <ReviewList matterId={matter.id} items={reviewItems} sources={sources} onChange={() => void refreshMatter(matter.id)} />
                   <Heading level={3}>Events</Heading>
                   <EventTable events={events} />
                 </div>

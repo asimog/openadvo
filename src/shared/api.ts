@@ -2,9 +2,9 @@
  * The bridge contract between the preload script and the renderer.
  * Types only. The renderer calls these named functions; it has no other access.
  */
-import type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord } from "./records.ts";
+import type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord } from "./records.ts";
 
-export type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord };
+export type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord };
 
 export type ChatRole = "advocate" | "agent" | "tool" | "notice";
 
@@ -54,5 +54,12 @@ export interface OpenAdvoApi {
   /** Open a source read only in the Euro-Office PDF editor. Returns the URL for a sandboxed frame. */
   openSourceView(matterId: string, sourceId: string): Promise<string>;
   closeView(url: string): Promise<void>;
+  listJobs(matterId: string): Promise<IngestJob[]>;
+  getSourcePages(matterId: string, sourceId: string): Promise<PageRecord[]>;
+  listReviewItems(matterId: string): Promise<ReviewItem[]>;
+  /** Human-only actions (decision 5). */
+  resolveReviewItem(matterId: string, itemId: string): Promise<ReviewItem>;
+  skipReviewItem(matterId: string, itemId: string): Promise<ReviewItem>;
+  onIngestUpdate(listener: (matterId: string) => void): () => void;
   onChatEvent(listener: (event: ChatEvent) => void): () => void;
 }

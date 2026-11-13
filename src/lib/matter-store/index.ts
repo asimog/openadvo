@@ -11,9 +11,14 @@ import { createReadStream } from "node:fs";
 import { mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext } from "../../shared/records.ts";
+import type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState } from "../../shared/records.ts";
 
-export type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext };
+export type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState };
+
+/** An anchor id: the source's SHA-256, the page and the line. It survives a rename. */
+export function anchorId(sha256: string, page: number, line: number): string {
+  return `${sha256}:${page}:${line}`;
+}
 
 export class MatterStoreError extends Error {
   code: string;
@@ -74,6 +79,60 @@ CREATE TRIGGER IF NOT EXISTS source_no_delete BEFORE DELETE ON source
   BEGIN SELECT RAISE(ABORT, 'sources are marked, never deleted'); END;
 CREATE TRIGGER IF NOT EXISTS matter_no_delete BEFORE DELETE ON matter
   BEGIN SELECT RAISE(ABORT, 'matters are never deleted'); END;
+CREATE TABLE IF NOT EXISTS ingest_job (
+  source_id TEXT PRIMARY KEY REFERENCES source(id),
+  state TEXT NOT NULL CHECK (state IN ('queued', 'running', 'done', 'failed')),
+  pages INTEGER,
+  started_at TEXT,
+  finished_at TEXT,
+  error TEXT
+) STRICT;
+CREATE TABLE IF NOT EXISTS page (
+  source_id TEXT NOT NULL REFERENCES source(id),
+  page INTEGER NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('born_digital', 'ocr', 'none')),
+  width REAL NOT NULL,
+  height REAL NOT NULL,
+  text TEXT NOT NULL,
+  PRIMARY KEY (source_id, page)
+) STRICT;
+CREATE TABLE IF NOT EXISTS anchor (
+  id TEXT PRIMARY KEY,
+  source_id TEXT NOT NULL REFERENCES source(id),
+  sha256 TEXT NOT NULL,
+  page INTEGER NOT NULL,
+  line INTEGER NOT NULL,
+  x REAL NOT NULL, y REAL NOT NULL, w REAL NOT NULL, h REAL NOT NULL,
+  text TEXT NOT NULL
+) STRICT;
+CREATE INDEX IF NOT EXISTS anchor_by_page ON anchor (source_id, page, line);
+CREATE TABLE IF NOT EXISTS ocr_reading (
+  source_id TEXT NOT NULL REFERENCES source(id),
+  page INTEGER NOT NULL,
+  engine TEXT NOT NULL,
+  version TEXT NOT NULL,
+  confidence REAL NOT NULL,
+  text TEXT NOT NULL,
+  PRIMARY KEY (source_id, page, engine)
+) STRICT;
+CREATE TABLE IF NOT EXISTS review_item (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  source_id TEXT,
+  page INTEGER,
+  detail TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('open', 'resolved', 'skipped')),
+  created_at TEXT NOT NULL,
+  decided_at TEXT,
+  decided_by TEXT
+) STRICT;
+CREATE TRIGGER IF NOT EXISTS page_no_update BEFORE UPDATE ON page BEGIN SELECT RAISE(ABORT, 'pages are written once'); END;
+CREATE TRIGGER IF NOT EXISTS page_no_delete BEFORE DELETE ON page BEGIN SELECT RAISE(ABORT, 'pages are written once'); END;
+CREATE TRIGGER IF NOT EXISTS anchor_no_update BEFORE UPDATE ON anchor BEGIN SELECT RAISE(ABORT, 'anchors are written once'); END;
+CREATE TRIGGER IF NOT EXISTS anchor_no_delete BEFORE DELETE ON anchor BEGIN SELECT RAISE(ABORT, 'anchors are written once'); END;
+CREATE TRIGGER IF NOT EXISTS ocr_no_update BEFORE UPDATE ON ocr_reading BEGIN SELECT RAISE(ABORT, 'OCR readings are written once'); END;
+CREATE TRIGGER IF NOT EXISTS ocr_no_delete BEFORE DELETE ON ocr_reading BEGIN SELECT RAISE(ABORT, 'OCR readings are written once'); END;
+CREATE TRIGGER IF NOT EXISTS review_no_delete BEFORE DELETE ON review_item BEGIN SELECT RAISE(ABORT, 'review items are marked, never deleted'); END;
 `;
 
 function now(): string {
@@ -303,6 +362,164 @@ export class MatterStore {
     this.db
       .prepare("INSERT INTO event (at, actor, action, subject, session_id, data) VALUES (?, ?, ?, ?, ?, ?)")
       .run(now(), ctx.actor, action, subject, ctx.sessionId ?? null, data ? JSON.stringify(data) : null);
+  }
+
+  // ---- Document intelligence records (step 2). Computed elsewhere, written only here. ----
+
+  listJobs(): IngestJob[] {
+    const rows = this.db.prepare("SELECT source_id, state, pages, started_at, finished_at, error FROM ingest_job").all() as Array<Record<string, unknown>>;
+    return rows.map((r) => ({
+      sourceId: String(r.source_id),
+      state: r.state as JobState,
+      pages: r.pages == null ? null : Number(r.pages),
+      startedAt: r.started_at == null ? null : String(r.started_at),
+      finishedAt: r.finished_at == null ? null : String(r.finished_at),
+      error: r.error == null ? null : String(r.error),
+    }));
+  }
+
+  /** Sources that need a job: no job yet, or a job left running by a previous run. */
+  sourcesToIngest(): SourceRecord[] {
+    const jobs = new Map(this.listJobs().map((j) => [j.sourceId, j]));
+    return this.listSources().filter((s) => {
+      const j = jobs.get(s.id);
+      return s.status === "ok" && (!j || j.state === "queued" || j.state === "running");
+    });
+  }
+
+  startJob(sourceId: string): void {
+    const source = this.getSource(sourceId);
+    if (!source) throw new MatterStoreError("SOURCE_NOT_FOUND", sourceId);
+    const exists = this.db.prepare("SELECT 1 FROM page WHERE source_id = ? LIMIT 1").get(sourceId);
+    if (exists) throw new MatterStoreError("ALREADY_INGESTED", `${source.name} already has page records`);
+    this.db
+      .prepare("INSERT INTO ingest_job (source_id, state, started_at) VALUES (?, 'running', ?) ON CONFLICT(source_id) DO UPDATE SET state = 'running', started_at = excluded.started_at, error = NULL, finished_at = NULL")
+      .run(sourceId, now());
+    this.appendEvent({ actor: "system" }, "ingest.started", sourceId, { name: source.name });
+  }
+
+  /** Write one page, its line anchors, its OCR reading, and a review item when it has no text. */
+  recordPage(sourceId: string, page: PageInput): void {
+    const source = this.getSource(sourceId);
+    if (!source) throw new MatterStoreError("SOURCE_NOT_FOUND", sourceId);
+    this.db.exec("BEGIN");
+    try {
+      this.db
+        .prepare("INSERT INTO page (source_id, page, kind, width, height, text) VALUES (?, ?, ?, ?, ?, ?)")
+        .run(sourceId, page.page, page.kind, page.width, page.height, page.text);
+      const insert = this.db.prepare("INSERT INTO anchor (id, source_id, sha256, page, line, x, y, w, h, text) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+      for (const l of page.lines) insert.run(anchorId(source.sha256, page.page, l.line), sourceId, source.sha256, page.page, l.line, l.x, l.y, l.w, l.h, l.text);
+      if (page.ocr) {
+        this.db
+          .prepare("INSERT INTO ocr_reading (source_id, page, engine, version, confidence, text) VALUES (?, ?, ?, ?, ?, ?)")
+          .run(sourceId, page.page, page.ocr.engine, page.ocr.version, page.ocr.confidence, page.text);
+        this.appendEvent({ actor: "system" }, "ocr.read", sourceId, { page: page.page, engine: page.ocr.engine, confidence: page.ocr.confidence });
+      }
+      if (page.kind === "none") {
+        this.openReviewItem("page_without_text", sourceId, page.page, `Page ${page.page} of ${source.name} has no text layer, and OCR found no text.`);
+      }
+      this.db.exec("COMMIT");
+    } catch (e) {
+      this.db.exec("ROLLBACK");
+      throw e;
+    }
+  }
+
+  finishJob(sourceId: string, pages: number): void {
+    this.db.prepare("UPDATE ingest_job SET state = 'done', pages = ?, finished_at = ? WHERE source_id = ?").run(pages, now(), sourceId);
+    const counts = this.db.prepare("SELECT kind, COUNT(*) AS n FROM page WHERE source_id = ? GROUP BY kind").all(sourceId) as Array<{ kind: string; n: number }>;
+    this.appendEvent({ actor: "system" }, "ingest.finished", sourceId, { pages, kinds: Object.fromEntries(counts.map((c) => [c.kind, Number(c.n)])) });
+  }
+
+  failJob(sourceId: string, error: string): void {
+    const source = this.getSource(sourceId);
+    this.db.prepare("UPDATE ingest_job SET state = 'failed', finished_at = ?, error = ? WHERE source_id = ?").run(now(), error, sourceId);
+    this.openReviewItem("file_unreadable", sourceId, null, `${source?.name ?? sourceId} could not be read: ${error}`);
+    this.appendEvent({ actor: "system" }, "ingest.failed", sourceId, { error });
+  }
+
+  private openReviewItem(kind: string, sourceId: string | null, page: number | null, detail: string): void {
+    const id = randomUUID();
+    this.db
+      .prepare("INSERT INTO review_item (id, kind, source_id, page, detail, status, created_at) VALUES (?, ?, ?, ?, ?, 'open', ?)")
+      .run(id, kind, sourceId, page, detail, now());
+    this.appendEvent({ actor: "system" }, "review_item.opened", id, { kind, sourceId, page });
+  }
+
+  listReviewItems(): ReviewItem[] {
+    const rows = this.db
+      .prepare("SELECT id, kind, source_id, page, detail, status, created_at, decided_at, decided_by FROM review_item ORDER BY created_at")
+      .all() as Array<Record<string, unknown>>;
+    return rows.map((r) => ({
+      id: String(r.id),
+      kind: String(r.kind),
+      sourceId: r.source_id == null ? null : String(r.source_id),
+      page: r.page == null ? null : Number(r.page),
+      detail: String(r.detail),
+      status: r.status as ReviewStatus,
+      createdAt: String(r.created_at),
+      decidedAt: r.decided_at == null ? null : String(r.decided_at),
+      decidedBy: r.decided_by == null ? null : (String(r.decided_by) as Actor),
+    }));
+  }
+
+  /** A human decision on a review item (decision 5). */
+  decideReviewItem(id: string, status: "resolved" | "skipped", ctx: WriteContext): ReviewItem {
+    if (ctx.actor !== "advocate") throw new MatterStoreError("HUMAN_ONLY", "only the advocate decides a review item");
+    const item = this.listReviewItems().find((r) => r.id === id);
+    if (!item) throw new MatterStoreError("REVIEW_ITEM_NOT_FOUND", id);
+    if (item.status !== "open") throw new MatterStoreError("ALREADY_DECIDED", id);
+    this.db.prepare("UPDATE review_item SET status = ?, decided_at = ?, decided_by = ? WHERE id = ?").run(status, now(), ctx.actor, id);
+    this.appendEvent(ctx, `review_item.${status}`, id, { kind: item.kind });
+    return this.listReviewItems().find((r) => r.id === id)!;
+  }
+
+  private anchorRows(sql: string, ...args: Array<string | number>): AnchorRecord[] {
+    const rows = this.db.prepare(sql).all(...args) as Array<Record<string, unknown>>;
+    return rows.map((r) => ({
+      id: String(r.id),
+      sourceId: String(r.source_id),
+      sha256: String(r.sha256),
+      page: Number(r.page),
+      line: Number(r.line),
+      x: Number(r.x),
+      y: Number(r.y),
+      w: Number(r.w),
+      h: Number(r.h),
+      text: String(r.text),
+    }));
+  }
+
+  /** Pages of one source with their line anchors, optionally a page range. */
+  listPages(sourceId: string, from = 1, to = Number.MAX_SAFE_INTEGER): PageRecord[] {
+    const pages = this.db
+      .prepare("SELECT page, kind, width, height, text FROM page WHERE source_id = ? AND page BETWEEN ? AND ? ORDER BY page")
+      .all(sourceId, from, to) as Array<Record<string, unknown>>;
+    const ocr = new Map(
+      (this.db.prepare("SELECT page, engine, version, confidence FROM ocr_reading WHERE source_id = ?").all(sourceId) as Array<Record<string, unknown>>).map((r) => [
+        Number(r.page),
+        { engine: String(r.engine), version: String(r.version), confidence: Number(r.confidence) },
+      ]),
+    );
+    const lines = this.anchorRows("SELECT * FROM anchor WHERE source_id = ? AND page BETWEEN ? AND ? ORDER BY page, line", sourceId, from, to);
+    return pages.map((p) => ({
+      sourceId,
+      page: Number(p.page),
+      kind: p.kind as TextKind,
+      width: Number(p.width),
+      height: Number(p.height),
+      text: String(p.text),
+      ocr: ocr.get(Number(p.page)) ?? null,
+      lines: lines.filter((l) => l.page === Number(p.page)),
+    }));
+  }
+
+  /** Lines that contain the query (case-insensitive), in source and page order. */
+  searchLines(query: string, limit = 50): AnchorRecord[] {
+    const q = query.trim();
+    if (!q) return [];
+    const escaped = q.replace(/[\\%_]/g, (c) => "\\" + c);
+    return this.anchorRows("SELECT a.* FROM anchor a JOIN source s ON s.id = a.source_id WHERE a.text LIKE ? ESCAPE '\\' ORDER BY s.added_at, a.page, a.line LIMIT ?", `%${escaped}%`, limit);
   }
 
   listEvents(limit = 500): EventRecord[] {

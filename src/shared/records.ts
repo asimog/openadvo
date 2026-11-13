@@ -52,3 +52,64 @@ export interface WriteContext {
   actor: Actor;
   sessionId?: string | null;
 }
+
+export type TextKind = "born_digital" | "ocr" | "none";
+export type JobState = "queued" | "running" | "done" | "failed";
+export type ReviewStatus = "open" | "resolved" | "skipped";
+
+export interface IngestJob {
+  sourceId: string;
+  state: JobState;
+  pages: number | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  error: string | null;
+}
+
+/** A line anchor: the source's SHA-256, the page and the line. Its id survives a rename. */
+export interface AnchorRecord {
+  id: string;
+  sourceId: string;
+  sha256: string;
+  page: number;
+  line: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  text: string;
+}
+
+export interface PageRecord {
+  sourceId: string;
+  page: number;
+  kind: TextKind;
+  width: number;
+  height: number;
+  text: string;
+  ocr: { engine: string; version: string; confidence: number } | null;
+  lines: AnchorRecord[];
+}
+
+export interface ReviewItem {
+  id: string;
+  kind: string;
+  sourceId: string | null;
+  page: number | null;
+  detail: string;
+  status: ReviewStatus;
+  createdAt: string;
+  decidedAt: string | null;
+  decidedBy: Actor | null;
+}
+
+/** One page as document intelligence returns it (input to the matter store). */
+export interface PageInput {
+  page: number;
+  width: number;
+  height: number;
+  kind: TextKind;
+  text: string;
+  lines: Array<{ line: number; x: number; y: number; w: number; h: number; text: string }>;
+  ocr?: { engine: string; version: string; confidence: number };
+}

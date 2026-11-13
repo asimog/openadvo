@@ -7,6 +7,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { Matters } from "./matters.ts";
 import { Agent } from "./agent.ts";
+import { Ingest } from "./ingest.ts";
 import { EditorHost, registerEditorScheme, EO_ORIGIN } from "./editor-host.ts";
 import { platformKey } from "../lib/euro-office/platform.ts";
 import type { ChatEvent } from "../shared/api.ts";
@@ -24,6 +25,7 @@ let window: BrowserWindow | null = null;
 let editorHost: EditorHost;
 let matters: Matters;
 let agent: Agent;
+let ingest: Ingest;
 
 function mattersRoot(): string {
   if (process.env.OPENADVO_HOME) return path.resolve(process.env.OPENADVO_HOME);
@@ -51,14 +53,27 @@ function emitChat(event: ChatEvent): void {
 function registerBridge(): void {
   handle("matters:list", () => matters.list());
   handle("matters:create", (title: string) => matters.create(String(title ?? "")));
-  handle("matters:open", (matterId: string) => matters.openMatter(matterId));
+  handle("matters:open", async (matterId: string) => {
+    const sources = await matters.openMatter(matterId);
+    ingest.enqueue(matterId);
+    return sources;
+  });
   handle("sources:list", (matterId: string) => matters.listSources(matterId));
   handle("sources:origins", (matterId: string, sourceId: string) => matters.listOrigins(matterId, sourceId));
   handle("sources:add", (matterId: string, paths: unknown) => {
     const list = Array.isArray(paths) ? paths.filter((p): p is string => typeof p === "string" && p.length > 0) : [];
-    return matters.addFiles(matterId, list, { actor: "advocate" });
+    return matters.addFiles(matterId, list, { actor: "advocate" }).then((results) => {
+      ingest.enqueue(matterId);
+      return results;
+    });
   });
   handle("events:list", (matterId: string) => matters.listEvents(matterId));
+  handle("ingest:jobs", (matterId: string) => matters.listJobs(matterId));
+  handle("sources:pages", (matterId: string, sourceId: string) => matters.listPages(matterId, sourceId));
+  handle("review:list", (matterId: string) => matters.listReviewItems(matterId));
+  // Human-only actions (decision 5): bridge functions, never agent tools.
+  handle("review:resolve", (matterId: string, itemId: string) => matters.decideReviewItem(matterId, itemId, "resolved"));
+  handle("review:skip", (matterId: string, itemId: string) => matters.decideReviewItem(matterId, itemId, "skipped"));
   handle("view:openSource", async (matterId: string, sourceId: string) => {
     const file = await matters.sourceFile(matterId, sourceId);
     return editorHost.open(file.path, file.name, "pdf", true);
@@ -143,6 +158,7 @@ function exposeTestHooks(): void {
     agentToolNames: (matterId: string) => agent.toolNames(matterId),
     agentSessionId: (matterId: string) => agent.sessionId(matterId),
     mattersRoot: () => matters.root,
+    ingestIdle: () => ingest.idle(),
   };
 }
 
@@ -163,6 +179,8 @@ app.whenReady().then(() => {
   agent = new Agent(
     {
       listSources: (id) => matters.listSources(id),
+      listPages: (id, sourceId, from, to) => matters.listPages(id, sourceId, from, to),
+      searchLines: (id, query, limit) => matters.searchLines(id, query, limit),
       matterTitle: (id) => matters.title(id),
       recordSession: (id, sessionId, model) => matters.recordAgentSession(id, sessionId, model),
       emit: emitChat,
@@ -174,6 +192,7 @@ app.whenReady().then(() => {
     },
     { agentDir: path.join(app.getPath("userData"), "pi-agent"), model: process.env.OPENADVO_MODEL || undefined },
   );
+  ingest = new Ingest(matters, (matterId) => window?.webContents.send("ingest:update", matterId));
   registerBridge();
   exposeTestHooks();
   createWindow();

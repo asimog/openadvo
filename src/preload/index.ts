@@ -17,6 +17,18 @@ const api: OpenAdvoApi = {
   setModel: (key) => ipcRenderer.invoke("models:set", key),
   openSourceView: (matterId, sourceId) => ipcRenderer.invoke("view:openSource", matterId, sourceId),
   closeView: (url) => ipcRenderer.invoke("view:close", new URL(url).searchParams.get("doc") ?? ""),
+  listJobs: (matterId) => ipcRenderer.invoke("ingest:jobs", matterId),
+  getSourcePages: (matterId, sourceId) => ipcRenderer.invoke("sources:pages", matterId, sourceId),
+  listReviewItems: (matterId) => ipcRenderer.invoke("review:list", matterId),
+  resolveReviewItem: (matterId, itemId) => ipcRenderer.invoke("review:resolve", matterId, itemId),
+  skipReviewItem: (matterId, itemId) => ipcRenderer.invoke("review:skip", matterId, itemId),
+  onIngestUpdate: (listener) => {
+    const handler = (_event: unknown, matterId: string) => listener(matterId);
+    ipcRenderer.on("ingest:update", handler);
+    return () => {
+      ipcRenderer.removeListener("ingest:update", handler);
+    };
+  },
   createMatter: (title) => ipcRenderer.invoke("matters:create", title),
   addFiles: (matterId, paths) => ipcRenderer.invoke("sources:add", matterId, paths),
   pickFiles: () => ipcRenderer.invoke("dialog:pickFiles"),
