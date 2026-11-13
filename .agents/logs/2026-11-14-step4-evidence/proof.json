@@ -1,0 +1,120 @@
+{
+  "base": "C:\\Users\\RAHULK~1\\AppData\\Local\\Temp\\oa-proof4-EudHez",
+  "steps": [
+    {
+      "name": "ingest",
+      "value": [
+        {
+          "state": "done",
+          "pages": 11,
+          "error": null
+        },
+        {
+          "state": "done",
+          "pages": 5,
+          "error": null
+        },
+        {
+          "state": "done",
+          "pages": 11,
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "notebook",
+      "value": {
+        "events": 33,
+        "confirmed": 33,
+        "skipped": 0,
+        "conflicts": 0
+      }
+    },
+    {
+      "name": "list-of-dates",
+      "value": {
+        "draftTitle": "LIST OF DATES",
+        "seq": 1,
+        "author": "generator",
+        "paragraphs": 34,
+        "anchored": 33,
+        "first": [
+          "LIST OF DATES",
+          "18.03.1988: on the date of the incident, i.e. 18.3.1988, a meeting was held in the morning for raising some funds for re",
+          "14.02.2003: 2. In brief, facts of the case are that, on 14.02.2003 at about 10:30 p.m., the appellant along with co-accu",
+          "19.02.2003: 17. On 19.02.2003, the fire-arm was seized from the custody of the appellant, with the used cartridge. Shri ",
+          "19.02.2003: 19.2.2003 passed by the High Court whereby the High Court by its judgment disposed of two appeals, being Cri",
+          "18.08.2005: 18.08.2005 passed by learned First ASJ, Sidhi, in Session Trial No. 119/2003 whereby the appellant was convi"
+        ]
+      }
+    },
+    {
+      "name": "show-source",
+      "value": [
+        {
+          "paragraph": "18.03.1988: on the date of the incident, i.e. 18.3.1988, a meeting was held in the morning for raising some funds for re",
+          "panel": "Paragraph source\nClose\n1988-03-18 — on the date of the incident, i.e. 18.3.1988, a meeting was held in the morning for raising some funds for repairing the mosque and in the said meeting, an altercation\nState_of_Rajasthan_vs_Islam_and_Ors_24052011__SCs110597CO"
+        },
+        {
+          "paragraph": "14.02.2003: 2. In brief, facts of the case are that, on 14.02.2003 at about 10:30 p.m., the appellant along with co-accu",
+          "panel": "Paragraph source\nClose\n2003-02-14 — 2. In brief, facts of the case are that, on 14.02.2003 at about 10:30 p.m., the appellant along with co-accused Padmdhar @\nCRA_1870_2005_FinalOrder_26-May-2017.pdf, p. 1, l. 25\nOpen source"
+        },
+        {
+          "paragraph": "19.02.2003: 17. On 19.02.2003, the fire-arm was seized from the custody of the appellant, with the used cartridge. Shri ",
+          "panel": "Paragraph source\nClose\n2003-02-19 — 17. On 19.02.2003, the fire-arm was seized from the custody of the appellant, with the used cartridge. Shri Niwas Tiwari\nCRA_1870_2005_FinalOrder_26-May-2017.pdf, p. 8, l. 11\nOpen source"
+        }
+      ]
+    },
+    {
+      "name": "after-saves",
+      "value": {
+        "revisions": 3,
+        "headSeq": 3,
+        "headAuthor": "advocate",
+        "headBase": "020042b4-26c6-41fc-bcab-f953623df805",
+        "approvedSeq": 3,
+        "approvedSha": "a0d7e84d27a2f2f3e8022eff8fa66a798a4cf26d6bca3cc1b2d27eeb4b8ce6be",
+        "anchors": 33,
+        "paragraphs": 34
+      }
+    },
+    {
+      "name": "approved-docx",
+      "value": {
+        "path": "C:\\Users\\RAHULK~1\\AppData\\Local\\Temp\\oa-proof4-EudHez\\approved-list-of-dates.docx",
+        "bytes": 29158
+      }
+    },
+    {
+      "name": "synopsis",
+      "value": {
+        "draftTitle": "SYNOPSIS",
+        "seq": 1,
+        "paragraphs": 35,
+        "anchored": 34,
+        "first": [
+          "SYNOPSIS",
+          "On 18.03.1988, on the date of the incident, i.e. 18.3.1988, a meeting was held in the morning for raising some funds for repairing the mosque and in the said me",
+          "On 14.02.2003, 2. In brief, facts of the case are that, on 14.02.2003 at about 10:30 p.m., the appellant along with co-accused Padmdhar @.",
+          "On 19.02.2003, 17. On 19.02.2003, the fire-arm was seized from the custody of the appellant, with the used cartridge. Shri Niwas Tiwari.",
+          "On 19.02.2003, 19.2.2003 passed by the High Court whereby the High Court by its judgment disposed of two appeals, being Criminal Appeal No. 401 of 1997 and Crim"
+        ]
+      }
+    },
+    {
+      "name": "drafts",
+      "value": [
+        {
+          "kind": "list_of_dates",
+          "revisions": 3,
+          "approvedSeq": 3
+        },
+        {
+          "kind": "synopsis",
+          "revisions": 1,
+          "approvedSeq": null
+        }
+      ]
+    }
+  ]
+}

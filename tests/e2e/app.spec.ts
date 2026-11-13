@@ -6,6 +6,7 @@ import { test, expect, _electron as electron, type ElectronApplication, type Pag
 import { mkdtemp, mkdir, writeFile, rm, appendFile, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { appEnv } from "./env.ts";
 
 const repo = path.resolve(import.meta.dirname, "../..");
 
@@ -29,7 +30,7 @@ function pdf(label: string): string {
 async function launch(dirs: Dirs, extraEnv: Record<string, string> = {}): Promise<{ app: ElectronApplication; page: Page }> {
   const app = await electron.launch({
     args: [repo],
-    env: { ...process.env, OPENADVO_HOME: dirs.home, OPENADVO_USER_DATA: dirs.userData, OPENADVO_TEST: "1", ...extraEnv },
+    env: appEnv({ OPENADVO_HOME: dirs.home, OPENADVO_USER_DATA: dirs.userData, OPENADVO_TEST: "1", ...extraEnv }),
   });
   const page = await app.firstWindow();
   await page.waitForLoadState("domcontentloaded");
@@ -126,6 +127,8 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
       "closeView", "listSources", "onChatEvent", "openMatter", "openSourceView", "pathsForFiles", "pickFiles", "sendChat", "setModel",
       "getSourcePages", "listJobs", "listReviewItems", "onIngestUpdate", "resolveReviewItem", "skipReviewItem",
       "getNotebook", "confirmEvent", "rejectEvent", "excludeEvent", "includeEvent", "resolveConflict",
+      "listDrafts", "getRevision", "getParagraphSource", "generateListOfDates", "generateSynopsis",
+      "openRevisionInEditor", "insertFromNotebook", "saveRevision", "approveRevision",
     ].sort(),
   );
   await app.close();
@@ -137,7 +140,15 @@ test("the agent session has exactly our tool, and its id is recorded", async () 
   await createMatter(page, "Tool allowlist");
   const id = await matterId(app);
   const tools = await app.evaluate((_e, m) => (globalThis as any).__openadvoTest.agentToolNames(m), id);
-  expect(tools).toEqual(["list_sources", "read_source_text", "search_sources", "list_events", "get_chronology"]);
+  expect(tools).toEqual([
+    "list_sources",
+    "read_source_text",
+    "search_sources",
+    "list_events",
+    "get_chronology",
+    "read_draft",
+    "get_paragraph_source",
+  ]);
   const sessionId = await app.evaluate((_e, m) => (globalThis as any).__openadvoTest.agentSessionId(m), id);
   const events = await page.evaluate((m) => (globalThis as any).openadvo.listEvents(m), id);
   const started = events.find((e: any) => e.action === "agent.session_started");

@@ -8,7 +8,7 @@ The plan serves [advocate-workflow.md](advocate-workflow.md). The decisions it b
 
 - No step gets a second version until its round is complete and the owner has used the whole round on a real brief (B6).
 - A step is done when the owner completes its proof task on a real brief (lesson L3). A test the agent wrote is evidence, not completion.
-- A step's v0 spec is written when the step starts, and it is one page (lesson L1). Only step 1 has a spec now: [specs/v0-app-and-matter-store.md](specs/v0-app-and-matter-store.md).
+- A step's v0 spec is written when the step starts, and it is one page (lesson L1). Each started step has one in [specs/](specs/).
 - A v0 may do little. It may not pretend (lesson L2). A feature that is not built shows as "not available" and never as a result.
 
 ## 2. Steps and rounds
@@ -169,20 +169,22 @@ Round 1 steps also list the main-process modules, agent tools, bridge functions,
 ### Step 4. List of Dates and Synopsis as a DOCX in the editor
 
 - **Serves:** workflow 8 (DOCX working petition, each revision new), 8A, 8B, 10 (approval of one revision), Appendix B-E (file to SLP paragraph). The advocate asks for the List of Dates and the Synopsis. A DOCX opens in the Euro-Office editor inside the window. "Show source of this paragraph" opens the Notebook event and its source line. The advocate edits, saves (a new revision) and approves a revision.
-- **v0:** the Word editor that step 2 hosts. Editor-design items a to d, i and j ([editor-design.md](editor-design.md)). A generator writes the first revision from confirmed events only (Appendix B-C: only checked dates in generated prose). Each generated paragraph carries an anchor that links it to its event ids. Human save makes a new revision with a base revision. "Check citations" is shown as "not available until step 7". The verification state shows "not verified". **Later:** model polishing of the Synopsis with traceability kept (8A); agent edits as tracked changes (editor-design items e to h, step 5).
+- **v0:** the Word editor that step 2 hosts. Editor-design items a to d, i and j ([editor-design.md](editor-design.md)). A generator writes the first revision from confirmed events only (Appendix B-C: only checked dates in generated prose). Each generated paragraph carries an anchor that links it to its event ids. Human save makes a new revision with a base revision. "Check citations" is shown as "not available until step 7". The verification state shows "not verified". **Later:** model polishing of the Synopsis with traceability kept (8A); agent edits as tracked changes (editor-design items e to h, step 5); inserting a Notebook sentence at the cursor (v0 adds it at the end of the draft).
 - **Input:** the confirmed events of step 3. **Output:** a draft with revisions in the matter store; the DOCX open in the editor. **Proof task:** the owner generates the List of Dates and Synopsis of a real brief, follows "Show source" for five paragraphs, edits and saves twice, approves one revision, and opens the approved DOCX in Microsoft Word.
 - **Port when the step starts:** `deprecated/docs/specs/J-documents-editors.md` (revisions, first-revision writer, editor in a view); `deprecated/docs/decisions.md` section 5.5 (DOCX to PDF/A flow) for the revision rules; `research/architecrture research/C6-document-editor-and-module-architecture.md` sections 4 and 8; the engine rules listed in [editor-design.md](editor-design.md).
-- **Main-process modules:** `main/editor-host.ts` from step 2, extended with the working copy folder and human save; `main/drafts.ts` (generation and revisions, through `main/matters.ts`).
-- **Plain libraries:** `lib/drafting` (List of Dates and Synopsis from the event schema to a DOCX, with paragraph anchors; wraps the `docx` npm library); `lib/converter` from step 2.
-- **Agent tools:** `read_draft` (live text of a revision with its paragraph anchors, read only); `get_paragraph_source` (anchor to event ids and source lines).
-- **Bridge functions.** Queries: `listDrafts`, `getRevision`, `getParagraphSource`. Actions: `generateListOfDates`, `generateSynopsis`, `openRevisionInEditor`. Human-only actions: `saveRevision` (needs a base revision), `approveRevision`.
-- **Views:** the editor view (editor frame plus the harness bar of [editor-design.md](editor-design.md) item c).
-- **Events written:** `draft.generated`, `revision.saved`, `revision.approved`, `editor.opened`, `editor.closed`. **Records read:** events, confirmations, anchors, drafts, revisions, paragraph links.
+- **Main-process modules (as built):** `main/editor-host.ts` from step 2, with the Word document package served from a working copy; `main/drafts.ts` (generation, the save path through x2t, revisions and paragraph links, through `main/matters.ts`).
+- **Plain libraries (as built):** `lib/drafting` (List of Dates and Synopsis from the event schema to a DOCX, with paragraph anchors; the `docx` npm library, and `fflate` for the DOCX package); `lib/converter` from step 2, with `convertFile` for one `TaskQueueDataConvert` run.
+- **Agent tools (as built):** `read_draft` (live text of the latest revision of each draft, with its paragraph anchors; read only); `get_paragraph_source` (anchor to event ids and source lines; read only).
+- **Bridge functions (as built).** Queries: `listDrafts`, `getRevision`, `getParagraphSource`. Actions: `generateListOfDates`, `generateSynopsis`, `openRevisionInEditor`, `insertFromNotebook` (records the paragraph link and returns the anchor and sentence). Human-only actions (decision 5): `saveRevision` (needs a base revision), `approveRevision`.
+- **Save path (as built):** the editor's own save command and the harness bar's "Save revision" both send the editor's document package (`asc_nativeGetFile3`) to the window; the window calls `saveRevision`, the main process converts `Editor.bin` to DOCX with the release's x2t, and the matter store makes the revision or refuses a stale base (`DOC_STALE_BASE`) or a missing base (`BASE_REQUIRED`). The editor's saved index is reset after a successful save.
+- **Views (as built):** the Drafts section on the Matter tab (generate, list, open latest or approved); the editor view in the view pane (editor frame plus the harness bar of [editor-design.md](editor-design.md) item c: view switch, Save revision, Insert from Notebook, Show source of this paragraph, Check citations, Approve revision, and the status area).
+- **Events written (as built):** `draft.generated`, `revision.saved`, `revision.approved`, `editor.opened`, `editor.closed`. **Records read:** events, confirmations, anchors, drafts, revisions, paragraph links.
+- **Settled at step 4 (as built):** the paragraph anchor is a block content control whose tag is the anchor ([editor-design.md](editor-design.md) section 1.1); the editor opens in Edit, because Final is a read-only preview in this build (section 1.2 and Q-5).
 - **Carry over from `advodsh/plugins/workspace-editor`:**
   - The host page, shim and `x2t` code came over at step 2.
   - `lib/docs.js`: the per-document temp layout (`Editor.bin`, `media/`) and the refusal of a write with a stale base or a dirty editor (WD-007 to WD-010).
   - `lib/errors.js`: the document error codes that remain (`DOC_STALE_BASE`, `DOC_EDITOR_DIRTY`, `DOC_STALE_TARGET`).
-  - `lib/outline.js`: the heading outline.
+  - `lib/outline.js`: the heading outline (not needed in v0; carried only if a later step reads it).
   - Not carried: `lib/client.js`, `lib/index.js`, `lib/roles.js`, `lib/fanout/`, `lib/tools/` (DSH plugin and fan-out code).
 
 ### Step 5. Factual verification and draft consistency

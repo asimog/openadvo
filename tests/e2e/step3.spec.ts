@@ -7,6 +7,7 @@ import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PDFDocument, StandardFonts } from "pdf-lib";
+import { appEnv } from "./env.ts";
 
 const repo = path.resolve(import.meta.dirname, "../..");
 
@@ -37,7 +38,7 @@ test("the Notebook: events, a flagged date conflict, human decisions, chronology
   await brief(file);
   const app = await electron.launch({
     args: [repo],
-    env: { ...process.env, OPENADVO_HOME: path.join(base, "m"), OPENADVO_USER_DATA: path.join(base, "u"), OPENADVO_TEST: "1" },
+    env: appEnv({ OPENADVO_HOME: path.join(base, "m"), OPENADVO_USER_DATA: path.join(base, "u"), OPENADVO_TEST: "1" }),
   });
   const page = await app.firstWindow();
   await page.getByRole("button", { name: "New matter" }).click();

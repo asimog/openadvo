@@ -10,6 +10,7 @@ import path from "node:path";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { renderPagePng, stopOcr } from "../../src/lib/document-intelligence/index.ts";
 import { platformKey } from "../../src/lib/euro-office/platform.ts";
+import { appEnv } from "./env.ts";
 
 const repo = path.resolve(import.meta.dirname, "../..");
 const vendored = existsSync(path.join(repo, "resources", "euro-office", platformKey(), "converter"));
@@ -36,7 +37,7 @@ async function launch(): Promise<{ app: ElectronApplication; page: Page; inbox: 
   await mkdir(inbox, { recursive: true });
   const app = await electron.launch({
     args: [repo],
-    env: { ...process.env, OPENADVO_HOME: path.join(base, "m"), OPENADVO_USER_DATA: path.join(base, "u"), OPENADVO_TEST: "1" },
+    env: appEnv({ OPENADVO_HOME: path.join(base, "m"), OPENADVO_USER_DATA: path.join(base, "u"), OPENADVO_TEST: "1" }),
   });
   const page = await app.firstWindow();
   return { app, page, inbox };

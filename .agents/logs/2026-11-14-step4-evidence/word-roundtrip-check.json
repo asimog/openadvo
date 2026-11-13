@@ -1,0 +1,40 @@
+{
+  "original": {
+    "paragraphs": 34,
+    "anchors": 33,
+    "first": [
+      {
+        "anchor": null,
+        "text": "LIST OF DATES (checked against the certified copy) (second check)"
+      },
+      {
+        "anchor": "oa-96e610ef0c98492e8a961a6a70fcc3e8",
+        "text": "18.03.1988: on the date of the incident, i.e. 18.3.1988, a meeting was held in the morning for raising some funds for repairing the mosque and in the said meeting, an altercation"
+      },
+      {
+        "anchor": "oa-f4d871cf7715499f8a7a84f9ccb14bab",
+        "text": "14.02.2003: 2. In brief, facts of the case are that, on 14.02.2003 at about 10:30 p.m., the appellant along with co-accused Padmdhar @"
+      }
+    ]
+  },
+  "wordRoundTrip": {
+    "paragraphs": 34,
+    "anchors": 33,
+    "first": [
+      {
+        "anchor": null,
+        "text": "LIST OF DATES (checked against the certified copy) (second check)"
+      },
+      {
+        "anchor": "oa-96e610ef0c98492e8a961a6a70fcc3e8",
+        "text": "18.03.1988: on the date of the incident, i.e. 18.3.1988, a meeting was held in the morning for raising some funds for repairing the mosque and in the said meeting, an altercation"
+      },
+      {
+        "anchor": "oa-f4d871cf7715499f8a7a84f9ccb14bab",
+        "text": "14.02.2003: 2. In brief, facts of the case are that, on 14.02.2003 at about 10:30 p.m., the appellant along with co-accused Padmdhar @"
+      }
+    ]
+  },
+  "anchorsEqual": true,
+  "textEqual": true
+}

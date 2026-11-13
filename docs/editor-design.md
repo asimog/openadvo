@@ -21,17 +21,23 @@ The editor is the official Euro-Office suite (decision 8): the Word editor for d
 
 ### 1.1 Paragraph anchors
 
-Each generated paragraph carries an anchor that links it to Notebook event ids (build-plan section 5.2). The anchor must survive an editor save through `x2t`. Two candidates: a bookmark around the paragraph, or a content control with a tag. **To verify at step 4:** which of the two survives open, edit and save in the vendored build, and which one Microsoft Word keeps.
+Each generated paragraph carries an anchor that links it to Notebook event ids (build-plan section 5.2). The anchor must survive an editor save through `x2t`. Two candidates: a bookmark around the paragraph, or a content control with a tag.
+
+**Settled at step 4: a block-level content control whose `w:tag` holds the anchor.** The anchor is `oa-` followed by 32 lowercase hex characters. The reader is the release's document builder API: `Asc.editor.getJsApi().GetDocument().GetCurrentContentControl().GetTag()`. Evidence: both candidates survived two `x2t` DOCX-to-Editor.bin-to-DOCX round trips and a Microsoft Word 16.0 open and save (the bookmark name survived too, but Word renumbers its `w:id`, so matching must use the name). The generated anchors were still present in the stored DOCX after two editor saves. Details: [step 4 report](../.agents/logs/2026-11-14-step4-report.md) and [editor findings](../.agents/logs/2026-11-14-step4-editor-findings.md).
 
 ### 1.2 Points to verify at step 4
 
-These depend on the vendored build. They are not assumed.
+Results in the vendored build. CONFIRMED means a run showed it.
 
-- That review display "final" hides all markup, including deleted text and formatting changes.
-- That accept and reject of one change work after the editor moves to that change.
-- Which editor configuration keys hide the ribbon tabs of item d (`customization` keys in the editor config are the candidate; the exact keys are unverified).
-- That the advocate's typing is untracked by default when the document carries tracked changes.
-- That the paragraph anchor of section 1.1 survives a save.
+| Point | Result |
+|---|---|
+| Review display "final" hides all markup, including deleted text and formatting changes. | **Partly confirmed.** In a document with one tracked insertion, Final showed the text without the insertion underline and Edit showed the underline. A separate tracked deletion was not visible as a strikethrough in either mode, so hidden deleted text is **unverified**. The release implements Final and Original as **read-only preview modes**; only Edit accepts typing. |
+| Accept and reject of one change work after the editor moves to that change. | **Confirmed.** After `asc_GetNextRevisionsChange()`, `asc_AcceptChangesBySelection()` removed one tracked insertion (the change report went from one change to none) and `asc_RejectChangesBySelection()` removed another (the typed text disappeared and the paragraph returned to its original text). |
+| Which editor configuration keys hide the ribbon tabs of item d. | **Confirmed, with one correction.** `customization.layout.toolbar = { file: false, plugins: false, protect: false }` and `customization.layout.header = { users: false, editMode: false }`, plus `coEditing: { mode: "fast", change: false }` and `customization.chat: false`, hide the File, Plugins and Protection tabs and the co-editing controls by configuration only. This build has **no tab captioned "Review"**: the review tools sit in the tab captioned **Collaboration**, so that tab is kept. The tabs Draw and View remain; item d does not name them and no configuration key was found for them. |
+| The advocate's typing is untracked by default when the document carries tracked changes. | **Confirmed.** With one tracked change present and `asc_SetTrackRevisions(false)`, typing added no revision (the author report stayed at one change). |
+| The paragraph anchor of section 1.1 survives a save. | **Confirmed.** The block content control and its tag survived two editor saves (DOCX to Editor.bin to DOCX), and Microsoft Word keeps it. |
+
+The clean view of item b could not be kept as the default. In this build Final is a read-only preview, so a draft opened in Final cannot be edited. The editor therefore opens in **Edit**, which shows no markup while a draft carries no tracked changes (step 4); Clean (Final) stays available as a read-only clean read. Step 5, when tracked changes first appear, decides the default again. Recorded as a question for the owner (Q-5).
 
 ## 2. Engine rules carried over
 
