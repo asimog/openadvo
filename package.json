@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test:unit": "node --test \"tests/unit/**/*.test.ts\"",
     "test:e2e": "playwright test",
-    "test": "npm run test:unit && npm run build && npm run test:e2e"
+    "test": "npm run test:unit && npm run build && npm run test:e2e",
+    "vendor": "node scripts/vendor-euro-office.ts"
   },
   "devDependencies": {
     "@astryxdesign/cli": "0.7.15",

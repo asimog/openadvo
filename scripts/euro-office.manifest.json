@@ -1,0 +1,25 @@
+{
+  "source": "https://github.com/Euro-Office/DesktopEditors",
+  "tag": "v9.3.6",
+  "commit": "8b25e8ace5e00121bfafe86d5cd25d5ef588b404",
+  "keep": ["editors", "converter", "fonts", "dictionaries"],
+  "required": [
+    "converter/DoctRenderer.config",
+    "editors/web-apps/apps/api/documents/api.js",
+    "editors/web-apps/apps/documenteditor/main/index.html",
+    "editors/web-apps/apps/pdfeditor/main/index.html",
+    "editors/web-apps/apps/spreadsheeteditor/main/index.html",
+    "editors/web-apps/apps/presentationeditor/main/index.html",
+    "editors/sdkjs/word/sdk-all.js",
+    "editors/sdkjs/word/sdk-all-min.js",
+    "editors/sdkjs/cell/sdk-all-min.js",
+    "editors/sdkjs/slide/sdk-all-min.js"
+  ],
+  "assets": {
+    "win-x64": { "name": "Euro-Office-DesktopEditors-9.3.6-0-windows-x64.zip", "size": 1044603212, "sha256": "1f6a221fec9864956fd4e787b2267668220ab2bc51807685bd15e89493b6d533" },
+    "win-arm64": { "name": "Euro-Office-DesktopEditors-9.3.6-0-windows-arm64.zip", "size": 1025619658, "sha256": "3b88a249bf623311cdd32c01675338f6c1604177f539e52c65f2c16bde58002e" },
+    "linux-x64": { "name": "euro-office-euro-office-9.3.6-0-x86_64.tar.xz", "size": 497085996, "sha256": "d8d7083f0d49201e3606341a9caca5ff6ddbe9ff7c92fa17cd30fb6797146afd" },
+    "linux-arm64": { "name": "euro-office-euro-office-9.3.6-0-aarch64.tar.xz", "size": 541080672, "sha256": "e42bbcbb404c0ecd89b3b38049d0b5084cd7d8ec38e092896ac7939fea61ecee" },
+    "mac-arm64": { "name": "Euro-Office-DesktopEditors-9.3.6-0-macos-arm64.dmg", "size": 971551026, "sha256": "74136ecbebce3eea18e093bc9641806c9f9996f7eb4361aa3ab9e8daaca3abf5" }
+  }
+}
