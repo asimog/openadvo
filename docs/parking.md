@@ -15,3 +15,5 @@ Each line: the idea, where it came from, and the step it would touch.
 | A model picker in the chat pane. Step 1 reads the model from the `OPENADVO_MODEL` setting or takes Pi's first available model. | Step 1 build | 1, second version |
 | Pi session persistence to a file in the matter folder, so the chat history survives a restart. Step 1 keeps the chat in memory for one run. | Step 1 build | 1, second version |
 | A matter rename and archive. | Step 1 build | 1, second version |
+| Render the agent's markdown in the chat pane (the proof run shows raw `**bold**`). | Step 1 proof run | 1, second version |
+| Replace Electron's default menu (File, Edit, View, Window) with our own. | Step 1 proof run | 1, second version |

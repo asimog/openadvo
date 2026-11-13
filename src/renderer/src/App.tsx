@@ -6,7 +6,7 @@ import { TextInput } from "@astryxdesign/core/TextInput";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Text } from "@astryxdesign/core/Text";
 import { Badge } from "@astryxdesign/core/Badge";
-import { Table, useTableSortable, useTableSortableState } from "@astryxdesign/core/Table";
+import { Table, pixel, proportional, useTableSortable, useTableSortableState } from "@astryxdesign/core/Table";
 import type {
   AddFileResult,
   ChatEvent,
@@ -69,6 +69,7 @@ function SourcesTable(props: { sources: SourceRecord[]; selected: string | null;
         {
           key: "name",
           header: "Name",
+          width: proportional(1, { minWidth: 140 }),
           sortable: true,
           renderCell: (s) => (
             <button
@@ -82,9 +83,9 @@ function SourcesTable(props: { sources: SourceRecord[]; selected: string | null;
             </button>
           ),
         },
-        { key: "sha256", header: "SHA-256", sortable: true, renderCell: (s) => <span className="mono" title={s.sha256}>{shortHash(s.sha256)}</span> },
-        { key: "size", header: "Size", sortable: true, renderCell: (s) => formatSize(s.size) },
-        { key: "status", header: "Status", sortable: true, renderCell: (s) => statusBadge(s.status) },
+        { key: "sha256", header: "SHA-256", width: pixel(118), sortable: true, renderCell: (s) => <span className="mono" title={s.sha256}>{shortHash(s.sha256)}</span> },
+        { key: "size", header: "Size", width: pixel(78), sortable: true, renderCell: (s) => formatSize(s.size) },
+        { key: "status", header: "Status", width: pixel(92), sortable: true, renderCell: (s) => statusBadge(s.status) },
       ]}
     />
   );
@@ -307,7 +308,7 @@ export function App() {
   return (
     <div className="app">
       <Group orientation="horizontal" style={{ height: "100%" }}>
-        <Panel id="left" defaultSize="28%" minSize="18%">
+        <Panel id="left" defaultSize="34%" minSize="22%">
           <div className="pane" aria-label="Matters and sources">
             <div className="pane-header">
               <Heading level={2}>Matters</Heading>
@@ -351,7 +352,7 @@ export function App() {
           </div>
         </Panel>
         <Separator className="separator" />
-        <Panel id="view" defaultSize="44%" minSize="25%">
+        <Panel id="view" defaultSize="38%" minSize="25%">
           <div className="pane" aria-label="View">
             <div className="pane-header">
               <Heading level={2}>{matter ? matter.title : "Open Advocate"}</Heading>

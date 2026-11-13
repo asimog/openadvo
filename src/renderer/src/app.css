@@ -1,27 +1,28 @@
 html, body, #root { height: 100%; margin: 0; }
+body { background: var(--color-background-body); color: var(--color-text-primary); }
 body { overflow: hidden; }
 .app { height: 100vh; display: flex; flex-direction: column; }
 .pane { height: 100%; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
 .pane-scroll { flex: 1; overflow: auto; padding: 12px; }
-.pane-header { padding: 10px 12px; border-bottom: 1px solid var(--color-border, #ddd); display: flex; gap: 8px; align-items: center; justify-content: space-between; }
-.separator { width: 4px; background: var(--color-border, #ddd); }
-.separator[data-separator="active"], .separator:hover { background: var(--color-accent, #888); }
+.pane-header { padding: 10px 12px; border-bottom: 1px solid var(--color-border); display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+.separator { width: 4px; background: var(--color-border); }
+.separator[data-separator="active"], .separator:hover { background: var(--color-accent); }
 .matter-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.matter-item { width: 100%; text-align: left; padding: 6px 8px; border: 1px solid transparent; border-radius: 6px; background: none; cursor: pointer; font: inherit; color: inherit; }
-.matter-item[aria-current="true"] { border-color: var(--color-accent, #888); background: var(--color-background-secondary, #f4f4f4); }
-.dropzone { border: 2px dashed var(--color-border, #ccc); border-radius: 8px; padding: 12px; margin: 8px 0; text-align: center; }
-.dropzone[data-over="true"] { border-color: var(--color-accent, #555); }
+.matter-item { width: 100%; text-align: left; padding: 6px 8px; border: 1px solid transparent; border-radius: 6px; background: none; cursor: pointer; font: inherit; color: var(--color-text-primary); }
+.matter-item[aria-current="true"] { border-color: var(--color-accent); background: var(--color-background-muted); }
+.dropzone { border: 2px dashed var(--color-border); border-radius: 8px; padding: 12px; margin: 8px 0; text-align: center; }
+.dropzone[data-over="true"] { border-color: var(--color-accent); }
 .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; word-break: break-all; }
-.notice { margin: 8px 0; padding: 8px; border-radius: 6px; background: var(--color-background-secondary, #f4f4f4); }
+.notice { margin: 8px 0; padding: 8px; border-radius: 6px; background: var(--color-background-muted); color: var(--color-text-primary); }
 .chat-log { flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 .chat-msg { padding: 8px 10px; border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
-.chat-msg[data-role="advocate"] { align-self: flex-end; background: var(--color-background-secondary, #eef); max-width: 90%; }
-.chat-msg[data-role="agent"] { align-self: flex-start; border: 1px solid var(--color-border, #ddd); max-width: 95%; }
+.chat-msg[data-role="advocate"] { align-self: flex-end; background: var(--color-background-muted); max-width: 90%; }
+.chat-msg[data-role="agent"] { align-self: flex-start; border: 1px solid var(--color-border); max-width: 95%; }
 .chat-msg[data-role="tool"], .chat-msg[data-role="notice"] { align-self: center; font-size: 12px; opacity: 0.8; }
-.chat-input { border-top: 1px solid var(--color-border, #ddd); padding: 8px; display: flex; gap: 8px; align-items: flex-end; }
+.chat-input { border-top: 1px solid var(--color-border); padding: 8px; display: flex; gap: 8px; align-items: flex-end; }
 .chat-input textarea { flex: 1; min-height: 56px; resize: vertical; font: inherit; padding: 6px; }
 dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; margin: 8px 0 16px; }
 dl.facts dt { font-weight: 600; }
 dl.facts dd { margin: 0; }
 table.plain { border-collapse: collapse; width: 100%; font-size: 13px; }
-table.plain th, table.plain td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--color-border, #eee); vertical-align: top; }
+table.plain th, table.plain td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--color-border); vertical-align: top; }
