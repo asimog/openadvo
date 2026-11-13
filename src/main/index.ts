@@ -106,6 +106,7 @@ function registerBridge(): void {
     if (raw.length === 0) throw new Error("DOC_SAVE_FAILED: the editor sent no bytes");
     return drafts.saveRevision(matterId, draftId, raw, baseRevisionId);
   });
+  handle("drafts:check", (matterId: string, draftId: string) => drafts.check(matterId, String(draftId ?? "")));
   handle("drafts:approveRevision", (matterId: string, revisionId: string) => drafts.approveRevision(matterId, revisionId));
   handle("dialog:pickFiles", async () => {
     if (!window) return [];

@@ -13,6 +13,8 @@ import path from "node:path";
 import type { Matters } from "./matters.ts";
 import { convertFile, FORMAT_DOCX } from "../lib/converter/index.ts";
 import { MatterStoreError } from "../lib/matter-store/index.ts";
+import { checkDraft } from "../lib/verification/index.ts";
+import type { DraftCheck } from "../shared/records.ts";
 import {
   eventSentence,
   generateListOfDates,
@@ -266,6 +268,53 @@ export class Drafts {
       .filter((e): e is NotebookEvent => e !== undefined)
       .map(toParagraphSourceEvent);
     return { draftId, anchor, text: link.text, eventIds: link.eventIds, events };
+  }
+
+  /**
+   * The deterministic checks on the latest stored revision of one draft (step 5; workflow 9A, 9D).
+   * `lib/verification` computes; the matter store records that the check ran. The draft is not changed.
+   */
+  async check(matterId: string, draftId: string): Promise<DraftCheck> {
+    const all = await this.readDrafts(matterId);
+    const draft = all.find((d) => d.draftId === draftId);
+    if (!draft) throw new Error("DRAFT_NOT_FOUND: the draft has no stored revision");
+    const pairKind: DraftKind = draft.kind === "list_of_dates" ? "synopsis" : "list_of_dates";
+    const pair = all.find((d) => d.kind === pairKind);
+    const notebook = await this.matters.notebook(matterId);
+    const result = checkDraft({
+      paragraphs: draft.paragraphs,
+      events: notebook.events.map((e) => ({
+        id: e.id,
+        dateStart: e.dateStart,
+        dateEnd: e.dateEnd,
+        dateText: e.dateText,
+        description: e.description,
+        status: e.status,
+        excluded: e.excluded,
+        sourceName: e.sourceName,
+        page: e.page,
+        line: e.line,
+      })),
+      other: pair ? { title: pair.title, paragraphs: pair.paragraphs } : undefined,
+    });
+    const byKind: Record<string, number> = {};
+    for (const d of result.defects) byKind[d.kind] = (byKind[d.kind] ?? 0) + 1;
+    await this.matters.appendEvent(matterId, { actor: "advocate" }, "draft.checked", draft.revision.id, {
+      method: result.method,
+      statements: result.statementsChecked,
+      defects: result.defects.length,
+      byKind,
+    });
+    return {
+      draftId,
+      revisionId: draft.revision.id,
+      seq: draft.revision.seq,
+      method: result.method,
+      checkedAt: new Date().toISOString(),
+      statementsChecked: result.statementsChecked,
+      defects: result.defects,
+      notRun: result.notRun,
+    };
   }
 
   /** The live text of the latest revision of each draft of a kind, for the agent's `read_draft`. */

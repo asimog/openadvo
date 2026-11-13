@@ -165,6 +165,17 @@ test("generate, show source, edit and save twice, approve", async () => {
   expect(revisions.author).toBe("advocate");
   // The anchors survived two editor saves.
   expect(revisions.anchors).toBe(3);
+  // Step 5: the checks on the stored revision. The typed words carry no date, so no defect is found.
+  await page.getByRole("button", { name: "Check draft" }).click();
+  const check = page.getByTestId("draft-check");
+  await expect(check).toContainText("Check of revision 3: 0 defect(s) in 3 statement(s)");
+  await expect(check).toContainText("Not checked: Party names and case number match the matter");
+  await expect(page.getByTestId("draft-verification")).toContainText("Facts checked: 0 defect(s). Citations: not verified");
+  const checkedEvent = await page.evaluate(async (id) => {
+    const events = await (globalThis as any).openadvo.listEvents(id);
+    return events.filter((e: { action: string }) => e.action === "draft.checked").length;
+  }, matterId);
+  expect(checkedEvent).toBe(1);
   // Approve one revision (human-only action); the status shows it.
   await page.getByRole("button", { name: "Approve revision" }).click();
   await expect(page.getByTestId("draft-status")).toContainText("Approved by advocate", { timeout: 30_000 });

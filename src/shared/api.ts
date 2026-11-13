@@ -2,9 +2,9 @@
  * The bridge contract between the preload script and the renderer.
  * Types only. The renderer calls these named functions; it has no other access.
  */
-import type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft } from "./records.ts";
+import type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft, DraftCheck, DraftDefect } from "./records.ts";
 
-export type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft };
+export type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft, DraftCheck, DraftDefect };
 
 export type ChatRole = "advocate" | "agent" | "tool" | "notice";
 
@@ -94,6 +94,8 @@ export interface OpenAdvoApi {
   openRevisionInEditor(matterId: string, revisionId: string): Promise<string>;
   /** Insert one confirmed event's sentence at the cursor: the anchor is recorded before the editor adds it. */
   insertFromNotebook(matterId: string, draftId: string, eventId: string): Promise<{ anchor: string; text: string }>;
+  /** Step 5: the deterministic checks on the latest stored revision of a draft. It changes no draft. */
+  checkDraft(matterId: string, draftId: string): Promise<DraftCheck>;
   /** Human-only actions (decision 5). `bytes` are the editor's Editor.bin, converted to DOCX in the main process. */
   saveRevision(matterId: string, draftId: string, bytes: Uint8Array, baseRevisionId: string): Promise<RevisionRecord>;
   approveRevision(matterId: string, revisionId: string): Promise<DraftRecord>;

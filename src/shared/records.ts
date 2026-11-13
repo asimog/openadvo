@@ -228,6 +228,30 @@ export interface ParagraphSource {
   events: ParagraphSourceEvent[];
 }
 
+/** One defect of a draft check (step 5). The plain library `lib/verification` owns the rules. */
+export interface DraftDefect {
+  kind: string;
+  /** The position of the paragraph in the draft, from 1. */
+  paragraph: number;
+  anchor: string | null;
+  text: string;
+  evidence: string;
+  action: string;
+}
+
+/** The result of the deterministic checks on one stored revision. */
+export interface DraftCheck {
+  draftId: string;
+  revisionId: string;
+  seq: number;
+  method: string;
+  checkedAt: string;
+  statementsChecked: number;
+  defects: DraftDefect[];
+  /** Checks that could not run, each with its reason. */
+  notRun: Array<{ check: string; reason: string }>;
+}
+
 export interface GeneratedDraft {
   draft: DraftRecord;
   revision: RevisionRecord;

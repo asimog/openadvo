@@ -5,7 +5,7 @@ import { Button } from "@astryxdesign/core/Button";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Text } from "@astryxdesign/core/Text";
-import type { DraftRecord, NotebookEvent, ParagraphSource, RevisionRecord } from "../../shared/api.ts";
+import type { DraftCheck, DraftRecord, NotebookEvent, ParagraphSource, RevisionRecord } from "../../shared/api.ts";
 import type { SourceLink } from "./Notebook.tsx";
 
 const api = window.openadvo;
@@ -68,6 +68,39 @@ function ParagraphSourcePanel(props: { source: ParagraphSource; onClose: () => v
   );
 }
 
+/** The result of the draft checks: each defect with its evidence and the action it needs (workflow 9A, 9D). */
+function DraftCheckPanel(props: { check: DraftCheck; stale: boolean; onClose: () => void }) {
+  const { check } = props;
+  return (
+    <section className="source-panel" data-testid="draft-check" aria-label="Draft check">
+      <div className="source-panel-header">
+        <Text weight="semibold">
+          Check of revision {check.seq}: {check.defects.length} defect(s) in {check.statementsChecked} statement(s)
+        </Text>
+        <Button label="Close" size="sm" variant="ghost" onClick={props.onClose} />
+      </div>
+      {props.stale ? <Text type="supporting">The draft changed after this check. Save and check again.</Text> : null}
+      {check.defects.length === 0 ? <Text type="supporting">No defect found by the checks that ran.</Text> : null}
+      <ul className="source-event-list">
+        {check.defects.map((defect, index) => (
+          <li key={`${defect.paragraph}-${defect.kind}-${index}`} className="source-event" data-kind={defect.kind}>
+            <div>
+              <Badge variant="warning" label={`Paragraph ${defect.paragraph}`} /> {defect.evidence}
+            </div>
+            <Text type="supporting">“{defect.text.length > 140 ? `${defect.text.slice(0, 140)}…` : defect.text}”</Text>
+            <Text type="supporting">Action: {defect.action}</Text>
+          </li>
+        ))}
+      </ul>
+      {check.notRun.map((n) => (
+        <Text key={n.check} type="supporting">
+          Not checked: {n.check}. {n.reason}
+        </Text>
+      ))}
+    </section>
+  );
+}
+
 /**
  * The Word editor of one draft revision. The editor frame fills the view, so its ribbon reaches the top.
  * Our harness bar is outside the editor frame, in the chat dock (`dock`), beside the editor
@@ -103,6 +136,7 @@ export function DraftView(props: {
   const [approving, setApproving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [source, setSource] = useState<ParagraphSource | null>(null);
+  const [check, setCheck] = useState<DraftCheck | null>(null);
   const [insertOpen, setInsertOpen] = useState(false);
   const [insertEvents, setInsertEvents] = useState<NotebookEvent[]>([]);
   const [insertError, setInsertError] = useState<string | null>(null);
@@ -335,6 +369,22 @@ export function DraftView(props: {
     }
   };
 
+  /** The checks read the stored revision, so unsaved typing is not part of them. */
+  const runCheck = async () => {
+    if (dirty) {
+      setMessage("Save the revision first. The checks read the saved revision.");
+      return;
+    }
+    try {
+      const result = await api.checkDraft(props.matterId, props.draft.id);
+      setSource(null);
+      setCheck(result);
+      setMessage(null);
+    } catch (e) {
+      setMessage(errorText(e));
+    }
+  };
+
   const approve = async () => {
     if (approving) return;
     setApproving(true);
@@ -364,7 +414,11 @@ export function DraftView(props: {
           </span>
           <Text weight="semibold">{dirty ? "Unsaved changes" : "Saved"}</Text>
           {approved ? <Badge variant="success" label="Approved by advocate" /> : null}
-          <Text type="supporting">Verification: not verified</Text>
+          <Text type="supporting" data-testid="draft-verification">
+            {check && check.seq === revisionInfo.seq && !dirty
+              ? `Facts checked: ${check.defects.length} defect(s). Citations: not verified`
+              : "Verification: not verified"}
+          </Text>
           {message ? (
             <Text type="supporting" data-testid="draft-message">
               {message}
@@ -386,6 +440,7 @@ export function DraftView(props: {
           />
           <Button label="Save revision" size="sm" variant="primary" isDisabled={!doc || saveBlocked} clickAction={save} />
           <Button label="Approve revision" size="sm" isDisabled={approved || approving} clickAction={approve} />
+          <Button label="Check draft" size="sm" isDisabled={!doc} clickAction={runCheck} />
           <Button label="Show source of this paragraph" size="sm" isDisabled={!doc} onClick={showParagraphSource} />
           <Button label="Insert from Notebook" size="sm" isDisabled={!doc} clickAction={openInsertDialog} />
           <span className="harness-citations">
@@ -395,6 +450,7 @@ export function DraftView(props: {
         </div>
       </div>
       {source ? <ParagraphSourcePanel source={source} onClose={() => setSource(null)} onOpenSource={props.onOpenSource} /> : null}
+      {check && !source ? <DraftCheckPanel check={check} stale={dirty || check.seq !== revisionInfo.seq} onClose={() => setCheck(null)} /> : null}
     </>
   );
 

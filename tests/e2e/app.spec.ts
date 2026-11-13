@@ -193,7 +193,7 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
       "getEffort", "setEffort", "getSourcePages", "listJobs", "listReviewItems", "onIngestUpdate", "resolveReviewItem", "skipReviewItem",
       "getNotebook", "confirmEvent", "rejectEvent", "excludeEvent", "includeEvent", "resolveConflict",
       "listDrafts", "getRevision", "getParagraphSource", "generateListOfDates", "generateSynopsis",
-      "openRevisionInEditor", "insertFromNotebook", "saveRevision", "approveRevision",
+      "openRevisionInEditor", "insertFromNotebook", "checkDraft", "saveRevision", "approveRevision",
     ].sort(),
   );
   await app.close();

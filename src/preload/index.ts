@@ -14,6 +14,7 @@ const api: OpenAdvoApi = {
   getChat: (matterId) => ipcRenderer.invoke("chat:get", matterId),
   listModels: () => ipcRenderer.invoke("models:list"),
   getModel: () => ipcRenderer.invoke("models:get"),
+  checkDraft: (matterId, draftId) => ipcRenderer.invoke("drafts:check", matterId, draftId),
   setModel: (key) => ipcRenderer.invoke("models:set", key),
   getEffort: () => ipcRenderer.invoke("effort:get"),
   setEffort: (level) => ipcRenderer.invoke("effort:set", level),

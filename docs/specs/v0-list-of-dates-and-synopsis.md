@@ -19,7 +19,7 @@ Step 4 of [../build-plan.md](../build-plan.md). Serves workflow section 8 (DOCX 
 
 **Surfaces.**
 
-- Editor view in the view pane: the harness bar (view switch Clean, Redline, Original; Save revision; Insert from Notebook; Show source of this paragraph; Check citations; Approve revision; status area) above the Word editor in a sandboxed frame.
+- Editor view: the Word editor in a sandboxed frame that fills the view. The harness bar (view switch Clean, Redline, Original; Save revision; Insert from Notebook; Show source of this paragraph; Check citations; Approve revision; status area) sits in the chat dock, left of the editor (decisions choice 20, 2026-11-14).
 - Bridge: queries `listDrafts`, `getRevision`, `getParagraphSource`; actions `generateListOfDates`, `generateSynopsis`, `openRevisionInEditor`, `insertFromNotebook`; human-only actions `saveRevision`, `approveRevision`.
 - Agent tools (read only): `read_draft`, `get_paragraph_source`.
 
