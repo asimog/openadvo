@@ -22,6 +22,12 @@ const api: OpenAdvoApi = {
   listReviewItems: (matterId) => ipcRenderer.invoke("review:list", matterId),
   resolveReviewItem: (matterId, itemId) => ipcRenderer.invoke("review:resolve", matterId, itemId),
   skipReviewItem: (matterId, itemId) => ipcRenderer.invoke("review:skip", matterId, itemId),
+  getNotebook: (matterId) => ipcRenderer.invoke("notebook:get", matterId),
+  confirmEvent: (matterId, eventId) => ipcRenderer.invoke("notebook:confirmed", matterId, eventId),
+  rejectEvent: (matterId, eventId) => ipcRenderer.invoke("notebook:rejected", matterId, eventId),
+  excludeEvent: (matterId, eventId) => ipcRenderer.invoke("notebook:excluded", matterId, eventId),
+  includeEvent: (matterId, eventId) => ipcRenderer.invoke("notebook:included", matterId, eventId),
+  resolveConflict: (matterId, conflictId, resolution) => ipcRenderer.invoke("notebook:resolveConflict", matterId, conflictId, resolution),
   onIngestUpdate: (listener) => {
     const handler = (_event: unknown, matterId: string) => listener(matterId);
     ipcRenderer.on("ingest:update", handler);

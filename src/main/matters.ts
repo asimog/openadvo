@@ -18,6 +18,9 @@ import {
   type PageRecord,
   type AnchorRecord,
   type ReviewItem,
+  type Notebook,
+  type EventInput,
+  type EventDecision,
 } from "../lib/matter-store/index.ts";
 
 const MATTER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -135,6 +138,42 @@ export class Matters {
   /** Human-only (decision 5): reached from the bridge, never from an agent tool. */
   async decideReviewItem(matterId: string, itemId: string, status: "resolved" | "skipped"): Promise<ReviewItem> {
     return (await this.store(matterId)).decideReviewItem(itemId, status, { actor: "advocate" });
+  }
+
+  // ---- Step 3: the Notebook. ----
+
+  async sourcesToExtract(matterId: string): Promise<SourceRecord[]> {
+    return (await this.store(matterId)).sourcesToExtract();
+  }
+
+  async sourceLines(matterId: string, sourceId: string) {
+    return (await this.store(matterId)).sourceLines(sourceId);
+  }
+
+  async recordEvents(matterId: string, sourceId: string, events: EventInput[], method: string): Promise<void> {
+    (await this.store(matterId)).recordEvents(sourceId, events, method);
+  }
+
+  async recordConflicts(matterId: string, pairs: Array<[string, string]>): Promise<number> {
+    return (await this.store(matterId)).recordConflicts(pairs);
+  }
+
+  async notebook(matterId: string): Promise<Notebook> {
+    return (await this.store(matterId)).notebook();
+  }
+
+  /** Human-only (decision 5). */
+  async decideEvent(matterId: string, eventId: string, decision: EventDecision): Promise<Notebook> {
+    const store = await this.store(matterId);
+    store.decideEvent(eventId, decision, { actor: "advocate" });
+    return store.notebook();
+  }
+
+  /** Human-only (decision 5). */
+  async resolveConflict(matterId: string, conflictId: string, resolution: string): Promise<Notebook> {
+    const store = await this.store(matterId);
+    store.resolveConflict(conflictId, resolution, { actor: "advocate" });
+    return store.notebook();
   }
 
   async title(matterId: string): Promise<string> {

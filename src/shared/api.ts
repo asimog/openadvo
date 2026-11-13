@@ -2,9 +2,9 @@
  * The bridge contract between the preload script and the renderer.
  * Types only. The renderer calls these named functions; it has no other access.
  */
-import type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord } from "./records.ts";
+import type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict } from "./records.ts";
 
-export type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord };
+export type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict };
 
 export type ChatRole = "advocate" | "agent" | "tool" | "notice";
 
@@ -61,5 +61,13 @@ export interface OpenAdvoApi {
   resolveReviewItem(matterId: string, itemId: string): Promise<ReviewItem>;
   skipReviewItem(matterId: string, itemId: string): Promise<ReviewItem>;
   onIngestUpdate(listener: (matterId: string) => void): () => void;
+  getNotebook(matterId: string): Promise<Notebook>;
+  /** Human-only actions on Notebook events (decision 5). */
+  confirmEvent(matterId: string, eventId: string): Promise<Notebook>;
+  rejectEvent(matterId: string, eventId: string): Promise<Notebook>;
+  excludeEvent(matterId: string, eventId: string): Promise<Notebook>;
+  includeEvent(matterId: string, eventId: string): Promise<Notebook>;
+  /** resolution: the id of the event whose date is right, or "both". */
+  resolveConflict(matterId: string, conflictId: string, resolution: string): Promise<Notebook>;
   onChatEvent(listener: (event: ChatEvent) => void): () => void;
 }

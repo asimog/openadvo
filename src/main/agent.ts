@@ -20,13 +20,13 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { randomUUID } from "node:crypto";
-import type { AnchorRecord, PageRecord, SourceRecord } from "../lib/matter-store/index.ts";
+import type { AnchorRecord, PageRecord, SourceRecord, Notebook, NotebookEvent } from "../lib/matter-store/index.ts";
 import type { ChatEvent, ChatMessage, ChatState, ModelChoice } from "../shared/api.ts";
 import type { Api, Model } from "@earendil-works/pi-ai";
 
 /** The allowlist. Step 1 has one read-only tool (spec rule 5). */
 /** The allowlist. Every tool is read only (decision 2; step 1 rule 5). */
-export const AGENT_TOOLS = ["list_sources", "read_source_text", "search_sources"] as const;
+export const AGENT_TOOLS = ["list_sources", "read_source_text", "search_sources", "list_events", "get_chronology"] as const;
 
 /** At most this many pages per read_source_text call, so one result never crowds the model out. */
 export const MAX_PAGES_PER_READ = 10;
@@ -35,6 +35,7 @@ export interface AgentHost {
   listSources(matterId: string): Promise<SourceRecord[]>;
   listPages(matterId: string, sourceId: string, from: number, to: number): Promise<PageRecord[]>;
   searchLines(matterId: string, query: string, limit: number): Promise<AnchorRecord[]>;
+  notebook(matterId: string): Promise<Notebook>;
   matterTitle(matterId: string): Promise<string>;
   recordSession(matterId: string, sessionId: string, model: string | null): Promise<void>;
   emit(event: ChatEvent): void;
@@ -55,6 +56,7 @@ function systemPrompt(title: string): string {
     "You are the Open Advocate agent. You work for an Advocate-on-Record of the Supreme Court of India.",
     `The open matter is: ${title}.`,
     "Your tools are read only: list_sources (the source files), read_source_text (the text of pages of one source, line by line) and search_sources (find a phrase; returns source, page and line).",
+    "The Notebook holds dated events extracted by fixed rules: list_events (every field, with filters) and get_chronology (the events the advocate has not excluded, by date). Events are candidates until the advocate confirms them. You cannot confirm, reject or exclude anything.",
     "When you state a fact from a source, cite it as [source name, p. N, l. M]. OCR text is a single reading, not cross-checked: say so when you rely on it.",
     "You cannot add, change or delete anything in the matter. The advocate decides every legal point.",
     "When a request needs a capability you do not have, say so plainly. Never invent sources, hashes or facts.",
@@ -87,6 +89,18 @@ export function formatPages(source: SourceRecord, pages: PageRecord[]): string {
       return [head, ...p.lines.map((l) => `[l. ${l.line}] ${l.text}`)].join("\n");
     })
     .join("\n\n");
+}
+
+export function formatEvent(e: NotebookEvent): string {
+  const date = e.dateStart === e.dateEnd ? e.dateStart : `${e.dateStart} to ${e.dateEnd}`;
+  const flags = [
+    e.status,
+    e.dateType !== "explicit" ? `date ${e.dateType}` : "",
+    e.reading === "ocr" ? "OCR single reading" : "",
+    e.excluded ? "excluded from the chronology" : "",
+    e.conflicts.length ? "DATE CONFLICT open" : "",
+  ].filter(Boolean).join(", ");
+  return `${date} (${e.dateText}) [${e.kind}; ${flags}] ${e.description} — [${e.sourceName}, p. ${e.page}, l. ${e.line}] id ${e.id}`;
 }
 
 function formatSources(sources: SourceRecord[]): string {
@@ -253,6 +267,38 @@ export class Agent {
         return { content: [{ type: "text", text }], details: { hits: hits.length } };
       },
     });
+    const listEvents = defineTool({
+      name: "list_events",
+      label: "List Notebook events",
+      description: "List the Notebook's dated events with every field: date, date type, kind, status, reading, conflicts and source line.",
+      parameters: Type.Object({
+        kind: Type.Optional(Type.Union([Type.Literal("procedural"), Type.Literal("factual")])),
+        status: Type.Optional(Type.Union([Type.Literal("candidate"), Type.Literal("confirmed"), Type.Literal("rejected")])),
+        from_date: Type.Optional(Type.String({ description: "YYYY-MM-DD" })),
+        to_date: Type.Optional(Type.String({ description: "YYYY-MM-DD" })),
+        limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 300 })),
+      }),
+      execute: async (_id, p) => {
+        const nb = await host.notebook(matterId);
+        const events = nb.events
+          .filter((e) => (!p.kind || e.kind === p.kind) && (!p.status || e.status === p.status))
+          .filter((e) => (!p.from_date || e.dateEnd >= p.from_date) && (!p.to_date || e.dateStart <= p.to_date))
+          .slice(0, p.limit ?? 150);
+        const head = `${events.length} of ${nb.events.length} events. Notebook ${nb.readiness.ready ? "ready" : `not ready (${nb.readiness.jobsPending} files still being read, ${nb.readiness.openReviewItems} review items open)`}.`;
+        return { content: [{ type: "text", text: [head, ...events.map(formatEvent)].join("\n") }], details: { events: events.length } };
+      },
+    });
+    const getChronology = defineTool({
+      name: "get_chronology",
+      label: "Get chronology",
+      description: "The chronology: events the advocate has not excluded or rejected, in date order.",
+      parameters: Type.Object({}),
+      execute: async () => {
+        const nb = await host.notebook(matterId);
+        const events = nb.events.filter((e) => !e.excluded && e.status !== "rejected");
+        return { content: [{ type: "text", text: events.length ? events.map(formatEvent).join("\n") : "The chronology is empty." }], details: { events: events.length } };
+      },
+    });
     const runtime = await this.modelRuntime();
     const model = await this.model();
     const { session } = await createAgentSession({
@@ -265,7 +311,7 @@ export class Agent {
       settingsManager: SettingsManager.inMemory({ compaction: { enabled: false } }),
       sessionManager: SessionManager.inMemory(this.options.agentDir),
       tools: [...AGENT_TOOLS],
-      customTools: [listSources, readSourceText, searchSources],
+      customTools: [listSources, readSourceText, searchSources, listEvents, getChronology],
     });
     const active = session.getActiveToolNames();
     if (active.length !== AGENT_TOOLS.length || !AGENT_TOOLS.every((t) => active.includes(t))) {

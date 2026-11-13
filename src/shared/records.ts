@@ -113,3 +113,65 @@ export interface PageInput {
   lines: Array<{ line: number; x: number; y: number; w: number; h: number; text: string }>;
   ocr?: { engine: string; version: string; confidence: number };
 }
+
+export type EventStatus = "candidate" | "confirmed" | "rejected";
+export type EventDecision = "confirmed" | "rejected" | "excluded" | "included";
+
+/** One event of the Factual Matrix: the fields of workflow section 6. */
+export interface NotebookEvent {
+  id: string;
+  sourceId: string;
+  sourceName: string;
+  anchorId: string;
+  page: number;
+  line: number;
+  dateText: string;
+  dateStart: string;
+  dateEnd: string;
+  dateType: "explicit" | "inferred" | "range";
+  description: string;
+  kind: "procedural" | "factual";
+  reading: "text_layer" | "ocr";
+  method: string;
+  status: EventStatus;
+  excluded: boolean;
+  conflicts: string[];
+}
+
+export interface DateConflict {
+  id: string;
+  eventA: string;
+  eventB: string;
+  status: "open" | "resolved";
+  resolution: string | null;
+  reviewItemId: string;
+}
+
+export interface Readiness {
+  ready: boolean;
+  jobsPending: number;
+  openReviewItems: number;
+}
+
+export interface Notebook {
+  events: NotebookEvent[];
+  conflicts: DateConflict[];
+  readiness: Readiness;
+}
+
+/** An event as the extraction rules produce it (input to the matter store). */
+export interface EventInput {
+  id: string;
+  sourceId: string;
+  anchorId: string;
+  page: number;
+  line: number;
+  dateText: string;
+  dateStart: string;
+  dateEnd: string;
+  dateType: "explicit" | "inferred" | "range";
+  description: string;
+  kind: "procedural" | "factual";
+  reading: "text_layer" | "ocr";
+  method: string;
+}

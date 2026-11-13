@@ -11,9 +11,9 @@ import { createReadStream } from "node:fs";
 import { mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState } from "../../shared/records.ts";
+import type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus } from "../../shared/records.ts";
 
-export type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState };
+export type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus };
 
 /** An anchor id: the source's SHA-256, the page and the line. It survives a rename. */
 export function anchorId(sha256: string, page: number, line: number): string {
@@ -133,6 +133,49 @@ CREATE TRIGGER IF NOT EXISTS anchor_no_delete BEFORE DELETE ON anchor BEGIN SELE
 CREATE TRIGGER IF NOT EXISTS ocr_no_update BEFORE UPDATE ON ocr_reading BEGIN SELECT RAISE(ABORT, 'OCR readings are written once'); END;
 CREATE TRIGGER IF NOT EXISTS ocr_no_delete BEFORE DELETE ON ocr_reading BEGIN SELECT RAISE(ABORT, 'OCR readings are written once'); END;
 CREATE TRIGGER IF NOT EXISTS review_no_delete BEFORE DELETE ON review_item BEGIN SELECT RAISE(ABORT, 'review items are marked, never deleted'); END;
+CREATE TABLE IF NOT EXISTS notebook_extract (
+  source_id TEXT PRIMARY KEY REFERENCES source(id),
+  events INTEGER NOT NULL,
+  method TEXT NOT NULL,
+  at TEXT NOT NULL
+) STRICT;
+CREATE TABLE IF NOT EXISTS notebook_event (
+  id TEXT PRIMARY KEY,
+  source_id TEXT NOT NULL REFERENCES source(id),
+  anchor_id TEXT NOT NULL REFERENCES anchor(id),
+  page INTEGER NOT NULL,
+  line INTEGER NOT NULL,
+  date_text TEXT NOT NULL,
+  date_start TEXT NOT NULL,
+  date_end TEXT NOT NULL,
+  date_type TEXT NOT NULL CHECK (date_type IN ('explicit', 'inferred', 'range')),
+  description TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('procedural', 'factual')),
+  reading TEXT NOT NULL CHECK (reading IN ('text_layer', 'ocr')),
+  method TEXT NOT NULL,
+  created_at TEXT NOT NULL
+) STRICT;
+CREATE TABLE IF NOT EXISTS event_decision (
+  seq INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id TEXT NOT NULL REFERENCES notebook_event(id),
+  decision TEXT NOT NULL CHECK (decision IN ('confirmed', 'rejected', 'excluded', 'included')),
+  actor TEXT NOT NULL CHECK (actor = 'advocate'),
+  at TEXT NOT NULL
+) STRICT;
+CREATE TABLE IF NOT EXISTS date_conflict (
+  id TEXT PRIMARY KEY,
+  event_a TEXT NOT NULL REFERENCES notebook_event(id),
+  event_b TEXT NOT NULL REFERENCES notebook_event(id),
+  review_item_id TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('open', 'resolved')),
+  resolution TEXT,
+  UNIQUE (event_a, event_b)
+) STRICT;
+CREATE TRIGGER IF NOT EXISTS notebook_event_no_update BEFORE UPDATE ON notebook_event BEGIN SELECT RAISE(ABORT, 'events are written once'); END;
+CREATE TRIGGER IF NOT EXISTS notebook_event_no_delete BEFORE DELETE ON notebook_event BEGIN SELECT RAISE(ABORT, 'events are written once'); END;
+CREATE TRIGGER IF NOT EXISTS decision_no_update BEFORE UPDATE ON event_decision BEGIN SELECT RAISE(ABORT, 'decisions are append-only'); END;
+CREATE TRIGGER IF NOT EXISTS decision_no_delete BEFORE DELETE ON event_decision BEGIN SELECT RAISE(ABORT, 'decisions are append-only'); END;
+CREATE TRIGGER IF NOT EXISTS conflict_no_delete BEFORE DELETE ON date_conflict BEGIN SELECT RAISE(ABORT, 'conflicts are marked, never deleted'); END;
 `;
 
 function now(): string {
@@ -438,12 +481,13 @@ export class MatterStore {
     this.appendEvent({ actor: "system" }, "ingest.failed", sourceId, { error });
   }
 
-  private openReviewItem(kind: string, sourceId: string | null, page: number | null, detail: string): void {
+  private openReviewItem(kind: string, sourceId: string | null, page: number | null, detail: string): string {
     const id = randomUUID();
     this.db
       .prepare("INSERT INTO review_item (id, kind, source_id, page, detail, status, created_at) VALUES (?, ?, ?, ?, ?, 'open', ?)")
       .run(id, kind, sourceId, page, detail, now());
     this.appendEvent({ actor: "system" }, "review_item.opened", id, { kind, sourceId, page });
+    return id;
   }
 
   listReviewItems(): ReviewItem[] {
@@ -520,6 +564,138 @@ export class MatterStore {
     if (!q) return [];
     const escaped = q.replace(/[\\%_]/g, (c) => "\\" + c);
     return this.anchorRows("SELECT a.* FROM anchor a JOIN source s ON s.id = a.source_id WHERE a.text LIKE ? ESCAPE '\\' ORDER BY s.added_at, a.page, a.line LIMIT ?", `%${escaped}%`, limit);
+  }
+
+  // ---- Notebook records (step 3). Computed by lib/notebook, written only here. ----
+
+  /** Sources whose text is read and whose events are not yet extracted. */
+  sourcesToExtract(): SourceRecord[] {
+    const done = new Set((this.db.prepare("SELECT source_id FROM notebook_extract").all() as Array<{ source_id: string }>).map((r) => r.source_id));
+    const read = new Set(this.listJobs().filter((j) => j.state === "done").map((j) => j.sourceId));
+    return this.listSources().filter((s) => read.has(s.id) && !done.has(s.id));
+  }
+
+  /** Every stored line of one source, in page and line order, with the reading of its page. */
+  sourceLines(sourceId: string): Array<AnchorRecord & { reading: "text_layer" | "ocr" }> {
+    const kinds = new Map((this.db.prepare("SELECT page, kind FROM page WHERE source_id = ?").all(sourceId) as Array<{ page: number; kind: string }>).map((r) => [Number(r.page), r.kind]));
+    return this.anchorRows("SELECT * FROM anchor WHERE source_id = ? ORDER BY page, line", sourceId).map((a) => ({
+      ...a,
+      reading: kinds.get(a.page) === "ocr" ? "ocr" : "text_layer",
+    }));
+  }
+
+  recordEvents(sourceId: string, events: EventInput[], method: string): void {
+    this.db.exec("BEGIN");
+    try {
+      const insert = this.db.prepare(
+        "INSERT INTO notebook_event (id, source_id, anchor_id, page, line, date_text, date_start, date_end, date_type, description, kind, reading, method, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      );
+      const at = now();
+      for (const e of events) insert.run(e.id, sourceId, e.anchorId, e.page, e.line, e.dateText, e.dateStart, e.dateEnd, e.dateType, e.description, e.kind, e.reading, e.method, at);
+      this.db.prepare("INSERT INTO notebook_extract (source_id, events, method, at) VALUES (?, ?, ?, ?)").run(sourceId, events.length, method, at);
+      this.db.exec("COMMIT");
+    } catch (e) {
+      this.db.exec("ROLLBACK");
+      throw e;
+    }
+    this.appendEvent({ actor: "system" }, "notebook.events_extracted", sourceId, { events: events.length, method });
+  }
+
+  /** Flag date conflicts. A pair already recorded is not flagged again. */
+  recordConflicts(pairs: Array<[string, string]>): number {
+    let added = 0;
+    for (const [a, b] of pairs) {
+      const exists = this.db.prepare("SELECT 1 FROM date_conflict WHERE (event_a = ? AND event_b = ?) OR (event_a = ? AND event_b = ?)").get(a, b, b, a);
+      if (exists) continue;
+      const rows = this.db.prepare("SELECT id, source_id, page, line, date_text FROM notebook_event WHERE id IN (?, ?)").all(a, b) as Array<Record<string, unknown>>;
+      const name = (sid: unknown) => this.getSource(String(sid))?.name ?? String(sid);
+      const describe = (r: Record<string, unknown>) => `${r.date_text} (${name(r.source_id)}, p. ${r.page}, l. ${r.line})`;
+      const ra = rows.find((r) => r.id === a)!;
+      const rb = rows.find((r) => r.id === b)!;
+      const reviewId = this.openReviewItem("date_conflict", String(ra.source_id), Number(ra.page), `Conflicting dates for the same event: ${describe(ra)} and ${describe(rb)}.`);
+      const id = randomUUID();
+      this.db.prepare("INSERT INTO date_conflict (id, event_a, event_b, review_item_id, status) VALUES (?, ?, ?, ?, 'open')").run(id, a, b, reviewId);
+      this.appendEvent({ actor: "system" }, "notebook.conflict_flagged", id, { eventA: a, eventB: b });
+      added++;
+    }
+    return added;
+  }
+
+  /** A human decision on an event (decision 5). Nothing is deleted; the latest decision counts. */
+  decideEvent(eventId: string, decision: EventDecision, ctx: WriteContext): void {
+    if (ctx.actor !== "advocate") throw new MatterStoreError("HUMAN_ONLY", "only the advocate decides an event");
+    const exists = this.db.prepare("SELECT 1 FROM notebook_event WHERE id = ?").get(eventId);
+    if (!exists) throw new MatterStoreError("EVENT_NOT_FOUND", eventId);
+    this.db.prepare("INSERT INTO event_decision (event_id, decision, actor, at) VALUES (?, ?, 'advocate', ?)").run(eventId, decision, now());
+    this.appendEvent(ctx, `notebook.event_${decision}`, eventId, null);
+  }
+
+  /** A human resolution of a date conflict: the event id whose date is right, or "both". */
+  resolveConflict(conflictId: string, resolution: string, ctx: WriteContext): void {
+    if (ctx.actor !== "advocate") throw new MatterStoreError("HUMAN_ONLY", "only the advocate resolves a conflict");
+    const row = this.db.prepare("SELECT event_a, event_b, review_item_id, status FROM date_conflict WHERE id = ?").get(conflictId) as Record<string, unknown> | undefined;
+    if (!row) throw new MatterStoreError("CONFLICT_NOT_FOUND", conflictId);
+    if (row.status !== "open") throw new MatterStoreError("ALREADY_DECIDED", conflictId);
+    if (![row.event_a, row.event_b, "both"].includes(resolution)) throw new MatterStoreError("BAD_RESOLUTION", resolution);
+    this.db.prepare("UPDATE date_conflict SET status = 'resolved', resolution = ? WHERE id = ?").run(resolution, conflictId);
+    this.appendEvent(ctx, "notebook.conflict_resolved", conflictId, { resolution });
+    const item = this.listReviewItems().find((r) => r.id === row.review_item_id);
+    if (item && item.status === "open") this.decideReviewItem(item.id, "resolved", ctx);
+  }
+
+  listConflicts(): DateConflict[] {
+    const rows = this.db.prepare("SELECT id, event_a, event_b, review_item_id, status, resolution FROM date_conflict").all() as Array<Record<string, unknown>>;
+    return rows.map((r) => ({
+      id: String(r.id),
+      eventA: String(r.event_a),
+      eventB: String(r.event_b),
+      reviewItemId: String(r.review_item_id),
+      status: r.status as "open" | "resolved",
+      resolution: r.resolution == null ? null : String(r.resolution),
+    }));
+  }
+
+  listNotebookEvents(): NotebookEvent[] {
+    const rows = this.db
+      .prepare(
+        `SELECT e.*, s.name AS source_name,
+           (SELECT decision FROM event_decision d WHERE d.event_id = e.id AND d.decision IN ('confirmed','rejected') ORDER BY seq DESC LIMIT 1) AS status,
+           (SELECT decision FROM event_decision d WHERE d.event_id = e.id AND d.decision IN ('excluded','included') ORDER BY seq DESC LIMIT 1) AS visibility
+         FROM notebook_event e JOIN source s ON s.id = e.source_id
+         ORDER BY e.date_start, s.added_at, e.page, e.line`,
+      )
+      .all() as Array<Record<string, unknown>>;
+    const conflicts = this.listConflicts().filter((c) => c.status === "open");
+    return rows.map((r) => ({
+      id: String(r.id),
+      sourceId: String(r.source_id),
+      sourceName: String(r.source_name),
+      anchorId: String(r.anchor_id),
+      page: Number(r.page),
+      line: Number(r.line),
+      dateText: String(r.date_text),
+      dateStart: String(r.date_start),
+      dateEnd: String(r.date_end),
+      dateType: r.date_type as NotebookEvent["dateType"],
+      description: String(r.description),
+      kind: r.kind as NotebookEvent["kind"],
+      reading: r.reading as NotebookEvent["reading"],
+      method: String(r.method),
+      status: (r.status == null ? "candidate" : String(r.status)) as EventStatus,
+      excluded: r.visibility === "excluded",
+      conflicts: conflicts.filter((c) => c.eventA === r.id || c.eventB === r.id).map((c) => c.id),
+    }));
+  }
+
+  /** Notebook readiness (Appendix B-D): no job queued or running, and no review item open. */
+  readiness(): Readiness {
+    const jobsPending = this.sourcesToIngest().length;
+    const openReviewItems = this.listReviewItems().filter((r) => r.status === "open").length;
+    return { ready: jobsPending === 0 && openReviewItems === 0, jobsPending, openReviewItems };
+  }
+
+  notebook(): Notebook {
+    return { events: this.listNotebookEvents(), conflicts: this.listConflicts(), readiness: this.readiness() };
   }
 
   listEvents(limit = 500): EventRecord[] {

@@ -7,6 +7,7 @@
 import { readFile } from "node:fs/promises";
 import { processPdf } from "../lib/document-intelligence/index.ts";
 import type { Matters } from "./matters.ts";
+import { extractNotebook } from "./notebook.ts";
 
 export class Ingest {
   private matters: Matters;
@@ -38,7 +39,11 @@ export class Ingest {
     // Re-read the list after each job, so files added during a job are picked up too.
     for (;;) {
       const [source] = await this.matters.sourcesToIngest(matterId);
-      if (!source) return;
+      if (!source) {
+        // Every source is read: build the Notebook from the new text (step 3).
+        if ((await extractNotebook(this.matters, matterId)) > 0) this.notify(matterId);
+        return;
+      }
       if (!(await this.matters.startJob(matterId, source.id))) {
         this.notify(matterId);
         continue;

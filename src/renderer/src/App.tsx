@@ -8,6 +8,7 @@ import { Text } from "@astryxdesign/core/Text";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Table, pixel, proportional, useTableSortable, useTableSortableState } from "@astryxdesign/core/Table";
+import { NotebookView, type SourceLink } from "./Notebook.tsx";
 import type {
   AddFileResult,
   ChatEvent,
@@ -19,6 +20,7 @@ import type {
   IngestJob,
   PageRecord,
   ReviewItem,
+  Notebook,
   SourceRecord,
 } from "../../shared/api.ts";
 
@@ -204,9 +206,13 @@ const KIND_TEXT: Record<string, string> = {
 };
 
 /** The stored text of each page, line by line, with the anchor of every line. */
-function PageText(props: { matterId: string; sourceId: string; version: number }) {
+function PageText(props: { matterId: string; sourceId: string; version: number; focus?: SourceLink | null }) {
   const [pages, setPages] = useState<PageRecord[]>([]);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(props.focus?.page ?? 1);
+  useEffect(() => {
+    if (props.focus) setPage(props.focus.page);
+  }, [props.focus]);
+  const focusLine = props.focus && props.focus.page === page ? props.focus.line : 0;
   useEffect(() => {
     void api.getSourcePages(props.matterId, props.sourceId).then(setPages);
   }, [props.matterId, props.sourceId, props.version]);
@@ -225,7 +231,7 @@ function PageText(props: { matterId: string; sourceId: string; version: number }
       </div>
       <ol className="page-lines" data-testid="page-lines">
         {current.lines.map((l) => (
-          <li key={l.id} title={`Anchor ${l.sha256.slice(0, 12)}…:${l.page}:${l.line}`}>
+          <li key={l.id} data-focus={l.line === focusLine} ref={l.line === focusLine ? (el) => el?.scrollIntoView({ block: "center" }) : undefined} title={`Anchor ${l.sha256.slice(0, 12)}…:${l.page}:${l.line}`}>
             <span className="line-no">{l.line}</span>
             <span>{l.text}</span>
           </li>
@@ -261,7 +267,7 @@ function ReviewList(props: { matterId: string; items: ReviewItem[]; sources: Sou
   );
 }
 
-function SourceDetail(props: { matterId: string; source: SourceRecord; events: EventRecord[]; version: number }) {
+function SourceDetail(props: { matterId: string; source: SourceRecord; events: EventRecord[]; version: number; focus: SourceLink | null }) {
   const [origins, setOrigins] = useState<OriginRecord[]>([]);
   useEffect(() => {
     void api.listOrigins(props.matterId, props.source.id).then(setOrigins);
@@ -271,7 +277,7 @@ function SourceDetail(props: { matterId: string; source: SourceRecord; events: E
     <div className="source-detail">
       <Heading level={2}>{props.source.name}</Heading>
       <SourceViewer matterId={props.matterId} sourceId={props.source.id} />
-      <PageText matterId={props.matterId} sourceId={props.source.id} version={props.version} />
+      <PageText matterId={props.matterId} sourceId={props.source.id} version={props.version} focus={props.focus} />
       <details>
       <summary>Hash, origins and events</summary>
       <dl className="facts">
@@ -439,6 +445,8 @@ export function App() {
   const [jobs, setJobs] = useState<IngestJob[]>([]);
   const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
   const [version, setVersion] = useState(0);
+  const [nb, setNb] = useState<Notebook | null>(null);
+  const [focus, setFocus] = useState<SourceLink | null>(null);
   const [sourceId, setSourceId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -454,6 +462,7 @@ export function App() {
     setEvents(await api.listEvents(id));
     setJobs(await api.listJobs(id));
     setReviewItems(await api.listReviewItems(id));
+    setNb(await api.getNotebook(id));
     setVersion((v) => v + 1);
   }, []);
 
@@ -474,6 +483,7 @@ export function App() {
       setEvents(await api.listEvents(id));
       setJobs(await api.listJobs(id));
       setReviewItems(await api.listReviewItems(id));
+      setNb(await api.getNotebook(id));
       const bad = checked.filter((s) => s.status !== "ok");
       if (bad.length) setNotice(`${bad.length} source file(s) are missing or changed: ${bad.map((s) => `${s.name} (${s.status})`).join(", ")}.`);
     },
@@ -543,7 +553,7 @@ export function App() {
                     <Text type="supporting">Drop PDF files here</Text>
                   </div>
                   {notice ? <div className="notice" role="status" data-testid="notice">{notice}</div> : null}
-                  <SourcesTable sources={sources} jobs={jobs} selected={sourceId} onSelect={setSourceId} />
+                  <SourcesTable sources={sources} jobs={jobs} selected={sourceId} onSelect={(id) => { setFocus(null); setSourceId(id); }} />
                 </section>
               ) : null}
             </div>
@@ -558,8 +568,22 @@ export function App() {
             </div>
             <div className="pane-scroll">
               {!matter ? <Text type="supporting">Create or open a matter. Then drop the PDFs of the brief into it.</Text> : null}
-              {matter && source ? <SourceDetail matterId={matter.id} source={source} events={events} version={version} /> : null}
+              {matter && source ? <SourceDetail matterId={matter.id} source={source} events={events} version={version} focus={focus} /> : null}
               {matter && !source ? (
+                <NotebookView
+                  matterId={matter.id}
+                  nb={nb}
+                  sources={sources}
+                  jobs={jobs}
+                  onChange={(next) => {
+                    setNb(next);
+                    void refreshMatter(matter.id);
+                  }}
+                  onOpen={(link) => {
+                    setFocus(link);
+                    setSourceId(link.sourceId);
+                  }}
+                  overview={
                 <div>
                   <dl className="facts">
                     <dt>Sources</dt><dd>{sources.length}</dd>
@@ -572,6 +596,8 @@ export function App() {
                   <Heading level={3}>Events</Heading>
                   <EventTable events={events} />
                 </div>
+                  }
+                />
               ) : null}
             </div>
           </div>

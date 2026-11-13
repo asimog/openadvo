@@ -74,6 +74,11 @@ function registerBridge(): void {
   // Human-only actions (decision 5): bridge functions, never agent tools.
   handle("review:resolve", (matterId: string, itemId: string) => matters.decideReviewItem(matterId, itemId, "resolved"));
   handle("review:skip", (matterId: string, itemId: string) => matters.decideReviewItem(matterId, itemId, "skipped"));
+  handle("notebook:get", (matterId: string) => matters.notebook(matterId));
+  for (const decision of ["confirmed", "rejected", "excluded", "included"] as const) {
+    handle(`notebook:${decision}`, (matterId: string, eventId: string) => matters.decideEvent(matterId, eventId, decision));
+  }
+  handle("notebook:resolveConflict", (matterId: string, conflictId: string, resolution: string) => matters.resolveConflict(matterId, conflictId, resolution));
   handle("view:openSource", async (matterId: string, sourceId: string) => {
     const file = await matters.sourceFile(matterId, sourceId);
     return editorHost.open(file.path, file.name, "pdf", true);
@@ -181,6 +186,7 @@ app.whenReady().then(() => {
       listSources: (id) => matters.listSources(id),
       listPages: (id, sourceId, from, to) => matters.listPages(id, sourceId, from, to),
       searchLines: (id, query, limit) => matters.searchLines(id, query, limit),
+      notebook: (id) => matters.notebook(id),
       matterTitle: (id) => matters.title(id),
       recordSession: (id, sessionId, model) => matters.recordAgentSession(id, sessionId, model),
       emit: emitChat,
