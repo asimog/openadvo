@@ -372,14 +372,15 @@ export class Agent {
    * V4-3: one plain model call with no tool, for the argument loop. The same model and
    * credentials as the chat. Returns null when no model is available.
    */
-  async completer(): Promise<{ model: string; complete: (system: string, user: string) => Promise<string> } | null> {
+  async completer(): Promise<{ model: string; complete: (system: string, user: string, sessionId?: string) => Promise<string> } | null> {
     const model = await this.model();
     if (!model) return null;
     const runtime = await this.modelRuntime();
     return {
       model: keyOf(model),
-      complete: async (system, user) => {
-        const msg = await runtime.completeSimple(model, { systemPrompt: system, messages: [{ role: "user", content: user, timestamp: Date.now() }] });
+      complete: async (system, user, sessionId) => {
+        // Some providers route by session (opencode sends x-opencode-session): one id per loop run.
+        const msg = await runtime.completeSimple(model, { systemPrompt: system, messages: [{ role: "user", content: user, timestamp: Date.now() }] }, { sessionId });
         if (msg.stopReason === "error" || msg.stopReason === "aborted") throw new Error(msg.errorMessage || `the model stopped: ${msg.stopReason}`);
         return msg.content.map((b) => (b.type === "text" ? b.text : "")).join("");
       },
@@ -598,7 +599,7 @@ export class Agent {
       defineTool({
         name: "search_judgments",
         label: "Search judgments",
-        description: "Search the local index of Supreme Court or High Court judgments (AWS Open Data metadata: title, parties, judge, citation, INSC number, CNR, date, disposal). Only indexed years are searched; the result says which.",
+        description: "Search the local index of Supreme Court or High Court judgments (AWS Open Data metadata: title, parties, judge, citation, INSC number, CNR, date, disposal). It holds no judgment text, so search by party, citation or CNR; to search by subject use web_search, which links results that name an indexed neutral citation to the court copy.",
         parameters: Type.Object({
           court: Type.Union([Type.Literal("sc"), Type.Literal("hc")]),
           query: Type.String({ description: "Party names, a citation such as 2023 INSC 1043, a CNR, a judge, or words of the title." }),

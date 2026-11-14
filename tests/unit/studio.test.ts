@@ -71,6 +71,16 @@ test("the staged validators reject with typed reasons and map aliases to ids", (
   if (ok.ok) assert.equal(reason(good, [`${ok.value.claim} ${ok.value.reasoning}`]), "DUPLICATE");
 });
 
+test("empty entries are no citation; aliases in a claim become labels", () => {
+  const al = aliases(ctx);
+  const c = parseCandidates(JSON.stringify({ arguments: [{ ...good, claim: "Under P1 and A1 the order in E1 is wrong.", provisions: [""], authorities: [{ ref: "", paragraph: "" }, { ref: "A1", paragraph: "12" }] }] }), { ground: "statutory", stance: "petitioner" })!.candidates[0];
+  assert.deepEqual(c.provisions, []);
+  assert.equal(c.authorities.length, 1);
+  const v = validate(c, al, []);
+  assert.equal(v.ok, true);
+  if (v.ok) assert.equal(v.value.claim, "Under [The Bharatiya Nagarik Suraksha Sanhita, 2023 s. 483] and [2023 INSC 1043] the order in [record 12.03.2024] is wrong.");
+});
+
 test("grounded semantics: an unattacked argument is in; its attacker's attacker reinstates it; a cycle is undecided", () => {
   const s = groundedStatus([
     { id: "a", attacks: null, status: "candidate" },
@@ -137,4 +147,40 @@ test("the loop: generate, validate, critique, attack and compare, with typed rej
   assert.deepEqual(questions.get(main[0].id), ["Was the delay attributable to the accused?"]);
   assert.ok(stats.calls >= 3 + 2 * 2);
   assert.ok(calls.every((c) => !/predict|probab/i.test(c)));
+});
+
+test("round 2 replies to the standing attacks; a grounded reply defeats its attack and the argument is in again", async () => {
+  const ids: Array<{ id: string; attacks: string | null; status: string }> = [];
+  let n = 0;
+  const complete = async (_s: string, user: string, label: string) => {
+    if (label.includes("-gen")) return label.includes("gen1") ? JSON.stringify({ arguments: [good] }) : "{}";
+    if (label.includes("-opponent")) return JSON.stringify({ arguments: [{ kind: "undercut", claim: "The order's silence on custody does not show custody was ignored.", reasoning: "E1 records only that the order did not refer to custody.", events: [{ ref: "E1", quote: "without reference to the period of custody" }], authorities: [], provisions: [] }] });
+    if (label.includes("-reply")) {
+      assert.match(user, /ARGUMENT OF THE RESPONDENT/);
+      return JSON.stringify({ arguments: [{ kind: "rebut", claim: "Four years of custody since 2020 had to be weighed expressly before refusing bail.", reasoning: "E2 shows custody since 01.01.2020 and A1 at para 12 makes long custody a ground for bail.", events: [{ ref: "E2", quote: "in custody since 01.01.2020" }], authorities: [{ ref: "A1", paragraph: "12" }], provisions: [] }] });
+    }
+    return label.includes("-critic") ? '{"questions":[]}' : '{"better":"A"}';
+  };
+  const stats = await runLoop({
+    complete,
+    context: ctx,
+    rounds: 2,
+    generators: 1,
+    archive: [],
+    rejections: () => [],
+    addArgument: (_r, v, attack) => {
+      const a = { id: `x${++n}`, ground: v.ground, stance: v.stance, claim: v.claim, reasoning: v.reasoning, elo: 1000, attacks: attack?.target ?? null };
+      ids.push({ id: a.id, attacks: a.attacks, status: "candidate" });
+      return a;
+    },
+    addRejection: () => undefined,
+    setQuestions: () => undefined,
+    setElo: () => undefined,
+  });
+  assert.equal(stats.replies, 1);
+  const status = groundedStatus(ids);
+  const main = ids.find((x) => !x.attacks)!;
+  const attack = ids.find((x) => x.attacks === main.id)!;
+  const reply = ids.find((x) => x.attacks === attack.id)!;
+  assert.deepEqual([status.get(reply.id), status.get(attack.id), status.get(main.id)], ["in", "out", "in"]);
 });

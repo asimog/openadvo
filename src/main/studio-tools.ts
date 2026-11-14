@@ -41,7 +41,7 @@ export function studioTools(hub: ResearchHub, studio: ArgumentStudio, matters: M
           return pagesText(await hub.read(matterId, "indiacode", s("id"), agent));
         case "web_search": {
           const r = await hub.search(matterId, "web", s("query"), { limit: 8 }, agent);
-          return `${r.notice}\n${r.hits.map((h, i) => `${i + 1}. ${h.title}\n   ${h.url}\n   ${h.detail}`).join("\n") || "No result."}`;
+          return `${r.notice}\n${r.hits.map((h, i) => `${i + 1}. ${h.title}\n   ${h.url}\n   ${h.detail}${h.courtCopy ? `\n   court copy in the index: ${h.courtCopy.insc}, ref ${h.courtCopy.ref} (read it with read_judgment)` : ""}`).join("\n") || "No result."}`;
         }
         case "web_fetch":
           return pagesText(await hub.read(matterId, "web", s("url"), agent), n("from_page") ?? 1);

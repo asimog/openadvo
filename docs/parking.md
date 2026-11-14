@@ -37,3 +37,8 @@ Each line: the idea, where it came from, and the step it would touch.
 | Code-sign the Windows build, make installers (NSIS, DMG, AppImage), and update automatically. Needs the owner's certificates and a machine per operating system. | V3-7 build, 2026-11-14 | V3-7, second version |
 | Pack the application code in an ASAR archive with the executables unpacked (the build now ships without ASAR, so the converter and the validator run from plain folders). | V3-7 build, 2026-11-14 | V3-7, second version |
 | An inspector that opens any record with the events that touched it (the earlier idea P9 above is still open). | V3 spec | After round 6 |
+| Point-in-time versions of statutes: the version in force on the governing date (IPC to BNS and the other 2024 transitions). India Code gives the current text only. | v4 spec | V4-1, second version |
+| Treatment edges between judgments (followed, distinguished, overruled, referred to a larger bench), from the judgments' text. | C1 section 5; v4 spec | V4-2, second version |
+| Full-text search of the judgments themselves. The AWS metadata has no text; the whole Supreme Court set is about 69 GB of PDFs. A text index of the fetched judgments only is possible now. | V4 build | V4-1, second version |
+| Indian Kanoon as a third resolver tier, with the advocate's own API key. | C1 section 5 | V4-1, second version |
+| A second, different model family for the critic and opposing counsel (C1 3.11: heterogeneous adversarial roles). The loop now uses the chat's model for every role. | C1 section 3.11 | V4-3, second version |

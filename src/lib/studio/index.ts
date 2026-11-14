@@ -165,9 +165,10 @@ export function parseCandidates(text: string, cell: Cell): { candidates: Candida
       stance: cell.stance,
       claim: str(o.claim),
       reasoning: str(o.reasoning),
-      events: Array.isArray(o.events) ? o.events.map((e) => ({ ref: str((e as Record<string, unknown>)?.ref), quote: str((e as Record<string, unknown>)?.quote) })) : [],
-      authorities: Array.isArray(o.authorities) ? o.authorities.map((a) => ({ ref: str((a as Record<string, unknown>)?.ref), paragraph: str((a as Record<string, unknown>)?.paragraph) })) : [],
-      provisions: Array.isArray(o.provisions) ? o.provisions.map(str) : [],
+      events: Array.isArray(o.events) ? o.events.map((e) => ({ ref: str((e as Record<string, unknown>)?.ref), quote: str((e as Record<string, unknown>)?.quote) })).filter((e) => e.ref || e.quote) : [],
+      authorities: Array.isArray(o.authorities) ? o.authorities.map((a) => ({ ref: str((a as Record<string, unknown>)?.ref), paragraph: str((a as Record<string, unknown>)?.paragraph) })).filter((a) => a.ref) : [],
+      // A model often writes an empty entry when it has none: an empty entry is no citation.
+      provisions: Array.isArray(o.provisions) ? o.provisions.map(str).filter(Boolean) : [],
     });
     kinds.push(str(o.kind).toLowerCase());
   }
@@ -246,16 +247,22 @@ export function validate(c: Candidate, al: Aliases, archived: string[]): Verdict
     provisions.push(pr.id);
   }
   if (events.length === 0 && authorities.length === 0) return { ok: false, reason: "NO_GROUNDING", detail: "it cites no record event and no authority" };
-  // The model's aliases in the reasoning become readable labels for the advocate.
-  const reasoning = c.reasoning.replace(/\b([EAP])(\d{1,3})\b/g, (m, k: string, n: string) => {
+  // The model's aliases become readable labels for the advocate.
+  const claim = labelAliases(c.claim, al);
+  const reasoning = labelAliases(c.reasoning, al);
+  // Compared in the same form as the archive holds it (aliases replaced).
+  const o = overlapWith(`${claim} ${reasoning}`, archived);
+  if (o >= DUPLICATE_OVERLAP) return { ok: false, reason: "DUPLICATE", detail: `${Math.round(o * 100)}% of its words repeat an argument already found` };
+  return { ok: true, value: { ground: c.ground, stance: c.stance as Stance, claim, reasoning, events, authorities, provisions } };
+}
+
+/** E1, A1, P1 in a model's text become the record date, the citation and the section. */
+export function labelAliases(text: string, al: Aliases): string {
+  return text.replace(/\b([EAP])(\d{1,3})\b/g, (m, k: string) => {
     if (k === "E") return al.events.get(m) ? `[record ${al.events.get(m)!.date}]` : m;
     if (k === "A") return al.authorities.get(m) ? `[${al.authorities.get(m)!.citation}]` : m;
-    return al.provisions.get(m) ? `[${al.provisions.get(m)!.act} s. ${al.provisions.get(m)!.section}]` : `${k}${n}`;
+    return al.provisions.get(m) ? `[${al.provisions.get(m)!.act} s. ${al.provisions.get(m)!.section}]` : m;
   });
-  // Compared in the same form as the archive holds it (aliases replaced).
-  const o = overlapWith(`${c.claim} ${reasoning}`, archived);
-  if (o >= DUPLICATE_OVERLAP) return { ok: false, reason: "DUPLICATE", detail: `${Math.round(o * 100)}% of its words repeat an argument already found` };
-  return { ok: true, value: { ground: c.ground, stance: c.stance as Stance, claim: c.claim, reasoning, events, authorities, provisions } };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -332,14 +339,19 @@ export interface LoopStats {
   generated: number;
   accepted: number;
   attacks: number;
+  /** Replies to standing attacks (rounds 2 and later). */
+  replies: number;
   rejected: Record<string, number>;
   comparisons: number;
 }
 
 const ATTACK_KINDS = new Set(["rebut", "undercut", "undermine"]);
 
+/** Replies per round, so the calls stay bounded. */
+export const MAX_REPLIES = 4;
+
 export async function runLoop(d: LoopDeps): Promise<LoopStats> {
-  const stats: LoopStats = { calls: 0, generated: 0, accepted: 0, attacks: 0, rejected: {}, comparisons: 0 };
+  const stats: LoopStats = { calls: 0, generated: 0, accepted: 0, attacks: 0, replies: 0, rejected: {}, comparisons: 0 };
   const al = aliases(d.context);
   const context = contextText(d.context, al);
   const archive = [...d.archive];
@@ -351,7 +363,30 @@ export async function runLoop(d: LoopDeps): Promise<LoopStats> {
     stats.rejected[reason] = (stats.rejected[reason] ?? 0) + 1;
     d.addRejection(round, cell, reason, detail, claim);
   };
+  let lastAttacks: ArchivedArgument[] = [];
   for (let round = 1; round <= d.rounds; round++) {
+    // 0. From round 2: counsel for the attacked side replies to the attacks of the last round.
+    if (lastAttacks.length) {
+      d.onProgress?.(`Round ${round}: replies to ${Math.min(lastAttacks.length, MAX_REPLIES)} attack(s)`);
+      await Promise.all(
+        lastAttacks.slice(0, MAX_REPLIES).map(async (att) => {
+          const answer = await call(opponentPrompt(context, att.claim, att.reasoning, att.stance), `r${round}-reply-${att.id.slice(0, 8)}`).catch(() => "");
+          const cell: Cell = { ground: att.ground as Ground, stance: att.stance === "petitioner" ? "respondent" : "petitioner" };
+          const parsed = parseCandidates(answer, cell);
+          if (!parsed) return;
+          const c = parsed.candidates[0];
+          if (!c) return;
+          stats.generated++;
+          const kind = parsed.kinds[0];
+          if (!ATTACK_KINDS.has(kind)) return reject(round, cell, "SCHEMA", `the reply kind "${kind}" is not rebut, undercut or undermine`, c.claim);
+          const v = validate(c, al, archive.map((x) => `${x.claim} ${x.reasoning}`));
+          if (!v.ok) return reject(round, cell, v.reason, v.detail, c.claim);
+          archive.push(d.addArgument(round, v.value, { target: att.id, kind: kind as "rebut" | "undercut" | "undermine" }));
+          stats.replies++;
+        }),
+      );
+    }
+    const attacksThisRound: ArchivedArgument[] = [];
     const counts = new Map<string, number>();
     for (const a of archive) if (!a.attacks) counts.set(`${a.ground}/${a.stance}`, (counts.get(`${a.ground}/${a.stance}`) ?? 0) + 1);
     const cells = pickCells(counts, d.generators);
@@ -359,7 +394,12 @@ export async function runLoop(d: LoopDeps): Promise<LoopStats> {
     // 1. Generate, in parallel.
     const answers = await Promise.all(cells.map((cell, i) => call(generatorPrompt(context, cell, d.rejections(cell).slice(0, 5), 2), `r${round}-gen${i + 1}-${cell.ground}`).then((t) => ({ cell, t }), (e: Error) => ({ cell, t: "", err: e.message }))));
     const fresh: ArchivedArgument[] = [];
-    for (const { cell, t } of answers) {
+    for (const answer of answers) {
+      const { cell, t } = answer;
+      if ("err" in answer) {
+        reject(round, cell, "MODEL_ERROR", `the model call failed: ${String(answer.err).slice(0, 300)}`, "");
+        continue;
+      }
       const parsed = parseCandidates(t, cell);
       if (!parsed || parsed.candidates.length === 0) {
         reject(round, cell, "SCHEMA", "the answer was not the JSON asked for", t.slice(0, 200));
@@ -387,7 +427,7 @@ export async function runLoop(d: LoopDeps): Promise<LoopStats> {
           call(criticPrompt(context, a.claim, a.reasoning), `r${round}-critic-${a.id.slice(0, 8)}`).catch(() => ""),
           call(opponentPrompt(context, a.claim, a.reasoning, a.stance), `r${round}-opponent-${a.id.slice(0, 8)}`).catch(() => ""),
         ]);
-        d.setQuestions(a.id, parseQuestions(q));
+        d.setQuestions(a.id, parseQuestions(q).map((x) => labelAliases(x, al)));
         const cell: Cell = { ground: a.ground as Ground, stance: a.stance === "petitioner" ? "respondent" : "petitioner" };
         const parsed = parseCandidates(opp, cell);
         if (!parsed) return;
@@ -403,11 +443,14 @@ export async function runLoop(d: LoopDeps): Promise<LoopStats> {
             reject(round, cell, v.reason, v.detail, c.claim);
             return;
           }
-          archive.push(d.addArgument(round, v.value, { target: a.id, kind: kind as "rebut" | "undercut" | "undermine" }));
+          const added = d.addArgument(round, v.value, { target: a.id, kind: kind as "rebut" | "undercut" | "undermine" });
+          archive.push(added);
+          attacksThisRound.push(added);
           stats.attacks++;
         });
       }),
     );
+    lastAttacks = attacksThisRound;
     // 4. Compare pairs within each cell (not attacks).
     const cellsNow = new Map<string, ArchivedArgument[]>();
     for (const a of archive) if (!a.attacks) cellsNow.set(`${a.ground}/${a.stance}`, [...(cellsNow.get(`${a.ground}/${a.stance}`) ?? []), a]);

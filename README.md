@@ -38,7 +38,7 @@ npm run build
 npx playwright test
 ```
 
-The tests that need a live model run only when `OPENADVO_LIVE_MODEL` names one. The smoke test of the installed build runs only after `npm run dist`.
+The tests that need a live model run only when `OPENADVO_LIVE_MODEL` names one. The tests that reach AWS Open Data, India Code and the web run only when `OPENADVO_LIVE_NET=1`. The smoke test of the installed build runs only after `npm run dist`.
 
 ## Where things are
 

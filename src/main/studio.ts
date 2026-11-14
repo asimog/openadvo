@@ -127,11 +127,19 @@ export class ResearchHub {
       const court = source === "aws_sc" ? "sc" : "hc";
       const parts = this.parts().filter((p) => p.source === court);
       if (parts.length === 0) return { hits: [], notice: `No ${court === "sc" ? "Supreme Court year" : "High Court"} is indexed yet. Index it first; until then this search cannot find anything.` };
-      const hits = this.corpus.search(q, { court, from: opts.from, to: opts.to, limit: opts.limit }).map(judgmentHit);
+      let found = this.corpus.search(q, { court, from: opts.from, to: opts.to, limit: opts.limit });
+      // A neutral citation in the query: the exact judgment comes first.
+      const insc = court === "sc" ? /\b(19[5-9]\d|20\d\d)\s*INSC\s*(\d{1,5})\b/i.exec(q) : null;
+      const exact = insc ? this.corpus.byInsc(`${insc[1]} INSC ${insc[2]}`) : undefined;
+      if (exact) found = [exact, ...found.filter((j) => j.id !== exact.id)];
+      const hits = found.map(judgmentHit);
       // A local search: nothing leaves the computer, but it is still part of the research log.
       await this.log(matterId, source, "search (local index)", q, ctx, hits.length);
       const years = parts.map((p) => p.year);
-      return { hits, notice: `Searched the local index: ${parts.length} part(s), years ${Math.min(...years)} to ${Math.max(...years)}. ${AWS_LICENCE}.` };
+      return {
+        hits,
+        notice: `Searched the local index: ${parts.length} part(s), years ${Math.min(...years)} to ${Math.max(...years)}. The index holds titles, parties, judges, citations and CNR numbers, not the judgments' text: to search by subject, search the web, then open the judgment here by its citation. ${AWS_LICENCE}.`,
+      };
     }
     this.allowed(source);
     if (source === "indiacode") {
@@ -144,7 +152,13 @@ export class ResearchHub {
     }
     const hits = await webSearch(q, opts.limit ?? 10);
     await this.log(matterId, source, "search", q, ctx, hits.length);
-    return { hits: hits.map((h) => ({ source, ref: h.url, title: h.title, detail: h.snippet, url: h.url })), notice: "Web results are for discovery only. They never verify a citation." };
+    // A web result that names a neutral citation is linked to the court's copy when that year is indexed.
+    const linked = hits.map((h): ResearchHit => {
+      const m = /(19[5-9]d|20dd)s*INSCs*(d{1,5})/i.exec(`${h.title} ${h.snippet}`);
+      const j = m ? this.corpus.byInsc(`${m[1]} INSC ${m[2]}`) : undefined;
+      return { source, ref: h.url, title: h.title, detail: h.snippet, url: h.url, ...(j ? { courtCopy: { ref: j.id, insc: j.insc, title: j.title } } : {}) };
+    });
+    return { hits: linked, notice: `Web results are for discovery only. They never verify a citation.${linked.some((h) => h.courtCopy) ? " Results that name an indexed neutral citation link to the court's own copy." : ""}` };
   }
 
   private async pdfPages(bytes: Uint8Array): Promise<CachedPage[]> {
@@ -233,7 +247,7 @@ export class ResearchHub {
 
 // ---------------------------------------------------------------------------------------------
 
-export type Completer = () => Promise<{ model: string; complete: (system: string, user: string) => Promise<string> } | null>;
+export type Completer = () => Promise<{ model: string; complete: (system: string, user: string, sessionId?: string) => Promise<string> } | null>;
 
 export class ArgumentStudio {
   private matters: Matters;
@@ -317,7 +331,7 @@ export class ArgumentStudio {
     let n = 0;
     const calls: Array<{ label: string; request: string; response: string }> = [];
     const complete = async (system: string, user: string, label: string) => {
-      const response = await c.complete(system, user);
+      const response = await c.complete(system, user, `openadvo-studio-${run.id}`);
       const i = ++n;
       const record = { label, model: c.model, system, user, response };
       const request = createHash("sha256").update(JSON.stringify({ system, user })).digest("hex");

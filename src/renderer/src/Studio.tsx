@@ -176,6 +176,7 @@ function SourcesPart(props: { matterId: string }) {
                 </div>
                 <div className="row-actions">
                   <Button label="Read" size="sm" variant="ghost" isDisabled={busy} clickAction={() => go(async () => { setDoc(await api.researchRead(props.matterId, h.source, h.ref)); setPage(1); })} />
+                  {h.courtCopy ? <Button label={`Read court copy (${h.courtCopy.insc})`} size="sm" isDisabled={busy} clickAction={() => go(async () => { setDoc(await api.researchRead(props.matterId, "aws_sc", h.courtCopy!.ref)); setPage(1); })} /> : null}
                   {h.source === "indiacode" ? <Button label="Save provision" size="sm" isDisabled={busy} clickAction={() => go(async () => { const p = await api.saveProvision(props.matterId, h.ref); setNote(`Saved: ${p.act}, section ${p.section}${p.repealed ? " (repealed)" : ""}.`); })} /> : null}
                 </div>
               </li>

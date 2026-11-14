@@ -24,7 +24,7 @@ export type Ground = (typeof GROUNDS)[number];
 export const STANCES = ["petitioner", "respondent"] as const;
 export type Stance = (typeof STANCES)[number];
 
-export const REJECTION_REASONS = ["SCHEMA", "UNGROUNDED_FACT", "UNKNOWN_AUTHORITY", "FAILED_CITATION", "REPEALED_PROVISION", "DUPLICATE", "NO_GROUNDING"] as const;
+export const REJECTION_REASONS = ["MODEL_ERROR", "SCHEMA", "UNGROUNDED_FACT", "UNKNOWN_AUTHORITY", "FAILED_CITATION", "REPEALED_PROVISION", "DUPLICATE", "NO_GROUNDING"] as const;
 export type RejectionReason = (typeof REJECTION_REASONS)[number];
 
 export interface ArgumentRun {
@@ -102,6 +102,8 @@ export interface ResearchHit {
   url: string;
   /** India Code: the repealed flag. */
   repealed?: boolean;
+  /** A web result that names a neutral citation found in the local index: the court's own copy. */
+  courtCopy?: { ref: string; insc: string; title: string };
 }
 
 export interface ResearchSettings {
