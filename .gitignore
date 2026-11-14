@@ -6,6 +6,8 @@ test-results/
 playwright-report/
 .vendor-cache/
 resources/euro-office/
+resources/ulos/
+resources/models/
 *.log
 .DS_Store
 

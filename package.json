@@ -16,7 +16,9 @@
     "test:unit": "node --test \"tests/unit/**/*.test.ts\"",
     "test:e2e": "playwright test",
     "test": "npm run test:unit && npm run build && npm run test:e2e",
-    "vendor": "node scripts/vendor-euro-office.ts"
+    "vendor": "node scripts/vendor-euro-office.ts",
+    "vendor:ulos": "node scripts/vendor-ulos.ts",
+    "vendor:voice": "node scripts/vendor-voice.ts"
   },
   "devDependencies": {
     "@astryxdesign/cli": "0.7.15",
@@ -38,12 +40,15 @@
     "@earendil-works/pi-ai": "1.5.2",
     "@earendil-works/pi-coding-agent": "1.5.2",
     "@heroicons/react": "2.2.0",
+    "@huggingface/transformers": "4.3.2",
     "@napi-rs/canvas": "1.1.1",
     "@stylexjs/stylex": "0.19.2",
     "@tesseract.js-data/eng": "1.0.0",
     "docx": "9.15.3",
     "fflate": "0.8.3",
+    "imapflow": "2.10.0",
     "pdfjs-dist": "6.5.438",
+    "postal-mime": "4.2.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "react-resizable-panels": "4.22.0",
