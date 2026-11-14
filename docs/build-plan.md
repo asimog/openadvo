@@ -249,6 +249,9 @@ Round 1 steps also list the main-process modules, agent tools, bridge functions,
 ### Round 5. V2 of the components
 
 - **Started 2026-11-14 on the owner's instruction**, which overrides rule B6 for this round. **Spec:** [specs/v2.md](specs/v2.md) (items V2-1 to V2-8). Each item is built thin, joined to the rest, tested, and pushed to `main`.
+- **Built 2026-11-14 (as built):** V2-1 in `src/lib/document-intelligence/formats.ts` (`detectMediaType`, `docxParagraphs`, `paginate`) and `processSource`; V2-2 in `classify.ts` (method `type-rules-v1`), table `source_type`; V2-3 in `similar.ts`, table `duplicate_pair`, review item kind `possible_duplicate`; V2-4 `extractRelative` in `src/lib/notebook/index.ts` (method `rules-v3`); V2-5 table `lod_row`; V2-6 `condonationBlocks`, draft kind `condonation` (migrated), `delayDays`, the matter-details column `interim_relief`; V2-7 `src/main/signing.ts` (`manifest-signing.key` in user data) and `signatureValid`; V2-8 table `memory_proposal` and the tool `propose_memory_note`. After ingestion, `Matters.afterIngest` proposes types and opens same-text review items. Views: `src/renderer/src/V2.tsx`.
+- **Tests (as built):** `tests/unit/formats-v2.test.ts`, `tests/unit/v2.test.ts`; `tests/e2e/v2.spec.ts`; `tests/e2e/steps6to10.spec.ts` extended with the condonation application and the signature check. Report: [2026-11-14-v2-report.md](../.agents/logs/2026-11-14-v2-report.md).
+- **Proof task:** see [specs/v2.md](specs/v2.md). Not yet run by the owner.
 
 ## 5. Integration
 
