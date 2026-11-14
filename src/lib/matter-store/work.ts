@@ -41,7 +41,11 @@ CREATE TABLE IF NOT EXISTS matter_details (
   court TEXT NOT NULL DEFAULT '',
   impugned_event_id TEXT,
   updated_at TEXT NOT NULL,
-  interim_relief TEXT NOT NULL DEFAULT ''
+  interim_relief TEXT NOT NULL DEFAULT '',
+  victim_protected INTEGER NOT NULL DEFAULT 0,
+  victim_names TEXT NOT NULL DEFAULT '[]',
+  copy_applied TEXT NOT NULL DEFAULT '',
+  copy_received TEXT NOT NULL DEFAULT ''
 ) STRICT;
 CREATE TABLE IF NOT EXISTS source_type (
   source_id TEXT PRIMARY KEY,
@@ -432,6 +436,10 @@ export class WorkStore {
       court: String(r?.court ?? ""),
       impugnedEventId: r?.impugned_event_id == null ? null : String(r.impugned_event_id),
       interimRelief: String(r?.interim_relief ?? ""),
+      victimProtected: Number(r?.victim_protected ?? 0) === 1,
+      victimNames: JSON.parse(String(r?.victim_names ?? "[]")) as string[],
+      copyApplied: String(r?.copy_applied ?? ""),
+      copyReceived: String(r?.copy_received ?? ""),
       updatedAt: r?.updated_at == null ? null : String(r.updated_at),
     };
   }
@@ -442,13 +450,13 @@ export class WorkStore {
     const d = { ...this.details(), ...input };
     this.db
       .prepare(
-        `INSERT INTO matter_details (id, petitioner, respondent, case_number, cnr, court, impugned_event_id, interim_relief, updated_at)
-         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO matter_details (id, petitioner, respondent, case_number, cnr, court, impugned_event_id, interim_relief, victim_protected, victim_names, copy_applied, copy_received, updated_at)
+         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET petitioner = excluded.petitioner, respondent = excluded.respondent,
            case_number = excluded.case_number, cnr = excluded.cnr, court = excluded.court,
-           impugned_event_id = excluded.impugned_event_id, interim_relief = excluded.interim_relief, updated_at = excluded.updated_at`,
+           impugned_event_id = excluded.impugned_event_id, interim_relief = excluded.interim_relief, victim_protected = excluded.victim_protected, victim_names = excluded.victim_names, copy_applied = excluded.copy_applied, copy_received = excluded.copy_received, updated_at = excluded.updated_at`,
       )
-      .run(clean(d.petitioner, 300), clean(d.respondent, 300), clean(d.caseNumber, 200), clean(d.cnr, 40), clean(d.court, 300), d.impugnedEventId ?? null, clean(d.interimRelief, 2000), now());
+      .run(clean(d.petitioner, 300), clean(d.respondent, 300), clean(d.caseNumber, 200), clean(d.cnr, 40), clean(d.court, 300), d.impugnedEventId ?? null, clean(d.interimRelief, 2000), d.victimProtected ? 1 : 0, JSON.stringify((d.victimNames ?? []).map((n) => clean(n, 120)).filter(Boolean).slice(0, 20)), /^\d{4}-\d{2}-\d{2}$/.test(d.copyApplied ?? "") ? d.copyApplied : "", /^\d{4}-\d{2}-\d{2}$/.test(d.copyReceived ?? "") ? d.copyReceived : "", now());
     const after = this.details();
     this.event(ctx, "matter.details_set", null, { ...after });
     return after;

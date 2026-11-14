@@ -211,9 +211,45 @@ export class Portal {
     return `${fileName} (sha256 ${sha.slice(0, 12)}) put in ${selector}`;
   }
 
+  /**
+   * V5-18: the result of the newest filing set's submission, from the matter's events. After a
+   * submit, the result is "unknown" until a receipt is saved or the advocate reconciles it.
+   */
+  async resultState(matterId: string): Promise<{ state: "none" | "unknown" | "submitted" | "not_submitted"; at: string | null; diary: string | null }> {
+    const store = await this.matters.store(matterId);
+    const set = store.work.filingSet();
+    if (!set) return { state: "none", at: null, diary: null };
+    let out: { state: "none" | "unknown" | "submitted" | "not_submitted"; at: string | null; diary: string | null } = { state: "none", at: null, diary: null };
+    for (const e of [...store.listEvents(5000)].reverse()) {
+      if (e.action === "filing.submitted" && e.subject === set.id) out = { state: "unknown", at: e.at, diary: null };
+      else if (e.action === "source.captured" && e.data?.method === "filing_receipt" && out.state === "unknown") out = { state: "submitted", at: e.at, diary: null };
+      else if (e.action === "filing.reconciled" && e.subject === set.id) out = { state: e.data?.outcome === "submitted" ? "submitted" : "not_submitted", at: e.at, diary: (e.data?.diary as string | null) ?? null };
+    }
+    return out;
+  }
+
+  /** Human-only (V5-18): the advocate records what the portal shows after an uncertain submission. */
+  async reconcile(matterId: string, outcome: "submitted" | "not_submitted", diary: string): Promise<{ state: string }> {
+    const store = await this.matters.store(matterId);
+    const set = store.work.filingSet();
+    if (!set) throw new MatterStoreError("NO_FILING_SET", "there is no filing set");
+    const now = await this.resultState(matterId);
+    if (now.state !== "unknown") throw new MatterStoreError("NOTHING_TO_RECONCILE", `the submission result is ${now.state}`);
+    store.appendEvent({ actor: "advocate" }, "filing.reconciled", set.id, { outcome, diary: diary.trim() || null });
+    return { state: outcome };
+  }
+
   /** Press the submit control, only after both confirmations bound to the newest filing set. */
   async submitFiling(matterId: string, selector: string): Promise<string> {
+    // V5-18: never submit again while the last result is unknown or after a recorded submission.
+    const result = await this.resultState(matterId);
+    if (result.state === "unknown") throw new MatterStoreError("FILING_RESULT_UNKNOWN", "the last submission's result is not known. The advocate checks the portal (diary search or the e-filing dashboard) and reconciles it first.");
+    if (result.state === "submitted") throw new MatterStoreError("FILING_ALREADY_SUBMITTED", "this filing set is recorded as submitted");
     const set = await this.confirmedSet(matterId, 2);
+    // After a reconciled "not submitted", a new attempt needs new confirmations.
+    if (result.state === "not_submitted" && ![1, 2].every((step) => set.confirmations.some((c) => c.step === step && c.at > (result.at ?? "")))) {
+      throw new MatterStoreError("FILING_NOT_CONFIRMED", "the last attempt was not submitted; the advocate confirms the filing set again (1 of 2, then 2 of 2) before a new attempt");
+    }
     const wc = this.contents();
     const r = await wc.executeJavaScript(`(() => {
       const el = document.querySelector(${JSON.stringify(selector)});

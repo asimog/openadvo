@@ -334,6 +334,13 @@ export class MatterStore {
     // V2-6: interim relief in the matter details.
     const md = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'matter_details'").get() as { sql?: string } | undefined;
     if (md?.sql && !md.sql.includes("interim_relief")) db.exec("ALTER TABLE matter_details ADD COLUMN interim_relief TEXT NOT NULL DEFAULT '';");
+    // V5-15 and V5-16: victim identity and the certified-copy dates.
+    if (md?.sql && !md.sql.includes("victim_protected")) {
+      db.exec("ALTER TABLE matter_details ADD COLUMN victim_protected INTEGER NOT NULL DEFAULT 0;");
+      db.exec("ALTER TABLE matter_details ADD COLUMN victim_names TEXT NOT NULL DEFAULT '[]';");
+      db.exec("ALTER TABLE matter_details ADD COLUMN copy_applied TEXT NOT NULL DEFAULT '';");
+      db.exec("ALTER TABLE matter_details ADD COLUMN copy_received TEXT NOT NULL DEFAULT '';");
+    }
     return db;
   }
 
@@ -1194,6 +1201,11 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
    * A human save: a new revision based on the current head (WD-007 to WD-010).
    * A save with no base revision is refused; a stale base is refused.
    */
+  /** V5-13: every revision of a draft, oldest first. */
+  listRevisions(draftId: string): RevisionRecord[] {
+    return (this.db.prepare("SELECT id FROM revision WHERE draft_id = ? ORDER BY seq").all(draftId) as Array<{ id: string }>).map((r) => this.getRevision(String(r.id)));
+  }
+
   async saveRevision(draftId: string, docx: Buffer, baseRevisionId: string, ctx: WriteContext): Promise<RevisionRecord> {
     if (ctx.actor !== "advocate") throw new MatterStoreError("HUMAN_ONLY", "only the advocate saves a revision");
     if (!baseRevisionId) throw new MatterStoreError("BASE_REQUIRED", "a human save needs a base revision");

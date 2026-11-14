@@ -104,7 +104,7 @@ export function checkCompliance(input: ComplianceInput): ComplianceResult[] {
   );
   if (!input.filingSet) add("P-5", "The petition documents are PDF/A, rendered from the approved DOCX revisions", "Workflow section 9E", "not_checked", "No filing set yet.");
   else {
-    const notA = input.filingSet.files.filter((f) => f.role !== "annexure" && !f.pdfa).map((f) => f.name);
+    const notA = input.filingSet.files.filter((f) => f.role !== "annexure" && f.role !== "paper_book" && !f.pdfa).map((f) => f.name);
     add("P-5", "The petition documents are PDF/A, rendered from the approved DOCX revisions", "Workflow section 9E", notA.length ? "defect" : "pass", notA.length ? `Not PDF/A: ${notA.join(", ")}.` : "Every petition document declares PDF/A.");
   }
   add(

@@ -234,3 +234,56 @@ test("v5 C: quick check, voice, an overruling treatment, the rehearsal and bench
     await app.close();
   }
 });
+
+test("v5 D: Word round trip and compare, the victim-name defect, limitation with the certified-copy exclusion", async () => {
+  const { Document, Packer, Paragraph, TextRun } = await import("docx");
+  const base = await mkdtemp(path.join(tmpdir(), "oa-e2ev5d-"));
+  await mkdir(path.join(base, "inbox"), { recursive: true });
+  const order = path.join(base, "inbox", "order.pdf");
+  await writeFile(order, await pdf(["ORDER", "The High Court dismissed the appeal by judgment dated 12.03.2024.", "The statement of Meena was recorded on 02.01.2024."]));
+  const { app, page } = await start(base);
+  const call = bridge(page);
+  try {
+    const matterId = await matterWith(page, app, "Word v. Compare", [order]);
+    for (const e of (await call<any>("getNotebook", matterId)).events) await call("confirmEvent", matterId, e.id);
+    const lod = await call<any>("generateListOfDates", matterId);
+
+    // ---- V5-13: open in Word (a copy), bring the edited copy back, compare ----
+    const opened = await call<any>("openInWord", matterId, lod.revision.id);
+    expect(opened.file).toMatch(/\.docx$/);
+    const edited = path.join(base, "edited.docx");
+    await writeFile(edited, await Packer.toBuffer(new Document({ sections: [{ children: ["LIST OF DATES", "12.03.2024 The High Court dismissed the appeal.", "02.01.2024 The statement of Meena was recorded."].map((t) => new Paragraph({ children: [new TextRun(t)] })) }] })));
+    await app.evaluate(({ dialog }, p) => {
+      dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [p] })) as typeof dialog.showOpenDialog;
+    }, edited);
+    await page.getByRole("button", { name: "Home" }).click();
+    await page.getByRole("button", { name: "Word v. Compare" }).first().click();
+    await page.getByRole("tab", { name: "Matter", exact: true }).click();
+    const tools = page.locator(".draft-row", { hasText: "LIST OF DATES" });
+    await tools.getByRole("button", { name: "Compare and Word" }).click();
+    await tools.getByRole("button", { name: "Bring back the edited copy" }).click();
+    await expect(page.getByTestId("word-note")).toContainText("The edited copy is revision 2.");
+    await tools.getByRole("button", { name: "Close" }).click();
+    await tools.getByRole("button", { name: "Compare and Word" }).click();
+    await tools.getByRole("button", { name: "Compare", exact: true }).click();
+    await expect(page.getByTestId("diff")).toContainText("The High Court dismissed the appeal.");
+    expect(await page.getByTestId("diff").locator("li").count()).toBeGreaterThan(0);
+
+    // ---- V5-15: a protected victim's name is a defect ----
+    await page.getByTestId("detail-victim-protected").check();
+    await page.getByTestId("detail-victim-names").fill("Meena");
+    await page.getByRole("button", { name: "Save matter details" }).click();
+    await expect.poll(async () => (await call<any>("getFiling", matterId)).details.victimNames).toEqual(["Meena"]);
+    const check = await call<any>("checkDraft", matterId, lod.draft.id);
+    expect(check.defects.some((d: any) => d.kind === "victim_identity")).toBe(true);
+
+    // ---- V5-16: limitation with the certified-copy exclusion ----
+    const judgment = (await call<any>("getNotebook", matterId)).events.find((e: any) => e.dateStart === "2024-03-12");
+    await call("setMatterDetails", matterId, { impugnedEventId: judgment.id, copyApplied: "2024-03-20", copyReceived: "2024-04-05" });
+    const lim = await call<any>("computeLimitation", matterId);
+    expect(lim.working).toContain("17 day(s) excluded");
+    expect(lim.deadline).toBe("2024-06-27");
+  } finally {
+    await app.close();
+  }
+});

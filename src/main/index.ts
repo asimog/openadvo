@@ -23,6 +23,9 @@ import { ensureFindIndex, listMatterFiles } from "./audit.ts";
 import { applyDateAnchor, eventsFromDecidedLine } from "./notebook.ts";
 import { caseNumberConflicts, extractEntities } from "../lib/notebook/entities.ts";
 import { ppocrDir, setPpocrDir } from "../lib/document-intelligence/ppocr.ts";
+import { diffParagraphs } from "../lib/filing/v5.ts";
+import { readParagraphs } from "../lib/drafting/index.ts";
+import { detectMediaType } from "../lib/document-intelligence/formats.ts";
 import { setFetcher } from "../lib/research-sources/http.ts";
 import type { ResearchSettings } from "../shared/studio.ts";
 import { Portal, portalOptionsFromEnv } from "./portal.ts";
@@ -245,6 +248,50 @@ function registerBridge(): void {
     };
   });
   handle("studio:stop", (matterId: string) => studio.stop(matterId));
+  // V5-13: compare revisions; open a revision in Word and bring the edited copy back.
+  handle("drafts:revisions", async (matterId: string, draftId: string) => (await matters.store(matterId)).listRevisions(String(draftId)));
+  handle("drafts:compare", async (matterId: string, a: string, b: string) => {
+    const store = await matters.store(matterId);
+    const para = async (id: string) => readParagraphs(await store.revisionBytes(id)).map((x) => x.text).filter((t) => t.trim());
+    return diffParagraphs(await para(String(a)), await para(String(b)));
+  });
+  handle("drafts:openInWord", async (matterId: string, revisionId: string) => {
+    const store = await matters.store(matterId);
+    const rev = store.getRevision(String(revisionId));
+    const draft = store.getDraft(rev.draftId);
+    const dir = path.join(app.getPath("userData"), "word", matterId);
+    mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, `${draft.title.replace(/[\\/:*?"<>|]+/g, " ").trim()} r${rev.seq}.docx`);
+    writeFileSync(file, await store.revisionBytes(rev.id));
+    store.appendEvent({ actor: "advocate" }, "revision.opened_in_word", rev.id, { file: path.basename(file) });
+    if (process.env.OPENADVO_TEST !== "1") {
+      const err = await shell.openPath(file);
+      if (err) throw new Error(`OPEN_FAILED: ${err}`);
+    }
+    return { file, revisionId: rev.id };
+  });
+  handle("drafts:importFromWord", async (matterId: string, revisionId: string, filePath?: string) => {
+    const store = await matters.store(matterId);
+    const rev = store.getRevision(String(revisionId));
+    let file = filePath ? String(filePath) : "";
+    if (!file) {
+      if (!window) throw new Error("NO_WINDOW");
+      const r = await dialog.showOpenDialog(window, { title: "Bring back the edited copy", properties: ["openFile"], filters: [{ name: "Word document", extensions: ["docx"] }] });
+      if (r.canceled || !r.filePaths[0]) return null;
+      file = r.filePaths[0];
+    }
+    const bytes = readFileSync(file);
+    if (detectMediaType(bytes, file) !== "application/vnd.openxmlformats-officedocument.wordprocessingml.document") throw new Error("NOT_DOCX: the file is not a Word document");
+    const saved = await store.saveRevision(rev.draftId, Buffer.from(bytes), rev.id, { actor: "advocate" });
+    store.appendEvent({ actor: "advocate" }, "revision.imported_from_word", saved.id, { base: rev.id, file: path.basename(file) });
+    return saved;
+  });
+  // V5-18: the portal result after an uncertain submission.
+  handle("filing:result", (matterId: string) => portal.resultState(matterId));
+  handle("filing:reconcile", (matterId: string, outcome: string, diary: string) => {
+    if (outcome !== "submitted" && outcome !== "not_submitted") throw new Error("BAD_OUTCOME: submitted or not_submitted");
+    return portal.reconcile(matterId, outcome, String(diary ?? ""));
+  });
   // V5-9 to V5-12: quick check, assessments, treatments, rehearsal, trends. Confirmations are the advocate's.
   handle("studio:quickCheck", (matterId: string) => hub.quickCheck(matterId));
   handle("studio:trends", () => hub.trends());
@@ -410,6 +457,10 @@ function registerBridge(): void {
       ...(input?.cnr !== undefined ? { cnr: String(input.cnr) } : {}),
       ...(input?.court !== undefined ? { court: String(input.court) } : {}),
       ...(input?.interimRelief !== undefined ? { interimRelief: String(input.interimRelief) } : {}),
+      ...(input?.victimProtected !== undefined ? { victimProtected: input.victimProtected === true } : {}),
+      ...(Array.isArray(input?.victimNames) ? { victimNames: (input.victimNames as unknown[]).map(String) } : {}),
+      ...(input?.copyApplied !== undefined ? { copyApplied: String(input.copyApplied) } : {}),
+      ...(input?.copyReceived !== undefined ? { copyReceived: String(input.copyReceived) } : {}),
       ...(input?.impugnedEventId !== undefined ? { impugnedEventId: input.impugnedEventId ? String(input.impugnedEventId) : null } : {}),
     }),
   );

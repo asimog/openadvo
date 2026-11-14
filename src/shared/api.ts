@@ -156,6 +156,14 @@ export interface OpenAdvoApi {
   openMatterFile(matterId: string, rel: string): Promise<boolean>;
   listJobsOverview(matterId: string): Promise<{ reading: Array<IngestJob & { name: string }>; runs: ArgumentRun[]; running: string | null; indexing: string | null }>;
   stopArgumentLoop(matterId: string): Promise<boolean>;
+  listRevisions(matterId: string, draftId: string): Promise<RevisionRecord[]>;
+  compareRevisions(matterId: string, a: string, b: string): Promise<Array<{ op: "same" | "added" | "removed"; text: string } | { op: "changed"; before: string; after: string }>>;
+  openInWord(matterId: string, revisionId: string): Promise<{ file: string; revisionId: string }>;
+  /** Human-only (V5-13): the edited copy becomes a new revision. Null when the advocate cancels. */
+  importFromWord(matterId: string, revisionId: string): Promise<RevisionRecord | null>;
+  filingResult(matterId: string): Promise<{ state: "none" | "unknown" | "submitted" | "not_submitted"; at: string | null; diary: string | null }>;
+  /** Human-only (V5-18). */
+  reconcileFiling(matterId: string, outcome: "submitted" | "not_submitted", diary: string): Promise<{ state: string }>;
   /** V5-9: not verification. */
   quickCheckCitations(matterId: string): Promise<QuickCheck[]>;
   /** V5-12: descriptive, advisory. */

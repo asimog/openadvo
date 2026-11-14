@@ -30,7 +30,13 @@ export type DefectKind =
   /** A case number the draft states is neither the matter's nor in any source. */
   | "case_number_mismatch"
   /** A name close to a recorded party name, but not the same. */
-  | "party_name_mismatch";
+  | "party_name_mismatch"
+  /** V5-14: a citation in reporter form with no neutral citation; the validator cannot check it. */
+  | "reporter_citation"
+  /** V5-14: a provision the matter records as repealed is relied on. */
+  | "repealed_provision"
+  /** V5-15: a protected victim's name appears in the draft. */
+  | "victim_identity";
 
 export interface Defect {
   kind: DefectKind;
@@ -324,6 +330,9 @@ const DEFECT_STATE: Record<DefectKind, GateState> = {
   missing_in_other_draft: "needs_correction",
   incomplete: "needs_instructions",
   prayer_mismatch: "needs_correction",
+  reporter_citation: "needs_instructions",
+  repealed_provision: "needs_correction",
+  victim_identity: "needs_correction",
 };
 
 export interface GateInput {

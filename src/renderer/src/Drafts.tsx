@@ -6,6 +6,7 @@ import { Text } from "@astryxdesign/core/Text";
 import type { DraftRecord, RevisionRecord } from "../../shared/api.ts";
 import { ListOfDatesRows } from "./V2.tsx";
 import { InspectButton } from "./V5.tsx";
+import { DraftTools } from "./DraftsV5.tsx";
 
 const api = window.openadvo;
 
@@ -87,6 +88,7 @@ export function DraftsSection(props: {
                   {head ? <Button label="Open latest" size="sm" onClick={() => props.onOpen(draft, head)} /> : null}
                   {approved ? <Button label="Open approved" size="sm" onClick={() => props.onOpen(draft, approved)} /> : null}
                   <InspectButton id={draft.id} />
+                  <DraftTools matterId={props.matterId} draft={draft} onChanged={() => void props.onRefresh()} />
                 </div>
               </li>
             );

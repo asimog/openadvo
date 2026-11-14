@@ -5,6 +5,7 @@
  * calls a human-only bridge function (decision 5). The renderer holds no business logic.
  */
 import { useCallback, useEffect, useState } from "react";
+import { PortalResult } from "./DraftsV5.tsx";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
@@ -125,6 +126,20 @@ export function MatterDetailsForm(props: { matterId: string; nb: Notebook | null
         <Field label="Court" value={d.court} onChange={set("court")} testId="detail-court" />
         <Field label="Interim relief sought (empty when none)" value={d.interimRelief} onChange={set("interimRelief")} testId="detail-interim" placeholder="For example: stay the operation of the impugned judgment" />
         <label className="field">
+          <span>Certified copy applied for</span>
+          <input type="date" data-testid="detail-copy-applied" value={d.copyApplied} onChange={(e) => setD({ ...d, copyApplied: e.target.value })} />
+        </label>
+        <label className="field">
+          <span>Certified copy received</span>
+          <input type="date" data-testid="detail-copy-received" value={d.copyReceived} onChange={(e) => setD({ ...d, copyReceived: e.target.value })} />
+        </label>
+        <label className="field">
+          <span>
+            <input type="checkbox" data-testid="detail-victim-protected" checked={d.victimProtected} onChange={(e) => setD({ ...d, victimProtected: e.target.checked })} /> A victim's identity is protected in this matter
+          </span>
+          <input data-testid="detail-victim-names" placeholder="Names that must not appear, separated by commas" value={d.victimNames.join(", ")} onChange={(e) => setD({ ...d, victimNames: e.target.value.split(",").map((x) => x.trim()) })} disabled={!d.victimProtected} />
+        </label>
+        <label className="field">
           <span>Impugned judgment (a confirmed procedural event)</span>
           <select data-testid="detail-impugned" value={d.impugnedEventId ?? ""} onChange={(e) => setD({ ...d, impugnedEventId: e.target.value || null })}>
             <option value="">Not recorded</option>
@@ -140,7 +155,7 @@ export function MatterDetailsForm(props: { matterId: string; nb: Notebook | null
         label="Save matter details"
         size="sm"
         isDisabled={busy}
-        clickAction={() => run(() => api.setMatterDetails(props.matterId, { petitioner: d.petitioner, respondent: d.respondent, caseNumber: d.caseNumber, cnr: d.cnr, court: d.court, interimRelief: d.interimRelief, impugnedEventId: d.impugnedEventId }))}
+        clickAction={() => run(() => api.setMatterDetails(props.matterId, { petitioner: d.petitioner, respondent: d.respondent, caseNumber: d.caseNumber, cnr: d.cnr, court: d.court, interimRelief: d.interimRelief, impugnedEventId: d.impugnedEventId, victimProtected: d.victimProtected, victimNames: d.victimNames.filter(Boolean), copyApplied: d.copyApplied, copyReceived: d.copyReceived }))}
       />
       {d.updatedAt ? <Text type="supporting"> Saved {d.updatedAt}.</Text> : null}
       {error ? <div className="notice" role="alert">{error}</div> : null}
@@ -406,8 +421,8 @@ export function FilingView(props: { matterId: string; sources: SourceRecord[]; v
           <div data-testid="filing-set">
             <Text weight="semibold">Filing set made {set.createdAt}. Payload hash:</Text> <span className="mono" data-testid="payload-hash">{set.payloadSha256}</span>
             <table className="table">
-              <thead><tr><th>File</th><th>Role</th><th>PDF/A</th><th>SHA-256</th></tr></thead>
-              <tbody>{set.manifest.files.map((x) => <tr key={x.name}><td>{x.name}</td><td>{x.role}</td><td>{x.pdfa ? "yes" : "no"}</td><td className="mono">{x.sha256.slice(0, 16)}…</td></tr>)}</tbody>
+              <thead><tr><th>File</th><th>Role</th><th>PDF/A</th><th>Text matches the approved DOCX</th><th>SHA-256</th></tr></thead>
+              <tbody>{set.manifest.files.map((x) => <tr key={x.name} data-role={x.role}><td>{x.name}</td><td>{x.role.replace(/_/g, " ")}</td><td>{x.role === "paper_book" ? "no (a reading copy)" : x.pdfa ? "yes" : "no"}</td><td data-testid="conversion">{x.conversion ? (x.conversion.ok ? "yes" : `no: ${x.conversion.missing.length} paragraph(s) missing`) : "—"}</td><td className="mono">{x.sha256.slice(0, 16)}…</td></tr>)}</tbody>
             </table>
             <Text type="supporting">Manifest digest: <span className="mono">{set.manifest.digest ?? "none (made before v1)"}</span>. {set.manifest.signature ? "Signed with the application's key." : "Not signed."}</Text>
             <div className="row-actions">
@@ -427,6 +442,7 @@ export function FilingView(props: { matterId: string; sources: SourceRecord[]; v
               <Button label={confirmed(2) ? "Filing confirmed (2 of 2)" : "Confirm the filing (2 of 2)"} size="sm" isDisabled={busy || !confirmed(1) || confirmed(2)} clickAction={() => run(() => api.confirmFiling(props.matterId, set.id, set.payloadSha256, 2))} />
             </div>
             <Text type="supporting">Each confirmation is bound to the payload hash above. After both, the agent may submit this filing set on the portal, and only this one.</Text>
+            <PortalResult matterId={props.matterId} version={props.version} />
           </div>
         ) : null}
       </section>

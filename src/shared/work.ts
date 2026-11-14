@@ -10,6 +10,12 @@ export interface MatterDetails {
   impugnedEventId: string | null;
   /** V2-6: the interim relief sought, as the advocate words it. Empty when none. */
   interimRelief: string;
+  /** V5-15: the victim's identity is protected in this matter; the names that must not appear in a draft. */
+  victimProtected: boolean;
+  victimNames: string[];
+  /** V5-16: when the certified copy of the impugned judgment was applied for and received (YYYY-MM-DD). */
+  copyApplied: string;
+  copyReceived: string;
   updatedAt: string | null;
 }
 
@@ -132,6 +138,8 @@ export interface FilingConfirmation {
 }
 
 export interface FilingFile {
+  /** V5-17: the PDF's text compared with the approved DOCX paragraphs. */
+  conversion?: { ok: boolean; missing: string[] };
   name: string;
   role: string;
   sha256: string;

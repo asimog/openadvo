@@ -13,11 +13,14 @@ import path from "node:path";
 import type { Matters } from "./matters.ts";
 import type { ManifestSigner } from "./signing.ts";
 import { convertFile, FORMAT_PDF } from "../lib/converter/index.ts";
+import { conversionCheck, copyExclusion, disclosureBlockers, disclosureBlocks, extendDeadline, paperBook, protectedNamesIn } from "../lib/filing/v5.ts";
+import { generateStructured } from "../lib/drafting/structured.ts";
+import { extractText } from "../lib/document-intelligence/index.ts";
 import { checkCompliance, computeLimitation, delayDays, isPdfA, LIMITATION_RULE, manifestDigest, RULES_VERSION, verifyManifest } from "../lib/filing/index.ts";
 import { readParagraphs } from "../lib/drafting/index.ts";
 import { MatterStoreError } from "../lib/matter-store/index.ts";
 import type { DraftKind } from "../shared/records.ts";
-import type { FilingFile, FilingSetRecord, FilingState, ManifestApproval, ManifestCheck, MatterDetails } from "../shared/work.ts";
+import type { ComplianceResult, FilingFile, FilingSetRecord, FilingState, ManifestApproval, ManifestCheck, MatterDetails } from "../shared/work.ts";
 
 const sha256 = (text: string | Uint8Array) => createHash("sha256").update(text).digest("hex");
 
@@ -38,6 +41,12 @@ export const CONDONATION = { kind: "condonation" as DraftKind, title: "Applicati
 export function required(limitation: { deadline: string; confirmedAt: string | null } | null): Array<{ kind: DraftKind; title: string }> {
   const late = limitation?.confirmedAt && delayDays(limitation.deadline, new Date().toISOString()) > 0;
   return late ? [...REQUIRED, CONDONATION] : REQUIRED;
+}
+
+/** The text of a PDF, every line of every page. */
+async function pdfText(file: string): Promise<string> {
+  const pages = await extractText(new Uint8Array(await readFile(file)));
+  return pages.map((p) => p.lines.map((l) => l.text).join("\n")).join("\n");
 }
 
 export class Filing {
@@ -80,12 +89,16 @@ export class Filing {
     if (!d.impugnedEventId) throw new MatterStoreError("IMPUGNED_NOT_RECORDED", "choose the impugned judgment on the Matter tab first");
     const e = (await this.matters.notebook(matterId)).events.find((x) => x.id === d.impugnedEventId);
     if (!e) throw new MatterStoreError("EVENT_NOT_FOUND", d.impugnedEventId);
-    const { deadline, working } = computeLimitation(e.dateStart);
+    const base = computeLimitation(e.dateStart);
+    // V5-16: the time taken to obtain the certified copy is excluded, with its working shown.
+    const ex = copyExclusion(e.dateStart, d.copyApplied || null, d.copyReceived || null, LIMITATION_RULE.days);
+    const deadline = ex.days ? extendDeadline(base.deadline, ex.days) : base.deadline;
+    const working = `${base.working} ${ex.working}${ex.days ? ` Last day after the exclusion: ${deadline.split("-").reverse().join(".")}.` : ""}`;
     return w.addLimitation({
       rule: LIMITATION_RULE.id,
       startEventId: e.id,
       startDate: e.dateStart,
-      days: LIMITATION_RULE.days,
+      days: LIMITATION_RULE.days + ex.days,
       deadline,
       working: `${working} Source line: ${e.sourceName}, p. ${e.page}, l. ${e.line}.`,
     });
@@ -116,9 +129,52 @@ export class Filing {
       limitation: limitation ? { deadline: limitation.deadline, confirmed: limitation.confirmedAt !== null } : null,
       filingSet: filingSet ? { files: filingSet.manifest.files } : null,
     });
-    // P-5 is checked on the set itself, so it cannot block making the set.
-    const blockers = results.filter((r) => r.outcome === "defect" && r.rule !== "P-5").map((r) => `${r.rule}: ${r.detail}`);
+    // V5-15, V5-17: victim identity in an approved draft, the disclosure's blockers, the conversion check.
+    const extra = await this.v5Rules(matterId, rows, filingSet);
+    results.push(...extra);
+    // P-5 and P-8 are checked on the set itself, so they cannot block making the set.
+    const blockers = results.filter((r) => r.outcome === "defect" && r.rule !== "P-5" && r.rule !== "P-8").map((r) => `${r.rule}: ${r.detail}`);
     return { details, annexures, limitation, compliance: { version: RULES_VERSION, results }, blockers, filingSet };
+  }
+
+  /** The citations the disclosure lists: the newest check of each, with attestations. */
+  private async disclosureCitations(matterId: string) {
+    const w = await this.work(matterId);
+    const latest = new Map<string, { citation: string; outcome: string; attested: boolean; reason: string | null }>();
+    const attested = new Set(w.listAttestations().map((a) => a.citation));
+    for (const c of w.listCitationChecks()) latest.set(c.citation, { citation: c.citation, outcome: c.outcome, attested: attested.has(c.citation), reason: c.reason });
+    return [...latest.values()];
+  }
+
+  private async v5Rules(matterId: string, rows: Array<{ title: string; text: string | null }>, filingSet: FilingSetRecord | null): Promise<ComplianceResult[]> {
+    const w = await this.work(matterId);
+    const d = w.details();
+    const out: ComplianceResult[] = [];
+    const named = d.victimProtected ? rows.flatMap((r) => (r.text ? protectedNamesIn(r.text, d.victimNames).map((n) => `${r.title} names "${n}"`) : [])) : [];
+    out.push({
+      rule: "P-6",
+      title: "A protected victim is not named in any petition document",
+      source: "Workflow section 9E; deprecated spec K rule 14 (masking)",
+      outcome: !d.victimProtected ? "not_checked" : named.length ? "defect" : "pass",
+      detail: !d.victimProtected ? "The matter is not marked as one where a victim's identity is protected." : named.length ? `${named.join("; ")}.` : `None of the ${d.victimNames.length} protected name(s) appears.`,
+    });
+    const blocked = disclosureBlockers(await this.disclosureCitations(matterId));
+    out.push({
+      rule: "P-7",
+      title: "The AI-use disclosure can be made: no citation failed or unresolved without an attestation",
+      source: "Ruling R-3; deprecated spec C rule 17 and L rule 3",
+      outcome: blocked.length ? "defect" : "pass",
+      detail: blocked.length ? `${blocked.join("; ")}.` : "Every checked citation is verified or attested.",
+    });
+    const conv = filingSet?.manifest.files.filter((f) => f.conversion) ?? [];
+    out.push({
+      rule: "P-8",
+      title: "Each petition PDF holds the text of its approved DOCX revision (conversion check)",
+      source: "Deprecated spec K rule 18",
+      outcome: !filingSet || conv.length === 0 ? "not_checked" : conv.every((f) => f.conversion!.ok) ? "pass" : "defect",
+      detail: !filingSet || conv.length === 0 ? "No filing set yet." : conv.filter((f) => !f.conversion!.ok).map((f) => `${f.name}: ${f.conversion!.missing.length} paragraph(s) not found`).join("; ") || `${conv.length} document(s) match their approved revisions.`,
+    });
+    return out;
   }
 
   /**
@@ -152,14 +208,48 @@ export class Filing {
           extra: "<m_bIsPDFA>true</m_bIsPDFA>\n",
         });
         const rev = d.approved!;
-        files.push({ ...(await this.describe(folder, name, r.kind)), revisionId: rev.id, revisionSeq: rev.seq, revisionSha256: rev.sha256 });
+        const conversion = conversionCheck(readParagraphs(await this.matters.revisionBytes(matterId, rev.id)).map((p) => p.text), await pdfText(path.join(folder, name)));
+        files.push({ ...(await this.describe(folder, name, r.kind)), revisionId: rev.id, revisionSeq: rev.seq, revisionSha256: rev.sha256, conversion });
         approvals.push({ what: `${r.title}, revision ${rev.seq}`, by: "advocate", at: rev.approvedAt ?? "" });
+      }
+      // V5-17: the AI-use disclosure, generated from the records and rendered like the other documents.
+      {
+        const w = store.work;
+        const events = store.listEvents(5000);
+        const model = (events.find((e) => e.action === "agent.session_started")?.data?.model as string | undefined) ?? null;
+        const assistance = [
+          events.some((e) => e.action === "agent.session_started") ? "The agent of the application assisted with research and drafting under the advocate's instructions; every change it proposed was kept or undone by the advocate." : "",
+          store.studio.runs().length ? `The argument loop proposed candidate arguments (${store.studio.runs().length} run(s)); the advocate accepted or rejected each.` : "",
+          events.some((e) => e.action === "ocr.read") ? "Scanned pages were read by optical character recognition; disputed readings were decided by the advocate." : "",
+          "Dates and events were extracted from the record by fixed rules and confirmed by the advocate.",
+        ].filter(Boolean);
+        const blocks = disclosureBlocks({
+          matter: store.matter().title,
+          generatedAt: new Date().toISOString(),
+          model,
+          assistance,
+          citations: await this.disclosureCitations(matterId),
+          provisions: store.studio.listProvisions().filter((x) => x.status !== "rejected").map((x) => ({ act: x.act, section: x.section, repealed: x.repealed })),
+          attestations: w.listAttestations().map((a) => ({ citation: a.citation, reason: a.reason, at: a.at })),
+        });
+        const g = generateStructured(blocks, { title: "AI-USE DISCLOSURE", generatedAt: new Date().toISOString() });
+        const docxPath = path.join(work, "disclosure.docx");
+        await mkdir(work, { recursive: true });
+        await writeFile(docxPath, g.docx);
+        const name = `${String(++n).padStart(2, "0")} AI-use disclosure.pdf`;
+        await convertFile(this.x2t, { from: docxPath, to: path.join(folder, name), format: FORMAT_PDF, tempDir: path.join(work, "x2t-disclosure"), extra: "<m_bIsPDFA>true</m_bIsPDFA>\n" });
+        const conversion = conversionCheck(readParagraphs(g.docx).map((x) => x.text), await pdfText(path.join(folder, name)));
+        files.push({ ...(await this.describe(folder, name, "disclosure")), conversion });
       }
       for (const a of st.annexures) {
         const name = `${String(++n).padStart(2, "0")} ${a.label}.pdf`;
         await copyFile(store.blobPath(a.sha256), path.join(folder, name));
         files.push(await this.describe(folder, name, "annexure"));
       }
+      // V5-17: one paper book of every document, with an index page, page numbers and bookmarks.
+      const book = await paperBook(store.matter().title, await Promise.all(files.map(async (f) => ({ title: f.name.replace(/^\d+\s+/, "").replace(/\.pdf$/i, ""), bytes: new Uint8Array(await readFile(path.join(folder, f.name))) }))));
+      await writeFile(path.join(folder, "Paper book.pdf"), book.bytes);
+      files.push(await this.describe(folder, "Paper book.pdf", "paper_book"));
     } finally {
       await rm(work, { recursive: true, force: true }).catch(() => undefined);
     }

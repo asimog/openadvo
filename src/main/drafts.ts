@@ -18,6 +18,7 @@ import { decideChanges, pendingChanges, proposeInsertion, proposeReplacement, ty
 import { caseNumbers } from "../lib/verification/index.ts";
 import type { AgentChanges } from "../shared/records.ts";
 import { delayDays } from "../lib/filing/index.ts";
+import { protectedNamesIn, reporterOnlyCitations } from "../lib/filing/v5.ts";
 import { groundedStatus } from "../lib/studio/index.ts";
 import { bodyParagraphs, conferenceBlocks, condonationBlocks, generateStructured, petitionBlocks, prayerDefect, TITLES, TO_COMPLETE } from "../lib/drafting/structured.ts";
 import type { DraftCheck } from "../shared/records.ts";
@@ -542,6 +543,24 @@ export class Drafts {
     draft.paragraphs.forEach((p, n) => {
       if (p.text.includes(TO_COMPLETE)) {
         result.defects.push({ kind: "incomplete", paragraph: n + 1, anchor: p.anchor, text: p.text, evidence: "The paragraph holds a marker for a detail the matter does not record.", action: "Record the detail in the matter and generate again, or complete the paragraph in the editor." });
+      }
+    });
+    // V5-14 and V5-15: reporter-only citations, repealed provisions, a protected victim's name.
+    const repealed = store.studio.listProvisions().filter((x) => x.repealed && x.status !== "rejected");
+    draft.paragraphs.forEach((p, n) => {
+      for (const c of reporterOnlyCitations(p.text)) {
+        result.defects.push({ kind: "reporter_citation", paragraph: n + 1, anchor: p.anchor, text: p.text, evidence: `${c} is in reporter form and the paragraph gives no neutral citation, so the validator cannot check it.`, action: "Add the neutral citation (for example 2019 INSC 1234)." });
+      }
+      for (const r of repealed) {
+        const actWord = r.act.replace(/^the\s+/i, "").split(/[\s,]+/)[0] ?? "";
+        if (new RegExp(`\\b(?:section|s\\.)\\s*${r.section}\\b`, "i").test(p.text) && actWord && p.text.toLowerCase().includes(actWord.toLowerCase())) {
+          result.defects.push({ kind: "repealed_provision", paragraph: n + 1, anchor: p.anchor, text: p.text, evidence: `${r.act}, section ${r.section} is recorded as repealed (India Code).`, action: "Rely on the provision in force, or record why the repealed one applies." });
+        }
+      }
+      if (details.victimProtected) {
+        for (const name of protectedNamesIn(p.text, details.victimNames)) {
+          result.defects.push({ kind: "victim_identity", paragraph: n + 1, anchor: p.anchor, text: p.text, evidence: `The paragraph names "${name}", whose identity the matter protects.`, action: "Replace the name (for example with \"the prosecutrix\" or \"X\")." });
+        }
       }
     });
     if (draft.kind === "petition") {

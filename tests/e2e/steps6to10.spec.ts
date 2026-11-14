@@ -258,11 +258,15 @@ test("steps 6 to 10: research, citations, grounds, filing set, capture, agent fi
     const filing = await call<any>("getFiling", matterId);
     const set = filing.filingSet;
     expect(set.manifest.files.map((f: any) => [f.role, f.pdfa])).toEqual([
-      ["synopsis", true], ["list_of_dates", true], ["petition", true], ["questions_of_law", true], ["grounds", true], ["condonation", true], ["annexure", false],
+      ["synopsis", true], ["list_of_dates", true], ["petition", true], ["questions_of_law", true], ["grounds", true], ["condonation", true], ["disclosure", true], ["annexure", false], ["paper_book", false],
     ]);
     expect(filing.compliance.results.find((r: any) => r.rule === "P-5").outcome).toBe("pass");
     const manifestOnDisk = readFileSync(path.join(set.folder, "manifest.json"), "utf8");
-    expect(JSON.parse(manifestOnDisk).files.length).toBe(7);
+    expect(JSON.parse(manifestOnDisk).files.length).toBe(9);
+    // V5-17: the conversion check passed for every rendered document; the disclosure lists the attestation apart.
+    expect(set.manifest.files.filter((f: any) => f.conversion).every((f: any) => f.conversion.ok)).toBe(true);
+    expect(filing.compliance.results.find((r: any) => r.rule === "P-8").outcome).toBe("pass");
+    expect(filing.compliance.results.find((r: any) => r.rule === "P-7").outcome).toBe("pass");
     // V2-7: the manifest is signed with the application's key.
     expect(JSON.parse(manifestOnDisk).publicKey).toContain("BEGIN PUBLIC KEY");
     expect(JSON.parse(manifestOnDisk).signature).toMatch(/^[A-Za-z0-9+/]+=*$/);
@@ -299,10 +303,15 @@ test("steps 6 to 10: research, citations, grounds, filing set, capture, agent fi
     await page.getByRole("button", { name: "Confirm the filing (2 of 2)" }).click();
     await expect(page.getByRole("button", { name: "Filing confirmed (2 of 2)" })).toBeVisible();
     await agent("portal", matterId, "submit_filing", { selector: "#go" });
+    // V5-18: until a receipt is saved or the advocate reconciles, the result is unknown and no new attempt is made.
+    expect((await call<any>("filingResult", matterId)).state).toBe("unknown");
+    await expect(agent("portal", matterId, "submit_filing", { selector: "#go" })).rejects.toThrow(/FILING_RESULT_UNKNOWN/);
     await expect.poll(() => portalServer.received()?.bytes ?? 0, { timeout: 30_000 }).toBeGreaterThan(20_000);
     expect(portalServer.received()!.fields).toContain("Shankar Teli v. State of Rajasthan");
     await expect.poll(() => agent<string>("portal", matterId, "portal_read", {}), { timeout: 30_000 }).toContain("Diary No. 4242 of 2024");
     expect(await agent<string>("portal", matterId, "save_portal_receipt", {})).toContain("Portal receipt");
+    expect((await call<any>("filingResult", matterId)).state).toBe("submitted");
+    await expect(agent("portal", matterId, "submit_filing", { selector: "#go" })).rejects.toThrow(/FILING_ALREADY_SUBMITTED/);
     const events = await call<any[]>("listEvents", matterId);
     expect(events.some((e) => e.action === "filing.submitted" && e.data.payloadSha256 === set.payloadSha256)).toBe(true);
     expect(events.some((e) => e.action === "source.captured" && e.data.method === "filing_receipt")).toBe(true);
