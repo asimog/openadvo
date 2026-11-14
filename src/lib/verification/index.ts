@@ -229,3 +229,84 @@ export function checkDraft(input: CheckInput): CheckResult {
   if (!input.other) notRun.push({ check: "The Synopsis agrees with the List of Dates", reason: "The other draft does not exist yet." });
   return { method: METHOD, defects, statementsChecked, notRun };
 }
+
+// ---- The quality-gate state (workflow 9, "Quality-gate outcome"). ----
+
+/** The workflow's states, in the order in which the first that applies is shown. */
+export const GATE_STATES = [
+  "blocked_source_verification",
+  "needs_correction",
+  "blocked_legal_review",
+  "blocked_filing_compliance",
+  "needs_instructions",
+  "ready_for_advocate_review",
+] as const;
+export type GateState = (typeof GATE_STATES)[number];
+
+export const GATE_LABEL: Record<GateState, string> = {
+  blocked_source_verification: "Blocked pending source verification",
+  needs_correction: "Needs correction",
+  blocked_legal_review: "Blocked pending legal review",
+  blocked_filing_compliance: "Blocked pending filing compliance",
+  needs_instructions: "Needs additional instructions",
+  ready_for_advocate_review: "Ready for advocate review",
+};
+
+/** The review-item kind of one defect kind. */
+export function defectItemKind(kind: DefectKind): string {
+  return `draft_defect.${kind}`;
+}
+
+/** Which state a defect holds the draft in. A defect about the source link blocks; the others need correction. */
+const DEFECT_STATE: Record<DefectKind, GateState> = {
+  no_source: "blocked_source_verification",
+  broken_link: "blocked_source_verification",
+  event_not_confirmed: "blocked_source_verification",
+  date_mismatch: "needs_correction",
+  drafts_disagree: "needs_correction",
+  missing_in_other_draft: "needs_correction",
+};
+
+export interface GateInput {
+  /** The kinds of the open review items of this draft (`draft_defect.<kind>`). */
+  openItemKinds: string[];
+  /** Checks that could not run (validator outcome `unresolved`). */
+  notRun: NotRun[];
+  /** Agent changes in the revision that the advocate has not decided. */
+  undecidedChanges: number;
+}
+
+export interface Gate {
+  state: GateState;
+  label: string;
+  /** Every reason that applies, not only the first. */
+  reasons: string[];
+  /** Gates that later steps own. They are never shown as passed. */
+  notAvailable: string[];
+}
+
+/**
+ * The one mapping from open review items, unresolved checks and undecided agent changes to the
+ * gate state (workflow 9). Legal review (steps 6, 7) and filing compliance (step 8) do not exist
+ * yet: they are listed as not available, and they never count as passed.
+ */
+export function gateState(input: GateInput): Gate {
+  const hits = new Map<GateState, string[]>();
+  const add = (state: GateState, reason: string) => hits.set(state, [...(hits.get(state) ?? []), reason]);
+  const counts = new Map<string, number>();
+  for (const k of input.openItemKinds) counts.set(k, (counts.get(k) ?? 0) + 1);
+  for (const [itemKind, n] of counts) {
+    const kind = itemKind.startsWith("draft_defect.") ? (itemKind.slice("draft_defect.".length) as DefectKind) : null;
+    const state = kind && kind in DEFECT_STATE ? DEFECT_STATE[kind] : "needs_correction";
+    add(state, `${n} open review item(s): ${kind ?? itemKind}`);
+  }
+  if (input.undecidedChanges > 0) add("needs_correction", `${input.undecidedChanges} agent change(s) not decided`);
+  for (const n of input.notRun) add("needs_instructions", `Not checked: ${n.check}. ${n.reason}`);
+  const state = GATE_STATES.find((s) => hits.has(s)) ?? "ready_for_advocate_review";
+  return {
+    state,
+    label: GATE_LABEL[state],
+    reasons: GATE_STATES.flatMap((s) => hits.get(s) ?? []),
+    notAvailable: ["Legal review: not available until steps 6 and 7", "Filing compliance: not available until step 8"],
+  };
+}

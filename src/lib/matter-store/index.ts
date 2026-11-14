@@ -124,7 +124,8 @@ CREATE TABLE IF NOT EXISTS review_item (
   status TEXT NOT NULL CHECK (status IN ('open', 'resolved', 'skipped')),
   created_at TEXT NOT NULL,
   decided_at TEXT,
-  decided_by TEXT
+  decided_by TEXT,
+  draft_id TEXT
 ) STRICT;
 CREATE TRIGGER IF NOT EXISTS page_no_update BEFORE UPDATE ON page BEGIN SELECT RAISE(ABORT, 'pages are written once'); END;
 CREATE TRIGGER IF NOT EXISTS page_no_delete BEFORE DELETE ON page BEGIN SELECT RAISE(ABORT, 'pages are written once'); END;
@@ -319,6 +320,9 @@ export class MatterStore {
    * A matter made before step 5 has the older CHECK; the table is rebuilt once, rows kept.
    */
   private static migrate(db: DatabaseSync): void {
+    // Step 5: a review item may belong to a draft (a defect the checks found).
+    const items = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'review_item'").get() as { sql?: string } | undefined;
+    if (items?.sql && !items.sql.includes("draft_id")) db.exec("ALTER TABLE review_item ADD COLUMN draft_id TEXT;");
     const row = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'revision'").get() as { sql?: string } | undefined;
     if (!row?.sql || row.sql.includes("'agent'")) return;
     db.exec("PRAGMA foreign_keys = OFF;");
@@ -583,9 +587,39 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
     return id;
   }
 
+  /**
+   * Step 5: open one review item per defect of a draft check, unless the same defect (kind and
+   * detail) is already open for that draft. The system opens; only the advocate decides.
+   */
+  openDraftDefects(draftId: string, revisionId: string, defects: Array<{ kind: string; detail: string }>): { opened: number; alreadyOpen: number } {
+    this.getDraft(draftId);
+    const open = new Set(
+      this.listReviewItems()
+        .filter((r) => r.draftId === draftId && r.status === "open")
+        .map((r) => `${r.kind}\n${r.detail}`),
+    );
+    let opened = 0;
+    let alreadyOpen = 0;
+    for (const d of defects) {
+      const key = `${d.kind}\n${d.detail}`;
+      if (open.has(key)) {
+        alreadyOpen++;
+        continue;
+      }
+      open.add(key);
+      const id = randomUUID();
+      this.db
+        .prepare("INSERT INTO review_item (id, kind, source_id, page, detail, status, created_at, draft_id) VALUES (?, ?, NULL, NULL, ?, 'open', ?, ?)")
+        .run(id, d.kind, d.detail, now(), draftId);
+      this.appendEvent({ actor: "system" }, "review_item.opened", id, { kind: d.kind, draftId, revisionId });
+      opened++;
+    }
+    return { opened, alreadyOpen };
+  }
+
   listReviewItems(): ReviewItem[] {
     const rows = this.db
-      .prepare("SELECT id, kind, source_id, page, detail, status, created_at, decided_at, decided_by FROM review_item ORDER BY created_at")
+      .prepare("SELECT id, kind, source_id, page, detail, status, created_at, decided_at, decided_by, draft_id FROM review_item ORDER BY created_at")
       .all() as Array<Record<string, unknown>>;
     return rows.map((r) => ({
       id: String(r.id),
@@ -597,6 +631,7 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
       createdAt: String(r.created_at),
       decidedAt: r.decided_at == null ? null : String(r.decided_at),
       decidedBy: r.decided_by == null ? null : (String(r.decided_by) as Actor),
+      draftId: r.draft_id == null ? null : String(r.draft_id),
     }));
   }
 
@@ -783,7 +818,8 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
   /** Notebook readiness (Appendix B-D): no job queued or running, and no review item open. */
   readiness(): Readiness {
     const jobsPending = this.sourcesToIngest().length;
-    const openReviewItems = this.listReviewItems().filter((r) => r.status === "open").length;
+    // Draft defects belong to the draft's gate, not to the Notebook's readiness.
+    const openReviewItems = this.listReviewItems().filter((r) => r.status === "open" && r.draftId === null).length;
     return { ready: jobsPending === 0 && openReviewItems === 0, jobsPending, openReviewItems };
   }
 

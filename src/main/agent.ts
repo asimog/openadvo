@@ -181,7 +181,7 @@ export function formatDraft(d: AgentDraft): string {
 }
 
 export function formatCheck(c: DraftCheck, title: string): string {
-  const head = `${title}, revision ${c.seq}: ${c.statementsChecked} statement(s) checked, ${c.defects.length} defect(s). Method: ${c.method}.`;
+  const head = `${title}, revision ${c.seq}: ${c.statementsChecked} statement(s) checked, ${c.defects.length} defect(s). Method: ${c.method}. Gate: ${c.gate?.label ?? "not computed"}.`;
   const defects = c.defects.map(
     (d) => `- [${d.kind}] paragraph ${d.paragraph}${d.anchor ? ` (anchor ${d.anchor})` : ""}: ${d.text}\n  Evidence: ${d.evidence}\n  Action: ${d.action}`,
   );

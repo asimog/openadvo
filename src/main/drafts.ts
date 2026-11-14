@@ -13,7 +13,7 @@ import path from "node:path";
 import type { Matters } from "./matters.ts";
 import { convertFile, FORMAT_DOCX } from "../lib/converter/index.ts";
 import { MatterStoreError } from "../lib/matter-store/index.ts";
-import { checkDraft } from "../lib/verification/index.ts";
+import { checkDraft, defectItemKind, gateState } from "../lib/verification/index.ts";
 import { decideChanges, pendingChanges, proposeReplacement, type ChangeDecision } from "../lib/tracked-changes/index.ts";
 import type { AgentChanges } from "../shared/records.ts";
 import type { DraftCheck } from "../shared/records.ts";
@@ -367,11 +367,28 @@ export class Drafts {
     });
     const byKind: Record<string, number> = {};
     for (const d of result.defects) byKind[d.kind] = (byKind[d.kind] ?? 0) + 1;
+    // Each defect is a review item of this draft (workflow 9: a blocked item names defect, evidence, passage, action).
+    const reviewItems = await this.matters.openDraftDefects(
+      matterId,
+      draftId,
+      draft.revision.id,
+      result.defects.map((d) => ({
+        kind: defectItemKind(d.kind),
+        detail: `${draft.title}, paragraph ${d.paragraph}: ${d.text} Evidence: ${d.evidence} Action: ${d.action}`,
+      })),
+    );
+    const openItemKinds = (await this.matters.listReviewItemsOf(matterId))
+      .filter((r) => r.draftId === draftId && r.status === "open")
+      .map((r) => r.kind);
+    const undecided = pendingChanges(await this.matters.revisionBytes(matterId, draft.revision.id)).length;
+    const gate = gateState({ openItemKinds, notRun: result.notRun, undecidedChanges: undecided });
     await this.matters.appendEvent(matterId, { actor: "advocate" }, "draft.checked", draft.revision.id, {
       method: result.method,
       statements: result.statementsChecked,
       defects: result.defects.length,
       byKind,
+      reviewItemsOpened: reviewItems.opened,
+      gate: gate.state,
     });
     return {
       draftId,
@@ -382,6 +399,8 @@ export class Drafts {
       statementsChecked: result.statementsChecked,
       defects: result.defects,
       notRun: result.notRun,
+      reviewItems,
+      gate,
     };
   }
 

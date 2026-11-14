@@ -19,7 +19,7 @@ Step 5 of [../build-plan.md](../build-plan.md). Serves workflow sections 9A and 
 
 **Surfaces.**
 
-- Harness bar: "Check draft". The result panel sits in the chat dock. The status shows "Facts checked: N defect(s). Citations: not verified" for the checked revision only.
+- Harness bar: "Check draft". The result panel sits in the chat dock. The status shows "Facts checked: N defect(s). Gate: <state>. Citations: not verified" for the checked revision only.
 - Bridge: `checkDraft(matterId, draftId)`.
 
 **Built in the first part (2026-11-14).** Rules 1 to 8, the bridge function, the harness control, unit tests and one end-to-end assertion.
@@ -38,6 +38,12 @@ A matter made before this part is migrated once when it opens: the revision tabl
 
 v0 limit: the corrected paragraph keeps its paragraph properties and the properties of its first run. Mixed formatting inside that one paragraph is not kept.
 
-**Not built yet (still step 5).** Defects stored as review items and the first quality-gate states; the editor scrolling to each change when the card steps through it (item f). Built: "N agent change(s) not decided" in the harness bar status (item c).
+**Built in the third part (2026-11-14): review items and the gate.**
+
+16. Each defect a check finds opens a review item of its draft (kind `draft_defect.<defect kind>`; the detail names the draft, the paragraph, the text, the evidence and the action). The same defect is not opened twice while its item is open. Only the advocate resolves or skips an item. Draft items do not count against Notebook readiness.
+17. The gate state (workflow 9) comes from one tested mapping, `gateState` in `lib/verification`: an open item about a source link (`no_source`, `broken_link`, `event_not_confirmed`) gives "Blocked pending source verification"; any other open item or an undecided agent change gives "Needs correction"; a check that could not run gives "Needs additional instructions"; otherwise "Ready for advocate review". The first state that applies, in the workflow's order, is shown, with every reason.
+18. Legal review (steps 6, 7) and filing compliance (step 8) are listed as "not available". They never count as passed. While the matter records no parties, every draft stays at "Needs additional instructions" or earlier.
+
+**Not built yet (still step 5).** The editor scrolling to each change when the card steps through it (item f). Built: "N agent change(s) not decided" in the harness bar status (item c).
 
 **Proof task.** The owner runs the checks on a real draft with three planted errors and finds all three, and decides every agent change.

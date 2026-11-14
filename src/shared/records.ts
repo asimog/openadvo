@@ -101,6 +101,8 @@ export interface ReviewItem {
   createdAt: string;
   decidedAt: string | null;
   decidedBy: Actor | null;
+  /** Step 5: the draft whose check found this defect. Null for a source or Notebook item. */
+  draftId: string | null;
 }
 
 /** One page as document intelligence returns it (input to the matter store). */
@@ -250,6 +252,10 @@ export interface DraftCheck {
   defects: DraftDefect[];
   /** Checks that could not run, each with its reason. */
   notRun: Array<{ check: string; reason: string }>;
+  /** Review items this check opened, and defects whose item was already open. */
+  reviewItems: { opened: number; alreadyOpen: number };
+  /** The quality-gate state of this draft (workflow 9), from one tested mapping. */
+  gate: { state: string; label: string; reasons: string[]; notAvailable: string[] };
 }
 
 export interface GeneratedDraft {

@@ -222,6 +222,15 @@ export class Matters {
     return (await this.store(matterId)).saveRevision(draftId, docx, baseRevisionId, ctx);
   }
 
+  /** Step 5: one review item per defect of a draft check. */
+  async openDraftDefects(matterId: string, draftId: string, revisionId: string, defects: Array<{ kind: string; detail: string }>) {
+    return (await this.store(matterId)).openDraftDefects(draftId, revisionId, defects);
+  }
+
+  async listReviewItemsOf(matterId: string) {
+    return (await this.store(matterId)).listReviewItems();
+  }
+
   /** The agent's proposal of tracked changes (editor-design item a). */
   async proposeDraftRevision(matterId: string, draftId: string, docx: Buffer, baseRevisionId: string, data: Record<string, unknown>, sessionId?: string): Promise<RevisionRecord> {
     return (await this.store(matterId)).proposeRevision(draftId, docx, baseRevisionId, data, { actor: "agent", sessionId });

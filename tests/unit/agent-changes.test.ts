@@ -120,6 +120,7 @@ test("a matter made before step 5 is migrated so the agent can author a revision
   db.exec("PRAGMA writable_schema = ON;");
   db.prepare("UPDATE sqlite_master SET sql = replace(sql, ?, ?) WHERE name = 'revision'").run("'generator', 'advocate', 'agent'", "'generator', 'advocate'");
   db.exec("PRAGMA writable_schema = OFF;");
+  db.exec("ALTER TABLE review_item DROP COLUMN draft_id;");
   db.close();
 
   const reopened = await MatterStore.open(store.folder);
@@ -129,6 +130,8 @@ test("a matter made before step 5 is migrated so the agent can author a revision
     const next = await reopened.proposeRevision(draft.id, g.docx, revision.id, {}, { actor: "agent" });
     assert.equal(next.author, "agent");
     assert.equal(reopened.getDraft(draft.id).revisionCount, 2);
+    assert.deepEqual(reopened.openDraftDefects(draft.id, next.id, [{ kind: "draft_defect.no_source", detail: "p1" }]), { opened: 1, alreadyOpen: 0 });
+    assert.equal(reopened.listReviewItems()[0].draftId, draft.id);
   } finally {
     reopened.close();
   }

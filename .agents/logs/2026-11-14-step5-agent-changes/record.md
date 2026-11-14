@@ -18,3 +18,11 @@ Date: 2026-11-14. Spec: docs/specs/v0-verification.md rules 9 to 15.
 - In a first live run the stub matter had no source. The agent refused to propose and said why. That is the behaviour the system prompt asks for.
 - In the live run the model's reason called a born-digital page "OCR". The tool output labels it "text layer". The reason text is the model's; the advocate sees it.
 - The live check uses a stub host, not a real matter. The owner has not yet used the card on a real brief.
+
+## Third part: review items and the gate
+
+| Command | Result |
+|---|---|
+| `npm run typecheck` | no errors |
+| `npm run test:unit` | 46 of 46 pass (migration test extended for `review_item.draft_id`) |
+| `npm run build` then `npx playwright test` | 8 pass, 2 skipped (live-model tests) |

@@ -79,6 +79,24 @@ function DraftCheckPanel(props: { check: DraftCheck; stale: boolean; onClose: ()
         </Text>
         <Button label="Close" size="sm" variant="ghost" onClick={props.onClose} />
       </div>
+      <div data-testid="draft-gate">
+        <Text weight="semibold">Gate: {check.gate.label}</Text>
+        <ul className="gate-reasons">
+          {check.gate.reasons.map((r) => (
+            <li key={r}>
+              <Text type="supporting">{r}</Text>
+            </li>
+          ))}
+          {check.gate.notAvailable.map((r) => (
+            <li key={r}>
+              <Text type="supporting">{r}</Text>
+            </li>
+          ))}
+        </ul>
+        <Text type="supporting">
+          Review items: {check.reviewItems.opened} opened, {check.reviewItems.alreadyOpen} already open. Resolve or skip them on the Matter tab.
+        </Text>
+      </div>
       {props.stale ? <Text type="supporting">The draft changed after this check. Save and check again.</Text> : null}
       {check.defects.length === 0 ? <Text type="supporting">No defect found by the checks that ran.</Text> : null}
       <ul className="source-event-list">
@@ -92,11 +110,6 @@ function DraftCheckPanel(props: { check: DraftCheck; stale: boolean; onClose: ()
           </li>
         ))}
       </ul>
-      {check.notRun.map((n) => (
-        <Text key={n.check} type="supporting">
-          Not checked: {n.check}. {n.reason}
-        </Text>
-      ))}
     </section>
   );
 }
@@ -434,7 +447,7 @@ export function DraftView(props: {
           ) : null}
           <Text type="supporting" data-testid="draft-verification">
             {check && check.seq === revisionInfo.seq && !dirty
-              ? `Facts checked: ${check.defects.length} defect(s). Citations: not verified`
+              ? `Facts checked: ${check.defects.length} defect(s). Gate: ${check.gate.label}. Citations: not verified`
               : "Verification: not verified"}
           </Text>
           {message ? (

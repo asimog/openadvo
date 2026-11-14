@@ -84,6 +84,10 @@ test("agent changes: keep, undo, and no approval while one is undecided", async 
     }
   }, matterId);
   expect(refused).toContain("AGENT_CHANGES_UNDECIDED");
+  // The gate: undecided agent changes need correction (workflow 9), before missing instructions.
+  const gate = await page.evaluate(async (a) => (await (globalThis as any).openadvo.checkDraft(a.m, a.d)).gate, { m: matterId, d: draft.id });
+  expect(gate.label).toBe("Needs correction");
+  expect(gate.reasons).toContain("2 agent change(s) not decided");
 
   // Re-enter the matter: the dock reads the undecided changes from the head revision.
   await page.getByRole("button", { name: "Home" }).click();
