@@ -169,8 +169,8 @@ test("generate, show source, edit and save twice, approve", async () => {
   await page.getByRole("button", { name: "Check draft" }).click();
   const check = page.getByTestId("draft-check");
   await expect(check).toContainText("Check of revision 3: 0 defect(s) in 3 statement(s)");
-  await expect(check).toContainText("Not checked: Party names and case number match the matter");
-  await expect(page.getByTestId("draft-verification")).toContainText("Facts checked: 0 defect(s). Gate: Needs additional instructions. Citations: not verified");
+  await expect(check).toContainText("Not checked: Party names match the matter");
+  await expect(page.getByTestId("draft-verification")).toContainText("Facts checked: 0 defect(s). Gate: Needs additional instructions.");
   const checkedEvent = await page.evaluate(async (id) => {
     const events = await (globalThis as any).openadvo.listEvents(id);
     return events.filter((e: { action: string }) => e.action === "draft.checked").length;

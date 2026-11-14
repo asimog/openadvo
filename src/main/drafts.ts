@@ -14,11 +14,13 @@ import type { Matters } from "./matters.ts";
 import { convertFile, FORMAT_DOCX } from "../lib/converter/index.ts";
 import { MatterStoreError } from "../lib/matter-store/index.ts";
 import { checkDraft, defectItemKind, gateState } from "../lib/verification/index.ts";
-import { decideChanges, pendingChanges, proposeReplacement, type ChangeDecision } from "../lib/tracked-changes/index.ts";
+import { decideChanges, pendingChanges, proposeInsertion, proposeReplacement, type ChangeDecision } from "../lib/tracked-changes/index.ts";
+import { caseNumbers } from "../lib/verification/index.ts";
 import type { AgentChanges } from "../shared/records.ts";
 import type { DraftCheck } from "../shared/records.ts";
 import {
   eventSentence,
+  generateEmptyDraft,
   generateListOfDates,
   generateSynopsis,
   newAnchor,
@@ -51,11 +53,19 @@ export interface DraftsOptions {
   workingRoot: string;
   /** Opens the working copy in the Word editor and returns the host-page URL. */
   openInEditor: OpenInEditor;
+  /** Steps 6, 7: what holds a draft revision for legal review (main/research.ts). */
+  legalBlockers?: (matterId: string, draftId: string, revisionId: string) => Promise<string[]>;
 }
 
-const KINDS: Record<DraftKind, { title: string; generate: typeof generateListOfDates }> = {
+const KINDS: Record<"list_of_dates" | "synopsis", { title: string; generate: typeof generateListOfDates }> = {
   list_of_dates: { title: "LIST OF DATES", generate: generateListOfDates },
   synopsis: { title: "SYNOPSIS", generate: generateSynopsis },
+};
+
+/** Step 6: drafts that start with their title only. The agent proposes paragraphs; the advocate writes. */
+const EMPTY_KINDS: Record<"questions_of_law" | "grounds", string> = {
+  questions_of_law: "QUESTIONS OF LAW",
+  grounds: "GROUNDS",
 };
 
 /** A Notebook event as the generator takes it. The source name is carried for ordering. */
@@ -116,6 +126,13 @@ export class Drafts {
    * not put a contested date into prose.
    */
   async generate(matterId: string, kind: DraftKind): Promise<GeneratedDraft> {
+    if (kind === "questions_of_law" || kind === "grounds") {
+      const existing = (await this.matters.listDrafts(matterId)).find((d) => d.kind === kind);
+      if (existing?.head) return { draft: existing, revision: existing.head };
+      const title = EMPTY_KINDS[kind];
+      const g = generateEmptyDraft({ title, generatedAt: new Date().toISOString() });
+      return this.matters.createDraftWithRevision(matterId, kind, title, g.docx, []);
+    }
     const notebook = await this.matters.notebook(matterId);
     const confirmed = notebook.events.filter((e) => e.status === "confirmed" && !e.excluded);
     if (confirmed.length === 0) {
@@ -128,7 +145,7 @@ export class Drafts {
         `the confirmed event dated ${conflicted.dateText} has an open date conflict. Resolve it in the Notebook first.`,
       );
     }
-    const meta = KINDS[kind];
+    const meta = KINDS[kind as "list_of_dates" | "synopsis"];
     if (!meta) throw new MatterStoreError("BAD_DRAFT_KIND", String(kind));
     const generated = meta.generate(confirmed.map(toDraftEvent), {
       title: meta.title,
@@ -245,6 +262,10 @@ export class Drafts {
     if (open.length > 0) {
       throw new MatterStoreError("AGENT_CHANGES_UNDECIDED", `${open.length} agent change(s) are not decided. Keep or undo each one first.`);
     }
+    // Workflow 9B, 9C: an unattested failed citation, or grounds without the adverse-authority review, block approval.
+    const revision = await this.matters.getRevision(matterId, revisionId);
+    const legal = (await this.options.legalBlockers?.(matterId, revision.draftId, revisionId)) ?? [];
+    if (legal.length > 0) throw new MatterStoreError("LEGAL_REVIEW_BLOCKED", legal.join("; "));
     return this.matters.approveRevision(matterId, revisionId);
   }
 
@@ -276,6 +297,37 @@ export class Drafts {
       sessionId,
     );
     return { revision, before: change.before, after: change.after, substantive: change.substantive };
+  }
+
+  /**
+   * Step 6: the agent proposes a new paragraph (a Question of Law, a Ground) as a tracked
+   * insertion with its own anchor, after the paragraph `after` or at the end.
+   */
+  async proposeParagraph(
+    matterId: string,
+    input: { draftId: string; after: string | null; text: string; reason: string },
+    sessionId?: string,
+  ): Promise<{ revision: RevisionRecord; anchor: string; after: string; substantive: boolean }> {
+    const draft = await this.matters.getDraft(matterId, input.draftId);
+    if (!draft.head) throw new MatterStoreError("DRAFT_NOT_FOUND", input.draftId);
+    const docx = await this.matters.revisionBytes(matterId, draft.head.id);
+    const anchor = newAnchor();
+    const { docx: next, change } = proposeInsertion(docx, {
+      anchor,
+      after: input.after,
+      text: input.text,
+      date: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+    });
+    await this.matters.recordParagraphLink(matterId, draft.id, anchor, draft.head.id, [], change.after);
+    const revision = await this.matters.proposeDraftRevision(
+      matterId,
+      draft.id,
+      next,
+      draft.head.id,
+      { anchor, inserted: true, reason: input.reason, substantive: change.substantive },
+      sessionId,
+    );
+    return { revision, anchor, after: change.after, substantive: change.substantive };
   }
 
   /** The agent changes not yet decided, for every draft, read from the head revision's DOCX. */
@@ -346,10 +398,19 @@ export class Drafts {
     const all = await this.readDrafts(matterId);
     const draft = all.find((d) => d.draftId === draftId);
     if (!draft) throw new Error("DRAFT_NOT_FOUND: the draft has no stored revision");
-    const pairKind: DraftKind = draft.kind === "list_of_dates" ? "synopsis" : "list_of_dates";
-    const pair = all.find((d) => d.kind === pairKind);
+    const pairKind: DraftKind | null = draft.kind === "list_of_dates" ? "synopsis" : draft.kind === "synopsis" ? "list_of_dates" : null;
+    const pair = pairKind ? all.find((d) => d.kind === pairKind) : undefined;
     const notebook = await this.matters.notebook(matterId);
+    const store = await this.matters.store(matterId);
+    const details = store.work.details();
+    const recordCaseNumbers = new Set<string>();
+    for (const s of await this.matters.listSources(matterId)) {
+      for (const p of await this.matters.listPages(matterId, s.id)) for (const l of p.lines) for (const n of caseNumbers(l.text)) recordCaseNumbers.add(n);
+    }
     const result = checkDraft({
+      paired: pairKind !== null,
+      matter: { petitioner: details.petitioner, respondent: details.respondent, caseNumber: details.caseNumber },
+      recordCaseNumbers: [...recordCaseNumbers],
       paragraphs: draft.paragraphs,
       events: notebook.events.map((e) => ({
         id: e.id,
@@ -381,7 +442,8 @@ export class Drafts {
       .filter((r) => r.draftId === draftId && r.status === "open")
       .map((r) => r.kind);
     const undecided = pendingChanges(await this.matters.revisionBytes(matterId, draft.revision.id)).length;
-    const gate = gateState({ openItemKinds, notRun: result.notRun, undecidedChanges: undecided });
+    const legal = (await this.options.legalBlockers?.(matterId, draftId, draft.revision.id)) ?? [];
+    const gate = gateState({ openItemKinds: openItemKinds.filter((k) => !k.startsWith("citation.")), notRun: result.notRun, undecidedChanges: undecided, legal });
     await this.matters.appendEvent(matterId, { actor: "advocate" }, "draft.checked", draft.revision.id, {
       method: result.method,
       statements: result.statementsChecked,

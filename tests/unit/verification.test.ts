@@ -29,13 +29,13 @@ test("a generated draft has no defect, and the checks that cannot run are named"
   const result = checkDraft({ paragraphs: LIST, events: EVENTS, other: { title: "Synopsis", paragraphs: SYNOPSIS } });
   assert.deepEqual(result.defects, []);
   assert.equal(result.statementsChecked, 3);
-  assert.deepEqual(result.notRun.map((n) => n.check), ["Party names and case number match the matter"]);
+  assert.deepEqual(result.notRun.map((n) => n.check), ["Case numbers match the record", "Party names match the matter"]);
 });
 
 test("the heading and the draft note are not statements", () => {
   const result = checkDraft({ paragraphs: SYNOPSIS, events: EVENTS });
   assert.equal(result.statementsChecked, 3);
-  assert.equal(result.notRun.length, 2);
+  assert.equal(result.notRun.length, 3);
 });
 
 test("three planted errors are all found: a wrong date, a statement with no source, a disagreement", () => {

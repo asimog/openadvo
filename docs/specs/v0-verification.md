@@ -46,6 +46,6 @@ v0 limit: the corrected paragraph keeps its paragraph properties and the propert
 
 19. "Show in editor" on a change opens the draft at its head revision and moves the editor cursor into that paragraph (item f), through the host command `goToAnchor` (builder API `GetContentControlsByTag`, then `Select`).
 
-**Not built yet (still step 5).** The party-name and case-number check: the matter records no parties and no case number. Those fields are a second version of step 1 (build plan, coverage table), so this check waits for the owner.
+**Built in the fifth part (2026-11-14): parties and case numbers.** 20. A case number the draft states ("No. N of YYYY") must be the matter's recorded case number or appear in a source (`case_number_mismatch`). 21. A name one or two letters away from a recorded party name is a defect (`party_name_mismatch`); an exact match passes. While no party is recorded, the check is named as not run. Both defects need correction. 22. The Synopsis and List of Dates comparison applies only to that pair.
 
 **Proof task.** The owner runs the checks on a real draft with three planted errors and finds all three, and decides every agent change.

@@ -22,7 +22,11 @@ export type DefectKind =
   /** The other draft states the same event with other dates. */
   | "drafts_disagree"
   /** The other draft does not state an event that this draft states. */
-  | "missing_in_other_draft";
+  | "missing_in_other_draft"
+  /** A case number the draft states is neither the matter's nor in any source. */
+  | "case_number_mismatch"
+  /** A name close to a recorded party name, but not the same. */
+  | "party_name_mismatch";
 
 export interface Defect {
   kind: DefectKind;
@@ -65,6 +69,12 @@ export interface CheckInput {
   events: CheckEvent[];
   /** The other draft of the pair (Synopsis for a List of Dates, and the reverse), when it exists. */
   other?: { title: string; paragraphs: CheckParagraph[] };
+  /** False for drafts outside the List of Dates and Synopsis pair. Default true. */
+  paired?: boolean;
+  /** What the advocate recorded about the matter (empty strings when not recorded). */
+  matter?: { petitioner: string; respondent: string; caseNumber: string };
+  /** Case numbers ("N/YYYY") that the sources state. */
+  recordCaseNumbers?: string[];
 }
 
 /** A check that v0 cannot run, with the reason. It is reported, never passed silently (lesson L2). */
@@ -223,10 +233,51 @@ export function checkDraft(input: CheckInput): CheckResult {
     }
   });
 
-  const notRun: NotRun[] = [
-    { check: "Party names and case number match the matter", reason: "The matter records no parties and no case number yet." },
-  ];
-  if (!input.other) notRun.push({ check: "The Synopsis agrees with the List of Dates", reason: "The other draft does not exist yet." });
+  const notRun: NotRun[] = [];
+  if (input.paired !== false && !input.other) notRun.push({ check: "The Synopsis agrees with the List of Dates", reason: "The other draft does not exist yet." });
+
+  // Case numbers (9A): a number the draft states must be the matter's or appear in a source.
+  if (input.recordCaseNumbers) {
+    const known = new Set(input.recordCaseNumbers);
+    for (const n of caseNumbers(input.matter?.caseNumber ?? "")) known.add(n);
+    input.paragraphs.forEach((p, i) => {
+      for (const n of caseNumbers(p.text)) {
+        if (known.has(n)) continue;
+        statementsChecked++;
+        defects.push({
+          kind: "case_number_mismatch",
+          paragraph: i + 1,
+          anchor: p.anchor,
+          text: p.text,
+          evidence: `The draft states case number ${n.replace("/", " of ")}. No source states it, and the matter records ${input.matter?.caseNumber || "no case number"}.`,
+          action: "Correct the number, or add the source that states it.",
+        });
+      }
+    });
+  } else {
+    notRun.push({ check: "Case numbers match the record", reason: "The source text was not supplied." });
+  }
+
+  // Party names (9A): a near miss of a recorded name is a defect. An exact match passes.
+  const names = [input.matter?.petitioner ?? "", input.matter?.respondent ?? ""].map((n) => n.trim()).filter(Boolean);
+  if (names.length === 0) {
+    notRun.push({ check: "Party names match the matter", reason: "The matter records no party names. Record them on the Matter tab." });
+  } else {
+    input.paragraphs.forEach((p, i) => {
+      for (const name of names) {
+        const near = nearMiss(p.text, name);
+        if (!near) continue;
+        defects.push({
+          kind: "party_name_mismatch",
+          paragraph: i + 1,
+          anchor: p.anchor,
+          text: p.text,
+          evidence: `The draft writes "${near}". The matter records the party as "${name}".`,
+          action: "Correct the name, or correct the party name recorded on the Matter tab.",
+        });
+      }
+    });
+  }
   return { method: METHOD, defects, statementsChecked, notRun };
 }
 
@@ -263,6 +314,8 @@ const DEFECT_STATE: Record<DefectKind, GateState> = {
   broken_link: "blocked_source_verification",
   event_not_confirmed: "blocked_source_verification",
   date_mismatch: "needs_correction",
+  case_number_mismatch: "needs_correction",
+  party_name_mismatch: "needs_correction",
   drafts_disagree: "needs_correction",
   missing_in_other_draft: "needs_correction",
 };
@@ -274,6 +327,8 @@ export interface GateInput {
   notRun: NotRun[];
   /** Agent changes in the revision that the advocate has not decided. */
   undecidedChanges: number;
+  /** What holds the draft for legal review (steps 6, 7): unattested citations, the adverse-authority review. */
+  legal?: string[];
 }
 
 export interface Gate {
@@ -302,11 +357,57 @@ export function gateState(input: GateInput): Gate {
   }
   if (input.undecidedChanges > 0) add("needs_correction", `${input.undecidedChanges} agent change(s) not decided`);
   for (const n of input.notRun) add("needs_instructions", `Not checked: ${n.check}. ${n.reason}`);
+  for (const l of input.legal ?? []) add("blocked_legal_review", l);
   const state = GATE_STATES.find((s) => hits.has(s)) ?? "ready_for_advocate_review";
   return {
     state,
     label: GATE_LABEL[state],
     reasons: GATE_STATES.flatMap((s) => hits.get(s) ?? []),
-    notAvailable: ["Legal review: not available until steps 6 and 7", "Filing compliance: not available until step 8"],
+    notAvailable: ["Filing compliance: decided for the whole petition on the Filing tab (step 8)"],
   };
+}
+
+
+/** "No. 123 of 2024", "No. 123/2024": normalised to "123/2024". */
+export function caseNumbers(text: string): string[] {
+  const out: string[] = [];
+  for (const m of text.matchAll(/\bNo\.?\s*(\d{1,7})\s*(?:of|\/)\s*((?:19|20)\d\d)\b/gi)) {
+    const n = `${Number(m[1])}/${m[2]}`;
+    if (!out.includes(n)) out.push(n);
+  }
+  return out;
+}
+
+function words(text: string): string[] {
+  return text.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean);
+}
+
+function editDistance(a: string, b: string): number {
+  const d: number[] = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = d[0];
+    d[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const t = d[j];
+      d[j] = Math.min(d[j] + 1, d[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = t;
+    }
+  }
+  return d[b.length];
+}
+
+/** The words of `text` that come close to `name` (one to two letters off) without being it. */
+export function nearMiss(text: string, name: string): string | null {
+  const target = words(name);
+  if (target.length === 0) return null;
+  const joined = target.join(" ");
+  const w = words(text);
+  const limit = Math.max(1, Math.min(2, Math.floor(joined.length / 6)));
+  for (let i = 0; i + target.length <= w.length; i++) {
+    const window = w.slice(i, i + target.length).join(" ");
+    if (window === joined) continue;
+    const dist = editDistance(window, joined);
+    if (dist > 0 && dist <= limit && window[0] === joined[0]) return window;
+  }
+  return null;
 }

@@ -31,7 +31,10 @@ test("the gate: the first state that applies, in the workflow's order", () => {
     assert.equal(g.reasons.length, 4);
   }
   // Later steps' gates are never shown as passed.
-  assert.equal(gateState(none).notAvailable.length, 2);
+  assert.equal(gateState(none).notAvailable.length, 1);
+  // Legal review sits between correction and instructions.
+  assert.equal(gateState({ ...none, legal: ["2024 INSC 1: failed"], notRun: [partyCheck] }).state, "blocked_legal_review");
+  assert.equal(gateState({ ...none, legal: ["x"], undecidedChanges: 1 }).state, "needs_correction");
 });
 
 test("defects become review items of their draft, once each; Notebook readiness ignores them", async () => {
