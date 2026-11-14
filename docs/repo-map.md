@@ -17,6 +17,8 @@
 | `docs/` | Durable documents. See [README.md](README.md). | — |
 | `.agents/logs/` | Work reports, commands run and results. | — |
 | `resources/euro-office/` | The vendored Euro-Office parts, fetched by script at step 2. Never committed and never modified. | The vendor script only. |
+| `resources/ulos/` | The vendored `ulos` validator and its court database, copied from `C:\dev\ulosadvo` by `npm run vendor:ulos` (step 7). Never committed and never modified. | The vendor script only. |
+| `resources/models/` | The vendored speech model (Whisper tiny, English), fetched by `npm run vendor:voice` (step 10). Never committed and never modified. | The vendor script only. |
 | `out/` | Build output of electron-vite. Not committed. | — |
 
 ## Data outside the repository

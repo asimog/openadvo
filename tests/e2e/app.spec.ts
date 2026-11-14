@@ -194,7 +194,10 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
       "getNotebook", "confirmEvent", "rejectEvent", "excludeEvent", "includeEvent", "resolveConflict",
       "listDrafts", "getRevision", "getParagraphSource", "generateListOfDates", "generateSynopsis",
       "openRevisionInEditor", "insertFromNotebook", "checkDraft", "saveRevision", "approveRevision",
-      "agentChanges", "decideAgentChanges",
+      "agentChanges", "decideAgentChanges", "generateDraft",
+      "getResearch", "addIssue", "decideIssue", "addAuthority", "decideAuthority", "checkCitations", "attestCitation", "recordAdverseReview", "searchCitationIndex",
+      "getFiling", "setMatterDetails", "setAnnexures", "computeLimitation", "confirmLimitation", "approveForFiling", "confirmFiling", "revealFilingSet",
+      "openPortal", "importEmail", "getMailAccount", "setMailAccount", "fetchMail", "voiceStatus", "transcribe",
     ].sort(),
   );
   await app.close();
@@ -216,6 +219,21 @@ test("the agent session has exactly our tool, and its id is recorded", async () 
     "get_paragraph_source",
     "check_draft",
     "propose_correction",
+    "list_research",
+    "search_citation_index",
+    "propose_issue",
+    "add_authority",
+    "write_memorandum",
+    "propose_paragraph",
+    "check_citations",
+    "open_court_portal",
+    "portal_read",
+    "portal_navigate",
+    "portal_fill",
+    "portal_click",
+    "upload_filing_file",
+    "submit_filing",
+    "save_portal_receipt",
   ]);
   const sessionId = await app.evaluate((_e, m) => (globalThis as any).__openadvoTest.agentSessionId(m), id);
   const events = await page.evaluate((m) => (globalThis as any).openadvo.listEvents(m), id);

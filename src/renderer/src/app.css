@@ -119,3 +119,13 @@ button.link { background: none; border: 0; padding: 0; color: var(--color-text-a
 .change-row { display: flex; flex-direction: column; gap: 4px; }
 .change-before { text-decoration: line-through; opacity: 0.75; }
 .change-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Steps 6 to 10: research and filing views. */
+.work-view { display: flex; flex-direction: column; gap: 18px; padding: 4px 0 24px; }
+.work-section { display: flex; flex-direction: column; gap: 8px; }
+.work-list { display: flex; flex-direction: column; gap: 6px; margin: 0; padding-left: 18px; }
+.field-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px 12px; }
+.field { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.field input, .field select, .field textarea, .row-actions input { font: inherit; padding: 4px 6px; border: 1px solid var(--color-border, #c8c8c8); border-radius: 6px; background: transparent; color: inherit; }
+.row-actions { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-left: 6px; }
+.memo-body pre { white-space: pre-wrap; font: inherit; margin: 6px 0; }

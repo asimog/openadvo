@@ -15,6 +15,7 @@ import { Landing, type Carry } from "./Landing.tsx";
 import { NotebookView, type SourceLink } from "./Notebook.tsx";
 import { DraftsSection } from "./Drafts.tsx";
 import { DraftView } from "./DraftView.tsx";
+import { FilingView, MatterDetailsForm, ResearchView } from "./Work.tsx";
 import { EventTable, SourceDetail, SourcesPanel } from "./Sources.tsx";
 import type {
   AddFileResult,
@@ -372,13 +373,15 @@ export function App() {
                             }}
                           />
                         }
+                        researchPanel={<ResearchView matterId={matter.id} version={version} />}
+                        filingPanel={<FilingView matterId={matter.id} sources={sources} version={version} />}
                         overview={
                           <div>
+                            <MatterDetailsForm matterId={matter.id} nb={nb} version={version} />
                             <dl className="facts">
                               <dt>Sources</dt><dd>{sources.length}</dd>
                               <dt>Matter folder</dt><dd className="mono">{matter.folder}</dd>
                               <dt>Created</dt><dd>{matter.createdAt}</dd>
-                              <dt>Parties, court, case number, CNR</dt><dd>Not recorded</dd>
                             </dl>
                             <DraftsSection
                               matterId={matter.id}

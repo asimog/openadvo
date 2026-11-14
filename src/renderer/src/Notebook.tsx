@@ -130,6 +130,9 @@ export function NotebookView(props: {
   overview: ReactNode;
   /** The Sources tab: add files and the list of sources. */
   sourcesPanel: ReactNode;
+  /** Steps 6 to 10. */
+  researchPanel: ReactNode;
+  filingPanel: ReactNode;
   onChange: (nb: Notebook) => void;
   onOpen: (l: SourceLink) => void;
 }) {
@@ -158,11 +161,15 @@ export function NotebookView(props: {
         <Tab value="procedural" label="Procedural history" />
         <Tab value="matrix" label="Factual Matrix" />
         <Tab value="chronology" label="Chronology" />
+        <Tab value="research" label="Research" />
+        <Tab value="filing" label="Filing" />
       </TabList>
       <div className="notebook-body">
-        {tab !== "matter" && nb ? <Conflicts matterId={props.matterId} nb={nb} onChange={props.onChange} onOpen={props.onOpen} /> : null}
+        {tab !== "matter" && tab !== "research" && tab !== "filing" && nb ? <Conflicts matterId={props.matterId} nb={nb} onChange={props.onChange} onOpen={props.onOpen} /> : null}
         {tab === "matter" ? props.overview : null}
         {tab === "sources" ? props.sourcesPanel : null}
+        {tab === "research" ? props.researchPanel : null}
+        {tab === "filing" ? props.filingPanel : null}
         {tab === "procedural" ? (
           <EventsTable label="Procedural history" events={events.filter((e) => e.kind === "procedural")} full={false} matterId={props.matterId} onChange={props.onChange} onOpen={props.onOpen} />
         ) : null}

@@ -461,7 +461,7 @@ export function DraftView(props: {
           ) : null}
           <Text type="supporting" data-testid="draft-verification">
             {check && check.seq === revisionInfo.seq && !dirty
-              ? `Facts checked: ${check.defects.length} defect(s). Gate: ${check.gate.label}. Citations: not verified`
+              ? `Facts checked: ${check.defects.length} defect(s). Gate: ${check.gate.label}.`
               : "Verification: not verified"}
           </Text>
           {message ? (
@@ -488,10 +488,23 @@ export function DraftView(props: {
           <Button label="Check draft" size="sm" isDisabled={!doc} clickAction={runCheck} />
           <Button label="Show source of this paragraph" size="sm" isDisabled={!doc} onClick={showParagraphSource} />
           <Button label="Insert from Notebook" size="sm" isDisabled={!doc} clickAction={openInsertDialog} />
-          <span className="harness-citations">
-            <Button label="Check citations" size="sm" isDisabled />
-            <Text type="supporting">not available until step 7</Text>
-          </span>
+          <Button
+            label="Check citations"
+            size="sm"
+            isDisabled={!doc}
+            clickAction={async () => {
+              try {
+                const checks = await api.checkCitations(props.matterId, props.draft.id);
+                setMessage(
+                  checks.length
+                    ? `Citations: ${checks.map((c) => `${c.citation} ${c.outcome}${c.attested ? " (attested)" : ""}`).join("; ")}. Attest a failed one on the Research tab.`
+                    : "Citations: no neutral citation in the saved revision.",
+                );
+              } catch (e) {
+                setMessage(errorText(e));
+              }
+            }}
+          />
         </div>
       </div>
       {source ? <ParagraphSourcePanel source={source} onClose={() => setSource(null)} onOpenSource={props.onOpenSource} /> : null}

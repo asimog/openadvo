@@ -17,7 +17,7 @@ import { Icon } from "@astryxdesign/core/Icon";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Spinner } from "@astryxdesign/core/Spinner";
 import { Text } from "@astryxdesign/core/Text";
-import { ArrowLeftIcon, ChatBubbleLeftRightIcon, PaperClipIcon } from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, ChatBubbleLeftRightIcon, MicrophoneIcon, PaperClipIcon, StopIcon } from "@heroicons/react/24/outline";
 import { CHAT_MESSAGE_EVENT } from "../../shared/api.ts";
 import { AgentChangesCard } from "./AgentChangesCard.tsx";
 import type { AgentChanges, ChatEvent, ChatMessage as ChatRecord, EffortLevel, EffortState, ModelChoice } from "../../shared/api.ts";
@@ -122,6 +122,74 @@ function Message(props: { message: ChatRecord }) {
     <ChatSystemMessage>
       <span data-role={m.role}>{m.text}</span>
     </ChatSystemMessage>
+  );
+}
+
+/**
+ * Step 10: voice instruction. Records from the microphone, transcribes on this machine, and puts
+ * the text into the composer. The advocate reads it and presses Send; voice sends and confirms nothing.
+ */
+function VoiceButton(props: { onText: (text: string) => void; isDisabled: boolean }) {
+  const [state, setState] = useState<"idle" | "recording" | "working">("idle");
+  const [note, setNote] = useState<string | null>(null);
+  const rec = useRef<{ recorder: MediaRecorder; chunks: Blob[]; stream: MediaStream } | null>(null);
+  const start = async () => {
+    setNote(null);
+    const status = await api.voiceStatus();
+    if (!status.available) return setNote(`Voice is not available: ${status.detail}`);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = (e) => chunks.push(e.data);
+      recorder.start();
+      rec.current = { recorder, chunks, stream };
+      setState("recording");
+    } catch (e) {
+      setNote(`The microphone could not start: ${(e as Error).message}`);
+    }
+  };
+  const stop = async () => {
+    const r = rec.current;
+    if (!r) return;
+    rec.current = null;
+    setState("working");
+    const done = new Promise<void>((res) => (r.recorder.onstop = () => res()));
+    r.recorder.stop();
+    await done;
+    r.stream.getTracks().forEach((t) => t.stop());
+    try {
+      const encoded = await new Blob(r.chunks).arrayBuffer();
+      const decoded = await new AudioContext().decodeAudioData(encoded);
+      const offline = new OfflineAudioContext(1, Math.ceil(decoded.duration * 16000), 16000);
+      const src = offline.createBufferSource();
+      src.buffer = decoded;
+      src.connect(offline.destination);
+      src.start();
+      const samples = (await offline.startRendering()).getChannelData(0);
+      const text = await api.transcribe(samples);
+      if (text) props.onText(text);
+      else setNote("No speech was heard.");
+    } catch (e) {
+      setNote(`Transcription failed: ${(e as Error).message}`);
+    } finally {
+      setState("idle");
+    }
+  };
+  return (
+    <>
+      <Button
+        label={state === "recording" ? "Stop and transcribe" : "Speak an instruction"}
+        size="sm"
+        variant="ghost"
+        isIconOnly
+        isDisabled={props.isDisabled || state === "working"}
+        icon={<Icon icon={state === "recording" ? StopIcon : MicrophoneIcon} size="sm" />}
+        clickAction={state === "recording" ? stop : start}
+      />
+      {state === "working" ? <Text type="supporting">Transcribing…</Text> : null}
+      {note ? <Text type="supporting" data-testid="voice-note">{note}</Text> : null}
+    </>
   );
 }
 
@@ -269,6 +337,13 @@ export function ChatDock(props: {
                     isIconOnly
                     icon={<Icon icon={PaperClipIcon} size="sm" />}
                     clickAction={async () => props.onAddPaths(await api.pickFiles())}
+                  />
+                  <VoiceButton
+                    isDisabled={busy}
+                    onText={(t) => {
+                      inputRef.current?.focus();
+                      inputRef.current?.insertText(t);
+                    }}
                   />
                   <ModelPicker isDisabled={busy} key={model ?? "none"} />
                 </div>

@@ -1,7 +1,7 @@
 /**
  * Electron main process: the window, the bridge handlers, the matter store and the agent.
  */
-import { Menu, app, BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from "electron";
+import { Menu, app, BrowserWindow, dialog, ipcMain, safeStorage, shell, type IpcMainInvokeEvent } from "electron";
 import path from "node:path";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -11,6 +11,16 @@ import { Ingest } from "./ingest.ts";
 import { Drafts } from "./drafts.ts";
 import { EditorHost, registerEditorScheme, EO_ORIGIN } from "./editor-host.ts";
 import { euroOfficePaths, platformKey } from "../lib/euro-office/platform.ts";
+import { Research } from "./research.ts";
+import { Filing } from "./filing.ts";
+import { Portal, portalOptionsFromEnv } from "./portal.ts";
+import { Mail, type MailAccount } from "./mail.ts";
+import { agentWorkHost } from "./agent-work.ts";
+import { searchCitationIndex, ulosPaths, type UlosPaths } from "../lib/ulos/index.ts";
+import { transcribe, voiceAvailable } from "../lib/voice/index.ts";
+import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import type { AgentWorkHost } from "./agent.ts";
 import type { ChatEvent } from "../shared/api.ts";
 import type { DraftKind } from "../shared/records.ts";
 
@@ -29,6 +39,22 @@ let matters: Matters;
 let agent: Agent;
 let ingest: Ingest;
 let drafts: Drafts;
+let research: Research;
+let filing: Filing;
+let portal: Portal;
+let mail: Mail;
+let ulos: UlosPaths;
+let workHost: AgentWorkHost;
+
+/** Steps 6 to 10 notify the window that a matter changed (a capture, a proposal). */
+function matterChanged(matterId: string): void {
+  window?.webContents.send("ingest:update", matterId);
+}
+
+/** The IMAP account: host, port and user in settings; the password encrypted with safeStorage (decision 9). */
+function mailSecretFile(): string {
+  return path.join(app.getPath("userData"), "mail-secret.bin");
+}
 
 function mattersRoot(): string {
   if (process.env.OPENADVO_HOME) return path.resolve(process.env.OPENADVO_HOME);
@@ -118,6 +144,116 @@ function registerBridge(): void {
     return drafts.decideAgentChanges(matterId, String(draftId ?? ""), String(baseRevisionId ?? ""), clean);
   });
   handle("drafts:approveRevision", (matterId: string, revisionId: string) => drafts.approveRevision(matterId, revisionId));
+  handle("drafts:generate", (matterId: string, kind: string) => {
+    if (kind !== "questions_of_law" && kind !== "grounds") throw new Error("BAD_DRAFT_KIND: questions_of_law or grounds");
+    return drafts.generate(matterId, kind);
+  });
+
+  // Steps 6 and 7: research and legal review. Decisions are human-only bridge functions (decision 5).
+  handle("research:get", (matterId: string) => research.state(matterId));
+  handle("research:addIssue", (matterId: string, text: string) => research.addIssue(matterId, String(text ?? "")));
+  handle("research:decideIssue", (matterId: string, id: string, decision: string, reason: string) => {
+    if (decision !== "accepted" && decision !== "rejected") throw new Error("BAD_DECISION: accepted or rejected");
+    return research.decideIssue(matterId, String(id), decision, String(reason ?? ""));
+  });
+  handle("research:addAuthority", (matterId: string, input: Record<string, unknown>) =>
+    research.addAuthority(matterId, {
+      citation: String(input?.citation ?? ""),
+      parties: String(input?.parties ?? ""),
+      decisionDate: String(input?.decisionDate ?? ""),
+      paragraph: String(input?.paragraph ?? ""),
+      proposition: String(input?.proposition ?? ""),
+      role: String(input?.role ?? "") as "supporting",
+      issueId: input?.issueId ? String(input.issueId) : null,
+    }),
+  );
+  handle("research:decideAuthority", (matterId: string, id: string, decision: string) => {
+    if (decision !== "adopted" && decision !== "rejected") throw new Error("BAD_DECISION: adopted or rejected");
+    return research.decideAuthority(matterId, String(id), decision);
+  });
+  handle("research:checkCitations", async (matterId: string, draftId: string | null) => {
+    const out = await research.checkCitations(matterId, draftId ? String(draftId) : undefined);
+    matterChanged(matterId);
+    return out;
+  });
+  handle("research:attestCitation", (matterId: string, citation: string, reason: string) => research.attestCitation(matterId, String(citation ?? ""), String(reason ?? "")));
+  handle("research:adverseReview", (matterId: string, outcome: string, coverage: string, note: string) =>
+    research.recordAdverseReview(matterId, outcome as "none_found", String(coverage ?? ""), String(note ?? "")),
+  );
+  handle("research:searchIndex", (query: string) => searchCitationIndex(ulos, String(query ?? ""), 20));
+
+  // Step 8: filing preparation. The approval for filing is human-only.
+  handle("filing:get", (matterId: string) => filing.state(matterId));
+  handle("filing:setDetails", (matterId: string, input: Record<string, unknown>) =>
+    filing.setDetails(matterId, {
+      ...(input?.petitioner !== undefined ? { petitioner: String(input.petitioner) } : {}),
+      ...(input?.respondent !== undefined ? { respondent: String(input.respondent) } : {}),
+      ...(input?.caseNumber !== undefined ? { caseNumber: String(input.caseNumber) } : {}),
+      ...(input?.cnr !== undefined ? { cnr: String(input.cnr) } : {}),
+      ...(input?.court !== undefined ? { court: String(input.court) } : {}),
+      ...(input?.impugnedEventId !== undefined ? { impugnedEventId: input.impugnedEventId ? String(input.impugnedEventId) : null } : {}),
+    }),
+  );
+  handle("filing:setAnnexures", (matterId: string, items: unknown) => {
+    const list = Array.isArray(items) ? items.map((x: { sourceId?: unknown; title?: unknown }) => ({ sourceId: String(x?.sourceId ?? ""), title: String(x?.title ?? "") })) : [];
+    return filing.setAnnexures(matterId, list);
+  });
+  handle("filing:computeLimitation", (matterId: string) => filing.computeLimitation(matterId));
+  handle("filing:confirmLimitation", (matterId: string, id: string) => filing.confirmLimitation(matterId, String(id ?? "")));
+  handle("filing:approve", (matterId: string) => filing.approveForFiling(matterId));
+  handle("filing:confirm", (matterId: string, filingSetId: string, payloadSha256: string, step: number) => {
+    if (step !== 1 && step !== 2) throw new Error("BAD_STEP: 1 or 2");
+    return filing.confirmFiling(matterId, String(filingSetId ?? ""), String(payloadSha256 ?? ""), step);
+  });
+  handle("filing:reveal", async (matterId: string) => {
+    const set = (await filing.state(matterId)).filingSet;
+    if (set) shell.showItemInFolder(path.join(set.folder, "manifest.json"));
+  });
+
+  // Step 10: voice. The transcript is text for the composer only; voice confirms nothing.
+  handle("voice:status", () => voiceAvailable(resourcesRoot()));
+  handle("voice:transcribe", (samples: unknown) => {
+    const s = samples instanceof Float32Array ? samples : new Float32Array(samples as ArrayBuffer);
+    if (s.length > 16_000 * 120) throw new Error("VOICE_TOO_LONG: at most two minutes at a time");
+    return transcribe(resourcesRoot(), s);
+  });
+
+  // Step 9: court record capture and client email.
+  handle("capture:openPortal", (matterId: string) => portal.open(matterId));
+  handle("mail:importEml", async (matterId: string) => {
+    if (!window) return { messages: 0, attachments: [] };
+    const r = await dialog.showOpenDialog(window, { title: "Import saved email messages", properties: ["openFile", "multiSelections"], filters: [{ name: "Email message", extensions: ["eml"] }] });
+    if (r.canceled) return { messages: 0, attachments: [] };
+    const out = await mail.importEmlFiles(matterId, r.filePaths);
+    ingest.enqueue(matterId);
+    return out;
+  });
+  handle("mail:getAccount", () => {
+    const a = readSettings().mail as MailAccount | undefined;
+    return a ? { ...a, hasPassword: existsSync(mailSecretFile()) } : null;
+  });
+  handle("mail:setAccount", (account: Record<string, unknown>, password: string) => {
+    const a: MailAccount = { host: String(account?.host ?? ""), port: Number(account?.port ?? 993), secure: account?.secure !== false, user: String(account?.user ?? "") };
+    if (!a.host || !a.user) throw new Error("MAIL_ACCOUNT_INCOMPLETE: host and user are needed");
+    writeSetting("mail", a);
+    if (password) {
+      if (!safeStorage.isEncryptionAvailable()) throw new Error("SECRET_STORE_UNAVAILABLE: the operating system's secret store is not available");
+      writeFileSync(mailSecretFile(), safeStorage.encryptString(String(password)));
+    }
+    return { ...a, hasPassword: existsSync(mailSecretFile()) };
+  });
+  handle("mail:fetch", async (matterId: string, filter: Record<string, unknown>) => {
+    const a = readSettings().mail as MailAccount | undefined;
+    if (!a || !existsSync(mailSecretFile())) throw new Error("MAIL_ACCOUNT_MISSING: set the authorised mailbox first");
+    const password = safeStorage.decryptString(readFileSync(mailSecretFile()));
+    const out = await mail.importFromImap(matterId, a, password, {
+      from: filter?.from ? String(filter.from) : undefined,
+      subject: filter?.subject ? String(filter.subject) : undefined,
+      since: filter?.since ? String(filter.since) : undefined,
+    });
+    ingest.enqueue(matterId);
+    return out;
+  });
   handle("dialog:pickFiles", async () => {
     if (!window) return [];
     const result = await dialog.showOpenDialog(window, {
@@ -213,7 +349,20 @@ function exposeTestHooks(): void {
     // Stands in for the agent's propose_correction tool, so a test needs no model.
     proposeCorrection: (matterId: string, input: { draftId: string; anchor: string; expected: string; replacement: string; reason: string }) =>
       drafts.proposeCorrection(matterId, input),
+    // The same functions the agent's step 6 to 10 tools call, so tests need no model.
+    work: () => workHost,
+    importEml: async (matterId: string, paths: string[]) => {
+      const out = await mail.importEmlFiles(matterId, paths);
+      ingest.enqueue(matterId);
+      return out;
+    },
+    portalContentsUrl: () => (portal.isOpen() ? "open" : "closed"),
+    portalEval: (code: string) => portal.evaluateForTest(code),
   };
+}
+
+function resourcesRoot(): string {
+  return process.env.OPENADVO_RESOURCES ? path.resolve(process.env.OPENADVO_RESOURCES) : path.join(app.getAppPath(), "resources");
 }
 
 function euroOfficeRoot(): string {
@@ -232,11 +381,25 @@ app.whenReady().then(() => {
   matters = new Matters(mattersRoot());
   const workingRoot = path.join(app.getPath("userData"), "draft-work");
   mkdirSync(workingRoot, { recursive: true });
+  ulos = ulosPaths(resourcesRoot());
+  research = new Research(matters, ulos);
   drafts = new Drafts(matters, {
     x2t: euroOfficePaths(euroOfficeRoot()).x2t,
     workingRoot,
     openInEditor: (file, name, kind, readOnly, meta) => editorHost.open(file, name, kind, readOnly, meta),
+    legalBlockers: (id, draftId, revisionId) => research.legalBlockers(id, draftId, revisionId),
   });
+  filing = new Filing(matters, euroOfficePaths(euroOfficeRoot()).x2t);
+  mail = new Mail(matters);
+  portal = new Portal(
+    matters,
+    portalOptionsFromEnv((matterId, detail) => {
+      ingest.enqueue(matterId);
+      matterChanged(matterId);
+      emitChat({ matterId, event: { type: "CUSTOM", name: "openadvo.chat_message", value: { id: randomUUID(), role: "notice", text: `Captured from the court portal: ${detail.name} (${detail.outcome}).` }, timestamp: Date.now() } as never });
+    }),
+  );
+  workHost = agentWorkHost({ matters, research, drafts, portal, ulos });
   agent = new Agent(
     {
       listSources: (id) => matters.listSources(id),
@@ -247,6 +410,7 @@ app.whenReady().then(() => {
       paragraphSource: (id, anchor) => drafts.paragraphSourceAnywhere(id, anchor),
       checkDraft: (id, draftId) => drafts.check(id, draftId),
       proposeCorrection: (id, input, sessionId) => drafts.proposeCorrection(id, input, sessionId),
+      work: workHost,
       matterTitle: (id) => matters.title(id),
       recordSession: (id, sessionId, model) => matters.recordAgentSession(id, sessionId, model),
       emit: emitChat,

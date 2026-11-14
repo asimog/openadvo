@@ -4,6 +4,8 @@
  */
 import type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft, DraftCheck, DraftDefect, AgentChanges } from "./records.ts";
 export type { AgentChanges, AgentChange } from "./records.ts";
+import type { AdverseReview, AnnexureRecord, Attestation, AuthorityRecord, CitationCheck, FilingSetRecord, FilingState, IssueRecord, LimitationRecord, MatterDetails, ResearchState } from "./work.ts";
+export type * from "./work.ts";
 
 import type { AGUIEvent } from "@ag-ui/core";
 
@@ -111,6 +113,45 @@ export interface OpenAdvoApi {
   /** Human-only actions (decision 5). `bytes` are the editor's Editor.bin, converted to DOCX in the main process. */
   saveRevision(matterId: string, draftId: string, bytes: Uint8Array, baseRevisionId: string): Promise<RevisionRecord>;
   approveRevision(matterId: string, revisionId: string): Promise<DraftRecord>;
+  /** Step 6: start the Questions of Law or Grounds draft (title only). */
+  generateDraft(matterId: string, kind: "questions_of_law" | "grounds"): Promise<GeneratedDraft>;
+  getResearch(matterId: string): Promise<ResearchState>;
+  addIssue(matterId: string, text: string): Promise<IssueRecord>;
+  /** Human-only: the case conference decides an issue, with a reason. */
+  decideIssue(matterId: string, id: string, decision: "accepted" | "rejected", reason: string): Promise<IssueRecord>;
+  addAuthority(matterId: string, input: { citation: string; parties?: string; decisionDate?: string; paragraph?: string; proposition?: string; role: AuthorityRecord["role"]; issueId?: string | null }): Promise<AuthorityRecord>;
+  /** Human-only. */
+  decideAuthority(matterId: string, id: string, decision: "adopted" | "rejected"): Promise<AuthorityRecord>;
+  /** Step 7: run the citation validator. */
+  checkCitations(matterId: string, draftId: string | null): Promise<CitationCheck[]>;
+  /** Human-only: an attestation, never shown as verified. */
+  attestCitation(matterId: string, citation: string, reason: string): Promise<Attestation>;
+  /** Human-only. */
+  recordAdverseReview(matterId: string, outcome: AdverseReview["outcome"], coverage: string, note: string): Promise<AdverseReview>;
+  searchCitationIndex(query: string): Promise<Array<{ citation: string; parties: string; date: string; caseNumber: string }>>;
+  /** Step 8. */
+  getFiling(matterId: string): Promise<FilingState>;
+  /** Human-only. */
+  setMatterDetails(matterId: string, input: Partial<Omit<MatterDetails, "updatedAt">>): Promise<MatterDetails>;
+  /** Human-only. */
+  setAnnexures(matterId: string, items: Array<{ sourceId: string; title: string }>): Promise<AnnexureRecord[]>;
+  computeLimitation(matterId: string): Promise<LimitationRecord>;
+  /** Human-only. */
+  confirmLimitation(matterId: string, id: string): Promise<LimitationRecord>;
+  /** Human-only: approve for filing; makes the PDF/A filing set. */
+  approveForFiling(matterId: string): Promise<FilingSetRecord>;
+  /** Human-only: confirmation 1 or 2, bound to the payload hash. */
+  confirmFiling(matterId: string, filingSetId: string, payloadSha256: string, step: 1 | 2): Promise<FilingSetRecord>;
+  revealFilingSet(matterId: string): Promise<void>;
+  /** Step 10: speech to text on this machine. Text for the composer only; voice confirms nothing. */
+  voiceStatus(): Promise<{ available: boolean; detail: string }>;
+  transcribe(samples: Float32Array): Promise<string>;
+  /** Step 9. */
+  openPortal(matterId: string): Promise<string>;
+  importEmail(matterId: string): Promise<{ messages: number; attachments: Array<{ message: string; name: string; outcome: string }> }>;
+  getMailAccount(): Promise<{ host: string; port: number; secure: boolean; user: string; hasPassword: boolean } | null>;
+  setMailAccount(account: { host: string; port: number; secure: boolean; user: string }, password: string): Promise<{ host: string; port: number; secure: boolean; user: string; hasPassword: boolean }>;
+  fetchMail(matterId: string, filter: { from?: string; subject?: string; since?: string }): Promise<{ messages: number; attachments: Array<{ message: string; name: string; outcome: string }> }>;
   /** The agent changes not yet decided, per draft (step 5). */
   agentChanges(matterId: string): Promise<AgentChanges[]>;
   /** Human-only (decision 5): keep or undo agent changes in the head revision. Makes a new revision. */

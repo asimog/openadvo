@@ -72,6 +72,24 @@ export const AGENT_TOOLS = [
   "get_paragraph_source",
   "check_draft",
   "propose_correction",
+  // Step 6: research. Candidates and memoranda; the advocate decides.
+  "list_research",
+  "search_citation_index",
+  "propose_issue",
+  "add_authority",
+  "write_memorandum",
+  "propose_paragraph",
+  // Step 7: the validator runs; the advocate attests.
+  "check_citations",
+  // Steps 9 and 10: the visible court portal. Submitting a filing needs both confirmations.
+  "open_court_portal",
+  "portal_read",
+  "portal_navigate",
+  "portal_fill",
+  "portal_click",
+  "upload_filing_file",
+  "submit_filing",
+  "save_portal_receipt",
 ] as const;
 
 /** At most this many pages per read_source_text call, so one result never crowds the model out. */
@@ -94,6 +112,8 @@ export interface AgentHost {
   drafts(matterId: string, kind?: DraftKind): Promise<AgentDraft[]>;
   paragraphSource(matterId: string, anchor: string): Promise<ParagraphSource | null>;
   checkDraft(matterId: string, draftId: string): Promise<DraftCheck>;
+  /** Steps 6 to 10. Each call is one of the tool names below; the host owns the records. */
+  work: AgentWorkHost;
   proposeCorrection(
     matterId: string,
     input: { draftId: string; anchor: string; expected: string; replacement: string; reason: string },
@@ -108,6 +128,17 @@ export interface AgentHost {
   /** The reasoning effort the advocate chose last, or null. */
   loadEffort(): string | null;
   saveEffort(level: string): void;
+}
+
+export interface AgentWorkHost {
+  research(matterId: string): Promise<string>;
+  searchCitationIndex(query: string): Promise<string>;
+  proposeIssue(matterId: string, text: string): Promise<string>;
+  addAuthority(matterId: string, input: { citation: string; parties: string; decisionDate: string; paragraph: string; proposition: string; role: "supporting" | "adverse" | "distinguishable" | "other"; issueId: string | null }): Promise<string>;
+  writeMemorandum(matterId: string, input: { title: string; issueId: string | null; body: string }): Promise<string>;
+  proposeParagraph(matterId: string, input: { kind: "questions_of_law" | "grounds"; after: string | null; text: string; reason: string }, sessionId: string): Promise<{ text: string; proposal: ProposedCorrection }>;
+  checkCitations(matterId: string, kind: DraftKind | null): Promise<string>;
+  portal(matterId: string, action: string, args: Record<string, string>): Promise<string>;
 }
 
 /** The application's default model (owner, 2026-11-14; decisions.md choice 17). Used when it has credentials. */
@@ -130,7 +161,10 @@ function systemPrompt(title: string): string {
     "check_draft runs the fixed factual checks on the latest stored revision of one draft and lists each defect with its evidence.",
     "propose_correction proposes new text for one paragraph. It becomes a tracked change by you in a new revision. Nothing is kept until the advocate keeps or undoes it; you cannot keep or undo. Give the paragraph's exact current text as expected_text. Propose only what the sources or the Notebook support, and give the reason with its source line.",
     "When you state a fact from a source, cite it as [source name, p. N, l. M]. OCR text is a single reading, not cross-checked: say so when you rely on it.",
-    "Apart from proposals, you cannot add, change or delete anything in the matter. The advocate decides every legal point.",
+    "Research (Notebook E and F): list_research shows issues, authorities, memoranda and citation checks. propose_issue and add_authority record candidates; the advocate accepts or rejects them at the case conference. search_citation_index searches the court's released list of neutral citations by party or citation: a finding aid, never verification. write_memorandum stores a memorandum; ground each proposition with references the matter resolves: [event:<id>], [issue:<id>], [authority:<id>] or [source name, p. N, l. M]. Separate established facts, disputed facts, propositions, assumptions and open questions.",
+    "propose_paragraph adds a new Question of Law or Ground to that draft as a tracked insertion; the advocate keeps or undoes it. check_citations runs the independent validator on the neutral citations in the drafts; you never state that a citation is verified unless the validator said so. Attestation is the advocate's alone.",
+    "The court portal opens in a visible window: open_court_portal, portal_read, portal_navigate, portal_fill, portal_click. The advocate signs in and solves any CAPTCHA; never try to. PDFs downloaded there become sources with their provenance. Filing: upload_filing_file needs the advocate's first confirmation, submit_filing needs both, each bound to the filing set's payload hash. Then save_portal_receipt.",
+    "Apart from proposals and these records, you cannot add, change or delete anything in the matter. The advocate decides every legal point.",
     "When a request needs a capability you do not have, say so plainly. Never invent sources, hashes or facts.",
     "Write short, plain sentences.",
   ].join("\n");
@@ -438,7 +472,7 @@ export class Agent {
       label: "Read draft",
       description: "Read the live text of the latest revision of the List of Dates and the Synopsis, paragraph by paragraph, with the anchor of each paragraph.",
       parameters: Type.Object({
-        kind: Type.Optional(Type.Union([Type.Literal("list_of_dates"), Type.Literal("synopsis")])),
+        kind: Type.Optional(Type.Union([Type.Literal("list_of_dates"), Type.Literal("synopsis"), Type.Literal("questions_of_law"), Type.Literal("grounds")])),
       }),
       execute: async (_id, params) => {
         const drafts = await host.drafts(matterId, params.kind);
@@ -462,7 +496,102 @@ export class Agent {
       },
     });
     const draftOfKind = async (kind: DraftKind) => (await host.drafts(matterId, kind))[0];
-    const draftKind = Type.Union([Type.Literal("list_of_dates"), Type.Literal("synopsis")]);
+    const draftKind = Type.Union([Type.Literal("list_of_dates"), Type.Literal("synopsis"), Type.Literal("questions_of_law"), Type.Literal("grounds")]);
+    const text = (t: string) => ({ content: [{ type: "text" as const, text: t }], details: {} });
+    const work = host.work;
+    const workTools = [
+      defineTool({
+        name: "list_research",
+        label: "List research",
+        description: "The matter's legal issues, authorities, memoranda (titles), citation checks and the adverse-authority review.",
+        parameters: Type.Object({}),
+        execute: async () => text(await work.research(matterId)),
+      }),
+      defineTool({
+        name: "search_citation_index",
+        label: "Search citation index",
+        description: "Search the Supreme Court's released list of neutral citations (1950 to 2023) by party name or by citation. A finding aid only: not verification.",
+        parameters: Type.Object({ query: Type.String({ description: "A party name, or a citation like 2019 INSC 1234." }) }),
+        execute: async (_id, p) => text(await work.searchCitationIndex(p.query)),
+      }),
+      defineTool({
+        name: "propose_issue",
+        label: "Propose issue",
+        description: "Record a legal issue as a candidate for the case conference.",
+        parameters: Type.Object({ text: Type.String() }),
+        execute: async (_id, p) => text(await work.proposeIssue(matterId, p.text)),
+      }),
+      defineTool({
+        name: "add_authority",
+        label: "Add authority",
+        description: "Record an authority as a candidate: its citation, parties, decision date, paragraph, the proposition it bears on, and its role.",
+        parameters: Type.Object({
+          citation: Type.String(),
+          parties: Type.Optional(Type.String()),
+          decision_date: Type.Optional(Type.String({ description: "YYYY-MM-DD" })),
+          paragraph: Type.Optional(Type.String()),
+          proposition: Type.Optional(Type.String()),
+          role: Type.Union([Type.Literal("supporting"), Type.Literal("adverse"), Type.Literal("distinguishable"), Type.Literal("other")]),
+          issue_id: Type.Optional(Type.String()),
+        }),
+        execute: async (_id, p) =>
+          text(await work.addAuthority(matterId, { citation: p.citation, parties: p.parties ?? "", decisionDate: p.decision_date ?? "", paragraph: p.paragraph ?? "", proposition: p.proposition ?? "", role: p.role, issueId: p.issue_id ?? null })),
+      }),
+      defineTool({
+        name: "write_memorandum",
+        label: "Write memorandum",
+        description: "Store a legal memorandum. Every reference must resolve in the matter; unresolved references are shown as such, and a memorandum with none is refused.",
+        parameters: Type.Object({ title: Type.String(), issue_id: Type.Optional(Type.String()), body: Type.String() }),
+        execute: async (_id, p) => text(await work.writeMemorandum(matterId, { title: p.title, issueId: p.issue_id ?? null, body: p.body })),
+      }),
+      defineTool({
+        name: "propose_paragraph",
+        label: "Propose paragraph",
+        description: "Add one new Question of Law or Ground as a tracked insertion, after the paragraph with anchor `after` or at the end. The advocate keeps or undoes it.",
+        parameters: Type.Object({
+          draft: Type.Union([Type.Literal("questions_of_law"), Type.Literal("grounds")]),
+          after: Type.Optional(Type.String({ description: "Anchor of the paragraph to insert after." })),
+          text: Type.String(),
+          reason: Type.String(),
+        }),
+        execute: async (_id, p) => {
+          const chat = await this.chats.get(matterId);
+          const r = await work.proposeParagraph(matterId, { kind: p.draft, after: p.after ?? null, text: p.text, reason: p.reason }, chat?.session.sessionId ?? "");
+          chat?.proposals.push(r.proposal);
+          return text(r.text);
+        },
+      }),
+      defineTool({
+        name: "check_citations",
+        label: "Check citations",
+        description: "Run the independent citation validator on the neutral citations in one draft (or every draft) and in the recorded authorities. Reports each outcome as the validator gives it.",
+        parameters: Type.Object({ draft: Type.Optional(draftKind) }),
+        execute: async (_id, p) => text(await work.checkCitations(matterId, p.draft ?? null)),
+      }),
+      ...(["open_court_portal", "portal_read", "portal_navigate", "portal_fill", "portal_click", "upload_filing_file", "submit_filing", "save_portal_receipt"] as const).map((name) =>
+        defineTool({
+          name,
+          label: name.replace(/_/g, " "),
+          description: {
+            open_court_portal: "Open the visible court-portal window, at the portal's home or at an allowed portal URL.",
+            portal_read: "Read the portal page: URL, title, visible text and its fields with their selectors.",
+            portal_navigate: "Go to an allowed portal URL.",
+            portal_fill: "Type a value into one text field (never a password or file field).",
+            portal_click: "Click a link or button. A submit control is refused: filing goes through submit_filing.",
+            upload_filing_file: "Put one file of the approved filing set into a file field. Needs the advocate's first confirmation.",
+            submit_filing: "Press the filing form's submit control. Needs both of the advocate's confirmations, bound to the payload hash.",
+            save_portal_receipt: "Save the page now shown (the receipt) as a source of the matter.",
+          }[name],
+          parameters: Type.Object({
+            url: Type.Optional(Type.String()),
+            selector: Type.Optional(Type.String()),
+            value: Type.Optional(Type.String()),
+            file_name: Type.Optional(Type.String()),
+          }),
+          execute: async (_id, p) => text(await work.portal(matterId, name, Object.fromEntries(Object.entries(p).filter(([, v]) => typeof v === "string")) as Record<string, string>)),
+        }),
+      ),
+    ];
     const checkDraftTool = defineTool({
       name: "check_draft",
       label: "Check draft",
@@ -523,7 +652,7 @@ export class Agent {
       settingsManager: SettingsManager.inMemory({ compaction: { enabled: false } }),
       sessionManager: SessionManager.inMemory(this.options.agentDir),
       tools: [...AGENT_TOOLS],
-      customTools: [listSources, readSourceText, searchSources, listEvents, getChronology, readDraft, getParagraphSource, checkDraftTool, proposeCorrection],
+      customTools: [listSources, readSourceText, searchSources, listEvents, getChronology, readDraft, getParagraphSource, checkDraftTool, proposeCorrection, ...workTools],
     });
     const active = session.getActiveToolNames();
     if (active.length !== AGENT_TOOLS.length || !AGENT_TOOLS.every((t) => active.includes(t))) {

@@ -13,7 +13,7 @@ function errorText(error: unknown): string {
 }
 
 function kindLabel(kind: DraftRecord["kind"]): string {
-  return kind === "list_of_dates" ? "List of Dates" : "Synopsis";
+  return { list_of_dates: "List of Dates", synopsis: "Synopsis", questions_of_law: "Questions of Law", grounds: "Grounds" }[kind];
 }
 
 /** The drafts of a matter, and the two generators that write the first revision (step 4). */
@@ -30,7 +30,12 @@ export function DraftsSection(props: {
     setWorking(true);
     setError(null);
     try {
-      const result = kind === "list_of_dates" ? await api.generateListOfDates(props.matterId) : await api.generateSynopsis(props.matterId);
+      const result =
+        kind === "list_of_dates"
+          ? await api.generateListOfDates(props.matterId)
+          : kind === "synopsis"
+            ? await api.generateSynopsis(props.matterId)
+            : await api.generateDraft(props.matterId, kind);
       await props.onRefresh();
       props.onOpen(result.draft, result.revision);
     } catch (e) {
@@ -47,6 +52,8 @@ export function DraftsSection(props: {
         <div className="drafts-actions">
           <Button label="Generate List of Dates" size="sm" isDisabled={working} clickAction={() => generate("list_of_dates")} />
           <Button label="Generate Synopsis" size="sm" isDisabled={working} clickAction={() => generate("synopsis")} />
+          <Button label="Start Questions of Law" size="sm" isDisabled={working} clickAction={() => generate("questions_of_law")} />
+          <Button label="Start Grounds" size="sm" isDisabled={working} clickAction={() => generate("grounds")} />
           {working ? <Text type="supporting">Generating…</Text> : null}
         </div>
       </div>
