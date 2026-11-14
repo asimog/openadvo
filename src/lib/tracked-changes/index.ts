@@ -239,7 +239,9 @@ export function pendingChanges(docx: Uint8Array, author: string = AGENT_AUTHOR):
 
 /** Keep or undo the marks of `author` in one anchored paragraph. Marks of others are left as they are. */
 function decideParagraph(p: string, decision: ChangeDecision, author: string): string {
-  const mark = /<w:(ins|del)(\s[^>]*)>([\s\S]*?)<\/w:\1>/g;
+  // The inserted paragraph mark (a self-closing w:ins in the paragraph's run properties).
+  p = p.replace(/<w:ins(\s[^>]*?)\/>/g, (whole, attrs: string) => (authorOf(attrs) === author ? "" : whole));
+  const mark = /<w:(ins|del)(\s[^>]*[^/])>([\s\S]*?)<\/w:\1>/g;
   return p.replace(mark, (whole, kind: string, attrs: string, inner: string) => {
     if (authorOf(attrs) !== author) return whole;
     const keepInner = (kind === "ins") === (decision === "keep");
@@ -266,9 +268,67 @@ export function decideChanges(
     if (d.decision !== "keep" && d.decision !== "undo") throw new TrackedChangeError("BAD_DECISION", String(d.decision));
     const span = paragraphSpan(xml, d.anchor);
     const p = xml.slice(span.start, span.end);
+    if (d.decision === "undo" && insertedParagraph(p, author)) {
+      // Undo of an inserted paragraph removes the whole anchored block.
+      const block = sdtSpan(xml, d.anchor);
+      xml = xml.slice(0, block.start) + xml.slice(block.end);
+      continue;
+    }
     const next = decideParagraph(p, d.decision, author);
     if (next === p) throw new TrackedChangeError("NO_PENDING_CHANGE", `the paragraph ${d.anchor} holds no undecided agent change`);
     xml = xml.slice(0, span.start) + next + xml.slice(span.end);
   }
   return writeDocument(parts, xml);
+}
+
+function insertedParagraph(p: string, author: string): boolean {
+  for (const m of p.matchAll(/<w:ins(\s[^>]*?)\/>/g)) if (authorOf(m[1]) === author) return true;
+  return false;
+}
+
+/** The whole <w:sdt> block that carries `anchor`. */
+function sdtSpan(xml: string, anchor: string): { start: number; end: number } {
+  const at = xml.indexOf(`<w:tag w:val="${anchor}"`);
+  if (at < 0) throw new TrackedChangeError("DOC_TARGET_NOT_FOUND", anchor);
+  const start = Math.max(xml.lastIndexOf("<w:sdt>", at), xml.lastIndexOf("<w:sdt ", at));
+  const end = xml.indexOf("</w:sdt>", at);
+  if (start < 0 || end < 0) throw new TrackedChangeError("DOC_INVALID", `no content control around ${anchor}`);
+  return { start, end: end + "</w:sdt>".length };
+}
+
+/**
+ * Step 6: the agent proposes a new paragraph (a Question of Law, a Ground) as a tracked
+ * insertion, in its own anchored content control. It goes after the paragraph `after`, or at
+ * the end of the body. Keep makes it ordinary text; Undo removes it.
+ */
+export function proposeInsertion(
+  docx: Uint8Array,
+  input: { anchor: string; after: string | null; text: string; date: string; author?: string },
+): { docx: Buffer; change: PendingChange } {
+  const author = input.author ?? AGENT_AUTHOR;
+  const text = input.text.replace(/\s+/g, " ").trim();
+  if (!text) throw new TrackedChangeError("DOC_EMPTY_REPLACEMENT", "a new paragraph needs text");
+  if (!/^oa-[0-9a-f]{32}$/.test(input.anchor)) throw new TrackedChangeError("DOC_BAD_ANCHOR", input.anchor);
+  const { parts, xml } = readDocument(docx);
+  if (xml.includes(`w:val="${input.anchor}"`)) throw new TrackedChangeError("DOC_AMBIGUOUS_TARGET", input.anchor);
+  let at: number;
+  if (input.after) {
+    at = sdtSpan(xml, input.after).end;
+  } else {
+    at = xml.lastIndexOf("<w:sectPr");
+    if (at < 0) at = xml.lastIndexOf("</w:body>");
+    if (at < 0) throw new TrackedChangeError("DOC_INVALID", "the document has no body end");
+  }
+  let id = maxMarkId(xml);
+  let sdtId = 0;
+  for (const m of xml.matchAll(/<w:id w:val="(\d+)"\/>/g)) sdtId = Math.max(sdtId, Number(m[1]));
+  const attrs = () => `w:id="${++id}" w:author="${escapeXml(author)}" w:date="${escapeXml(input.date)}"`;
+  const block =
+    `<w:sdt><w:sdtPr><w:alias w:val="Open Advocate paragraph"/><w:tag w:val="${input.anchor}"/><w:id w:val="${sdtId + 1}"/></w:sdtPr>` +
+    `<w:sdtContent><w:p><w:pPr><w:rPr><w:ins ${attrs()}/></w:rPr></w:pPr>` +
+    `<w:ins ${attrs()}><w:r><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:ins></w:p></w:sdtContent></w:sdt>`;
+  return {
+    docx: writeDocument(parts, xml.slice(0, at) + block + xml.slice(at)),
+    change: { anchor: input.anchor, before: "", after: text, substantive: isSubstantive("", text) },
+  };
 }

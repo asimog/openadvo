@@ -339,3 +339,11 @@ export function readParagraphs(docx: Buffer): Array<{ anchor: string | null; tex
   if (!documentXml) throw new Error(`the DOCX has no ${DOCUMENT_PART}`);
   return paragraphsFromXml(strFromU8(documentXml)).filter((p) => p.anchor !== null || p.text.trim() !== "");
 }
+
+/**
+ * Step 6: a draft with its title only (Questions of Law, Grounds). Its paragraphs come from the
+ * agent as tracked insertions, or from the advocate typing; no generator writes legal text.
+ */
+export function generateEmptyDraft(options: { title: string; generatedAt: string }): GeneratedDocument {
+  return { docx: buildDocx(options, []), paragraphs: [] };
+}

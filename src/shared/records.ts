@@ -163,7 +163,7 @@ export interface Notebook {
 
 // ---- Step 4: drafts and revisions (work products). The matter store writes them. ----
 
-export type DraftKind = "list_of_dates" | "synopsis";
+export type DraftKind = "list_of_dates" | "synopsis" | "questions_of_law" | "grounds";
 
 /** A generator wrote the revision, or the advocate saved it from the editor. */
 export type RevisionAuthor = "generator" | "advocate" | "agent";

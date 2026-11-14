@@ -11,6 +11,7 @@ import { createReadStream } from "node:fs";
 import { mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { WORK_SCHEMA, WorkStore } from "./work.ts";
 import type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus, DraftKind, RevisionAuthor, DraftRecord, RevisionRecord, ParagraphLinkRecord } from "../../shared/records.ts";
 
 export type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus, DraftKind, RevisionAuthor, DraftRecord, RevisionRecord, ParagraphLinkRecord };
@@ -181,7 +182,7 @@ CREATE TRIGGER IF NOT EXISTS conflict_no_delete BEFORE DELETE ON date_conflict B
 -- Step 4: drafts and revisions (work products). A revision is append-only; an approval is its own row.
 CREATE TABLE IF NOT EXISTS draft (
   id TEXT PRIMARY KEY,
-  kind TEXT NOT NULL CHECK (kind IN ('list_of_dates', 'synopsis')),
+  kind TEXT NOT NULL CHECK (kind IN ('list_of_dates', 'synopsis', 'questions_of_law', 'grounds')),
   title TEXT NOT NULL,
   created_at TEXT NOT NULL
 ) STRICT;
@@ -312,6 +313,7 @@ export class MatterStore {
     MatterStore.migrate(db);
     db.exec("PRAGMA foreign_keys = ON;");
     db.exec(SCHEMA);
+    db.exec(WORK_SCHEMA);
     return db;
   }
 
@@ -323,6 +325,27 @@ export class MatterStore {
     // Step 5: a review item may belong to a draft (a defect the checks found).
     const items = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'review_item'").get() as { sql?: string } | undefined;
     if (items?.sql && !items.sql.includes("draft_id")) db.exec("ALTER TABLE review_item ADD COLUMN draft_id TEXT;");
+    // Step 6: drafts of the kinds questions_of_law and grounds.
+    const draft = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'draft'").get() as { sql?: string } | undefined;
+    if (draft?.sql && !draft.sql.includes("'grounds'")) {
+      db.exec("PRAGMA foreign_keys = OFF;");
+      db.exec("BEGIN");
+      try {
+        db.exec(`CREATE TABLE draft_step6 (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL CHECK (kind IN ('list_of_dates', 'synopsis', 'questions_of_law', 'grounds')),
+  title TEXT NOT NULL,
+  created_at TEXT NOT NULL
+) STRICT;
+INSERT INTO draft_step6 SELECT id, kind, title, created_at FROM draft;
+DROP TABLE draft;
+ALTER TABLE draft_step6 RENAME TO draft;`);
+        db.exec("COMMIT");
+      } catch (e) {
+        db.exec("ROLLBACK");
+        throw e;
+      }
+    }
     const row = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'revision'").get() as { sql?: string } | undefined;
     if (!row?.sql || row.sql.includes("'agent'")) return;
     db.exec("PRAGMA foreign_keys = OFF;");
@@ -351,6 +374,13 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
 
   close(): void {
     this.db.close();
+  }
+
+  private workStore: WorkStore | null = null;
+  /** The records of steps 6 to 10 (work.ts), on the same database. */
+  get work(): WorkStore {
+    this.workStore ??= new WorkStore(this, this.db);
+    return this.workStore;
   }
 
   matter(): MatterSummary {
