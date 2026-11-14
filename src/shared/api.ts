@@ -6,6 +6,8 @@ import type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRec
 export type { AgentChanges, AgentChange } from "./records.ts";
 import type { InboxItem, ProgressStage, DuplicatePair, MemoryProposal, RecordColumn, RecordTable, Workflow, ManifestCheck, AdverseReview, AnnexureRecord, Attestation, AuthorityRecord, CitationCheck, FilingSetRecord, FilingState, IssueRecord, LimitationRecord, MatterDetails, ResearchState } from "./work.ts";
 export type * from "./work.ts";
+export type * from "./studio.ts";
+import type { ArgumentRecord, CorpusPart, ProvisionRecord, ResearchDocument, ResearchHit, ResearchSettings, StudioState } from "./studio.ts";
 
 import type { AGUIEvent } from "@ag-ui/core";
 
@@ -142,6 +144,31 @@ export interface OpenAdvoApi {
   resolveReviewItem(matterId: string, itemId: string): Promise<ReviewItem>;
   skipReviewItem(matterId: string, itemId: string): Promise<ReviewItem>;
   onIngestUpdate(listener: (matterId: string) => void): () => void;
+  // V4 (docs/specs/v4.md). Human-only where marked.
+  getStudio(matterId: string): Promise<StudioState>;
+  getResearchLog(matterId: string): Promise<EventRecord[]>;
+  researchSearch(matterId: string, source: ResearchHit["source"], query: string, opts?: { from?: number; to?: number; limit?: number }): Promise<{ hits: ResearchHit[]; notice: string }>;
+  researchRead(matterId: string, source: ResearchHit["source"], ref: string): Promise<ResearchDocument>;
+  /** Saves as an adopted authority (the advocate's own save). */
+  saveJudgment(matterId: string, ref: string, input: { paragraph?: string; proposition?: string; role?: string; issueId?: string | null }): Promise<AuthorityRecord>;
+  saveProvision(matterId: string, ref: string): Promise<ProvisionRecord>;
+  /** Human-only. */
+  decideProvision(matterId: string, id: string, decision: "adopted" | "rejected"): Promise<ProvisionRecord>;
+  /** Starts the argument loop; returns the run id. */
+  startArgumentLoop(matterId: string, issueId: string, opts?: { rounds?: number; generators?: number }): Promise<string>;
+  /** Human-only. */
+  decideArgument(matterId: string, id: string, decision: "accepted" | "rejected"): Promise<ArgumentRecord>;
+  /** Proposes an accepted argument as a tracked insertion in the Grounds. */
+  argumentToGrounds(matterId: string, id: string): Promise<string>;
+  getWeakPoints(matterId: string): Promise<Array<{ claim: string; questions: string[]; attacks: Array<{ kind: string; claim: string }> }>>;
+  corpusParts(): Promise<CorpusPart[]>;
+  indexSupremeCourt(years: number[]): Promise<CorpusPart[]>;
+  listHighCourts(year: number): Promise<Array<{ code: string; name: string }>>;
+  indexHighCourt(code: string, year: number): Promise<CorpusPart[]>;
+  getResearchSettings(): Promise<ResearchSettings>;
+  setResearchSettings(s: ResearchSettings): Promise<ResearchSettings>;
+  onStudioChanged(listener: (matterId: string) => void): () => void;
+  onStudioProgress(listener: (text: string) => void): () => void;
   getNotebook(matterId: string): Promise<Notebook>;
   /** Human-only actions on Notebook events (decision 5). */
   confirmEvent(matterId: string, eventId: string): Promise<Notebook>;

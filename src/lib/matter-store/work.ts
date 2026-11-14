@@ -503,13 +503,14 @@ export class WorkStore {
       proposition: String(r.proposition),
       role: r.role as AuthorityRecord["role"],
       issueId: r.issue_id == null ? null : String(r.issue_id),
+      sourceRef: r.source_ref == null ? null : String(r.source_ref),
       author: r.author as "advocate" | "agent",
       status: r.status as AuthorityRecord["status"],
       createdAt: String(r.created_at),
     }));
   }
 
-  addAuthority(input: Omit<AuthorityRecord, "id" | "author" | "status" | "createdAt">, ctx: WriteContext): AuthorityRecord {
+  addAuthority(input: Omit<AuthorityRecord, "id" | "author" | "status" | "createdAt" | "sourceRef"> & { sourceRef?: string | null }, ctx: WriteContext): AuthorityRecord {
     const who = author(ctx);
     const citation = clean(input.citation, 200);
     if (!citation) throw new MatterStoreError("CITATION_REQUIRED", "an authority needs its citation");
@@ -517,8 +518,8 @@ export class WorkStore {
     if (input.issueId && !this.listIssues().some((i) => i.id === input.issueId)) throw new MatterStoreError("ISSUE_NOT_FOUND", input.issueId);
     const id = randomUUID();
     this.db
-      .prepare("INSERT INTO authority (id, citation, parties, decision_date, paragraph, proposition, role, issue_id, author, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .run(id, citation, clean(input.parties, 500), clean(input.decisionDate, 20), clean(input.paragraph, 20), clean(input.proposition, 1000), input.role, input.issueId ?? null, who, who === "advocate" ? "adopted" : "candidate", now());
+      .prepare("INSERT INTO authority (id, citation, parties, decision_date, paragraph, proposition, role, issue_id, author, status, created_at, source_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(id, citation, clean(input.parties, 500), clean(input.decisionDate, 20), clean(input.paragraph, 20), clean(input.proposition, 1000), input.role, input.issueId ?? null, who, who === "advocate" ? "adopted" : "candidate", now(), input.sourceRef ?? null);
     this.event(ctx, "authority.added", id, { citation, role: input.role, author: who });
     return this.listAuthorities().find((a) => a.id === id)!;
   }

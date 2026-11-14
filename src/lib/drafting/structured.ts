@@ -192,6 +192,8 @@ export interface ConferenceInput {
   adverseReview: { outcome: string; coverage: string; note: string } | null;
   memoranda: Array<{ title: string; refs: number; unresolved: number }>;
   openReviewItems: Array<{ kind: string; detail: string }>;
+  /** V4-4: the Studio's weak-points report, for accepted arguments. */
+  weakPoints?: Array<{ claim: string; questions: string[]; attacks: Array<{ kind: string; claim: string }> }>;
 }
 
 const ROLES = ["supporting", "adverse", "distinguishable", "other"];
@@ -237,6 +239,15 @@ export function conferenceBlocks(i: ConferenceInput): Block[] {
   if (absent.length) blocks.push({ text: `Matter details not recorded: ${absent.join(", ")}.` });
   if (!i.openReviewItems.length && !absent.length) blocks.push({ text: "None." });
   for (const r of i.openReviewItems) blocks.push({ text: `[${r.kind}] ${r.detail}` });
+  blocks.push({ text: "8A. Weak points of the accepted arguments (Studio)", style: "heading" });
+  const wp = i.weakPoints ?? [];
+  if (!wp.length) blocks.push({ text: "No argument has been accepted in the Studio." });
+  for (const w of wp) {
+    blocks.push({ text: `Argument: ${w.claim}` });
+    if (!w.questions.length && !w.attacks.length) blocks.push({ text: "No open question and no attack that stands." });
+    for (const q of w.questions) blocks.push({ text: `Open question: ${q}` });
+    for (const a of w.attacks) blocks.push({ text: `Attack that stands (${a.kind}): ${a.claim}` });
+  }
   blocks.push({ text: "9. Decisions of the conference", style: "heading" });
   blocks.push({ text: "The advocate records each decision on the Research tab: accept or reject each issue with a reason, adopt or reject each authority. This package is generated from the records and holds no decision of its own." });
   blocks.push({ text: "Advisory outcome scores: not available. The application has no bench data (ruling R-1)." });

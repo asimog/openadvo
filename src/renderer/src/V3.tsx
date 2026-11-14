@@ -67,7 +67,7 @@ const TAB_NAMES: Record<string, string> = {
   matrix: "Factual Matrix",
   chronology: "Chronology",
   records: "Record table",
-  research: "Research",
+  research: "Studio",
   filing: "Filing",
   review: "Review",
 };
@@ -149,7 +149,7 @@ export function ReviewInbox(props: { matterId: string; version: number; onTab: (
 
 export const APPEARANCE_EVENT = "openadvo:appearance";
 
-export function SettingsPage(props: { mailbox: ReactNode }) {
+export function SettingsPage(props: { mailbox: ReactNode; research?: ReactNode }) {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [mode, setMode] = useState<Appearance>("system");
   useEffect(() => {
@@ -177,6 +177,11 @@ export function SettingsPage(props: { mailbox: ReactNode }) {
       <section className="work-section" aria-label="Mailbox">
         <Heading level={3}>Authorised mailbox</Heading>
         {props.mailbox}
+      </section>
+      <section className="work-section" aria-label="Research sources">
+        <Heading level={3}>Research sources</Heading>
+        <Text type="supporting">Queries to these sources leave this computer and are recorded in the matter's research log. Turn off a source you do not want used.</Text>
+        {props.research}
       </section>
       <section className="work-section" aria-label="Filing manifest key">
         <Heading level={3}>Filing manifest key</Heading>

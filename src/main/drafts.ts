@@ -18,6 +18,7 @@ import { decideChanges, pendingChanges, proposeInsertion, proposeReplacement, ty
 import { caseNumbers } from "../lib/verification/index.ts";
 import type { AgentChanges } from "../shared/records.ts";
 import { delayDays } from "../lib/filing/index.ts";
+import { groundedStatus } from "../lib/studio/index.ts";
 import { bodyParagraphs, conferenceBlocks, condonationBlocks, generateStructured, petitionBlocks, prayerDefect, TITLES, TO_COMPLETE } from "../lib/drafting/structured.ts";
 import type { DraftCheck } from "../shared/records.ts";
 import {
@@ -251,6 +252,13 @@ export class Drafts {
         })(),
         memoranda: w.listMemoranda().map((m) => ({ title: m.title, refs: m.refs.length, unresolved: m.unresolved.length })),
         openReviewItems: items.map((r) => ({ kind: r.kind, detail: r.detail })),
+        weakPoints: (() => {
+          const args = store.studio.arguments();
+          const status = groundedStatus(args);
+          return args
+            .filter((a) => a.status === "accepted" && !a.attacks)
+            .map((a) => ({ claim: a.claim, questions: a.questions, attacks: args.filter((x) => x.attacks === a.id && x.status !== "rejected" && status.get(x.id) !== "out").map((x) => ({ kind: x.attackKind ?? "attack", claim: x.claim })) }));
+        })(),
       });
     }
     const g = generateStructured(blocks, { title, generatedAt });

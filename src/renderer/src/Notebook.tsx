@@ -179,7 +179,7 @@ export function NotebookView(props: {
         <Tab value="matrix" label="Factual Matrix" />
         <Tab value="chronology" label="Chronology" />
         <Tab value="records" label="Record table" />
-        <Tab value="research" label="Research" />
+        <Tab value="research" label="Studio" />
         <Tab value="filing" label="Filing" />
       </TabList>
       <div className="notebook-body">

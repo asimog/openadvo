@@ -12,6 +12,7 @@ import { mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promi
 import path from "node:path";
 
 import { WORK_SCHEMA, WorkStore } from "./work.ts";
+import { STUDIO_SCHEMA, StudioStore } from "./studio.ts";
 import { ACCEPTED_TEXT, detectMediaType } from "../document-intelligence/formats.ts";
 import type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus, DraftKind, RevisionAuthor, DraftRecord, RevisionRecord, ParagraphLinkRecord } from "../../shared/records.ts";
 
@@ -314,6 +315,10 @@ export class MatterStore {
     db.exec("PRAGMA foreign_keys = ON;");
     db.exec(SCHEMA);
     db.exec(WORK_SCHEMA);
+    db.exec(STUDIO_SCHEMA);
+    // V4-2: an authority found in a research source keeps its reference.
+    const au = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'authority'").get() as { sql?: string } | undefined;
+    if (au?.sql && !au.sql.includes("source_ref")) db.exec("ALTER TABLE authority ADD COLUMN source_ref TEXT;");
     // V2-6: interim relief in the matter details.
     const md = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'matter_details'").get() as { sql?: string } | undefined;
     if (md?.sql && !md.sql.includes("interim_relief")) db.exec("ALTER TABLE matter_details ADD COLUMN interim_relief TEXT NOT NULL DEFAULT '';");
@@ -385,6 +390,13 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
   }
 
   private workStore: WorkStore | null = null;
+  private studioStore: StudioStore | null = null;
+
+  /** V4: the Research and Argument Studio. */
+  get studio(): StudioStore {
+    this.studioStore ??= new StudioStore(this, this.db);
+    return this.studioStore;
+  }
   /** The records of steps 6 to 10 (work.ts), on the same database. */
   get work(): WorkStore {
     this.workStore ??= new WorkStore(this, this.db);

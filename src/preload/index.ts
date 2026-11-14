@@ -96,6 +96,38 @@ const api: OpenAdvoApi = {
   fetchMail: (matterId, filter) => ipcRenderer.invoke("mail:fetch", matterId, filter),
   decideAgentChanges: (matterId, draftId, baseRevisionId, decisions) =>
     ipcRenderer.invoke("drafts:decideAgentChanges", matterId, draftId, baseRevisionId, decisions),
+  // V4: the Research and Argument Studio.
+  getStudio: (matterId) => ipcRenderer.invoke("studio:get", matterId),
+  getResearchLog: (matterId) => ipcRenderer.invoke("studio:log", matterId),
+  researchSearch: (matterId, source, query, opts) => ipcRenderer.invoke("studio:search", matterId, source, query, opts ?? {}),
+  researchRead: (matterId, source, ref) => ipcRenderer.invoke("studio:read", matterId, source, ref),
+  saveJudgment: (matterId, ref, input) => ipcRenderer.invoke("studio:saveJudgment", matterId, ref, input),
+  saveProvision: (matterId, ref) => ipcRenderer.invoke("studio:saveProvision", matterId, ref),
+  decideProvision: (matterId, id, decision) => ipcRenderer.invoke("studio:decideProvision", matterId, id, decision),
+  startArgumentLoop: (matterId, issueId, opts) => ipcRenderer.invoke("studio:start", matterId, issueId, opts ?? {}),
+  decideArgument: (matterId, id, decision) => ipcRenderer.invoke("studio:decideArgument", matterId, id, decision),
+  argumentToGrounds: (matterId, id) => ipcRenderer.invoke("studio:toGrounds", matterId, id),
+  getWeakPoints: (matterId) => ipcRenderer.invoke("studio:weakPoints", matterId),
+  corpusParts: () => ipcRenderer.invoke("corpus:parts"),
+  indexSupremeCourt: (years) => ipcRenderer.invoke("corpus:indexSc", years),
+  listHighCourts: (year) => ipcRenderer.invoke("corpus:highCourts", year),
+  indexHighCourt: (code, year) => ipcRenderer.invoke("corpus:indexHc", code, year),
+  getResearchSettings: () => ipcRenderer.invoke("research:getSettings"),
+  setResearchSettings: (s) => ipcRenderer.invoke("research:setSettings", s),
+  onStudioChanged: (listener) => {
+    const handler = (_event: unknown, matterId: string) => listener(matterId);
+    ipcRenderer.on("studio:changed", handler);
+    return () => {
+      ipcRenderer.removeListener("studio:changed", handler);
+    };
+  },
+  onStudioProgress: (listener) => {
+    const handler = (_event: unknown, text: string) => listener(text);
+    ipcRenderer.on("studio:progress", handler);
+    return () => {
+      ipcRenderer.removeListener("studio:progress", handler);
+    };
+  },
   onIngestUpdate: (listener) => {
     const handler = (_event: unknown, matterId: string) => listener(matterId);
     ipcRenderer.on("ingest:update", handler);

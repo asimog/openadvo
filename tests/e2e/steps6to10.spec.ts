@@ -123,7 +123,7 @@ test("steps 6 to 10: research, citations, grounds, filing set, capture, agent fi
 
     // ---- Step 6: the agent proposes an issue; the advocate decides it at the conference ----
     await agent("proposeIssue", matterId, "Whether the High Court erred in dismissing the writ petition without notice.");
-    await page.getByRole("tab", { name: "Research" }).click();
+    await page.getByRole("tab", { name: "Studio" }).click();
     const issue = page.getByTestId("issue").first();
     await expect(issue).toHaveAttribute("data-status", "candidate");
     await issue.getByRole("button", { name: "Accept" }).click();
@@ -166,7 +166,7 @@ test("steps 6 to 10: research, citations, grounds, filing set, capture, agent fi
 
     // ---- Step 7: the validator checks the citations ----
     await page.getByRole("tab", { name: "Matter", exact: true }).click();
-    await page.getByRole("tab", { name: "Research" }).click();
+    await page.getByRole("tab", { name: "Studio" }).click();
     await expect(page.getByTestId("validator-status")).toContainText("ulos");
     await page.getByRole("button", { name: "Check all citations" }).click();
     await expect(page.locator('[data-testid="citation-check"][data-outcome="verified"]').first()).toContainText("1950 INSC 1", { timeout: 60_000 });
@@ -244,7 +244,7 @@ test("steps 6 to 10: research, citations, grounds, filing set, capture, agent fi
     const head = (await call<any[]>("listDrafts", matterId)).find((d) => d.id === con.draft.id).head;
     const keptCon = await call<any>("decideAgentChanges", matterId, con.draft.id, head.id, [{ anchor: reasons.anchor, decision: "keep" }]);
     await call("approveRevision", matterId, keptCon.id);
-    await page.getByRole("tab", { name: "Research" }).click();
+    await page.getByRole("tab", { name: "Studio" }).click();
     await page.getByRole("tab", { name: "Filing" }).click();
     await expect(page.getByTestId("filing-blockers")).toHaveCount(0);
     await page.getByRole("button", { name: "Approve for filing and make the filing set" }).click();

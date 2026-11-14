@@ -17,6 +17,10 @@ import { Research } from "./research.ts";
 import { Filing } from "./filing.ts";
 import { KeyFileSigner } from "./signing.ts";
 import { Progress } from "./progress.ts";
+import { ArgumentStudio, ResearchHub, type SourceName } from "./studio.ts";
+import { researchLog, studioTools } from "./studio-tools.ts";
+import { setFetcher } from "../lib/research-sources/http.ts";
+import type { ResearchSettings } from "../shared/studio.ts";
 import { Portal, portalOptionsFromEnv } from "./portal.ts";
 import { Mail, type MailAccount } from "./mail.ts";
 import { agentWorkHost } from "./agent-work.ts";
@@ -52,6 +56,8 @@ let workHost: AgentWorkHost;
 let recordTables: RecordTables;
 let signer: KeyFileSigner | null = null;
 let progress: Progress;
+let hub: ResearchHub;
+let studio: ArgumentStudio;
 
 /** Steps 6 to 10 notify the window that a matter changed (a capture, a proposal). */
 function matterChanged(matterId: string): void {
@@ -152,6 +158,44 @@ function registerBridge(): void {
     const r = await dialog.showSaveDialog(window, { title: "Export matter", defaultPath: `${title} ${new Date().toISOString().slice(0, 10)}.zip`, filters: [{ name: "ZIP archive", extensions: ["zip"] }] });
     if (r.canceled || !r.filePath) return null;
     return matters.exportMatter(matterId, r.filePath);
+  });
+  // V4: the Research and Argument Studio. Decisions are human-only.
+  handle("studio:get", (matterId: string) => studio.state(matterId));
+  handle("studio:log", (matterId: string) => researchLog(matters, matterId));
+  handle("studio:search", (matterId: string, source: string, query: string, opts: Record<string, unknown>) =>
+    hub.search(matterId, sourceName(source), String(query ?? ""), { from: Number(opts?.from) || undefined, to: Number(opts?.to) || undefined, limit: Number(opts?.limit) || 25 }),
+  );
+  handle("studio:read", (matterId: string, source: string, ref: string) => hub.read(matterId, sourceName(source), String(ref ?? "")));
+  handle("studio:saveJudgment", (matterId: string, ref: string, input: Record<string, unknown>) =>
+    hub.saveJudgment(matterId, String(ref), { paragraph: String(input?.paragraph ?? ""), proposition: String(input?.proposition ?? ""), role: String(input?.role ?? "other"), issueId: input?.issueId ? String(input.issueId) : null }, { actor: "advocate" }),
+  );
+  handle("studio:saveProvision", (matterId: string, ref: string) => hub.saveProvision(matterId, String(ref), { actor: "advocate" }));
+  handle("studio:decideProvision", async (matterId: string, id: string, decision: string) => {
+    if (decision !== "adopted" && decision !== "rejected") throw new Error("BAD_DECISION: adopted or rejected");
+    return (await matters.store(matterId)).studio.decideProvision(String(id), decision, { actor: "advocate" });
+  });
+  handle("studio:start", (matterId: string, issueId: string, opts: Record<string, unknown>) => studio.start(matterId, String(issueId), { rounds: Number(opts?.rounds) || undefined, generators: Number(opts?.generators) || undefined }));
+  handle("studio:decideArgument", async (matterId: string, id: string, decision: string) => {
+    if (decision !== "accepted" && decision !== "rejected") throw new Error("BAD_DECISION: accepted or rejected");
+    return (await matters.store(matterId)).studio.decideArgument(String(id), decision, { actor: "advocate" });
+  });
+  handle("studio:toGrounds", async (matterId: string, id: string) => {
+    const a = (await matters.store(matterId)).studio.argument(String(id));
+    if (!a) throw new Error("ARGUMENT_NOT_FOUND");
+    if (a.status !== "accepted") throw new Error("ARGUMENT_NOT_ACCEPTED: accept the argument first");
+    const r = await workHost.proposeParagraph(matterId, { kind: "grounds", after: null, text: `${a.claim} ${a.reasoning}`, reason: "Argument accepted in the Studio" }, "");
+    return r.text;
+  });
+  handle("studio:weakPoints", (matterId: string) => studio.weakPoints(matterId));
+  handle("corpus:parts", () => hub.parts());
+  handle("corpus:indexSc", (years: unknown) => hub.indexSupremeCourt(Array.isArray(years) ? years.map(Number).filter(Number.isFinite) : []));
+  handle("corpus:highCourts", (year: number) => hub.highCourts(Number(year)));
+  handle("corpus:indexHc", (code: string, year: number) => hub.indexHighCourt(String(code), Number(year)));
+  handle("research:getSettings", () => researchSettings());
+  handle("research:setSettings", (s: Record<string, unknown>) => {
+    const next: ResearchSettings = { aws: s?.aws !== false, indiaCode: s?.indiaCode !== false, web: s?.web !== false };
+    writeSetting("researchSources", next);
+    return next;
   });
   // V3-1 and V3-2: reads only.
   handle("progress:get", (matterId: string) => progress.progress(matterId));
@@ -399,6 +443,18 @@ function createWindow(): void {
   });
 }
 
+/** V4-1: which research sources may be reached. Each is on until the advocate turns it off. */
+function researchSettings(): ResearchSettings {
+  const r = (readSettings().researchSources ?? {}) as Partial<ResearchSettings>;
+  return { aws: r.aws !== false, indiaCode: r.indiaCode !== false, web: r.web !== false };
+}
+
+const SOURCES: SourceName[] = ["aws_sc", "aws_hc", "indiacode", "web"];
+function sourceName(s: unknown): SourceName {
+  if (!SOURCES.includes(s as SourceName)) throw new Error(`BAD_SOURCE: one of ${SOURCES.join(", ")}`);
+  return s as SourceName;
+}
+
 /** V3-4: the appearance the advocate chose. */
 function appearance(): "system" | "light" | "dark" {
   const a = readSettings().appearance;
@@ -464,6 +520,30 @@ function exposeTestHooks(): void {
     readMemoryAsAgent: (matterId: string) => matters.memory(matterId),
     // The agent's propose_memory_note (V2-8), so a test needs no model.
     proposeMemoryAsAgent: (matterId: string, text: string, reason: string) => matters.proposeMemory(matterId, text, reason),
+    // V4: answer the research sources' requests from fixtures (url substring → body), so tests need no network.
+    setResearchFixtures: (fixtures: Array<{ match: string; body: string; type?: string; status?: number; base64?: boolean }>) => {
+      setFetcher(async (url, init) => {
+        const f = fixtures.find((x) => url.includes(x.match));
+        if (!f) return new Response("not in the fixtures", { status: 404 });
+        const bytes = f.base64 ? Buffer.from(f.body, "base64") : Buffer.from(f.body);
+        const range = init?.headers?.range ? /bytes=(\d+)-(\d+)?/.exec(init.headers.range) : null;
+        if (range) {
+          const start = Number(range[1]);
+          const end = range[2] ? Number(range[2]) + 1 : bytes.length;
+          return new Response(bytes.subarray(start, end), { status: 206, headers: { "content-range": `bytes ${start}-${end - 1}/${bytes.length}`, "content-type": f.type ?? "application/octet-stream" } });
+        }
+        return new Response(bytes, { status: f.status ?? 200, headers: { "content-type": f.type ?? "text/plain" } });
+      });
+      return true;
+    },
+    // V4-3: the loop with a scripted model (labels to answers), so tests need no model.
+    runStudioScripted: async (matterId: string, issueId: string, script: Array<{ match: string; answer: string }>) => {
+      const fake = new ArgumentStudio(matters, async () => ({ model: "test/scripted", complete: async (_s: string, user: string) => script.find((x) => user.includes(x.match))?.answer ?? "{}" }), (id) => window?.webContents.send("studio:changed", id));
+      await fake.start(matterId, issueId, { rounds: 1, generators: 2 });
+      await fake.idle(matterId);
+      return (await matters.store(matterId)).studio.runs().at(-1);
+    },
+    studioTool: (matterId: string, tool: string, params: Record<string, unknown>) => studioTools(hub, studio, matters)(matterId, tool, params, ""),
     importEml: async (matterId: string, paths: string[]) => {
       const out = await mail.importEmlFiles(matterId, paths);
       ingest.enqueue(matterId);
@@ -515,6 +595,9 @@ app.whenReady().then(() => {
     }),
   );
   workHost = agentWorkHost({ matters, research, drafts, portal, ulos });
+  // V4: the Research and Argument Studio.
+  hub = new ResearchHub(matters, path.join(app.getPath("userData"), "corpus"), researchSettings, (text) => window?.webContents.send("studio:progress", text));
+  studio = new ArgumentStudio(matters, () => agent.completer(), (id) => window?.webContents.send("studio:changed", id));
   recordTables = new RecordTables(matters);
   agent = new Agent(
     {
@@ -545,6 +628,7 @@ app.whenReady().then(() => {
       proposeMemory: async (id, text, reason, sessionId) => (await matters.proposeMemory(id, text, reason, sessionId)).id,
       recordTable: (id) => recordTables.describe(id),
       fillRecordCell: (id, input, sessionId) => recordTables.fillByAgent(id, input, sessionId, findSource),
+      studio: (id, tool, params, sessionId) => studioTools(hub, studio, matters)(id, tool, params, sessionId),
     },
     { agentDir: path.join(app.getPath("userData"), "pi-agent"), model: process.env.OPENADVO_MODEL || undefined },
   );

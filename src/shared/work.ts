@@ -52,6 +52,8 @@ export interface AuthorityRecord {
   proposition: string;
   role: "supporting" | "adverse" | "distinguishable" | "other";
   issueId: string | null;
+  /** V4-2: where research found it ("sc:<path>", "hc:<file>"); null when added by hand. */
+  sourceRef?: string | null;
   author: "advocate" | "agent";
   status: "candidate" | "adopted" | "rejected";
   createdAt: string;

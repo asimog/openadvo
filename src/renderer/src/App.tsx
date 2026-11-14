@@ -19,6 +19,7 @@ import { FilingView, MatterDetailsForm, ResearchView } from "./Work.tsx";
 import { ArchivedMatters, MatterAdmin, MemoryEditor, RecordTableView } from "./V1.tsx";
 import { CommandBar, MatterProgress, ReviewInbox, SettingsPage, tabName, type Command } from "./V3.tsx";
 import { MailboxAccount } from "./Work.tsx";
+import { ResearchSourceSettings, StudioView } from "./Studio.tsx";
 import { EventTable, SourceDetail, SourcesPanel } from "./Sources.tsx";
 import type {
   AddFileResult,
@@ -253,7 +254,7 @@ export function App() {
     for (const m of matters.filter((x) => !x.archived)) list.push({ id: `m:${m.id}`, group: "Matters", label: m.title, run: () => void openMatter(m.id) });
     if (matterId) {
       for (const t of ["matter", "review", "sources", "procedural", "matrix", "chronology", "records", "research", "filing"]) {
-        list.push({ id: `t:${t}`, group: "Go to", label: tabName(t), run: () => { closeDocument(); setTab(t); } });
+        list.push({ id: `t:${t}`, group: "Go to", label: tabName(t), hint: t === "research" ? "research, sources, arguments" : undefined, run: () => { closeDocument(); setTab(t); } });
       }
       const id = matterId;
       list.push({ id: "add", group: "Actions", label: "Add files to this matter", run: async () => addPathsTo(id, await api.pickFiles()) });
@@ -388,7 +389,7 @@ export function App() {
         }
       >
         {settingsOpen ? (
-          <SettingsPage mailbox={<MailboxAccount />} />
+          <SettingsPage mailbox={<MailboxAccount />} research={<ResearchSourceSettings />} />
         ) : !matter ? (
           <Landing
             matters={matters.filter((m) => !m.archived)}
@@ -482,7 +483,7 @@ export function App() {
                             }}
                           />
                         }
-                        researchPanel={<ResearchView matterId={matter.id} version={version} />}
+                        researchPanel={<StudioView matterId={matter.id} version={version} conference={<ResearchView matterId={matter.id} version={version} />} />}
                         filingPanel={<FilingView matterId={matter.id} sources={sources} version={version} />}
                         recordPanel={<RecordTableView matterId={matter.id} sources={sources} version={version} />}
                         reviewCount={inboxCount}

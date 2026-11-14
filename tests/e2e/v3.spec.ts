@@ -73,7 +73,7 @@ test("v3: progress, review inbox, command bar, settings, export, finish", async 
     await page.getByRole("textbox", { name: "Command" }).fill("research");
     await page.keyboard.press("Enter");
     await expect(page.getByTestId("command-bar")).toHaveCount(0);
-    await expect(page.getByRole("tab", { name: "Research" })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("tab", { name: "Studio" })).toHaveAttribute("aria-selected", "true");
     await page.keyboard.press("Control+K");
     await page.getByRole("textbox", { name: "Command" }).fill("certified copy");
     await expect(page.getByRole("option", { name: /certified copy.*order\.pdf, p\. 1, l\. 3/ })).toBeVisible();

@@ -62,7 +62,7 @@ test("v1: record table, memory, workflows, durable chat, rename and archive", as
     expect(refused).toContain("QUOTE_NOT_FOUND");
     const filled = await fill({ source: "order.pdf", column: "Relief granted", answer: "Appeal dismissed with costs", quote: "the appeal is  DISMISSED with costs", page: 1, line: 2 });
     expect(filled).toContain("candidate");
-    await page.getByRole("tab", { name: "Research" }).click();
+    await page.getByRole("tab", { name: "Studio" }).click();
     await page.getByRole("tab", { name: "Record table" }).click();
     await expect(page.getByTestId("record-cell")).toHaveAttribute("data-status", "candidate");
     await page.getByTestId("record-cell").getByRole("button", { name: "Confirm" }).click();
