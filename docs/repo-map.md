@@ -20,6 +20,7 @@
 | `resources/ulos/` | The vendored `ulos` validator and its court database, copied from `C:\dev\ulosadvo` by `npm run vendor:ulos` (step 7). Never committed and never modified. | The vendor script only. |
 | `resources/models/` | The vendored speech model (Whisper tiny, English), fetched by `npm run vendor:voice` (step 10). Never committed and never modified. | The vendor script only. |
 | `out/` | Build output of electron-vite. Not committed. | — |
+| `release/` | The folder to install, made by `npm run dist` from `electron-builder.yml`. Not committed. | — |
 
 ## Data outside the repository
 

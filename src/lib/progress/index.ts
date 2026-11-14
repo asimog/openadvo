@@ -128,7 +128,7 @@ export function matterProgress(i: ProgressInput): Stage[] {
       id: "verification",
       title: "Verification and filing compliance",
       tab: "filing",
-      state: i.blockers.length === 0 ? (allApproved ? "done" : "not_started") : allApproved ? "blocked" : "in_progress",
+      state: i.blockers.length === 0 ? (allApproved ? "done" : "not_started") : allApproved ? "blocked" : i.drafts.some((d) => d.exists) ? "in_progress" : "not_started",
       status: i.blockers.length === 0 ? "No rule shows a defect." : `${i.blockers.length} rule(s) show a defect.`,
       next: i.blockers.length ? i.blockers[0] : "",
     });

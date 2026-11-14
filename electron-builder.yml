@@ -1,0 +1,26 @@
+# V3-7: the build to install (docs/specs/v3.md). `npm run dist` makes release/<platform>-unpacked.
+# No ASAR archive: the vendored Euro-Office converter and the validator are executables, and the
+# application finds its resources beside its own code (src/main/index.ts, resourcesRoot).
+appId: org.openadvocate.desktop
+productName: Open Advocate
+directories:
+  output: release
+asar: false
+# The Electron already installed by npm: the build downloads no other Electron.
+electronDist: node_modules/electron/dist
+npmRebuild: false
+files:
+  - out/**
+  - src/editor-host/**
+  - resources/euro-office/**
+  - resources/ulos/**
+  - resources/models/**
+  - package.json
+  - "!**/*.map"
+win:
+  target: dir
+  signAndEditExecutable: false
+mac:
+  target: dir
+linux:
+  target: dir

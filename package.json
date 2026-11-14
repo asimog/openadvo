@@ -1,6 +1,6 @@
 {
   "name": "openadvo",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "private": true,
   "description": "Open Advocate: an agent-operated litigation workspace for Supreme Court Advocates-on-Record.",
   "type": "module",
@@ -18,7 +18,8 @@
     "test": "npm run test:unit && npm run build && npm run test:e2e",
     "vendor": "node scripts/vendor-euro-office.ts",
     "vendor:ulos": "node scripts/vendor-ulos.ts",
-    "vendor:voice": "node scripts/vendor-voice.ts"
+    "vendor:voice": "node scripts/vendor-voice.ts",
+    "dist": "electron-vite build && electron-builder --dir"
   },
   "devDependencies": {
     "@astryxdesign/cli": "0.7.15",
@@ -28,6 +29,7 @@
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.3.0",
     "electron": "45.3.2",
+    "electron-builder": "26.18.0",
     "electron-vite": "6.0.0",
     "pdf-lib": "1.17.1",
     "typescript": "7.0.2",
@@ -54,5 +56,6 @@
     "react-resizable-panels": "4.22.0",
     "tesseract.js": "7.0.0",
     "typebox": "1.3.27"
-  }
+  },
+  "author": "Open Advocate"
 }

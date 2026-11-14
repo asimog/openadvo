@@ -21,7 +21,7 @@ test("a new matter: nothing started, and the first next action is to add the rec
   assert.equal(stages.length, 8);
   assert.equal(stages[0].state, "not_started");
   assert.match(stages[0].next, /Add the impugned judgment/);
-  assert.equal(state(empty).verification, "in_progress");
+  assert.equal(state(empty).verification, "not_started");
 });
 
 test("conflicts and unreadable files block; a finished matter has every stage done", () => {

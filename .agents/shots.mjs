@@ -41,5 +41,27 @@ for (const tab of ["Sources", "Procedural history", "Chronology", "Research", "F
   await page.waitForTimeout(600);
   await shot(`03-${tab.replace(/\s+/g, "-").toLowerCase()}`);
 }
+await page.getByRole('tab', { name: 'Matter', exact: true }).click();
+await page.waitForTimeout(800);
+await shot('04-progress');
+await page.getByRole('tab', { name: /^Review/ }).click();
+await page.waitForTimeout(800);
+await shot('05-review');
+await page.keyboard.press('Control+K');
+await page.getByRole('textbox', { name: 'Command' }).fill('dismissed');
+await page.waitForTimeout(800);
+await shot('06-command');
+await page.keyboard.press('Escape');
+await page.getByRole('button', { name: 'Settings' }).click();
+await page.getByLabel('Dark').check();
+await page.waitForTimeout(800);
+await shot('07-settings-dark');
+await page.getByRole('button', { name: 'Ram Kumar v. State of Delhi' }).click();
+await page.getByRole('tab', { name: 'Matter', exact: true }).click();
+await page.waitForTimeout(1000);
+await shot('08-matter-dark');
+await page.getByRole('tab', { name: 'Chronology' }).click();
+await page.waitForTimeout(600);
+await shot('09-chronology-dark');
 await app.close();
 console.log(out);

@@ -7,8 +7,8 @@ Each line: the idea, where it came from, and the step it would touch.
 | Idea | Source | Step it would touch |
 |---|---|---|
 | An inspector that opens any record and shows its raw form, the events that touched it, and its links in both directions. | Earlier principle P9 and the Macro reference (`openadvodeprecated/docs/decisions.md` section 13) | Any, after round 1 |
-| A review inbox split into Signal and Noise, keyboard operable. | Earlier idea M-03 | 3 or later |
-| A command bar that searches commands, matters and records. | Earlier idea M-04 | After round 1 |
+| A review inbox split into Signal and Noise, keyboard operable. **Built in v3 (V3-2) as "Blocks the work" and "Other".** | Earlier idea M-03 | 3 or later |
+| A command bar that searches commands, matters and records. **Built in v3 (V3-3).** | Earlier idea M-04 | After round 1 |
 | Saved pane layouts per matter, and navigation history. | Earlier idea M-02 | After round 1 |
 | Matter memory as a markdown file the advocate can read and edit. **Moved into v1 (V1-3) by the owner's instruction, 2026-11-14.** | Earlier idea M-13 | 6 |
 | Pi session persistence to a file in the matter folder, so the chat history survives a restart. **Built in v1 (V1-1).** | Step 1 build | 1, second version |
@@ -34,3 +34,6 @@ Each line: the idea, where it came from, and the step it would touch.
 | Playbooks: rules compiled from the advocate's own drafting guides, to review a petition against them (Mike playbooks). | Mike analysis, 2026-11-14 | 5 or 6, second version |
 | Sign the filing manifest with an Ed25519 key kept in `safeStorage` (Mike signs its exports). **Built in v2 (V2-7).** | Mike analysis, 2026-11-14 | V1-8, second version |
 | An interim-relief section and prayer in the petition, and an application for condonation of delay when limitation has run. **Built in v2 (V2-6).** | V1-7 build | V1-7, second version |
+| Code-sign the Windows build, make installers (NSIS, DMG, AppImage), and update automatically. Needs the owner's certificates and a machine per operating system. | V3-7 build, 2026-11-14 | V3-7, second version |
+| Pack the application code in an ASAR archive with the executables unpacked (the build now ships without ASAR, so the converter and the validator run from plain folders). | V3-7 build, 2026-11-14 | V3-7, second version |
+| An inspector that opens any record with the events that touched it (the earlier idea P9 above is still open). | V3 spec | After round 6 |

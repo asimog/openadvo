@@ -17,7 +17,7 @@ import { Icon } from "@astryxdesign/core/Icon";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Spinner } from "@astryxdesign/core/Spinner";
 import { Text } from "@astryxdesign/core/Text";
-import { ArrowLeftIcon, ChatBubbleLeftRightIcon, MicrophoneIcon, PaperClipIcon, StopIcon } from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, ChatBubbleLeftRightIcon, PlusCircleIcon, MicrophoneIcon, PaperClipIcon, StopIcon } from "@heroicons/react/24/outline";
 import { CHAT_MESSAGE_EVENT } from "../../shared/api.ts";
 import { AgentChangesCard } from "./AgentChangesCard.tsx";
 import { Markdown } from "./Markdown.tsx";
@@ -296,6 +296,8 @@ export function ChatDock(props: {
             label="New conversation"
             size="sm"
             variant="ghost"
+            isIconOnly
+            icon={<Icon icon={PlusCircleIcon} size="sm" />}
             isDisabled={busy}
             clickAction={async () => {
               const s = await api.newConversation(props.matterId);

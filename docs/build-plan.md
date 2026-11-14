@@ -257,6 +257,9 @@ Round 1 steps also list the main-process modules, agent tools, bridge functions,
 ### Round 6. V3: a finished, polished application
 
 - **Started 2026-11-14 on the owner's instruction**, which overrides rule B6 for this round. **Spec:** [specs/v3.md](specs/v3.md) (items V3-1 to V3-7).
+- **Built 2026-11-14 (as built):** V3-1 in `src/lib/progress/index.ts` (`matterProgress`) and `src/main/progress.ts`; V3-2 `Progress.inbox` and the Review tab; V3-3 the command bar (`Ctrl+K`) and the bridge function `searchSources`; V3-4 the Settings page, `appearance` in `settings.json`, the shared `MailboxAccount` form; V3-5 `Matters.exportMatter` (`VACUUM INTO` and `fflate`), event `matter.exported`; V3-6 `src/shared/dates.ts`, the inferred mark, the chat dock's empty state with workflows, closable notices, the window title; V3-7 `electron-builder.yml` (no ASAR, the installed Electron) and `npm run dist`. Views: `src/renderer/src/V3.tsx`. The application version is 1.0.0.
+- **Tests (as built):** `tests/unit/progress.test.ts`; `tests/e2e/v3.spec.ts`; `tests/e2e/dist.spec.ts` (starts the built executable). Report: [2026-11-14-v3-report.md](../.agents/logs/2026-11-14-v3-report.md).
+- **Proof task:** see [specs/v3.md](specs/v3.md). Not yet run by the owner.
 
 ## 5. Integration
 
