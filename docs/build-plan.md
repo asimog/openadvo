@@ -29,6 +29,7 @@ The plan serves [advocate-workflow.md](advocate-workflow.md). The decisions it b
 | V2 | Third version of the components: files other than PDF, document type, same-text duplicates, relative dates, List of Dates rows, interim relief and condonation, signed manifest, memory proposals | 3, 4, 8, 9, Appendix B | 5 |
 | V3 | A finished, polished application: matter progress, review inbox, command bar, settings, matter export, finish and consistency, a build to install | 1, 10, 12, Appendix C 3 | 6 |
 | V4 | The Research and Argument Studio: research sources (Supreme Court and High Court judgments from AWS Open Data, India Code, the web), saving what research finds, the argument loop, the Studio | 7, 8C, 8D, 9B, 9C | 7 |
+| V5 | The features of the earlier specifications (A to U) and the research (03, 04): record chain, refused writes, Inspector, Find, Files and Jobs, entities, corrections, two OCR readings, quick check, support and treatment, rehearsal, bench trends, compare and Word, citation hygiene, victim identity, limitation exclusions, disclosure and paper book, uncertain portal result, hearings, docket and reminders, usage and confidentiality, Stop, contacts, questions, diagnostics | 2 to 12 | 8 |
 
 The order is the order the task gave, with one change forced by a dependency. The owner wants the complete Euro-Office suite, including its PDF editor, inside the app (2026-11-13). The PDF view of step 2 is that PDF editor, so vendoring and hosting Euro-Office moves from step 4 to step 2. Step 4 then uses the Word editor that step 2 already hosts. Two more notes on the order:
 
@@ -269,6 +270,10 @@ Round 1 steps also list the main-process modules, agent tools, bridge functions,
 - **Found while building:** the AWS metadata holds titles, parties, judges, citations and CNR numbers, but not the judgments' text, so the index cannot find a judgment by subject. Subject search is the web; a web result that names an indexed neutral citation links to the court's copy. The opencode provider refuses a call without a session id, so each loop run sends its own.
 - **Tests (as built):** `tests/unit/research-sources.test.ts` (fixtures; Parquet written by `hyparquet-writer` 0.18.0, a test dependency), `tests/unit/research-sources-live.test.ts` (runs only with `OPENADVO_LIVE_NET=1`), `tests/unit/studio.test.ts`; `tests/e2e/v4.spec.ts` (fixtures and a scripted model). Live run: `node .agents/live-studio.mjs`. Report: [2026-11-14-v4-report.md](../.agents/logs/2026-11-14-v4-report.md).
 - **Proof task:** see [specs/v4.md](specs/v4.md). Not yet run by the owner.
+
+### Round 8. V5: the features of the earlier specifications and the research
+
+- **Started 2026-11-15 on the owner's instruction.** **Spec:** [specs/v5.md](specs/v5.md) (items V5-1 to V5-25, and what is not taken, with the reason).
 
 ## 5. Integration
 
