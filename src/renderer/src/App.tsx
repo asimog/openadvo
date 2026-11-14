@@ -20,6 +20,7 @@ import { ArchivedMatters, MatterAdmin, MemoryEditor, RecordTableView } from "./V
 import { CommandBar, MatterProgress, ReviewInbox, SettingsPage, tabName, type Command } from "./V3.tsx";
 import { MailboxAccount } from "./Work.tsx";
 import { ResearchSourceSettings, StudioView } from "./Studio.tsx";
+import { FilesAndJobs, Inspector, RecordIntegrity, inspect } from "./V5.tsx";
 import { EventTable, SourceDetail, SourcesPanel } from "./Sources.tsx";
 import type {
   AddFileResult,
@@ -285,18 +286,25 @@ export function App() {
     if (!matterId) return null;
     const id = matterId;
     return async (q: string): Promise<Command[]> => {
-      const hits = await api.searchSources(id, q);
-      const names = new Map(sources.map((s) => [s.id, s.name]));
-      return hits.slice(0, 12).map((h) => ({
-        id: `l:${h.id}`,
-        group: "Source lines" as const,
-        label: h.text,
-        hint: `${names.get(h.sourceId) ?? "source"}, p. ${h.page}, l. ${h.line}`,
-        run: () => {
-          setFocus({ sourceId: h.sourceId, page: h.page, line: h.line });
-          setSourceId(h.sourceId);
-        },
-      }));
+      // V5-4: Find in the matter: source lines open the source; any other record opens the Inspector.
+      const hits = await api.findInMatter(id, q);
+      const bySha = new Map(sources.map((s) => [s.sha256, s.id]));
+      return hits.slice(0, 15).map((h) => {
+        const anchor = h.kind === "line" ? /^([0-9a-f]{64}):(\d+):(\d+)$/.exec(h.ref) : null;
+        const sourceIdOf = anchor ? bySha.get(anchor[1]) : undefined;
+        return {
+          id: `f:${h.kind}:${h.ref}`,
+          group: (h.kind === "line" ? "Source lines" : "In this matter") as Command["group"],
+          label: (h.snippet || h.text.slice(0, 120)).replace(/[[\]]/g, ""),
+          hint: `${h.kind}: ${h.label}`,
+          run: () => {
+            if (anchor && sourceIdOf) {
+              setFocus({ sourceId: sourceIdOf, page: Number(anchor[2]), line: Number(anchor[3]) });
+              setSourceId(sourceIdOf);
+            } else inspect(h.ref.split("#")[0]);
+          },
+        };
+      });
     };
   }, [matterId, sources]);
   // V3-2: the count on the Review tab.
@@ -526,6 +534,8 @@ export function App() {
                             <ReviewList matterId={matter.id} items={reviewItems} onChange={() => void refreshMatter(matter.id)} />
                             <Heading level={3}>Events</Heading>
                             <EventTable events={events} />
+                            <RecordIntegrity matterId={matter.id} version={version} />
+                            <FilesAndJobs matterId={matter.id} version={version} />
                           </div>
                         }
                       />
@@ -545,6 +555,7 @@ export function App() {
         }}
         onCreate={createMatter}
       />
+      <Inspector matterId={matterId} />
       <CommandBar isOpen={commandOpen} onClose={() => setCommandOpen(false)} commands={commands} searchLines={searchLines} />
     </>
   );

@@ -72,6 +72,9 @@ export function studioTools(hub: ResearchHub, studio: ArgumentStudio, matters: M
           return `Unknown Studio tool: ${tool}`;
       }
     } catch (e) {
+      // V5-2: a refused tool request is kept in the matter's refusal table.
+      const code = (e as { code?: string }).code ?? /^([A-Z][A-Z_]{3,})\b/.exec((e as Error).message ?? "")?.[1];
+      if (code) await matters.store(matterId).then((s) => s.refuse("agent", tool, code, (e as Error).message)).catch(() => undefined);
       return `Refused or failed: ${(e as Error).message}`;
     }
   };

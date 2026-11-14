@@ -96,6 +96,15 @@ const api: OpenAdvoApi = {
   fetchMail: (matterId, filter) => ipcRenderer.invoke("mail:fetch", matterId, filter),
   decideAgentChanges: (matterId, draftId, baseRevisionId, decisions) =>
     ipcRenderer.invoke("drafts:decideAgentChanges", matterId, draftId, baseRevisionId, decisions),
+  // V5 (docs/specs/v5.md).
+  verifyRecordChain: (matterId) => ipcRenderer.invoke("audit:verifyChain", matterId),
+  listRefusals: (matterId) => ipcRenderer.invoke("audit:refusals", matterId),
+  inspectRecord: (matterId, id) => ipcRenderer.invoke("audit:inspect", matterId, id),
+  findInMatter: (matterId, q) => ipcRenderer.invoke("find:query", matterId, q),
+  listMatterFiles: (matterId) => ipcRenderer.invoke("files:list", matterId),
+  openMatterFile: (matterId, rel) => ipcRenderer.invoke("files:open", matterId, rel),
+  listJobsOverview: (matterId) => ipcRenderer.invoke("jobs:list", matterId),
+  stopArgumentLoop: (matterId) => ipcRenderer.invoke("studio:stop", matterId),
   // V4: the Research and Argument Studio.
   getStudio: (matterId) => ipcRenderer.invoke("studio:get", matterId),
   getResearchLog: (matterId) => ipcRenderer.invoke("studio:log", matterId),

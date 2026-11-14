@@ -10,6 +10,7 @@ import { Table, pixel, proportional, useTableSortable, useTableSortableState } f
 import { ArrowUpTrayIcon, PaperClipIcon } from "@heroicons/react/24/outline";
 import type { SourceLink } from "./Notebook.tsx";
 import { DocTypeBadge, DocTypeControl } from "./V2.tsx";
+import { InspectButton, inspect } from "./V5.tsx";
 import type { EventRecord, IngestJob, OriginRecord, PageRecord, SourceRecord } from "../../shared/api.ts";
 
 const api = window.openadvo;
@@ -227,7 +228,7 @@ export function EventTable(props: { events: EventRecord[] }) {
       <tbody>
         {props.events.map((e) => (
           <tr key={e.seq}>
-            <td>{e.seq}</td><td>{e.at}</td><td>{e.actor}</td><td>{e.action}</td>
+            <td>{e.seq}</td><td>{e.at}</td><td>{e.actor}</td><td>{e.subject ? <button type="button" className="link" onClick={() => inspect(e.subject!)}>{e.action}</button> : e.action}</td>
             <td className="mono">{e.sessionId ? e.sessionId.slice(0, 8) : ""}</td>
           </tr>
         ))}
@@ -302,6 +303,7 @@ export function SourceDetail(props: {
                 ) : null}
               </div>
               <DocTypeControl matterId={props.matterId} source={props.source} onChanged={() => props.onChanged?.()} />
+              <InspectButton id={props.source.id} label="Inspect the source record" />
               {view.url ? <ViewerState url={view.url} /> : null}
               {textOnly ? <Text type="supporting" data-testid="viewer-state">{FORMAT_NOTE[props.source.mediaType] ?? "No PDF view for this format."}</Text> : null}
               <details>

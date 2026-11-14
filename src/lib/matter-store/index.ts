@@ -13,6 +13,7 @@ import path from "node:path";
 
 import { WORK_SCHEMA, WorkStore } from "./work.ts";
 import { STUDIO_SCHEMA, StudioStore } from "./studio.ts";
+import { AUDIT_SCHEMA, addRefusal, eventHash, find, findIndexSeq, inspect, listRefusals, replaceFindIndex, verifyChain, type ChainCheck, type FindHit, type FindRow, type Inspection, type Refusal } from "./audit.ts";
 import { ACCEPTED_TEXT, detectMediaType } from "../document-intelligence/formats.ts";
 import type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus, DraftKind, RevisionAuthor, DraftRecord, RevisionRecord, ParagraphLinkRecord } from "../../shared/records.ts";
 
@@ -316,6 +317,13 @@ export class MatterStore {
     db.exec(SCHEMA);
     db.exec(WORK_SCHEMA);
     db.exec(STUDIO_SCHEMA);
+    db.exec(AUDIT_SCHEMA);
+    // V5-1: the event chain. Events written before v5 have no hash and start the record.
+    const ev = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'event'").get() as { sql?: string } | undefined;
+    if (ev?.sql && !ev.sql.includes("prev_hash")) {
+      db.exec("ALTER TABLE event ADD COLUMN prev_hash TEXT;");
+      db.exec("ALTER TABLE event ADD COLUMN hash TEXT;");
+    }
     // V4-2: an authority found in a research source keeps its reference.
     const au = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'authority'").get() as { sql?: string } | undefined;
     if (au?.sql && !au.sql.includes("source_ref")) db.exec("ALTER TABLE authority ADD COLUMN source_ref TEXT;");
@@ -570,9 +578,47 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
   }
 
   appendEvent(ctx: WriteContext, action: string, subject: string | null, data: Record<string, unknown> | null): void {
+    // V5-1: each event carries the hash of the one before it and of its own content.
+    const last = this.db.prepare("SELECT seq, hash FROM event ORDER BY seq DESC LIMIT 1").get() as { seq: number; hash: string | null } | undefined;
+    const row = { seq: Number(last?.seq ?? 0) + 1, at: now(), actor: ctx.actor, action, subject, session_id: ctx.sessionId ?? null, data: data ? JSON.stringify(data) : null, prev_hash: last?.hash ?? null };
     this.db
-      .prepare("INSERT INTO event (at, actor, action, subject, session_id, data) VALUES (?, ?, ?, ?, ?, ?)")
-      .run(now(), ctx.actor, action, subject, ctx.sessionId ?? null, data ? JSON.stringify(data) : null);
+      .prepare("INSERT INTO event (seq, at, actor, action, subject, session_id, data, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(row.seq, row.at, row.actor, row.action, row.subject, row.session_id, row.data, row.prev_hash, eventHash(row));
+  }
+
+  // ---- V5-1 to V5-4: chain, refusals, Inspector, Find ----
+
+  verifyChain(): ChainCheck {
+    return verifyChain(this.db);
+  }
+
+  /** A refused write, in its own append-only table (not an event of the record). */
+  refuse(actor: string, action: string, code: string, reason: string): void {
+    addRefusal(this.db, { actor, action, code, reason });
+  }
+
+  refusals(limit = 200): Refusal[] {
+    return listRefusals(this.db, limit);
+  }
+
+  inspect(id: string): Inspection | null {
+    return inspect(this.db, id);
+  }
+
+  lastEventSeq(): number {
+    return Number((this.db.prepare("SELECT max(seq) AS s FROM event").get() as { s: number | null }).s ?? 0);
+  }
+
+  findIndexSeq(): number | null {
+    return findIndexSeq(this.db);
+  }
+
+  replaceFindIndex(rows: FindRow[]): void {
+    replaceFindIndex(this.db, rows, this.lastEventSeq());
+  }
+
+  find(q: string, limit = 40): FindHit[] {
+    return find(this.db, q, limit);
   }
 
   // ---- Document intelligence records (step 2). Computed elsewhere, written only here. ----

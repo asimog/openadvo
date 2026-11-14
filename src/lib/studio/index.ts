@@ -332,6 +332,8 @@ export interface LoopDeps {
   setQuestions(id: string, questions: string[]): void;
   setElo(id: string, elo: number): void;
   onProgress?(text: string): void;
+  /** V5-5: true when the advocate stopped the run. Checked between steps. */
+  shouldStop?(): boolean;
 }
 
 export interface LoopStats {
@@ -356,6 +358,7 @@ export async function runLoop(d: LoopDeps): Promise<LoopStats> {
   const context = contextText(d.context, al);
   const archive = [...d.archive];
   const call = async (user: string, label: string) => {
+    if (d.shouldStop?.()) throw new Error("STOPPED: the advocate stopped the run");
     stats.calls++;
     return d.complete(SYSTEM, user, label);
   };
@@ -365,6 +368,7 @@ export async function runLoop(d: LoopDeps): Promise<LoopStats> {
   };
   let lastAttacks: ArchivedArgument[] = [];
   for (let round = 1; round <= d.rounds; round++) {
+    if (d.shouldStop?.()) throw new Error("STOPPED: the advocate stopped the run");
     // 0. From round 2: counsel for the attacked side replies to the attacks of the last round.
     if (lastAttacks.length) {
       d.onProgress?.(`Round ${round}: replies to ${Math.min(lastAttacks.length, MAX_REPLIES)} attack(s)`);

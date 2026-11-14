@@ -10,6 +10,7 @@ import { Text } from "@astryxdesign/core/Text";
 import { TabList, Tab } from "@astryxdesign/core/TabList";
 import type { ArgumentRecord, ArgumentStatus, CorpusPart, EventRecord, IssueRecord, ResearchDocument, ResearchHit, StudioState } from "../../shared/api.ts";
 import { GROUNDS, STANCES } from "../../shared/studio.ts";
+import { InspectButton } from "./V5.tsx";
 
 const api = window.openadvo;
 
@@ -368,6 +369,7 @@ function ArgumentCard(props: { a: ArgumentRecord & { computed?: ArgumentStatus }
       <div className="row-actions">
         {a.status !== "accepted" ? <Button label="Accept" size="sm" clickAction={() => props.act(() => api.decideArgument(props.matterId, a.id, "accepted"))} /> : null}
         {a.status !== "rejected" ? <Button label="Reject" size="sm" variant="ghost" clickAction={() => props.act(() => api.decideArgument(props.matterId, a.id, "rejected"))} /> : null}
+        <InspectButton id={a.id} />
         {a.status === "accepted" ? <Button label="Send to Grounds" size="sm" variant="ghost" clickAction={() => props.act(() => api.argumentToGrounds(props.matterId, a.id), "Proposed in the Grounds as a tracked insertion. Keep or undo it there.")} /> : null}
       </div>
     </article>

@@ -174,6 +174,8 @@ export class Filing {
       rules: RULES_VERSION,
       limitation: lim ? `${lim.deadline} (confirmed ${lim.confirmedAt})` : null,
       approvals,
+      // V5-1: the head of the matter's event chain when the set was made.
+      recordHead: store.verifyChain().head,
     };
     // V2-7: the public key is part of the body; the signature is over the digest.
     if (this.signer) body.publicKey = this.signer.publicKey();

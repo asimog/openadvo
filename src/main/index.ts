@@ -19,6 +19,7 @@ import { KeyFileSigner } from "./signing.ts";
 import { Progress } from "./progress.ts";
 import { ArgumentStudio, ResearchHub, type SourceName } from "./studio.ts";
 import { researchLog, studioTools } from "./studio-tools.ts";
+import { ensureFindIndex, listMatterFiles } from "./audit.ts";
 import { setFetcher } from "../lib/research-sources/http.ts";
 import type { ResearchSettings } from "../shared/studio.ts";
 import { Portal, portalOptionsFromEnv } from "./portal.ts";
@@ -84,8 +85,25 @@ function trusted(event: IpcMainInvokeEvent): boolean {
 function handle<A extends unknown[], R>(channel: string, fn: (...args: A) => Promise<R> | R): void {
   ipcMain.handle(channel, async (event, ...args) => {
     if (!trusted(event)) throw new Error(`refused: ${channel} from an untrusted page`);
-    return fn(...(args as A));
+    try {
+      return await fn(...(args as A));
+    } catch (e) {
+      await recordRefusal(args[0], "advocate", channel, e);
+      throw e;
+    }
   });
+}
+
+/** V5-2: a refused request about a matter is kept in that matter's refusal table. */
+async function recordRefusal(matterId: unknown, actor: string, action: string, e: unknown): Promise<void> {
+  const code = (e as { code?: string }).code ?? /^([A-Z][A-Z_]{3,})\b/.exec((e as Error).message ?? "")?.[1];
+  if (!code || typeof matterId !== "string" || !matters) return;
+  try {
+    if (!(await matters.list()).some((m) => m.id === matterId)) return;
+    (await matters.store(matterId)).refuse(actor, action, code, String((e as Error).message ?? e));
+  } catch {
+    // The refusal record is best effort; the original error still reaches the caller.
+  }
 }
 
 function emitChat(event: ChatEvent): void {
@@ -157,7 +175,7 @@ function registerBridge(): void {
     const title = (await matters.title(matterId)).replace(/[\\/:*?"<>|]+/g, " ").trim() || "matter";
     const r = await dialog.showSaveDialog(window, { title: "Export matter", defaultPath: `${title} ${new Date().toISOString().slice(0, 10)}.zip`, filters: [{ name: "ZIP archive", extensions: ["zip"] }] });
     if (r.canceled || !r.filePath) return null;
-    return matters.exportMatter(matterId, r.filePath);
+    return matters.exportMatter(matterId, r.filePath, (digest) => (signer ? { signature: signer.sign(digest), publicKey: signer.publicKey() } : null));
   });
   // V4: the Research and Argument Studio. Decisions are human-only.
   handle("studio:get", (matterId: string) => studio.state(matterId));
@@ -197,6 +215,33 @@ function registerBridge(): void {
     writeSetting("researchSources", next);
     return next;
   });
+  // V5-1 to V5-5: record chain, refusals, Inspector, Find, Files, Jobs.
+  handle("audit:verifyChain", async (matterId: string) => (await matters.store(matterId)).verifyChain());
+  handle("audit:refusals", async (matterId: string) => (await matters.store(matterId)).refusals());
+  handle("audit:inspect", async (matterId: string, id: string) => (await matters.store(matterId)).inspect(String(id)));
+  handle("find:query", async (matterId: string, q: string) => {
+    await ensureFindIndex(matters, matterId);
+    return (await matters.store(matterId)).find(String(q ?? ""), 40);
+  });
+  handle("files:list", async (matterId: string) => listMatterFiles((await matters.store(matterId)).folder));
+  handle("files:open", async (matterId: string, rel: string) => {
+    const folder = (await matters.store(matterId)).folder;
+    const target = path.resolve(folder, String(rel ?? ""));
+    if (!target.startsWith(path.resolve(folder) + path.sep)) throw new Error("PATH_OUTSIDE_MATTER");
+    const err = await shell.openPath(target);
+    if (err) throw new Error(`OPEN_FAILED: ${err}`);
+    return true;
+  });
+  handle("jobs:list", async (matterId: string) => {
+    const store = await matters.store(matterId);
+    return {
+      reading: store.listJobs().map((j) => ({ ...j, name: store.getSource(j.sourceId)?.name ?? j.sourceId })),
+      runs: store.studio.runs(),
+      running: studio.runningRun(matterId),
+      indexing: hub.indexingNow(),
+    };
+  });
+  handle("studio:stop", (matterId: string) => studio.stop(matterId));
   // V3-1 and V3-2: reads only.
   handle("progress:get", (matterId: string) => progress.progress(matterId));
   handle("inbox:get", (matterId: string) => progress.inbox(matterId));

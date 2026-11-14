@@ -222,7 +222,7 @@ export class Matters {
    * memory.md and the chat files. No settings, credentials or signing key: they are not in
    * the matter folder. Returns the number of files written.
    */
-  async exportMatter(matterId: string, dest: string): Promise<{ path: string; files: number; bytes: number }> {
+  async exportMatter(matterId: string, dest: string, sign?: (digest: string) => { signature: string; publicKey: string } | null): Promise<{ path: string; files: number; bytes: number }> {
     const store = await this.store(matterId);
     const tmp = await mkdtemp(path.join(tmpdir(), "openadvo-export-"));
     try {
@@ -243,6 +243,12 @@ export class Matters {
         }
       };
       await walk("");
+      // V5-1: the head of the event chain, signed, so the copy can be checked without the application.
+      const chain = store.verifyChain();
+      const chainBody = { matter: store.matter().title, events: chain.events, unchained: chain.unchained, head: chain.head, ok: chain.ok, at: new Date().toISOString() };
+      const digest = createHash("sha256").update(JSON.stringify(chainBody)).digest("hex");
+      const signed = sign?.(digest) ?? null;
+      entries["record-chain.json"] = [new TextEncoder().encode(JSON.stringify({ ...chainBody, digest, ...(signed ?? {}) }, null, 2)), { level: 6 }];
       const zip = zipSync(entries);
       await writeFile(dest, zip);
       store.appendEvent({ actor: "advocate" }, "matter.exported", null, { files: Object.keys(entries).length, bytes: zip.length, sha256: createHash("sha256").update(zip).digest("hex") });

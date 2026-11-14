@@ -7,7 +7,9 @@ export type { AgentChanges, AgentChange } from "./records.ts";
 import type { InboxItem, ProgressStage, DuplicatePair, MemoryProposal, RecordColumn, RecordTable, Workflow, ManifestCheck, AdverseReview, AnnexureRecord, Attestation, AuthorityRecord, CitationCheck, FilingSetRecord, FilingState, IssueRecord, LimitationRecord, MatterDetails, ResearchState } from "./work.ts";
 export type * from "./work.ts";
 export type * from "./studio.ts";
-import type { ArgumentRecord, CorpusPart, ProvisionRecord, ResearchDocument, ResearchHit, ResearchSettings, StudioState } from "./studio.ts";
+export type * from "./audit.ts";
+import type { ChainCheck, Refusal, Inspection, FindHit } from "./audit.ts";
+import type { ArgumentRun, ArgumentRecord, CorpusPart, ProvisionRecord, ResearchDocument, ResearchHit, ResearchSettings, StudioState } from "./studio.ts";
 
 import type { AGUIEvent } from "@ag-ui/core";
 
@@ -144,6 +146,15 @@ export interface OpenAdvoApi {
   resolveReviewItem(matterId: string, itemId: string): Promise<ReviewItem>;
   skipReviewItem(matterId: string, itemId: string): Promise<ReviewItem>;
   onIngestUpdate(listener: (matterId: string) => void): () => void;
+  // V5 (docs/specs/v5.md).
+  verifyRecordChain(matterId: string): Promise<ChainCheck>;
+  listRefusals(matterId: string): Promise<Refusal[]>;
+  inspectRecord(matterId: string, id: string): Promise<Inspection | null>;
+  findInMatter(matterId: string, q: string): Promise<FindHit[]>;
+  listMatterFiles(matterId: string): Promise<Array<{ path: string; size: number; isDir: boolean; files?: number }>>;
+  openMatterFile(matterId: string, rel: string): Promise<boolean>;
+  listJobsOverview(matterId: string): Promise<{ reading: Array<IngestJob & { name: string }>; runs: ArgumentRun[]; running: string | null; indexing: string | null }>;
+  stopArgumentLoop(matterId: string): Promise<boolean>;
   // V4 (docs/specs/v4.md). Human-only where marked.
   getStudio(matterId: string): Promise<StudioState>;
   getResearchLog(matterId: string): Promise<EventRecord[]>;

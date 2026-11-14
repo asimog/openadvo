@@ -210,7 +210,7 @@ export function SettingsPage(props: { mailbox: ReactNode; research?: ReactNode }
           <dt><kbd>Ctrl</kbd> + <kbd>K</kbd></dt><dd>Command bar: matters, tabs, actions and source lines</dd>
           <dt><kbd>j</kbd> / <kbd>k</kbd></dt><dd>Review tab: next and previous item</dd>
           <dt><kbd>Enter</kbd></dt><dd>Review tab: open the item</dd>
-          <dt><kbd>Escape</kbd></dt><dd>Close the command bar or a dialog</dd>
+          <dt><kbd>Escape</kbd></dt><dd>Close the command bar, the Inspector or a dialog</dd>
         </dl>
       </section>
     </div>
@@ -221,7 +221,7 @@ export function SettingsPage(props: { mailbox: ReactNode; research?: ReactNode }
 
 export interface Command {
   id: string;
-  group: "Matters" | "Go to" | "Actions" | "Source lines";
+  group: "Matters" | "Go to" | "Actions" | "Source lines" | "In this matter";
   label: string;
   hint?: string;
   run: () => void;

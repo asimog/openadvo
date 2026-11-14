@@ -254,6 +254,18 @@ export class ArgumentStudio {
   private completer: Completer;
   private running = new Map<string, string>();
   private progress = new Map<string, string>();
+  private stopping = new Set<string>();
+
+  /** V5-5: stop the matter's running loop between steps. */
+  stop(matterId: string): boolean {
+    if (!this.running.has(matterId)) return false;
+    this.stopping.add(matterId);
+    return true;
+  }
+
+  runningRun(matterId: string): string | null {
+    return this.running.get(matterId) ?? null;
+  }
   private onChange: (matterId: string) => void;
 
   constructor(matters: Matters, completer: Completer, onChange: (matterId: string) => void = () => undefined) {
@@ -360,6 +372,7 @@ export class ArgumentStudio {
           addRejection: (round, cell, reason, detail, claim) => store.studio.addRejection({ runId: run.id, round, ground: cell.ground, stance: cell.stance, reason, detail, claim }),
           setQuestions: (id, q) => store.studio.setQuestions(id, q),
           setElo: (id, elo) => store.studio.setElo(id, elo),
+          shouldStop: () => this.stopping.has(matterId),
           onProgress: (t) => {
             this.progress.set(matterId, t);
             this.onChange(matterId);
@@ -371,6 +384,7 @@ export class ArgumentStudio {
         store.studio.finishRun(run.id, "failed", { calls: n }, (e as Error).message);
       } finally {
         this.running.delete(matterId);
+        this.stopping.delete(matterId);
         this.progress.delete(matterId);
         this.onChange(matterId);
       }
