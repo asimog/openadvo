@@ -13,7 +13,7 @@ function errorText(error: unknown): string {
 }
 
 function kindLabel(kind: DraftRecord["kind"]): string {
-  return { list_of_dates: "List of Dates", synopsis: "Synopsis", questions_of_law: "Questions of Law", grounds: "Grounds" }[kind];
+  return { list_of_dates: "List of Dates", synopsis: "Synopsis", questions_of_law: "Questions of Law", grounds: "Grounds", petition: "Petition", conference: "Conference package" }[kind];
 }
 
 /** The drafts of a matter, and the two generators that write the first revision (step 4). */
@@ -54,6 +54,8 @@ export function DraftsSection(props: {
           <Button label="Generate Synopsis" size="sm" isDisabled={working} clickAction={() => generate("synopsis")} />
           <Button label="Start Questions of Law" size="sm" isDisabled={working} clickAction={() => generate("questions_of_law")} />
           <Button label="Start Grounds" size="sm" isDisabled={working} clickAction={() => generate("grounds")} />
+          <Button label="Prepare conference package" size="sm" isDisabled={working} clickAction={() => generate("conference")} />
+          <Button label="Prepare petition" size="sm" isDisabled={working} clickAction={() => generate("petition")} />
           {working ? <Text type="supporting">Generating…</Text> : null}
         </div>
       </div>

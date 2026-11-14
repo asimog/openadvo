@@ -114,7 +114,7 @@ export interface OpenAdvoApi {
   saveRevision(matterId: string, draftId: string, bytes: Uint8Array, baseRevisionId: string): Promise<RevisionRecord>;
   approveRevision(matterId: string, revisionId: string): Promise<DraftRecord>;
   /** Step 6: start the Questions of Law or Grounds draft (title only). */
-  generateDraft(matterId: string, kind: "questions_of_law" | "grounds"): Promise<GeneratedDraft>;
+  generateDraft(matterId: string, kind: "questions_of_law" | "grounds" | "petition" | "conference"): Promise<GeneratedDraft>;
   getResearch(matterId: string): Promise<ResearchState>;
   addIssue(matterId: string, text: string): Promise<IssueRecord>;
   /** Human-only: the case conference decides an issue, with a reason. */

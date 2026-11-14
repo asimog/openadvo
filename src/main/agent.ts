@@ -472,7 +472,7 @@ export class Agent {
       label: "Read draft",
       description: "Read the live text of the latest revision of the List of Dates and the Synopsis, paragraph by paragraph, with the anchor of each paragraph.",
       parameters: Type.Object({
-        kind: Type.Optional(Type.Union([Type.Literal("list_of_dates"), Type.Literal("synopsis"), Type.Literal("questions_of_law"), Type.Literal("grounds")])),
+        kind: Type.Optional(Type.Union([Type.Literal("list_of_dates"), Type.Literal("synopsis"), Type.Literal("questions_of_law"), Type.Literal("grounds"), Type.Literal("petition"), Type.Literal("conference")])),
       }),
       execute: async (_id, params) => {
         const drafts = await host.drafts(matterId, params.kind);
@@ -496,7 +496,7 @@ export class Agent {
       },
     });
     const draftOfKind = async (kind: DraftKind) => (await host.drafts(matterId, kind))[0];
-    const draftKind = Type.Union([Type.Literal("list_of_dates"), Type.Literal("synopsis"), Type.Literal("questions_of_law"), Type.Literal("grounds")]);
+    const draftKind = Type.Union([Type.Literal("list_of_dates"), Type.Literal("synopsis"), Type.Literal("questions_of_law"), Type.Literal("grounds"), Type.Literal("petition"), Type.Literal("conference")]);
     const text = (t: string) => ({ content: [{ type: "text" as const, text: t }], details: {} });
     const work = host.work;
     const workTools = [

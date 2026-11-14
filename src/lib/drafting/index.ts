@@ -5,7 +5,7 @@
  * Spec: docs/build-plan.md step 4. Anchor scheme: docs/editor-design.md section 1.1.
  */
 import { randomUUID } from "node:crypto";
-import { Document, HeadingLevel, Packer, Paragraph, TextRun } from "docx";
+import { AlignmentType, Document, HeadingLevel, Packer, Paragraph, TextRun } from "docx";
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 
 /** One confirmed Notebook event, as the generator needs it. */
@@ -29,6 +29,8 @@ export interface GeneratedParagraph {
   anchor: string;
   text: string;
   eventIds: string[];
+  /** V1: how the paragraph is set. Plain when absent. */
+  style?: "heading" | "center" | "plain";
 }
 
 /** The DOCX bytes and the paragraphs that they carry. */
@@ -175,9 +177,12 @@ function buildDocx(
   const when = generatedDate(options.generatedAt);
   const children: Paragraph[] = [
     new Paragraph({ text: options.title, heading: HeadingLevel.HEADING_1 }),
-    ...paragraphs.map(
-      (p) => new Paragraph({ children: [new TextRun(`{{${p.anchor}}}`), new TextRun(p.text)] }),
-    ),
+    ...paragraphs.map((p) => {
+      const children = [new TextRun(`{{${p.anchor}}}`), new TextRun({ text: p.text, bold: p.style === "center" })];
+      if (p.style === "heading") return new Paragraph({ children, heading: HeadingLevel.HEADING_2 });
+      if (p.style === "center") return new Paragraph({ children, alignment: AlignmentType.CENTER });
+      return new Paragraph({ children });
+    }),
   ];
   const doc = new Document({
     title: options.title,
@@ -344,6 +349,14 @@ export function readParagraphs(docx: Buffer): Array<{ anchor: string | null; tex
  * Step 6: a draft with its title only (Questions of Law, Grounds). Its paragraphs come from the
  * agent as tracked insertions, or from the advocate typing; no generator writes legal text.
  */
+export function generateStructuredDocx(
+  rows: Array<Omit<GeneratedParagraph, "anchor">>,
+  options: { title: string; generatedAt: string },
+): GeneratedDocument {
+  const paragraphs = rows.map((r) => ({ ...r, anchor: newAnchor() }));
+  return { docx: buildDocx(options, paragraphs), paragraphs };
+}
+
 export function generateEmptyDraft(options: { title: string; generatedAt: string }): GeneratedDocument {
   return { docx: buildDocx(options, []), paragraphs: [] };
 }

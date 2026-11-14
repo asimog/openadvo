@@ -68,7 +68,7 @@ export function checkCompliance(input: ComplianceInput): ComplianceResult[] {
   const missing = input.drafts.filter((d) => d.approvedSeq === null).map((d) => d.title);
   add(
     "P-1",
-    "Required documents: List of Dates, Synopsis, Questions of Law and Grounds, each with an approved revision",
+    "Required documents: Synopsis, List of Dates, Petition, Questions of Law and Grounds, each with an approved revision",
     "Workflow section 8 (petition structure)",
     missing.length ? "defect" : "pass",
     missing.length ? `Not approved: ${missing.join(", ")}.` : "Every required document has an approved revision.",

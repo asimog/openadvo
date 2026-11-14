@@ -211,6 +211,17 @@ export class Matters {
     return (await this.store(matterId)).createDraftWithRevision(kind, title, docx, paragraphs, ctx);
   }
 
+  /** V1: a regenerated petition or conference package as a new revision. */
+  async addGeneratedRevision(
+    matterId: string,
+    draftId: string,
+    docx: Buffer,
+    paragraphs: Array<{ anchor: string; text: string; eventIds: string[] }>,
+    ctx: WriteContext = { actor: "advocate" },
+  ): Promise<RevisionRecord> {
+    return (await this.store(matterId)).addGeneratedRevision(draftId, docx, paragraphs, ctx);
+  }
+
   /** Human-only (decision 5). */
   async saveDraftRevision(
     matterId: string,

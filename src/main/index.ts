@@ -145,8 +145,8 @@ function registerBridge(): void {
   });
   handle("drafts:approveRevision", (matterId: string, revisionId: string) => drafts.approveRevision(matterId, revisionId));
   handle("drafts:generate", (matterId: string, kind: string) => {
-    if (kind !== "questions_of_law" && kind !== "grounds") throw new Error("BAD_DRAFT_KIND: questions_of_law or grounds");
-    return drafts.generate(matterId, kind);
+    if (!["questions_of_law", "grounds", "petition", "conference"].includes(kind)) throw new Error("BAD_DRAFT_KIND: questions_of_law, grounds, petition or conference");
+    return drafts.generate(matterId, kind as DraftKind);
   });
 
   // Steps 6 and 7: research and legal review. Decisions are human-only bridge functions (decision 5).

@@ -26,6 +26,7 @@ const advocate = { actor: "advocate" as const };
 const REQUIRED: Array<{ kind: DraftKind; title: string }> = [
   { kind: "synopsis", title: "Synopsis" },
   { kind: "list_of_dates", title: "List of Dates" },
+  { kind: "petition", title: "Petition" },
   { kind: "questions_of_law", title: "Questions of Law" },
   { kind: "grounds", title: "Grounds" },
 ];

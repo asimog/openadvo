@@ -182,7 +182,7 @@ CREATE TRIGGER IF NOT EXISTS conflict_no_delete BEFORE DELETE ON date_conflict B
 -- Step 4: drafts and revisions (work products). A revision is append-only; an approval is its own row.
 CREATE TABLE IF NOT EXISTS draft (
   id TEXT PRIMARY KEY,
-  kind TEXT NOT NULL CHECK (kind IN ('list_of_dates', 'synopsis', 'questions_of_law', 'grounds')),
+  kind TEXT NOT NULL CHECK (kind IN ('list_of_dates', 'synopsis', 'questions_of_law', 'grounds', 'petition', 'conference')),
   title TEXT NOT NULL,
   created_at TEXT NOT NULL
 ) STRICT;
@@ -325,15 +325,15 @@ export class MatterStore {
     // Step 5: a review item may belong to a draft (a defect the checks found).
     const items = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'review_item'").get() as { sql?: string } | undefined;
     if (items?.sql && !items.sql.includes("draft_id")) db.exec("ALTER TABLE review_item ADD COLUMN draft_id TEXT;");
-    // Step 6: drafts of the kinds questions_of_law and grounds.
+    // Step 6: drafts of the kinds questions_of_law and grounds. V1: petition and conference.
     const draft = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'draft'").get() as { sql?: string } | undefined;
-    if (draft?.sql && !draft.sql.includes("'grounds'")) {
+    if (draft?.sql && !draft.sql.includes("'conference'")) {
       db.exec("PRAGMA foreign_keys = OFF;");
       db.exec("BEGIN");
       try {
         db.exec(`CREATE TABLE draft_step6 (
   id TEXT PRIMARY KEY,
-  kind TEXT NOT NULL CHECK (kind IN ('list_of_dates', 'synopsis', 'questions_of_law', 'grounds')),
+  kind TEXT NOT NULL CHECK (kind IN ('list_of_dates', 'synopsis', 'questions_of_law', 'grounds', 'petition', 'conference')),
   title TEXT NOT NULL,
   created_at TEXT NOT NULL
 ) STRICT;
@@ -963,6 +963,37 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
     }
     this.appendEvent(ctx, "draft.generated", draftId, { kind, title, revisionId, paragraphs: paragraphs.length });
     return { draft: this.getDraft(draftId), revision: this.getRevision(revisionId) };
+  }
+
+  /**
+   * V1: a regenerated document (petition, conference package) as a new revision of its draft,
+   * author generator, with its paragraph links. The base is the head.
+   */
+  async addGeneratedRevision(
+    draftId: string,
+    docx: Buffer,
+    paragraphs: Array<{ anchor: string; text: string; eventIds: string[] }>,
+    ctx: WriteContext,
+  ): Promise<RevisionRecord> {
+    const head = this.getDraft(draftId).head;
+    if (!head) throw new MatterStoreError("DRAFT_NOT_FOUND", draftId);
+    const { sha256, size } = await this.putBlob(docx);
+    const id = randomUUID();
+    const at = now();
+    this.db.exec("BEGIN");
+    try {
+      this.db
+        .prepare("INSERT INTO revision (id, draft_id, seq, sha256, size, base_revision_id, author, created_at) VALUES (?, ?, ?, ?, ?, ?, 'generator', ?)")
+        .run(id, draftId, head.seq + 1, sha256, size, head.id, at);
+      const insert = this.db.prepare("INSERT INTO paragraph_link (draft_id, anchor, revision_id, event_ids, text, created_at) VALUES (?, ?, ?, ?, ?, ?)");
+      for (const p of paragraphs) insert.run(draftId, p.anchor, id, JSON.stringify(p.eventIds), p.text, at);
+      this.db.exec("COMMIT");
+    } catch (e) {
+      this.db.exec("ROLLBACK");
+      throw e;
+    }
+    this.appendEvent(ctx, "draft.regenerated", id, { draftId, base: head.id, sha256, paragraphs: paragraphs.length });
+    return this.getRevision(id);
   }
 
   /**

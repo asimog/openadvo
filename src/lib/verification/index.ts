@@ -11,6 +11,10 @@ import { findDates } from "../notebook/index.ts";
 export const METHOD = "checks-v1";
 
 export type DefectKind =
+  /** V1-7 rule 23: a paragraph still holds a "[TO BE COMPLETED" marker. */
+  | "incomplete"
+  /** V1-7 rule 24: the prayer does not name the impugned judgment's date or case number. */
+  | "prayer_mismatch"
   /** A paragraph states a date and links to no Notebook event. */
   | "no_source"
   /** A paragraph states a date that none of its linked events carries. */
@@ -318,6 +322,8 @@ const DEFECT_STATE: Record<DefectKind, GateState> = {
   party_name_mismatch: "needs_correction",
   drafts_disagree: "needs_correction",
   missing_in_other_draft: "needs_correction",
+  incomplete: "needs_instructions",
+  prayer_mismatch: "needs_correction",
 };
 
 export interface GateInput {

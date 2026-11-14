@@ -116,6 +116,7 @@ test("steps 6 to 10: research, citations, grounds, filing set, capture, agent fi
     await page.getByTestId("detail-petitioner").fill("Shankar Teli");
     await page.getByTestId("detail-respondent").fill("State of Rajasthan");
     await page.getByTestId("detail-case-number").fill("Writ Petition No. 12 of 2023");
+    await page.getByTestId("detail-court").fill("High Court of Rajasthan");
     await page.getByTestId("detail-impugned").selectOption(judgment.id);
     await page.getByRole("button", { name: "Save matter details" }).click();
     await expect(page.getByTestId("matter-details")).toContainText("Saved");
@@ -197,6 +198,13 @@ test("steps 6 to 10: research, citations, grounds, filing set, capture, agent fi
     await call("decideAgentChanges", matterId, qol.id, changes.revisionId, [{ anchor: changes.changes[0].anchor, decision: "keep" }]);
     for (const d of await call<any[]>("listDrafts", matterId)) if (!d.approved || d.approved.id !== d.head.id) await call("approveRevision", matterId, d.head.id);
 
+    // ---- V1-6: the case-conference package, from the records only ----
+    const conf = await call<any>("generateDraft", matterId, "conference");
+    const confText = (await call<any>("getRevision", matterId, conf.revision.id)).paragraphs.map((p: any) => p.text);
+    expect(confText).toContain("Shankar Teli versus State of Rajasthan.");
+    expect(confText.some((t: string) => t.includes("1950 INSC 1") && t.includes("validator: verified"))).toBe(true);
+    expect(confText.some((t: string) => t.startsWith("none_found. Coverage: Citation index 1950 to 2023"))).toBe(true);
+
     // ---- Step 8: annexures, limitation, compliance, approval for filing ----
     await page.getByRole("tab", { name: "Filing" }).click();
     await expect(page.locator('[data-rule="R-0"]')).toHaveAttribute("data-outcome", "not_checked");
@@ -204,6 +212,18 @@ test("steps 6 to 10: research, citations, grounds, filing set, capture, agent fi
     await page.getByTestId("annexure-pick").first().check();
     await page.getByRole("button", { name: "Save annexures" }).click();
     await expect(page.locator('[data-rule="P-3"]')).toHaveAttribute("data-outcome", "pass");
+    // ---- V1-7: the petition from the matter details and the approved Questions of Law and Grounds ----
+    await expect(page.locator('[data-rule="P-1"]')).toContainText("Petition");
+    const pet = await call<any>("generateDraft", matterId, "petition");
+    const petText: string[] = (await call<any>("getRevision", matterId, pet.revision.id)).paragraphs.map((p: any) => p.text);
+    expect(petText).toContain("Whether a writ petition may be dismissed without notice to the petitioner?");
+    expect(petText.some((t) => t.startsWith("(a) grant special leave") && t.includes("12.03.2024") && t.includes("Writ Petition No. 12 of 2023"))).toBe(true);
+    expect(petText.some((t) => t.includes("[TO BE COMPLETED"))).toBe(false);
+    const petCheck = await call<any>("checkDraft", matterId, pet.draft.id);
+    expect(petCheck.defects.filter((d: any) => d.kind === "prayer_mismatch" || d.kind === "incomplete")).toEqual([]);
+    // The petition repeats the Grounds' citations: the validator checks them in the petition too.
+    await call("checkCitations", matterId, pet.draft.id);
+    await call("approveRevision", matterId, pet.revision.id);
     await page.getByRole("button", { name: "Compute limitation" }).click();
     await expect(page.getByTestId("limitation")).toContainText("Last day: 10.06.2024 (not confirmed)");
     await expect(page.getByTestId("filing-blockers")).toContainText("P-4");
@@ -215,11 +235,11 @@ test("steps 6 to 10: research, citations, grounds, filing set, capture, agent fi
     const filing = await call<any>("getFiling", matterId);
     const set = filing.filingSet;
     expect(set.manifest.files.map((f: any) => [f.role, f.pdfa])).toEqual([
-      ["synopsis", true], ["list_of_dates", true], ["questions_of_law", true], ["grounds", true], ["annexure", false],
+      ["synopsis", true], ["list_of_dates", true], ["petition", true], ["questions_of_law", true], ["grounds", true], ["annexure", false],
     ]);
     expect(filing.compliance.results.find((r: any) => r.rule === "P-5").outcome).toBe("pass");
     const manifestOnDisk = readFileSync(path.join(set.folder, "manifest.json"), "utf8");
-    expect(JSON.parse(manifestOnDisk).files.length).toBe(5);
+    expect(JSON.parse(manifestOnDisk).files.length).toBe(6);
     // V1-8: the manifest digest and the file hashes verify; the approval trail is in the manifest.
     expect(set.manifest.digest).toMatch(/^[0-9a-f]{64}$/);
     expect(set.manifest.approvals.at(-1).what).toBe("Approved for filing");

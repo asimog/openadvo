@@ -17,6 +17,7 @@ import { checkDraft, defectItemKind, gateState } from "../lib/verification/index
 import { decideChanges, pendingChanges, proposeInsertion, proposeReplacement, type ChangeDecision } from "../lib/tracked-changes/index.ts";
 import { caseNumbers } from "../lib/verification/index.ts";
 import type { AgentChanges } from "../shared/records.ts";
+import { bodyParagraphs, conferenceBlocks, generateStructured, petitionBlocks, prayerDefect, TITLES, TO_COMPLETE } from "../lib/drafting/structured.ts";
 import type { DraftCheck } from "../shared/records.ts";
 import {
   eventSentence,
@@ -126,6 +127,7 @@ export class Drafts {
    * not put a contested date into prose.
    */
   async generate(matterId: string, kind: DraftKind): Promise<GeneratedDraft> {
+    if (kind === "petition" || kind === "conference") return this.generateStructuredDraft(matterId, kind);
     if (kind === "questions_of_law" || kind === "grounds") {
       const existing = (await this.matters.listDrafts(matterId)).find((d) => d.kind === kind);
       if (existing?.head) return { draft: existing, revision: existing.head };
@@ -159,6 +161,81 @@ export class Drafts {
       generated.paragraphs,
     );
     return { draft, revision };
+  }
+
+  /**
+   * V1-6 and V1-7: the conference package and the petition, from records only. A second run adds
+   * a new revision (author generator) to the same draft; the old revisions stay.
+   */
+  private async generateStructuredDraft(matterId: string, kind: "petition" | "conference"): Promise<GeneratedDraft> {
+    const store = await this.matters.store(matterId);
+    const w = store.work;
+    const details = w.details();
+    const notebook = await this.matters.notebook(matterId);
+    const impugned = details.impugnedEventId ? notebook.events.find((e) => e.id === details.impugnedEventId) ?? null : null;
+    const drafts = await this.matters.listDrafts(matterId);
+    const generatedAt = new Date().toISOString();
+    let title: string;
+    let blocks;
+    if (kind === "petition") {
+      title = "PETITION FOR SPECIAL LEAVE TO APPEAL";
+      const approvedText = async (k: DraftKind, re: RegExp) => {
+        const d = drafts.find((x) => x.kind === k);
+        if (!d?.approved) return [];
+        return bodyParagraphs(readParagraphs(await this.matters.revisionBytes(matterId, d.approved.id)), re);
+      };
+      blocks = petitionBlocks({
+        petitioner: details.petitioner,
+        respondent: details.respondent,
+        court: details.court,
+        caseNumber: details.caseNumber,
+        impugnedDate: impugned?.dateStart ?? null,
+        impugnedEventId: impugned?.id ?? null,
+        questions: await approvedText("questions_of_law", TITLES.questionsOfLaw),
+        grounds: await approvedText("grounds", TITLES.grounds),
+        annexures: w.listAnnexures().map((a) => ({ label: a.label, title: a.title })),
+        year: new Date(generatedAt).getFullYear(),
+      });
+    } else {
+      title = "CASE CONFERENCE PACKAGE";
+      const confirmed = notebook.events.filter((e) => e.status === "confirmed" && !e.excluded).map(toDraftEvent);
+      const checks = w.listCitationChecks();
+      const items = (await this.matters.listReviewItemsOf(matterId)).filter((r) => r.status === "open");
+      blocks = conferenceBlocks({
+        details: {
+          petitioner: details.petitioner,
+          respondent: details.respondent,
+          court: details.court,
+          caseNumber: details.caseNumber,
+          cnr: details.cnr,
+          impugned: impugned ? `${impugned.dateText}: ${impugned.description}` : null,
+        },
+        procedural: confirmed.filter((e) => e.kind === "procedural"),
+        factual: confirmed.filter((e) => e.kind === "factual"),
+        issues: w.listIssues().map((i) => ({ text: i.text, status: i.status, author: i.author, reason: i.reason })),
+        authorities: w.listAuthorities().map((a) => ({
+          citation: a.citation,
+          parties: a.parties,
+          role: a.role,
+          status: a.status,
+          proposition: a.proposition,
+          outcome: checks.filter((c) => c.citation === a.citation).at(-1)?.outcome ?? null,
+        })),
+        adverseReview: (() => {
+          const r = w.adverseReview();
+          return r ? { outcome: r.outcome, coverage: r.coverage, note: r.note } : null;
+        })(),
+        memoranda: w.listMemoranda().map((m) => ({ title: m.title, refs: m.refs.length, unresolved: m.unresolved.length })),
+        openReviewItems: items.map((r) => ({ kind: r.kind, detail: r.detail })),
+      });
+    }
+    const g = generateStructured(blocks, { title, generatedAt });
+    const existing = drafts.find((d) => d.kind === kind);
+    if (existing?.head) {
+      const revision = await this.matters.addGeneratedRevision(matterId, existing.id, g.docx, g.paragraphs);
+      return { draft: await this.matters.getDraft(matterId, existing.id), revision };
+    }
+    return this.matters.createDraftWithRevision(matterId, kind, title, g.docx, g.paragraphs);
   }
 
   /** A revision with the live paragraphs of its DOCX (WD-013: tracked deletions are not live text). */
@@ -266,6 +343,9 @@ export class Drafts {
     const revision = await this.matters.getRevision(matterId, revisionId);
     const legal = (await this.options.legalBlockers?.(matterId, revision.draftId, revisionId)) ?? [];
     if (legal.length > 0) throw new MatterStoreError("LEGAL_REVIEW_BLOCKED", legal.join("; "));
+    // V1-7: a revision that still holds a "[TO BE COMPLETED" marker is not approved (lesson L2).
+    const marked = readParagraphs(await this.matters.revisionBytes(matterId, revisionId)).filter((p) => p.text.includes(TO_COMPLETE));
+    if (marked.length > 0) throw new MatterStoreError("DRAFT_INCOMPLETE", `${marked.length} paragraph(s) still say "${TO_COMPLETE}". Record the details and generate again, or complete them in the editor.`);
     return this.matters.approveRevision(matterId, revisionId);
   }
 
@@ -426,6 +506,17 @@ export class Drafts {
       })),
       other: pair ? { title: pair.title, paragraphs: pair.paragraphs } : undefined,
     });
+    // V1-7 rules 23 and 24: incomplete markers in any draft; the prayer of the petition.
+    draft.paragraphs.forEach((p, n) => {
+      if (p.text.includes(TO_COMPLETE)) {
+        result.defects.push({ kind: "incomplete", paragraph: n + 1, anchor: p.anchor, text: p.text, evidence: "The paragraph holds a marker for a detail the matter does not record.", action: "Record the detail in the matter and generate again, or complete the paragraph in the editor." });
+      }
+    });
+    if (draft.kind === "petition") {
+      const impugned = details.impugnedEventId ? notebook.events.find((e) => e.id === details.impugnedEventId) : undefined;
+      const defect = prayerDefect(draft.paragraphs.map((p) => p.text), { date: impugned?.dateStart ?? null, caseNumber: details.caseNumber });
+      if (defect) result.defects.push({ kind: "prayer_mismatch", paragraph: 0, anchor: null, text: "Prayer", evidence: defect, action: "Correct the prayer, or the matter details." });
+    }
     const byKind: Record<string, number> = {};
     for (const d of result.defects) byKind[d.kind] = (byKind[d.kind] ?? 0) + 1;
     // Each defect is a review item of this draft (workflow 9: a blocked item names defect, evidence, passage, action).
