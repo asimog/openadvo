@@ -48,6 +48,7 @@
     "@tesseract.js-data/eng": "1.0.0",
     "docx": "9.15.3",
     "fflate": "0.8.3",
+    "hyparquet": "1.32.0",
     "imapflow": "2.10.0",
     "pdfjs-dist": "6.5.438",
     "postal-mime": "4.2.0",
