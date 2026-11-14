@@ -8,6 +8,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { MEDIA, docxParagraphs, paginate, textLines } from "./formats.ts";
+import { PPOCR_ENGINE, compareReadings, ppocrAvailable, readPage, type Disagreement } from "./ppocr.ts";
 
 const nodeRequire = createRequire(import.meta.url);
 
@@ -33,6 +34,8 @@ export interface PageText {
   lines: LineBox[];
   /** Present when kind is "ocr". */
   ocr?: { engine: string; version: string; confidence: number };
+  /** V5-8: the second engine's reading and the disagreements, when the second engine is installed. */
+  second?: { engine: string; version: string; confidence: number; text: string; disagreements: Disagreement[] };
 }
 
 /** A page with fewer printable characters than this is treated as having no text layer. */
@@ -213,11 +216,19 @@ export async function processPdf(bytes: Uint8Array, onPage?: (page: PageText) =>
         page.text = ocr.text;
         page.lines = ocr.lines;
         page.ocr = { engine: OCR_ENGINE, version: ocrVersion(), confidence: ocr.confidence };
+        page.second = await secondReading(png, page.height, 2.5, ocr.lines);
       }
     }
     await onPage?.(page);
   }
   return pages;
+}
+
+/** V5-8: the second engine on the same image; undefined when it is not installed. */
+async function secondReading(png: Buffer, pageHeight: number, scale: number, first: LineBox[]): Promise<PageText["second"]> {
+  if (!ppocrAvailable()) return undefined;
+  const b = await readPage(png, pageHeight, scale);
+  return { engine: PPOCR_ENGINE, version: "PP-OCRv3 en", confidence: b.confidence, text: b.lines.map((l) => l.text).join("\n"), disagreements: compareReadings(first, b.lines) };
 }
 
 /** Read an image (PNG or JPEG) by OCR as one page (V2-1). Its size in pixels is its page size. */
@@ -235,6 +246,7 @@ export async function processImage(bytes: Uint8Array, onPage?: (page: PageText) 
     lines: found ? ocr.lines : [],
     ...(found ? { ocr: { engine: OCR_ENGINE, version: ocrVersion(), confidence: ocr.confidence } } : {}),
   };
+  if (found) page.second = await secondReading(Buffer.from(bytes), img.height, 1, ocr.lines);
   await onPage?.(page);
   return [page];
 }

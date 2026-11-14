@@ -20,7 +20,7 @@ import { ArchivedMatters, MatterAdmin, MemoryEditor, RecordTableView } from "./V
 import { CommandBar, MatterProgress, ReviewInbox, SettingsPage, tabName, type Command } from "./V3.tsx";
 import { MailboxAccount } from "./Work.tsx";
 import { ResearchSourceSettings, StudioView } from "./Studio.tsx";
-import { FilesAndJobs, Inspector, RecordIntegrity, inspect } from "./V5.tsx";
+import { DateAnchorForm, DisputeDecision, EntitiesView, FilesAndJobs, Inspector, RecordIntegrity, inspect } from "./V5.tsx";
 import { EventTable, SourceDetail, SourcesPanel } from "./Sources.tsx";
 import type {
   AddFileResult,
@@ -94,7 +94,11 @@ function ReviewList(props: { matterId: string; items: ReviewItem[]; onChange: ()
         {props.items.map((item) => (
           <li key={item.id} data-status={item.status}>
             <div>{item.detail}</div>
-            {item.status === "open" && item.kind === "possible_duplicate" ? (
+            {item.status === "open" && item.kind === "ocr_dispute" ? (
+              <DisputeDecision matterId={props.matterId} reviewItemId={item.id} onDone={props.onChange} />
+            ) : item.status === "open" && item.kind === "date_anchor" && item.sourceId ? (
+              <DateAnchorForm matterId={props.matterId} sourceId={item.sourceId} onDone={props.onChange} />
+            ) : item.status === "open" && item.kind === "possible_duplicate" ? (
               <div className="review-actions">
                 <Button label="Same document" size="sm" clickAction={async () => { await api.decideDuplicate(props.matterId, item.id, "same"); props.onChange(); }} />
                 <Button label="Different documents" size="sm" variant="ghost" clickAction={async () => { await api.decideDuplicate(props.matterId, item.id, "different"); props.onChange(); }} />
@@ -495,6 +499,16 @@ export function App() {
                         filingPanel={<FilingView matterId={matter.id} sources={sources} version={version} />}
                         recordPanel={<RecordTableView matterId={matter.id} sources={sources} version={version} />}
                         reviewCount={inboxCount}
+                        entitiesPanel={
+                          <EntitiesView
+                            matterId={matter.id}
+                            version={version}
+                            onOpen={(link) => {
+                              setFocus(link);
+                              setSourceId(link.sourceId);
+                            }}
+                          />
+                        }
                         reviewPanel={
                           <ReviewInbox
                             matterId={matter.id}

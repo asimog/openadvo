@@ -3,6 +3,7 @@
  */
 import { test, expect, _electron as electron, type ElectronApplication, type Page } from "@playwright/test";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PDFDocument, StandardFonts } from "pdf-lib";
@@ -83,6 +84,81 @@ test("v5 A: the record chain, refused requests, the Inspector, Find, files and j
     await expect(page.getByTestId("files")).toContainText("blobs/ (1 stored file(s)");
     await page.getByTestId("jobs").locator("summary").click();
     await expect(page.getByTestId("jobs")).toContainText("Read order.pdf");
+  } finally {
+    await app.close();
+  }
+});
+
+/** An image where the two engines disagree: Tesseract reads "Rs. 0,589", PP-OCR "Rs. 6,589". */
+async function disputedScan(): Promise<Buffer> {
+  const { createCanvas } = await import("@napi-rs/canvas");
+  const small = createCanvas(420, 40);
+  const s = small.getContext("2d");
+  s.fillStyle = "#fff";
+  s.fillRect(0, 0, 420, 40);
+  s.fillStyle = "#222";
+  s.font = "16px serif";
+  s.fillText("Paid Rs. 6,589 on 31.08.2019", 6, 26);
+  const big = createCanvas(1260, 120);
+  const b = big.getContext("2d");
+  b.filter = "blur(2.4px)";
+  b.drawImage(small, 0, 0, 1260, 120);
+  return big.toBuffer("image/png");
+}
+
+test("v5 B: entities, a correction, a base date and an OCR dispute decided by the advocate", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "oa-e2ev5b-"));
+  await mkdir(path.join(base, "inbox"), { recursive: true });
+  const note = path.join(base, "inbox", "note.txt");
+  await writeFile(note, ["Ram Kumar v. State of Delhi", "He was produced before the Magistrate the next day.", "Crl. M.C. No. 1234 of 2023 was dismissed on 12.03.2024.", "Crl. M.C. No. 1234 of 2022 is cited in the reply.", "He was convicted under Section 302 of the Indian Penal Code."].join("\n"));
+  const scan = path.join(base, "inbox", "receipt.png");
+  await writeFile(scan, await disputedScan());
+  const secondEngine = existsSync(path.join(repo, "resources", "models", "ppocr", "det.onnx"));
+  const { app, page } = await start(base);
+  const call = bridge(page);
+  try {
+    const matterId = await matterWith(page, app, "Entities v. Disputes", [note, scan]);
+
+    // ---- V5-6: entities ----
+    await page.getByRole("tab", { name: "Entities" }).click();
+    await expect(page.getByTestId("entities")).toContainText("s. 302 IPC");
+    await expect(page.getByTestId("entity-conflicts")).toContainText("CRL. M.C. 1234 is given with different years");
+
+    // ---- V5-7: the base date for "the next day" ----
+    await page.getByRole("tab", { name: /^Review/ }).click();
+    await page.getByTestId("date-anchor").getByLabel("Base date").fill("2024-03-12");
+    await page.getByTestId("date-anchor").getByRole("button", { name: "Set the base date" }).click();
+    await expect.poll(async () => (await call<any>("getNotebook", matterId)).events.some((e: any) => e.dateStart === "2024-03-13" && e.dateText.includes("base date given by the advocate"))).toBe(true);
+
+    // ---- V5-7: correct an event; the extracted text stays readable ----
+    const nb = await call<any>("getNotebook", matterId);
+    const dismissed = nb.events.find((e: any) => e.description.includes("was dismissed"));
+    await page.getByRole("tab", { name: "Chronology" }).click();
+    const row = page.locator(".events-table tr", { hasText: "was dismissed" });
+    await row.getByRole("button", { name: "Correct" }).click();
+    await row.getByLabel("Corrected start date").fill("2024-03-13");
+    await row.getByLabel("Corrected end date").fill("2024-03-13");
+    await row.getByLabel("Reason for the correction").fill("The certified copy shows 13.03.2024.");
+    await row.getByRole("button", { name: "Save correction" }).click();
+    await expect(page.locator(".events-table tr", { hasText: "was dismissed" })).toContainText("13.03.2024");
+    await expect(page.locator(".events-table tr", { hasText: "was dismissed" })).toContainText("Corrected");
+    const after = (await call<any>("getNotebook", matterId)).events.find((e: any) => e.id === dismissed.id);
+    expect(after.corrected.original.dateStart).toBe("2024-03-12");
+
+    // ---- V5-8: the OCR dispute (needs the second engine's models: npm run vendor:ocr) ----
+    if (secondEngine) {
+      const scanEvent = (await call<any>("getNotebook", matterId)).events.find((e: any) => e.dateStart === "2019-08-31");
+      expect(scanEvent.disputed).toBe("open");
+      await expect(call("confirmEvent", matterId, scanEvent.id)).rejects.toThrow(/OCR_DISPUTED/);
+      await page.getByRole("tab", { name: /^Review/ }).click();
+      const dispute = page.getByTestId("ocr-dispute");
+      await expect(dispute).toContainText("Rs. 0,589");
+      await expect(dispute).toContainText("Rs. 6,589");
+      await dispute.getByRole("button", { name: "Use the second reading" }).click();
+      await expect.poll(async () => (await call<any>("getNotebook", matterId)).events.some((e: any) => e.description.includes("6,589") && e.method.endsWith("+decided"))).toBe(true);
+      const old = (await call<any>("getNotebook", matterId)).events.find((e: any) => e.id === scanEvent.id);
+      expect(old.disputed).toBe("replaced");
+    }
   } finally {
     await app.close();
   }

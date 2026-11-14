@@ -13,6 +13,7 @@ import path from "node:path";
 
 import { WORK_SCHEMA, WorkStore } from "./work.ts";
 import { STUDIO_SCHEMA, StudioStore } from "./studio.ts";
+import { NOTEBOOK2_SCHEMA, addCorrection, dateAnchor, decideDispute, insertDispute, listCorrections, listDisputes, type EventCorrection, type OcrDispute } from "./notebook2.ts";
 import { AUDIT_SCHEMA, addRefusal, eventHash, find, findIndexSeq, inspect, listRefusals, replaceFindIndex, verifyChain, type ChainCheck, type FindHit, type FindRow, type Inspection, type Refusal } from "./audit.ts";
 import { ACCEPTED_TEXT, detectMediaType } from "../document-intelligence/formats.ts";
 import type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus, DraftKind, RevisionAuthor, DraftRecord, RevisionRecord, ParagraphLinkRecord } from "../../shared/records.ts";
@@ -318,6 +319,7 @@ export class MatterStore {
     db.exec(WORK_SCHEMA);
     db.exec(STUDIO_SCHEMA);
     db.exec(AUDIT_SCHEMA);
+    db.exec(NOTEBOOK2_SCHEMA);
     // V5-1: the event chain. Events written before v5 have no hash and start the record.
     const ev = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'event'").get() as { sql?: string } | undefined;
     if (ev?.sql && !ev.sql.includes("prev_hash")) {
@@ -672,6 +674,17 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
           .run(sourceId, page.page, page.ocr.engine, page.ocr.version, page.ocr.confidence, page.text);
         this.appendEvent({ actor: "system" }, "ocr.read", sourceId, { page: page.page, engine: page.ocr.engine, confidence: page.ocr.confidence });
       }
+      if (page.second) {
+        // V5-8: the second engine's reading, and one dispute per line where the two disagree.
+        this.db
+          .prepare("INSERT INTO ocr_reading (source_id, page, engine, version, confidence, text) VALUES (?, ?, ?, ?, ?, ?)")
+          .run(sourceId, page.page, page.second.engine, page.second.version, page.second.confidence, page.second.text);
+        for (const d of page.second.disagreements) {
+          const item = this.openReviewItem("ocr_dispute", sourceId, page.page, `${source.name}, page ${page.page}, line ${d.line}: the two OCR engines disagree on ${[...new Set([...d.tokensA, ...d.tokensB])].join(", ") || "the line"}. Choose a reading or type the line.`);
+          insertDispute(this.db, { sourceId, page: page.page, line: d.line, anchorId: anchorId(source.sha256, page.page, d.line), readingA: d.readingA, engineA: page.ocr?.engine ?? "tesseract.js", readingB: d.readingB, engineB: page.second.engine, tokensA: d.tokensA, tokensB: d.tokensB, reviewItemId: item });
+        }
+        this.appendEvent({ actor: "system" }, "ocr.second_read", sourceId, { page: page.page, engine: page.second.engine, disputes: page.second.disagreements.length });
+      }
       if (page.kind === "none") {
         this.openReviewItem("page_without_text", sourceId, page.page, `Page ${page.page} of ${source.name} has no text layer, and OCR found no text.`);
       }
@@ -870,8 +883,12 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
   /** A human decision on an event (decision 5). Nothing is deleted; the latest decision counts. */
   decideEvent(eventId: string, decision: EventDecision, ctx: WriteContext): void {
     if (ctx.actor !== "advocate") throw new MatterStoreError("HUMAN_ONLY", "only the advocate decides an event");
-    const exists = this.db.prepare("SELECT 1 FROM notebook_event WHERE id = ?").get(eventId);
+    const exists = this.db.prepare("SELECT anchor_id FROM notebook_event WHERE id = ?").get(eventId) as { anchor_id: string } | undefined;
     if (!exists) throw new MatterStoreError("EVENT_NOT_FOUND", eventId);
+    // V5-8: a fact from a line the two OCR engines read differently waits for the advocate's reading.
+    if (decision === "confirmed" && this.db.prepare("SELECT 1 FROM ocr_dispute WHERE anchor_id = ? AND status = 'open'").get(exists.anchor_id)) {
+      throw new MatterStoreError("OCR_DISPUTED", "the two OCR engines read this line differently; choose a reading or type the line first");
+    }
     this.db.prepare("INSERT INTO event_decision (event_id, decision, actor, at) VALUES (?, ?, 'advocate', ?)").run(eventId, decision, now());
     this.appendEvent(ctx, `notebook.event_${decision}`, eventId, null);
   }
@@ -912,7 +929,20 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
       )
       .all() as Array<Record<string, unknown>>;
     const conflicts = this.listConflicts().filter((c) => c.status === "open");
-    return rows.map((r) => ({
+    const corrections = new Map<string, EventCorrection>();
+    for (const c of listCorrections(this.db)) corrections.set(c.eventId, c);
+    const disputes = listDisputes(this.db);
+    const disputeOf = (anchor: string, method: string): NotebookEvent["disputed"] => {
+      const d = disputes.find((x) => x.anchorId === anchor);
+      if (!d) return null;
+      if (d.status === "open") return "open";
+      return d.choice !== "a" && !method.endsWith("+decided") ? "replaced" : null;
+    };
+    return rows.map((r) => {
+      const c = corrections.get(String(r.id));
+      return {
+      ...(c ? { corrected: { reason: c.reason, at: c.at, original: { dateText: String(r.date_text), dateStart: String(r.date_start), dateEnd: String(r.date_end), description: String(r.description) } } } : {}),
+      disputed: disputeOf(String(r.anchor_id), String(r.method)),
       id: String(r.id),
       sourceId: String(r.source_id),
       sourceName: String(r.source_name),
@@ -930,7 +960,81 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
       status: (r.status == null ? "candidate" : String(r.status)) as EventStatus,
       excluded: r.visibility === "excluded",
       conflicts: conflicts.filter((c) => c.eventA === r.id || c.eventB === r.id).map((c) => c.id),
-    }));
+      ...(c ? { dateText: c.dateText, dateStart: c.dateStart, dateEnd: c.dateEnd, description: c.description } : {}),
+    };
+    });
+  }
+
+  // ---- V5-7 and V5-8: corrections, date anchors, OCR disputes ----
+
+  /** Human-only. A correction is a new version with a reason; the extracted text stays readable. */
+  correctEvent(eventId: string, input: { dateStart: string; dateEnd?: string; description: string }, reason: string, ctx: WriteContext): void {
+    if (ctx.actor !== "advocate") throw new MatterStoreError("HUMAN_ONLY", "only the advocate corrects an event");
+    if (!this.db.prepare("SELECT 1 FROM notebook_event WHERE id = ?").get(eventId)) throw new MatterStoreError("EVENT_NOT_FOUND", eventId);
+    const iso = /^\d{4}-\d{2}-\d{2}$/;
+    const start = String(input.dateStart ?? "");
+    const end = String(input.dateEnd || start);
+    if (!iso.test(start) || !iso.test(end) || end < start) throw new MatterStoreError("BAD_DATE", "dates are YYYY-MM-DD, and the end is not before the start");
+    const why = String(reason ?? "").trim();
+    if (!why) throw new MatterStoreError("REASON_REQUIRED", "a correction needs its reason");
+    const text = start === end ? start.split("-").reverse().join(".") : `${start.split("-").reverse().join(".")} – ${end.split("-").reverse().join(".")}`;
+    const c = addCorrection(this.db, { eventId, dateText: text, dateStart: start, dateEnd: end, description: String(input.description ?? "").trim().slice(0, 2000), reason: why.slice(0, 1000) });
+    this.appendEvent(ctx, "notebook.event_corrected", eventId, { correction: c.id, dateStart: start, dateEnd: end, reason: c.reason });
+  }
+
+  corrections(eventId?: string): EventCorrection[] {
+    return listCorrections(this.db, eventId);
+  }
+
+  /** System: one question per file when a relative date has nothing to count from (H rule 13). */
+  askDateAnchor(sourceId: string, detail: string): boolean {
+    if (dateAnchor(this.db, sourceId)) return false;
+    if (this.listReviewItems().some((r) => r.kind === "date_anchor" && r.sourceId === sourceId)) return false;
+    this.openReviewItem("date_anchor", sourceId, null, detail);
+    return true;
+  }
+
+  dateAnchor(sourceId: string): string | null {
+    return dateAnchor(this.db, sourceId)?.date ?? null;
+  }
+
+  /** Human-only: the base date for a file's relative dates. */
+  setDateAnchor(sourceId: string, date: string, ctx: WriteContext): void {
+    if (ctx.actor !== "advocate") throw new MatterStoreError("HUMAN_ONLY", "only the advocate gives a base date");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new MatterStoreError("BAD_DATE", "the date is YYYY-MM-DD");
+    const item = this.listReviewItems().find((r) => r.kind === "date_anchor" && r.sourceId === sourceId && r.status === "open");
+    this.db.prepare("INSERT OR REPLACE INTO date_anchor VALUES (?, ?, ?, ?)").run(sourceId, date, item?.id ?? null, now());
+    if (item) this.decideReviewItem(item.id, "resolved", ctx);
+    this.appendEvent(ctx, "notebook.date_anchor_set", sourceId, { date });
+  }
+
+  /** Events added after the first extraction (relative dates, decided readings). An id already present is kept. */
+  addEvents(sourceId: string, events: EventInput[]): number {
+    const insert = this.db.prepare(
+      "INSERT OR IGNORE INTO notebook_event (id, source_id, anchor_id, page, line, date_text, date_start, date_end, date_type, description, kind, reading, method, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    );
+    let n = 0;
+    for (const e of events) n += Number(insert.run(e.id, sourceId, e.anchorId, e.page, e.line, e.dateText, e.dateStart, e.dateEnd, e.dateType, e.description, e.kind, e.reading, e.method, now()).changes);
+    if (n) this.appendEvent({ actor: "system" }, "notebook.events_added", sourceId, { events: n });
+    return n;
+  }
+
+  disputes(sourceId?: string): OcrDispute[] {
+    return listDisputes(this.db, sourceId);
+  }
+
+  /** Human-only: the reading of a disputed line: engine A's, engine B's, or the advocate's typed copy. */
+  decideDispute(id: string, choice: "a" | "b" | "typed", typed: string, ctx: WriteContext): OcrDispute {
+    if (ctx.actor !== "advocate") throw new MatterStoreError("HUMAN_ONLY", "only the advocate decides an OCR reading");
+    const d = listDisputes(this.db).find((x) => x.id === id);
+    if (!d) throw new MatterStoreError("DISPUTE_NOT_FOUND", id);
+    if (d.status !== "open") throw new MatterStoreError("ALREADY_DECIDED", id);
+    const text = choice === "a" ? d.readingA : choice === "b" ? d.readingB : String(typed ?? "").replace(/\s+/g, " ").trim();
+    if (!text) throw new MatterStoreError("TEXT_REQUIRED", "type the line as it reads on the page");
+    decideDispute(this.db, id, choice, text);
+    this.decideReviewItem(d.reviewItemId, "resolved", ctx);
+    this.appendEvent(ctx, "ocr.dispute_decided", d.anchorId, { dispute: id, choice, text });
+    return listDisputes(this.db).find((x) => x.id === id)!;
   }
 
   /** Notebook readiness (Appendix B-D): no job queued or running, and no review item open. */

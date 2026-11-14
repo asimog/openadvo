@@ -105,6 +105,11 @@ const api: OpenAdvoApi = {
   openMatterFile: (matterId, rel) => ipcRenderer.invoke("files:open", matterId, rel),
   listJobsOverview: (matterId) => ipcRenderer.invoke("jobs:list", matterId),
   stopArgumentLoop: (matterId) => ipcRenderer.invoke("studio:stop", matterId),
+  getEntities: (matterId) => ipcRenderer.invoke("notebook:entities", matterId),
+  correctEvent: (matterId, eventId, input, reason) => ipcRenderer.invoke("notebook:correctEvent", matterId, eventId, input, reason),
+  setDateAnchor: (matterId, sourceId, date) => ipcRenderer.invoke("notebook:setDateAnchor", matterId, sourceId, date),
+  listOcrDisputes: (matterId, sourceId) => ipcRenderer.invoke("ocr:disputes", matterId, sourceId),
+  decideOcrDispute: (matterId, id, choice, typed) => ipcRenderer.invoke("ocr:decide", matterId, id, choice, typed),
   // V4: the Research and Argument Studio.
   getStudio: (matterId) => ipcRenderer.invoke("studio:get", matterId),
   getResearchLog: (matterId) => ipcRenderer.invoke("studio:log", matterId),

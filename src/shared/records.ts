@@ -118,6 +118,8 @@ export interface PageInput {
   text: string;
   lines: Array<{ line: number; x: number; y: number; w: number; h: number; text: string }>;
   ocr?: { engine: string; version: string; confidence: number };
+  /** V5-8: the second engine's reading and the lines where the two disagree on a critical token. */
+  second?: { engine: string; version: string; confidence: number; text: string; disagreements: Array<{ line: number; readingA: string; readingB: string; tokensA: string[]; tokensB: string[] }> };
 }
 
 export type EventStatus = "candidate" | "confirmed" | "rejected";
@@ -142,6 +144,10 @@ export interface NotebookEvent {
   status: EventStatus;
   excluded: boolean;
   conflicts: string[];
+  /** V5-7: the advocate's latest correction, with the text as extracted. */
+  corrected?: { reason: string; at: string; original: { dateText: string; dateStart: string; dateEnd: string; description: string } } | null;
+  /** V5-8: "open" while its line has an undecided OCR dispute; "replaced" when the advocate chose another reading. */
+  disputed?: "open" | "replaced" | null;
 }
 
 export interface DateConflict {

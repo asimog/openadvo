@@ -38,3 +38,34 @@ export interface FindRow {
 export interface FindHit extends FindRow {
   snippet: string;
 }
+
+/** V5-6: an entity found by rule on a line. */
+export interface Entity {
+  kind: "party" | "statute" | "case_number" | "amount" | "citation";
+  text: string;
+  value: string;
+  anchorId: string;
+  sourceId: string;
+  page: number;
+  line: number;
+}
+
+/** V5-8: a line the two OCR engines read differently. */
+export interface OcrDispute {
+  id: string;
+  sourceId: string;
+  page: number;
+  line: number;
+  anchorId: string;
+  readingA: string;
+  engineA: string;
+  readingB: string;
+  engineB: string;
+  tokensA: string[];
+  tokensB: string[];
+  reviewItemId: string;
+  status: "open" | "decided";
+  choice: "a" | "b" | "typed" | null;
+  decidedText: string | null;
+  decidedAt: string | null;
+}

@@ -8,7 +8,8 @@ import type { InboxItem, ProgressStage, DuplicatePair, MemoryProposal, RecordCol
 export type * from "./work.ts";
 export type * from "./studio.ts";
 export type * from "./audit.ts";
-import type { ChainCheck, Refusal, Inspection, FindHit } from "./audit.ts";
+export type { Entity, OcrDispute } from "./audit.ts";
+import type { ChainCheck, Refusal, Inspection, FindHit, Entity, OcrDispute } from "./audit.ts";
 import type { ArgumentRun, ArgumentRecord, CorpusPart, ProvisionRecord, ResearchDocument, ResearchHit, ResearchSettings, StudioState } from "./studio.ts";
 
 import type { AGUIEvent } from "@ag-ui/core";
@@ -155,6 +156,14 @@ export interface OpenAdvoApi {
   openMatterFile(matterId: string, rel: string): Promise<boolean>;
   listJobsOverview(matterId: string): Promise<{ reading: Array<IngestJob & { name: string }>; runs: ArgumentRun[]; running: string | null; indexing: string | null }>;
   stopArgumentLoop(matterId: string): Promise<boolean>;
+  getEntities(matterId: string): Promise<{ entities: Entity[]; conflicts: Array<{ key: string; values: string[]; anchors: string[] }> }>;
+  /** Human-only (V5-7). */
+  correctEvent(matterId: string, eventId: string, input: { dateStart: string; dateEnd?: string; description: string }, reason: string): Promise<Notebook>;
+  /** Human-only (V5-7). */
+  setDateAnchor(matterId: string, sourceId: string, date: string): Promise<{ added: number; notebook: Notebook }>;
+  listOcrDisputes(matterId: string, sourceId?: string): Promise<OcrDispute[]>;
+  /** Human-only (V5-8). */
+  decideOcrDispute(matterId: string, id: string, choice: "a" | "b" | "typed", typed?: string): Promise<{ dispute: OcrDispute; added: number }>;
   // V4 (docs/specs/v4.md). Human-only where marked.
   getStudio(matterId: string): Promise<StudioState>;
   getResearchLog(matterId: string): Promise<EventRecord[]>;

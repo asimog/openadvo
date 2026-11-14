@@ -19,7 +19,8 @@
     "vendor": "node scripts/vendor-euro-office.ts",
     "vendor:ulos": "node scripts/vendor-ulos.ts",
     "vendor:voice": "node scripts/vendor-voice.ts",
-    "dist": "electron-vite build && electron-builder --dir"
+    "dist": "electron-vite build && electron-builder --dir",
+    "vendor:ocr": "node scripts/vendor-ocr.ts"
   },
   "devDependencies": {
     "@astryxdesign/cli": "0.7.15",
@@ -51,6 +52,7 @@
     "fflate": "0.8.3",
     "hyparquet": "1.32.0",
     "imapflow": "2.10.0",
+    "onnxruntime-node": "1.30.0",
     "pdfjs-dist": "6.5.438",
     "postal-mime": "4.2.0",
     "react": "19.3.1",

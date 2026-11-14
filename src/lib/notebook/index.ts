@@ -284,7 +284,14 @@ function indian(isoDate: string): string {
  * date on page 1. "the next day", "the following day" and "the day after" use the last explicit
  * date earlier in the source. Every such date is inferred and names its base in `dateText`.
  */
-export function extractRelative(lines: Array<LineInput & { reading: Reading }>, skip: Set<string> = new Set()): CandidateEvent[] {
+export function extractRelative(
+  lines: Array<LineInput & { reading: Reading }>,
+  skip: Set<string> = new Set(),
+  /** V5-7: the base date the advocate gave for this file, used when the file has none of its own. */
+  fallback: string | null = null,
+  /** V5-7: called for each relative phrase that has nothing to count from. */
+  onUnresolved?: (line: LineInput, phrase: string) => void,
+): CandidateEvent[] {
   const usable = lines.filter((l) => !skip.has(l.anchorId));
   let header: { date: string; page: number; line: number } | null = null;
   for (const l of usable) {
@@ -317,8 +324,12 @@ export function extractRelative(lines: Array<LineInput & { reading: Reading }>, 
         previous = { date: mark.date, page: l.page, line: l.line };
         continue;
       }
-      const base = mark.base === "header" ? header : previous;
-      if (!base) continue;
+      const own = mark.base === "header" ? header : previous;
+      const base = own ?? (fallback ? { date: fallback, page: 0, line: 0 } : null);
+      if (!base) {
+        onUnresolved?.(l, mark.text);
+        continue;
+      }
       const date = addDays(base.date, mark.days);
       const next = usable[i + 1];
       const joins = next && next.page === l.page && !/[.;:]\s*$/.test(l.text);
@@ -329,7 +340,7 @@ export function extractRelative(lines: Array<LineInput & { reading: Reading }>, 
         anchorId: l.anchorId,
         page: l.page,
         line: l.line,
-        dateText: `"${mark.text}" from ${indian(base.date)} (${mark.base === "header" ? "header date" : "earlier date"}, page ${base.page} line ${base.line})`,
+        dateText: own ? `"${mark.text}" from ${indian(base.date)} (${mark.base === "header" ? "header date" : "earlier date"}, page ${base.page} line ${base.line})` : `"${mark.text}" from ${indian(base.date)} (base date given by the advocate)`,
         dateStart: date,
         dateEnd: date,
         dateType: "inferred",

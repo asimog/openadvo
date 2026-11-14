@@ -8,6 +8,7 @@ import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Text } from "@astryxdesign/core/Text";
 import type { AppInfo, Appearance, InboxItem, ProgressStage } from "../../shared/api.ts";
+import { DateAnchorForm, DisputeDecision } from "./V5.tsx";
 
 const api = window.openadvo;
 
@@ -66,6 +67,7 @@ const TAB_NAMES: Record<string, string> = {
   procedural: "Procedural history",
   matrix: "Factual Matrix",
   chronology: "Chronology",
+  entities: "Entities",
   records: "Record table",
   research: "Studio",
   filing: "Filing",
@@ -115,7 +117,11 @@ export function ReviewInbox(props: { matterId: string; version: number; onTab: (
         <Text>{item.detail}</Text>
       </div>
       <div className="row-actions">
-        {item.kind === "possible_duplicate" && item.reviewItemId ? (
+        {item.kind === "ocr_dispute" && item.reviewItemId ? (
+          <DisputeDecision matterId={props.matterId} reviewItemId={item.reviewItemId} onDone={() => void decided()} />
+        ) : item.kind === "date_anchor" && item.sourceId ? (
+          <DateAnchorForm matterId={props.matterId} sourceId={item.sourceId} onDone={() => void decided()} />
+        ) : item.kind === "possible_duplicate" && item.reviewItemId ? (
           <>
             <Button label="Same document" size="sm" clickAction={async () => { await api.decideDuplicate(props.matterId, item.reviewItemId!, "same"); await decided(); }} />
             <Button label="Different documents" size="sm" variant="ghost" clickAction={async () => { await api.decideDuplicate(props.matterId, item.reviewItemId!, "different"); await decided(); }} />

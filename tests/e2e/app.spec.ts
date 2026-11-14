@@ -206,6 +206,7 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
       "getStudio", "getResearchLog", "researchSearch", "researchRead", "saveJudgment", "saveProvision", "decideProvision", "startArgumentLoop", "decideArgument", "argumentToGrounds", "getWeakPoints",
       "corpusParts", "indexSupremeCourt", "listHighCourts", "indexHighCourt", "getResearchSettings", "setResearchSettings", "onStudioChanged", "onStudioProgress",
       "verifyRecordChain", "listRefusals", "inspectRecord", "findInMatter", "listMatterFiles", "openMatterFile", "listJobsOverview", "stopArgumentLoop",
+      "getEntities", "correctEvent", "setDateAnchor", "listOcrDisputes", "decideOcrDispute",
     ].sort(),
   );
   await app.close();

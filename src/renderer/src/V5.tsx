@@ -173,3 +173,142 @@ export function FilesAndJobs(props: { matterId: string; version: number }) {
     </>
   );
 }
+
+// ---- V5-6: entities ----
+
+const ENTITY_LABEL: Record<string, string> = { party: "Parties", statute: "Statutory references", case_number: "Case numbers", amount: "Amounts", citation: "Citations" };
+
+export function EntitiesView(props: { matterId: string; version: number; onOpen: (l: { sourceId: string; page: number; line: number }) => void }) {
+  const [data, setData] = useState<Awaited<ReturnType<typeof api.getEntities>> | null>(null);
+  useEffect(() => {
+    void api.getEntities(props.matterId).then(setData);
+  }, [props.matterId, props.version]);
+  if (!data) return null;
+  const kinds = Object.keys(ENTITY_LABEL);
+  return (
+    <section className="work-section" aria-label="Entities" data-testid="entities">
+      <Text type="supporting">Found by fixed rules on every line. Nothing here is a fact until you rely on it.</Text>
+      {data.conflicts.length ? (
+        <div className="notice" data-testid="entity-conflicts">
+          {data.conflicts.map((c) => <div key={c.key}>{c.key} is given with different years: {c.values.join(", ")}.</div>)}
+        </div>
+      ) : null}
+      {kinds.map((k) => {
+        const rows = data.entities.filter((e) => e.kind === k);
+        const groups = new Map<string, typeof rows>();
+        for (const e of rows) groups.set(e.value, [...(groups.get(e.value) ?? []), e]);
+        return (
+          <div key={k}>
+            <Heading level={4}>{ENTITY_LABEL[k]} ({groups.size})</Heading>
+            <ul className="plain-list">
+              {[...groups].map(([value, list]) => (
+                <li key={value}>
+                  <Text weight="semibold">{value}</Text>{" "}
+                  {list.slice(0, 6).map((e) => (
+                    <button key={e.anchorId} type="button" className="link" onClick={() => props.onOpen({ sourceId: e.sourceId, page: e.page, line: e.line })}>
+                      p. {e.page}, l. {e.line}
+                    </button>
+                  ))}
+                  {list.length > 6 ? <Text type="supporting"> and {list.length - 6} more</Text> : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+// ---- V5-7 and V5-8: decisions in the review lists ----
+
+export function DisputeDecision(props: { matterId: string; reviewItemId: string; onDone: () => void }) {
+  const [d, setD] = useState<import("../../shared/api.ts").OcrDispute | null>(null);
+  const [typed, setTyped] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    void api.listOcrDisputes(props.matterId).then((all) => setD(all.find((x) => x.reviewItemId === props.reviewItemId) ?? null));
+  }, [props.matterId, props.reviewItemId]);
+  if (!d) return null;
+  const decide = async (choice: "a" | "b" | "typed") => {
+    try {
+      setError(null);
+      await api.decideOcrDispute(props.matterId, d.id, choice, typed);
+      props.onDone();
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  return (
+    <div className="dispute" data-testid="ocr-dispute">
+      <div><Badge variant="neutral" label={d.engineA} /> <span className="mono">{d.readingA}</span></div>
+      <div><Badge variant="neutral" label={d.engineB} /> <span className="mono">{d.readingB}</span></div>
+      <div className="row-actions">
+        <Button label="Use the first reading" size="sm" clickAction={() => decide("a")} />
+        <Button label="Use the second reading" size="sm" variant="ghost" clickAction={() => decide("b")} />
+        <input aria-label="Type the line" placeholder="Type the line as it reads on the page" value={typed} onChange={(e) => setTyped(e.target.value)} className="grow" />
+        <Button label="Use my typed copy" size="sm" variant="ghost" isDisabled={!typed.trim()} clickAction={() => decide("typed")} />
+      </div>
+      {error ? <div className="notice" role="alert">{error}</div> : null}
+    </div>
+  );
+}
+
+export function DateAnchorForm(props: { matterId: string; sourceId: string; onDone: () => void }) {
+  const [date, setDate] = useState("");
+  const [note, setNote] = useState<string | null>(null);
+  return (
+    <div className="row-actions" data-testid="date-anchor">
+      <input type="date" aria-label="Base date" value={date} onChange={(e) => setDate(e.target.value)} />
+      <Button
+        label="Set the base date"
+        size="sm"
+        isDisabled={!date}
+        clickAction={async () => {
+          try {
+            const r = await api.setDateAnchor(props.matterId, props.sourceId, date);
+            setNote(`${r.added} event(s) dated.`);
+            props.onDone();
+          } catch (e) {
+            setNote(errorText(e));
+          }
+        }}
+      />
+      {note ? <Text type="supporting">{note}</Text> : null}
+    </div>
+  );
+}
+
+// ---- V5-7: correct an event ----
+
+export function CorrectEvent(props: { matterId: string; event: { id: string; dateStart: string; dateEnd: string; description: string }; onDone: (nb: import("../../shared/api.ts").Notebook) => void }) {
+  const [open, setOpen] = useState(false);
+  const [f, setF] = useState({ dateStart: props.event.dateStart, dateEnd: props.event.dateEnd, description: props.event.description, reason: "" });
+  const [error, setError] = useState<string | null>(null);
+  if (!open) return <Button label="Correct" size="sm" variant="ghost" onClick={() => setOpen(true)} />;
+  return (
+    <div className="correct-form" data-testid="correct-event">
+      <input type="date" aria-label="Corrected start date" value={f.dateStart} onChange={(e) => setF({ ...f, dateStart: e.target.value })} />
+      <input type="date" aria-label="Corrected end date" value={f.dateEnd} onChange={(e) => setF({ ...f, dateEnd: e.target.value })} />
+      <textarea aria-label="Corrected description" value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} rows={2} />
+      <input aria-label="Reason for the correction" placeholder="Reason" value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} />
+      <div className="row-actions">
+        <Button
+          label="Save correction"
+          size="sm"
+          isDisabled={!f.reason.trim()}
+          clickAction={async () => {
+            try {
+              props.onDone(await api.correctEvent(props.matterId, props.event.id, { dateStart: f.dateStart, dateEnd: f.dateEnd, description: f.description }, f.reason));
+              setOpen(false);
+            } catch (e) {
+              setError(errorText(e));
+            }
+          }}
+        />
+        <Button label="Cancel" size="sm" variant="ghost" onClick={() => setOpen(false)} />
+      </div>
+      {error ? <div className="notice" role="alert">{error}</div> : null}
+    </div>
+  );
+}

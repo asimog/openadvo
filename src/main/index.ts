@@ -20,6 +20,9 @@ import { Progress } from "./progress.ts";
 import { ArgumentStudio, ResearchHub, type SourceName } from "./studio.ts";
 import { researchLog, studioTools } from "./studio-tools.ts";
 import { ensureFindIndex, listMatterFiles } from "./audit.ts";
+import { applyDateAnchor, eventsFromDecidedLine } from "./notebook.ts";
+import { caseNumberConflicts, extractEntities } from "../lib/notebook/entities.ts";
+import { ppocrDir, setPpocrDir } from "../lib/document-intelligence/ppocr.ts";
 import { setFetcher } from "../lib/research-sources/http.ts";
 import type { ResearchSettings } from "../shared/studio.ts";
 import { Portal, portalOptionsFromEnv } from "./portal.ts";
@@ -242,6 +245,29 @@ function registerBridge(): void {
     };
   });
   handle("studio:stop", (matterId: string) => studio.stop(matterId));
+  // V5-6 to V5-8: entities, corrections, date anchors, OCR disputes. Decisions are human-only.
+  handle("notebook:entities", async (matterId: string) => {
+    const store = await matters.store(matterId);
+    const lines = store.listSources().flatMap((s) => store.sourceLines(s.id).map((l) => ({ anchorId: l.id, sourceId: l.sourceId, page: l.page, line: l.line, text: l.text })));
+    const entities = extractEntities(lines);
+    return { entities, conflicts: caseNumberConflicts(entities) };
+  });
+  handle("notebook:correctEvent", async (matterId: string, eventId: string, input: Record<string, unknown>, reason: string) => {
+    (await matters.store(matterId)).correctEvent(String(eventId), { dateStart: String(input?.dateStart ?? ""), dateEnd: String(input?.dateEnd ?? ""), description: String(input?.description ?? "") }, String(reason ?? ""), { actor: "advocate" });
+    return matters.notebook(matterId);
+  });
+  handle("notebook:setDateAnchor", async (matterId: string, sourceId: string, date: string) => {
+    (await matters.store(matterId)).setDateAnchor(String(sourceId), String(date), { actor: "advocate" });
+    const added = await applyDateAnchor(matters, matterId, String(sourceId));
+    return { added, notebook: await matters.notebook(matterId) };
+  });
+  handle("ocr:disputes", async (matterId: string, sourceId?: string) => (await matters.store(matterId)).disputes(sourceId ? String(sourceId) : undefined));
+  handle("ocr:decide", async (matterId: string, id: string, choice: string, typed: string) => {
+    if (choice !== "a" && choice !== "b" && choice !== "typed") throw new Error("BAD_CHOICE: a, b or typed");
+    const d = (await matters.store(matterId)).decideDispute(String(id), choice, String(typed ?? ""), { actor: "advocate" });
+    const added = await eventsFromDecidedLine(matters, matterId, d);
+    return { dispute: d, added };
+  });
   // V3-1 and V3-2: reads only.
   handle("progress:get", (matterId: string) => progress.progress(matterId));
   handle("inbox:get", (matterId: string) => progress.inbox(matterId));
@@ -639,6 +665,8 @@ app.whenReady().then(() => {
       emitChat({ matterId, event: { type: "CUSTOM", name: "openadvo.chat_message", value: { id: randomUUID(), role: "notice", text: `Captured from the court portal: ${detail.name} (${detail.outcome}).` }, timestamp: Date.now() } as never });
     }),
   );
+  // V5-8: the second OCR engine, when its models are vendored (npm run vendor:ocr).
+  setPpocrDir(ppocrDir(resourcesRoot()));
   workHost = agentWorkHost({ matters, research, drafts, portal, ulos });
   // V4: the Research and Argument Studio.
   hub = new ResearchHub(matters, path.join(app.getPath("userData"), "corpus"), researchSettings, (text) => window?.webContents.send("studio:progress", text));

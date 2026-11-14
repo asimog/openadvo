@@ -5,6 +5,7 @@ import { Badge } from "@astryxdesign/core/Badge";
 import { Text } from "@astryxdesign/core/Text";
 import type { DateConflict, Notebook, NotebookEvent } from "../../shared/api.ts";
 import { dmyRange } from "../../shared/dates.ts";
+import { CorrectEvent } from "./V5.tsx";
 
 const api = window.openadvo;
 
@@ -120,11 +121,14 @@ function EventsTable(props: {
               {e.description}
               {e.conflicts.length ? <> <Badge variant="warning" label="Date conflict" /></> : null}
               {e.excluded ? <> <Badge variant="neutral" label="Excluded" /></> : null}
+              {e.corrected ? <> <span title={`Corrected ${e.corrected.at.slice(0, 10)}: ${e.corrected.reason}. As extracted: ${e.corrected.original.dateText}: ${e.corrected.original.description}`}><Badge variant="info" label="Corrected" /></span></> : null}
+              {e.disputed === "open" ? <> <Badge variant="warning" label="OCR disputed" /></> : null}
+              {e.disputed === "replaced" ? <> <Badge variant="warning" label="Line reading replaced" /></> : null}
             </td>
             <td><SourceLinkButton e={e} onOpen={props.onOpen} /></td>
             {props.full ? <td>{e.reading === "ocr" ? "OCR, single reading" : "Text layer"}</td> : null}
             <td>{statusBadge(e)}</td>
-            <td><Decide matterId={props.matterId} e={e} onChange={props.onChange} /></td>
+            <td><Decide matterId={props.matterId} e={e} onChange={props.onChange} /><CorrectEvent matterId={props.matterId} event={e} onDone={props.onChange} /></td>
           </tr>
         ))}
       </tbody>
@@ -149,6 +153,8 @@ export function NotebookView(props: {
   /** V3-2: the review inbox and how many items wait. */
   reviewPanel: ReactNode;
   reviewCount: number;
+  /** V5-6. */
+  entitiesPanel?: ReactNode;
   onChange: (nb: Notebook) => void;
   onOpen: (l: SourceLink) => void;
 }) {
@@ -178,17 +184,19 @@ export function NotebookView(props: {
         <Tab value="procedural" label="Procedural history" />
         <Tab value="matrix" label="Factual Matrix" />
         <Tab value="chronology" label="Chronology" />
+        <Tab value="entities" label="Entities" />
         <Tab value="records" label="Record table" />
         <Tab value="research" label="Studio" />
         <Tab value="filing" label="Filing" />
       </TabList>
       <div className="notebook-body">
-        {tab !== "matter" && tab !== "research" && tab !== "filing" && tab !== "records" && tab !== "review" && nb ? <Conflicts matterId={props.matterId} nb={nb} onChange={props.onChange} onOpen={props.onOpen} /> : null}
+        {tab !== "matter" && tab !== "research" && tab !== "filing" && tab !== "records" && tab !== "review" && tab !== "entities" && nb ? <Conflicts matterId={props.matterId} nb={nb} onChange={props.onChange} onOpen={props.onOpen} /> : null}
         {tab === "matter" ? props.overview : null}
         {tab === "sources" ? props.sourcesPanel : null}
         {tab === "research" ? props.researchPanel : null}
         {tab === "records" ? props.recordPanel : null}
         {tab === "review" ? props.reviewPanel : null}
+        {tab === "entities" ? props.entitiesPanel : null}
         {tab === "filing" ? props.filingPanel : null}
         {tab === "procedural" ? (
           <EventsTable label="Procedural history" events={events.filter((e) => e.kind === "procedural")} full={false} matterId={props.matterId} onChange={props.onChange} onOpen={props.onOpen} />
