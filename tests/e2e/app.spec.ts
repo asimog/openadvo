@@ -133,7 +133,7 @@ test("the window: chat landing page, side navigation that hides, chat docked lef
 
   // A file attached on the landing page goes into the matter that the advocate then creates.
   await stubFilePicker(app, [file]);
-  await page.getByRole("button", { name: "Attach PDF files" }).click();
+  await page.getByRole("button", { name: "Attach files" }).click();
   await expect(page.getByText("writ-petition.pdf")).toBeVisible();
   await page.getByRole("button", { name: "Choose matter" }).click();
   await page.getByRole("menuitem", { name: "New matter" }).click();
@@ -202,6 +202,7 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
       "verifyFilingManifest", "renameMatter", "setMatterArchived", "newConversation", "getMemory", "setMemory",
       "listWorkflows", "saveWorkflow", "deleteWorkflow", "getRecordTable", "addRecordColumn", "decideRecordCell",
       "setSourceType", "listDuplicates", "decideDuplicate", "getListOfDatesRows", "setListOfDatesRows", "listMemoryProposals", "decideMemoryProposal", "signingFingerprint",
+      "getProgress", "getInbox", "searchSources", "getAppInfo", "getAppearance", "setAppearance", "exportMatter",
     ].sort(),
   );
   await app.close();

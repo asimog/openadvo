@@ -4,6 +4,7 @@ import { Button } from "@astryxdesign/core/Button";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Text } from "@astryxdesign/core/Text";
 import type { DateConflict, Notebook, NotebookEvent } from "../../shared/api.ts";
+import { dmyRange } from "../../shared/dates.ts";
 
 const api = window.openadvo;
 
@@ -13,8 +14,18 @@ export interface SourceLink {
   line: number;
 }
 
-function dateCell(e: NotebookEvent): string {
-  return e.dateStart === e.dateEnd ? e.dateStart : `${e.dateStart} – ${e.dateEnd}`;
+function dateCell(e: NotebookEvent) {
+  return (
+    <>
+      {dmyRange(e.dateStart, e.dateEnd)}
+      {e.dateType === "inferred" ? (
+        <>
+          {" "}
+          <span title={`Inferred. As written: ${e.dateText}`}><Badge variant="warning" label="inferred" /></span>
+        </>
+      ) : null}
+    </>
+  );
 }
 
 function statusBadge(e: NotebookEvent) {
@@ -135,6 +146,9 @@ export function NotebookView(props: {
   filingPanel: ReactNode;
   /** V1-5. */
   recordPanel: ReactNode;
+  /** V3-2: the review inbox and how many items wait. */
+  reviewPanel: ReactNode;
+  reviewCount: number;
   onChange: (nb: Notebook) => void;
   onOpen: (l: SourceLink) => void;
 }) {
@@ -159,6 +173,7 @@ export function NotebookView(props: {
       </div>
       <TabList value={tab} onChange={setTab} size="sm" hasDivider role="tablist">
         <Tab value="matter" label="Matter" />
+        <Tab value="review" label={props.reviewCount ? `Review (${props.reviewCount})` : "Review"} />
         <Tab value="sources" label="Sources" />
         <Tab value="procedural" label="Procedural history" />
         <Tab value="matrix" label="Factual Matrix" />
@@ -168,11 +183,12 @@ export function NotebookView(props: {
         <Tab value="filing" label="Filing" />
       </TabList>
       <div className="notebook-body">
-        {tab !== "matter" && tab !== "research" && tab !== "filing" && tab !== "records" && nb ? <Conflicts matterId={props.matterId} nb={nb} onChange={props.onChange} onOpen={props.onOpen} /> : null}
+        {tab !== "matter" && tab !== "research" && tab !== "filing" && tab !== "records" && tab !== "review" && nb ? <Conflicts matterId={props.matterId} nb={nb} onChange={props.onChange} onOpen={props.onOpen} /> : null}
         {tab === "matter" ? props.overview : null}
         {tab === "sources" ? props.sourcesPanel : null}
         {tab === "research" ? props.researchPanel : null}
         {tab === "records" ? props.recordPanel : null}
+        {tab === "review" ? props.reviewPanel : null}
         {tab === "filing" ? props.filingPanel : null}
         {tab === "procedural" ? (
           <EventsTable label="Procedural history" events={events.filter((e) => e.kind === "procedural")} full={false} matterId={props.matterId} onChange={props.onChange} onOpen={props.onOpen} />

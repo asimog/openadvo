@@ -53,6 +53,50 @@ function useAction(after: () => Promise<void> | void) {
   return { error, busy, run };
 }
 
+// ---- The authorised mailbox account (Filing tab and Settings, V3-4) ----
+
+export function MailboxAccount() {
+  const [account, setAccount] = useState({ host: "", port: "993", user: "", password: "" });
+  const [saved, setSaved] = useState<{ user: string; host: string; hasPassword: boolean } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    void api.getMailAccount().then((a) => {
+      if (!a) return;
+      setSaved({ user: a.user, host: a.host, hasPassword: a.hasPassword });
+      setAccount({ host: a.host, port: String(a.port), user: a.user, password: "" });
+    });
+  }, []);
+  return (
+    <div className="mailbox-account" data-testid="mailbox-account">
+      <Text type="supporting">
+        {saved ? `Saved: ${saved.user} at ${saved.host}${saved.hasPassword ? ", password kept in the operating system's secret store" : ", no password"}.` : "No mailbox saved. The application reads it only when you import, and never sends mail."}
+      </Text>
+      <div className="field-grid">
+        <Field label="IMAP host" value={account.host} onChange={(v) => setAccount({ ...account, host: v })} />
+        <Field label="Port" value={account.port} onChange={(v) => setAccount({ ...account, port: v })} />
+        <Field label="User" value={account.user} onChange={(v) => setAccount({ ...account, user: v })} />
+        <label className="field"><span>Password (kept in the operating system's secret store)</span><input type="password" value={account.password} onChange={(e) => setAccount({ ...account, password: e.target.value })} /></label>
+      </div>
+      <Button
+        label="Save mailbox"
+        size="sm"
+        isDisabled={!account.host.trim() || !account.user.trim()}
+        clickAction={async () => {
+          try {
+            setError(null);
+            const a = await api.setMailAccount({ host: account.host, port: Number(account.port) || 993, secure: true, user: account.user }, account.password);
+            setSaved({ user: a.user, host: a.host, hasPassword: a.hasPassword });
+            setAccount({ ...account, password: "" });
+          } catch (e) {
+            setError(errorText(e));
+          }
+        }}
+      />
+      {error ? <div className="notice" role="alert">{error}</div> : null}
+    </div>
+  );
+}
+
 // ---- Matter details (Matter tab) ----
 
 export function MatterDetailsForm(props: { matterId: string; nb: Notebook | null; version: number }) {
@@ -278,7 +322,6 @@ export function FilingView(props: { matterId: string; sources: SourceRecord[]; v
   const { error, busy, run } = useAction(load);
   const [chosen, setChosen] = useState<string[] | null>(null);
   const [mailNote, setMailNote] = useState<string | null>(null);
-  const [account, setAccount] = useState({ host: "", port: "993", user: "", password: "" });
   const [mailFilter, setMailFilter] = useState({ from: "", subject: "" });
   const [manifestCheck, setManifestCheck] = useState<ManifestCheck | null>(null);
   if (!f) return null;
@@ -298,13 +341,7 @@ export function FilingView(props: { matterId: string; sources: SourceRecord[]; v
         </div>
         <details>
           <summary>Authorised mailbox (IMAP, read only)</summary>
-          <div className="field-grid">
-            <Field label="IMAP host" value={account.host} onChange={(v) => setAccount({ ...account, host: v })} />
-            <Field label="Port" value={account.port} onChange={(v) => setAccount({ ...account, port: v })} />
-            <Field label="User" value={account.user} onChange={(v) => setAccount({ ...account, user: v })} />
-            <label className="field"><span>Password (kept in the operating system's secret store)</span><input type="password" value={account.password} onChange={(e) => setAccount({ ...account, password: e.target.value })} /></label>
-          </div>
-          <Button label="Save mailbox" size="sm" clickAction={() => run(async () => { await api.setMailAccount({ host: account.host, port: Number(account.port) || 993, secure: true, user: account.user }, account.password); setAccount({ ...account, password: "" }); setMailNote("Mailbox saved."); })} />
+          <MailboxAccount />
           <div className="field-grid">
             <Field label="From" value={mailFilter.from} onChange={(v) => setMailFilter({ ...mailFilter, from: v })} />
             <Field label="Subject contains" value={mailFilter.subject} onChange={(v) => setMailFilter({ ...mailFilter, subject: v })} />

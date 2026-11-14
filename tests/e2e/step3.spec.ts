@@ -54,7 +54,7 @@ test("the Notebook: events, a flagged date conflict, human decisions, chronology
   await page.getByRole("tab", { name: "Factual Matrix" }).click();
   const matrix = page.getByRole("table", { name: "Factual Matrix" });
   await expect(matrix.locator("tbody tr")).toHaveCount(4);
-  await expect(matrix).toContainText("2019-03-01 – 2019-03-31");
+  await expect(matrix).toContainText("01.03.2019 – 31.03.2019");
   await expect(matrix).not.toContainText("Thereafter");
   const conflicts = page.getByRole("region", { name: "Date conflicts" });
   await conflicts.getByRole("button", { name: "Keep 12.03.2024" }).click();

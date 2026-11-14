@@ -17,6 +17,8 @@ import { DraftsSection } from "./Drafts.tsx";
 import { DraftView } from "./DraftView.tsx";
 import { FilingView, MatterDetailsForm, ResearchView } from "./Work.tsx";
 import { ArchivedMatters, MatterAdmin, MemoryEditor, RecordTableView } from "./V1.tsx";
+import { CommandBar, MatterProgress, ReviewInbox, SettingsPage, tabName, type Command } from "./V3.tsx";
+import { MailboxAccount } from "./Work.tsx";
 import { EventTable, SourceDetail, SourcesPanel } from "./Sources.tsx";
 import type {
   AddFileResult,
@@ -123,6 +125,10 @@ export function App() {
   const [jobs, setJobs] = useState<IngestJob[]>([]);
   const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
   const [version, setVersion] = useState(0);
+  const [inboxCount, setInboxCount] = useState(0);
+  // V3-4 and V3-3.
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
   const [nb, setNb] = useState<Notebook | null>(null);
   const [drafts, setDrafts] = useState<DraftRecord[]>([]);
   const [openDraft, setOpenDraft] = useState<DraftRecord | null>(null);
@@ -174,6 +180,7 @@ export function App() {
   const openMatter = useCallback(
     async (id: string) => {
       setMatterId(id);
+      setSettingsOpen(false);
       setNotice(null);
       closeDocument();
       const checked = await api.openMatter(id);
@@ -192,6 +199,7 @@ export function App() {
   );
 
   const goHome = () => {
+    setSettingsOpen(false);
     setMatterId(null);
     setNotice(null);
     closeDocument();
@@ -235,6 +243,81 @@ export function App() {
   };
 
   const matter = useMemo(() => matters.find((m) => m.id === matterId) ?? null, [matters, matterId]);
+  // V3-3: what the command bar offers. Each command does what its button does.
+  const commands = useMemo<Command[]>(() => {
+    const list: Command[] = [
+      { id: "home", group: "Actions", label: "Home", run: goHome },
+      { id: "new", group: "Actions", label: "New matter", run: () => askNewMatter(null) },
+      { id: "settings", group: "Actions", label: "Settings", hint: "appearance, mailbox, versions", run: () => { goHome(); setSettingsOpen(true); } },
+    ];
+    for (const m of matters.filter((x) => !x.archived)) list.push({ id: `m:${m.id}`, group: "Matters", label: m.title, run: () => void openMatter(m.id) });
+    if (matterId) {
+      for (const t of ["matter", "review", "sources", "procedural", "matrix", "chronology", "records", "research", "filing"]) {
+        list.push({ id: `t:${t}`, group: "Go to", label: tabName(t), run: () => { closeDocument(); setTab(t); } });
+      }
+      const id = matterId;
+      list.push({ id: "add", group: "Actions", label: "Add files to this matter", run: async () => addPathsTo(id, await api.pickFiles()) });
+      list.push({ id: "export", group: "Actions", label: "Export this matter", hint: "ZIP backup", run: () => void api.exportMatter(id).then((r) => r && setNotice(`Exported ${r.files} file(s) to ${r.path}.`)) });
+      for (const [kind, label] of [["list_of_dates", "Generate List of Dates"], ["synopsis", "Generate Synopsis"], ["petition", "Prepare petition"], ["conference", "Prepare conference package"]] as const) {
+        list.push({
+          id: `g:${kind}`,
+          group: "Actions",
+          label,
+          run: async () => {
+            try {
+              const r = kind === "list_of_dates" ? await api.generateListOfDates(id) : kind === "synopsis" ? await api.generateSynopsis(id) : await api.generateDraft(id, kind);
+              await refreshMatter(id);
+              setSourceId(null);
+              setOpenDraft(r.draft);
+              setOpenRevision(r.revision);
+            } catch (e) {
+              setNotice((e as Error).message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ""));
+            }
+          },
+        });
+      }
+    }
+    return list;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matters, matterId]);
+  const searchLines = useMemo(() => {
+    if (!matterId) return null;
+    const id = matterId;
+    return async (q: string): Promise<Command[]> => {
+      const hits = await api.searchSources(id, q);
+      const names = new Map(sources.map((s) => [s.id, s.name]));
+      return hits.slice(0, 12).map((h) => ({
+        id: `l:${h.id}`,
+        group: "Source lines" as const,
+        label: h.text,
+        hint: `${names.get(h.sourceId) ?? "source"}, p. ${h.page}, l. ${h.line}`,
+        run: () => {
+          setFocus({ sourceId: h.sourceId, page: h.page, line: h.line });
+          setSourceId(h.sourceId);
+        },
+      }));
+    };
+  }, [matterId, sources]);
+  // V3-2: the count on the Review tab.
+  useEffect(() => {
+    if (!matterId) return;
+    void api.getInbox(matterId).then((items) => setInboxCount(items.length), () => setInboxCount(0));
+  }, [matterId, version, nb, reviewItems, sources]);
+  // V3-3: Ctrl+K (Cmd+K on macOS) opens the command bar anywhere in the window.
+  useEffect(() => {
+    const on = (e: globalThis.KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setCommandOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, []);
+  // V3-6: the window title names the open matter.
+  useEffect(() => {
+    document.title = matter ? `${matter.title} — Open Advocate` : "Open Advocate";
+  }, [matter]);
   const source = sources.find((s) => s.id === sourceId) ?? null;
   const eventCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -296,10 +379,17 @@ export function App() {
             isCollapsed={navCollapsed}
             onCollapsedChange={setNavByHand}
             onHome={goHome} onNewMatter={() => askNewMatter(null)} onOpenMatter={(id) => void openMatter(id)}
+            settingsOpen={settingsOpen}
+            onSettings={() => {
+              goHome();
+              setSettingsOpen(true);
+            }}
           />
         }
       >
-        {!matter ? (
+        {settingsOpen ? (
+          <SettingsPage mailbox={<MailboxAccount />} />
+        ) : !matter ? (
           <Landing
             matters={matters.filter((m) => !m.archived)}
             onOpenMatter={(id, carry) => void openWithCarry(id, carry, false)}
@@ -358,12 +448,20 @@ export function App() {
                     <SourceDetail matterId={matter.id} source={source} events={events} version={version} focus={focus} dock={dockSlot} onChanged={() => void refreshMatter(matter.id)} />
                   ) : (
                     <div className="work-scroll">
-                      {notice ? <div className="notice" role="status" data-testid="notice">{notice}</div> : null}
+                      {notice ? (
+                        <div className="notice notice-closable" role="status" data-testid="notice">
+                          <span>{notice}</span>
+                          <button type="button" className="notice-close" aria-label="Close notice" onClick={() => setNotice(null)}>×</button>
+                        </div>
+                      ) : null}
                       <NotebookView
                         matterId={matter.id}
                         nb={nb}
                         tab={tab}
-                        onTab={setTab}
+                        onTab={(t) => {
+                          setTab(t);
+                          setNotice(null);
+                        }}
                         onChange={(next) => {
                           setNb(next);
                           void refreshMatter(matter.id);
@@ -387,8 +485,22 @@ export function App() {
                         researchPanel={<ResearchView matterId={matter.id} version={version} />}
                         filingPanel={<FilingView matterId={matter.id} sources={sources} version={version} />}
                         recordPanel={<RecordTableView matterId={matter.id} sources={sources} version={version} />}
+                        reviewCount={inboxCount}
+                        reviewPanel={
+                          <ReviewInbox
+                            matterId={matter.id}
+                            version={version + inboxCount}
+                            onTab={setTab}
+                            onOpenSource={(id) => {
+                              setFocus(null);
+                              setSourceId(id);
+                            }}
+                            onChanged={() => void refreshMatter(matter.id)}
+                          />
+                        }
                         overview={
                           <div>
+                            <MatterProgress matterId={matter.id} version={version + inboxCount} onTab={setTab} />
                             <MatterAdmin matter={matter} onChanged={refreshMatters} onArchived={goHome} />
                             <MatterDetailsForm matterId={matter.id} nb={nb} version={version} />
                             <MemoryEditor matterId={matter.id} />
@@ -432,6 +544,7 @@ export function App() {
         }}
         onCreate={createMatter}
       />
+      <CommandBar isOpen={commandOpen} onClose={() => setCommandOpen(false)} commands={commands} searchLines={searchLines} />
     </>
   );
 }

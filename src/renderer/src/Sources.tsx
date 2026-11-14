@@ -58,7 +58,7 @@ function SourcesTable(props: {
         {
           key: "name",
           header: "Name",
-          width: proportional(1, { minWidth: 180 }),
+          width: proportional(1, { minWidth: 140 }),
           sortable: true,
           renderCell: (s) => (
             <button type="button" className="link" onClick={() => props.onSelect(s.id)} title={s.name}>
@@ -66,8 +66,8 @@ function SourcesTable(props: {
             </button>
           ),
         },
-        { key: "docType", header: "Type", width: pixel(150), renderCell: (s) => <DocTypeBadge source={s} /> },
-        { key: "sha256", header: "SHA-256", width: pixel(118), sortable: true, renderCell: (s) => <span className="mono" title={s.sha256}>{shortHash(s.sha256)}</span> },
+        { key: "docType", header: "Type", width: pixel(124), renderCell: (s) => <DocTypeBadge source={s} /> },
+        { key: "sha256", header: "SHA-256", width: pixel(104), sortable: true, renderCell: (s) => <span className="mono" title={s.sha256}>{shortHash(s.sha256)}</span> },
         { key: "size", header: "Size", width: pixel(78), sortable: true, renderCell: (s) => formatSize(s.size) },
         { key: "status", header: "File", width: pixel(92), sortable: true, renderCell: (s) => statusBadge(s.status) },
         {

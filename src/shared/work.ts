@@ -236,3 +236,27 @@ export interface RecordTable {
   columns: RecordColumn[];
   cells: RecordCell[];
 }
+
+/** V3-1: one stage of the matter's progress (lib/progress owns the computation). */
+export interface ProgressStage {
+  id: string;
+  title: string;
+  state: "not_started" | "in_progress" | "done" | "blocked";
+  status: string;
+  next: string;
+  tab: string;
+}
+
+/** V3-2: one thing that waits for the advocate. */
+export interface InboxItem {
+  id: string;
+  kind: string;
+  /** True when it refuses a draft, an approval or the filing set until decided. */
+  blocks: boolean;
+  title: string;
+  detail: string;
+  /** The tab where the advocate decides it. */
+  tab: string;
+  reviewItemId?: string;
+  sourceId?: string;
+}

@@ -43,6 +43,20 @@ export function MatterAdmin(props: { matter: MatterSummary; onChanged: () => Pro
           }}
         />
         <Button
+          label="Export matter"
+          size="sm"
+          variant="ghost"
+          clickAction={async () => {
+            try {
+              setError(null);
+              const r = await api.exportMatter(props.matter.id);
+              if (r) setError(`Exported ${r.files} file(s), ${(r.bytes / 1024 / 1024).toFixed(1)} MB, to ${r.path}.`);
+            } catch (e) {
+              setError(errorText(e));
+            }
+          }}
+        />
+        <Button
           label="Archive matter"
           size="sm"
           variant="ghost"
@@ -53,8 +67,8 @@ export function MatterAdmin(props: { matter: MatterSummary; onChanged: () => Pro
           }}
         />
       </div>
-      <Text type="supporting">Archiving hides the matter from the side navigation. Nothing is deleted; restore it from the home page.</Text>
-      {error ? <div className="notice" role="alert">{error}</div> : null}
+      <Text type="supporting">Export writes one ZIP with the matter's records, files, filing sets, memory and chat: a backup you keep. Archiving hides the matter from the side navigation. Nothing is deleted; restore it from the home page.</Text>
+      {error ? <div className="notice" role="status" data-testid="matter-admin-note">{error}</div> : null}
     </section>
   );
 }

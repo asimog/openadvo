@@ -329,7 +329,14 @@ export function ChatDock(props: {
               isCompact
               icon={<Icon icon={ChatBubbleLeftRightIcon} size="lg" color="secondary" />}
               title="Instruct the agent"
-              description="For example: list the sources. The agent reads the matter. You decide every legal point."
+              description="The agent reads the sources, the Notebook and the drafts, proposes, and checks. It cannot confirm a fact, approve a draft or file. You decide every legal point. Start with a workflow:"
+              actions={
+                <div className="empty-workflows">
+                  {workflows.filter((w) => w.builtIn).slice(0, 4).map((w) => (
+                    <Button key={w.id} label={w.title} size="sm" variant="ghost" isDisabled={busy} clickAction={() => send(w.body)} />
+                  ))}
+                </div>
+              }
             />
           }
           composer={
@@ -348,7 +355,7 @@ export function ChatDock(props: {
               footerActions={
                 <div className="composer-tools">
                   <Button
-                    label="Attach PDF files to this matter"
+                    label="Attach files to this matter"
                     size="sm"
                     variant="ghost"
                     isIconOnly
@@ -374,6 +381,8 @@ export function ChatDock(props: {
             />
           }
         >
+          {messages.length > 0 || changes.length > 0 ? (
+            <>
           {messages.length > 0 ? (
             <ChatMessageList density="compact" isStreaming={busy}>
               {messages.map((m) => (
@@ -393,6 +402,8 @@ export function ChatDock(props: {
               }}
             />
           ))}
+            </>
+          ) : null}
         </ChatLayout>
       </div>
     </div>

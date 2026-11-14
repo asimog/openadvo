@@ -154,3 +154,43 @@ button.link { background: none; border: 0; padding: 0; color: var(--color-text-a
 .proposal { border-left: 3px solid var(--color-border, #d0d4da); padding: 6px 10px; margin: 6px 0; display: flex; flex-direction: column; gap: 4px; }
 .field.inline { flex-direction: row; align-items: center; gap: 8px; }
 .source-text-only { height: 100%; }
+
+/* V3-6 finish */
+.empty-workflows { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.notice-closable { display: flex; align-items: flex-start; gap: 8px; }
+.notice-closable > span { flex: 1; }
+.notice-close { border: none; background: transparent; font-size: 18px; line-height: 1; cursor: pointer; color: inherit; padding: 0 4px; }
+.work-section > button, .work-section > .astryx-button, .work-section > [class*="button"] { align-self: flex-start; }
+
+/* V3-1 progress, V3-2 inbox */
+.progress-head { display: flex; align-items: baseline; gap: 12px; }
+.progress-bar { display: flex; gap: 4px; }
+.progress-bar span { flex: 1; height: 6px; border-radius: 3px; background: var(--color-border, #d9dce1); }
+.progress-bar span[data-state="done"] { background: #2e9d5b; }
+.progress-bar span[data-state="in_progress"] { background: #3b82c4; }
+.progress-bar span[data-state="blocked"] { background: #c8463d; }
+.next-step { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 10px; border-radius: 8px; background: var(--color-background-muted, rgba(127,127,127,0.08)); }
+.stages { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: max-content max-content 1fr; gap: 6px 12px; align-items: center; }
+.stages li { display: contents; }
+.stage-title { text-align: left; font-weight: 600; }
+.inbox:focus { outline: none; }
+.inbox:focus-visible { outline: 2px solid #3b82c4; outline-offset: 4px; }
+.inbox-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.inbox-list > li[data-index] { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; }
+.inbox-list > li[data-current="true"] { border-color: #3b82c4; background: rgba(59,130,196,0.06); }
+.inbox-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.inbox-group { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.7; padding: 8px 0 2px; }
+
+/* V3-3 command bar, V3-4 settings */
+.command-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.28); display: flex; justify-content: center; align-items: flex-start; padding-top: 12vh; z-index: 1000; }
+.command-bar { width: min(640px, 92vw); background: var(--color-background-popover, var(--color-background-card, #fff)); color: inherit; border-radius: 12px; box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28); overflow: hidden; display: flex; flex-direction: column; }
+.command-bar input { font: inherit; font-size: 15px; padding: 14px 16px; border: none; border-bottom: 1px solid var(--color-border, #e3e5e8); background: transparent; color: inherit; outline: none; }
+.command-list { list-style: none; margin: 0; padding: 6px; max-height: 50vh; overflow: auto; }
+.command-list button { width: 100%; display: flex; justify-content: space-between; gap: 12px; text-align: left; font: inherit; padding: 7px 10px; border: none; border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
+.command-list button[data-current="true"] { background: rgba(59, 130, 196, 0.12); }
+.command-hint { opacity: 0.6; font-size: 12px; white-space: nowrap; }
+.command-group { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; padding: 8px 10px 2px; }
+.command-empty { padding: 10px; opacity: 0.7; }
+.settings { max-width: 860px; padding: 24px 32px; display: flex; flex-direction: column; gap: 18px; }
+.radio { display: inline-flex; gap: 6px; align-items: center; margin-right: 16px; cursor: pointer; }
+kbd { font-family: ui-monospace, monospace; font-size: 12px; border: 1px solid var(--color-border, #c8c8c8); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; }

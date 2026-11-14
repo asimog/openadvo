@@ -379,6 +379,11 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
     this.db.close();
   }
 
+  /** V3-5: a consistent copy of matter.db at `dest` (SQLite VACUUM INTO). `dest` must not exist. */
+  snapshot(dest: string): void {
+    this.db.exec(`VACUUM INTO '${dest.replace(/'/g, "''")}'`);
+  }
+
   private workStore: WorkStore | null = null;
   /** The records of steps 6 to 10 (work.ts), on the same database. */
   get work(): WorkStore {

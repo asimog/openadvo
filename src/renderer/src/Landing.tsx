@@ -162,7 +162,7 @@ export function Landing(props: {
               footerActions={
                 <>
                   <Button
-                    label="Attach PDF files"
+                    label="Attach files"
                     size="md"
                     variant="ghost"
                     icon={<Icon icon={PaperClipIcon} size="sm" />}

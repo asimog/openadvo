@@ -6,7 +6,9 @@ import { classifyDocument, CLASSIFY_METHOD, isDocType } from "../lib/document-in
 import { possibleDuplicates } from "../lib/document-intelligence/similar.ts";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { zipSync } from "fflate";
 import { ARCHIVED_FILE, MatterStore, MatterStoreError, listMatters } from "../lib/matter-store/index.ts";
 import type {
   AddFileResult,
@@ -211,6 +213,43 @@ export class Matters {
     await writeFile(path.join(store.folder, "memory.md"), text, "utf8");
     store.appendEvent({ actor: "advocate" }, "memory.saved", null, { sha256: createHash("sha256").update(text).digest("hex"), length: text.length });
     return text;
+  }
+
+  // ---- V3-5: matter export ----
+
+  /**
+   * One ZIP of the matter: a consistent copy of matter.db, every blob, the filing sets,
+   * memory.md and the chat files. No settings, credentials or signing key: they are not in
+   * the matter folder. Returns the number of files written.
+   */
+  async exportMatter(matterId: string, dest: string): Promise<{ path: string; files: number; bytes: number }> {
+    const store = await this.store(matterId);
+    const tmp = await mkdtemp(path.join(tmpdir(), "openadvo-export-"));
+    try {
+      const db = path.join(tmp, "matter.db");
+      store.snapshot(db);
+      const entries: Record<string, [Uint8Array, { level: 0 | 6 }]> = { "matter.db": [new Uint8Array(await readFile(db)), { level: 6 }] };
+      const walk = async (rel: string): Promise<void> => {
+        const abs = path.join(store.folder, rel);
+        for (const ent of await readdir(abs, { withFileTypes: true })) {
+          const r = rel ? `${rel}/${ent.name}` : ent.name;
+          if (ent.isDirectory()) {
+            if (ent.name === ".work") continue;
+            await walk(r);
+          } else if (ent.isFile()) {
+            if (!rel && /^matter\.db(-wal|-shm)?$/.test(ent.name)) continue;
+            entries[r] = [new Uint8Array(await readFile(path.join(abs, ent.name))), { level: r.startsWith("blobs/") ? 0 : 6 }];
+          }
+        }
+      };
+      await walk("");
+      const zip = zipSync(entries);
+      await writeFile(dest, zip);
+      store.appendEvent({ actor: "advocate" }, "matter.exported", null, { files: Object.keys(entries).length, bytes: zip.length, sha256: createHash("sha256").update(zip).digest("hex") });
+      return { path: dest, files: Object.keys(entries).length, bytes: zip.length };
+    } finally {
+      await rm(tmp, { recursive: true, force: true });
+    }
   }
 
   // ---- V2-2, V2-3, V2-5, V2-8 ----

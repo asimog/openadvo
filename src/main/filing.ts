@@ -35,7 +35,7 @@ const REQUIRED: Array<{ kind: DraftKind; title: string }> = [
 /** V2-6: the condonation application is required when the confirmed limitation shows a delay today. */
 export const CONDONATION = { kind: "condonation" as DraftKind, title: "Application for Condonation of Delay" };
 
-function required(limitation: { deadline: string; confirmedAt: string | null } | null): Array<{ kind: DraftKind; title: string }> {
+export function required(limitation: { deadline: string; confirmedAt: string | null } | null): Array<{ kind: DraftKind; title: string }> {
   const late = limitation?.confirmedAt && delayDays(limitation.deadline, new Date().toISOString()) > 0;
   return late ? [...REQUIRED, CONDONATION] : REQUIRED;
 }

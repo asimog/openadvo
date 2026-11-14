@@ -16,6 +16,7 @@ import { euroOfficePaths, platformKey } from "../lib/euro-office/platform.ts";
 import { Research } from "./research.ts";
 import { Filing } from "./filing.ts";
 import { KeyFileSigner } from "./signing.ts";
+import { Progress } from "./progress.ts";
 import { Portal, portalOptionsFromEnv } from "./portal.ts";
 import { Mail, type MailAccount } from "./mail.ts";
 import { agentWorkHost } from "./agent-work.ts";
@@ -50,6 +51,7 @@ let ulos: UlosPaths;
 let workHost: AgentWorkHost;
 let recordTables: RecordTables;
 let signer: KeyFileSigner | null = null;
+let progress: Progress;
 
 /** Steps 6 to 10 notify the window that a matter changed (a capture, a proposal). */
 function matterChanged(matterId: string): void {
@@ -135,6 +137,27 @@ function registerBridge(): void {
   handle("memory:proposals", (matterId: string) => matters.listMemoryProposals(matterId));
   handle("memory:decideProposal", (matterId: string, id: string, accept: boolean) => matters.decideMemoryProposal(matterId, String(id), accept === true));
   handle("signing:fingerprint", () => (signer ? signer.fingerprint() : null));
+  // V3-4: settings and facts about the application.
+  handle("app:info", () => appInfo());
+  handle("appearance:get", () => appearance());
+  handle("appearance:set", (mode: string) => {
+    if (!["system", "light", "dark"].includes(mode)) throw new Error("BAD_APPEARANCE: system, light or dark");
+    writeSetting("appearance", mode);
+    return mode;
+  });
+  // V3-5: the advocate chooses where the export goes.
+  handle("matters:export", async (matterId: string) => {
+    if (!window) throw new Error("NO_WINDOW");
+    const title = (await matters.title(matterId)).replace(/[\\/:*?"<>|]+/g, " ").trim() || "matter";
+    const r = await dialog.showSaveDialog(window, { title: "Export matter", defaultPath: `${title} ${new Date().toISOString().slice(0, 10)}.zip`, filters: [{ name: "ZIP archive", extensions: ["zip"] }] });
+    if (r.canceled || !r.filePath) return null;
+    return matters.exportMatter(matterId, r.filePath);
+  });
+  // V3-1 and V3-2: reads only.
+  handle("progress:get", (matterId: string) => progress.progress(matterId));
+  handle("inbox:get", (matterId: string) => progress.inbox(matterId));
+  // V3-3: the command bar's line search (the same search as the agent's search_sources).
+  handle("sources:search", (matterId: string, query: string) => matters.searchLines(matterId, String(query ?? ""), 50));
   handle("matters:create", (title: string) => matters.create(String(title ?? "")));
   handle("matters:open", async (matterId: string) => {
     const sources = await matters.openMatter(matterId);
@@ -376,6 +399,34 @@ function createWindow(): void {
   });
 }
 
+/** V3-4: the appearance the advocate chose. */
+function appearance(): "system" | "light" | "dark" {
+  const a = readSettings().appearance;
+  return a === "light" || a === "dark" ? a : "system";
+}
+
+function lockFact(file: string, pick: (j: Record<string, unknown>) => string): string {
+  try {
+    return pick(JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>);
+  } catch {
+    return "not installed";
+  }
+}
+
+/** V3-4: versions and folders, for the Settings page. */
+function appInfo() {
+  return {
+    app: app.getVersion(),
+    electron: process.versions.electron,
+    chrome: process.versions.chrome,
+    node: process.versions.node,
+    euroOffice: lockFact(path.join(euroOfficeRoot(), "vendor.lock.json"), (j) => String(j.tag ?? "unknown")),
+    validator: lockFact(path.join(resourcesRoot(), "ulos", platformKey(), "vendor.lock.json"), (j) => `copied ${String(j.copiedAt ?? "unknown").slice(0, 10)}`),
+    folders: { matters: matters.root, userData: app.getPath("userData") },
+    signingKey: signer ? signer.fingerprint() : null,
+  };
+}
+
 /** Non-secret application settings in the user data folder. */
 function settingsFile(): string {
   return path.join(app.getPath("userData"), "settings.json");
@@ -453,6 +504,7 @@ app.whenReady().then(() => {
   });
   signer = KeyFileSigner.create(path.join(app.getPath("userData"), "manifest-signing.key"));
   filing = new Filing(matters, euroOfficePaths(euroOfficeRoot()).x2t, signer);
+  progress = new Progress(matters, filing, research, drafts);
   mail = new Mail(matters);
   portal = new Portal(
     matters,

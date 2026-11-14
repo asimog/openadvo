@@ -4,7 +4,7 @@
  */
 import type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft, DraftCheck, DraftDefect, AgentChanges } from "./records.ts";
 export type { AgentChanges, AgentChange } from "./records.ts";
-import type { DuplicatePair, MemoryProposal, RecordColumn, RecordTable, Workflow, ManifestCheck, AdverseReview, AnnexureRecord, Attestation, AuthorityRecord, CitationCheck, FilingSetRecord, FilingState, IssueRecord, LimitationRecord, MatterDetails, ResearchState } from "./work.ts";
+import type { InboxItem, ProgressStage, DuplicatePair, MemoryProposal, RecordColumn, RecordTable, Workflow, ManifestCheck, AdverseReview, AnnexureRecord, Attestation, AuthorityRecord, CitationCheck, FilingSetRecord, FilingState, IssueRecord, LimitationRecord, MatterDetails, ResearchState } from "./work.ts";
 export type * from "./work.ts";
 
 import type { AGUIEvent } from "@ag-ui/core";
@@ -57,6 +57,20 @@ export interface EffortState {
   available: EffortLevel[];
 }
 
+/** V3-4. */
+export type Appearance = "system" | "light" | "dark";
+
+export interface AppInfo {
+  app: string;
+  electron: string;
+  chrome: string;
+  node: string;
+  euroOffice: string;
+  validator: string;
+  folders: { matters: string; userData: string };
+  signingKey: string | null;
+}
+
 export interface OpenAdvoApi {
   // Queries
   listMatters(): Promise<MatterSummary[]>;
@@ -90,6 +104,16 @@ export interface OpenAdvoApi {
   listMemoryProposals(matterId: string): Promise<MemoryProposal[]>;
   /** Human-only (V2-8). An accepted text is added to memory.md. */
   decideMemoryProposal(matterId: string, id: string, accept: boolean): Promise<MemoryProposal[]>;
+  // V3 (docs/specs/v3.md).
+  getProgress(matterId: string): Promise<ProgressStage[]>;
+  getInbox(matterId: string): Promise<InboxItem[]>;
+  /** V3-3: lines of the matter's sources that contain the words. */
+  searchSources(matterId: string, query: string): Promise<AnchorRecord[]>;
+  getAppInfo(): Promise<AppInfo>;
+  getAppearance(): Promise<Appearance>;
+  setAppearance(mode: Appearance): Promise<Appearance>;
+  /** V3-5: asks where to save; null when the advocate cancels. */
+  exportMatter(matterId: string): Promise<{ path: string; files: number; bytes: number } | null>;
   /** V2-7: the fingerprint of the manifest signing key, or null when manifests cannot be signed. */
   signingFingerprint(): Promise<string | null>;
   openMatter(matterId: string): Promise<SourceRecord[]>;
