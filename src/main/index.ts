@@ -1,7 +1,7 @@
 /**
  * Electron main process: the window, the bridge handlers, the matter store and the agent.
  */
-import { Menu, app, BrowserWindow, dialog, ipcMain, safeStorage, shell, type IpcMainInvokeEvent } from "electron";
+import { Menu, Notification, app, BrowserWindow, crashReporter, dialog, ipcMain, safeStorage, shell, type IpcMainInvokeEvent } from "electron";
 import path from "node:path";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -24,6 +24,8 @@ import { applyDateAnchor, eventsFromDecidedLine } from "./notebook.ts";
 import { caseNumberConflicts, extractEntities } from "../lib/notebook/entities.ts";
 import { ppocrDir, setPpocrDir } from "../lib/document-intelligence/ppocr.ts";
 import { diffParagraphs } from "../lib/filing/v5.ts";
+import { Contacts } from "../lib/contacts/index.ts";
+import { captureLogs, diagnosticsEntries, diagnosticsZip, docket, dueReminders, questionsDocument } from "./practice.ts";
 import { readParagraphs } from "../lib/drafting/index.ts";
 import { detectMediaType } from "../lib/document-intelligence/formats.ts";
 import { setFetcher } from "../lib/research-sources/http.ts";
@@ -64,6 +66,7 @@ let recordTables: RecordTables;
 let signer: KeyFileSigner | null = null;
 let progress: Progress;
 let hub: ResearchHub;
+let contacts: Contacts;
 let studio: ArgumentStudio;
 
 /** Steps 6 to 10 notify the window that a matter changed (a capture, a proposal). */
@@ -248,6 +251,56 @@ function registerBridge(): void {
     };
   });
   handle("studio:stop", (matterId: string) => studio.stop(matterId));
+  // V5-19 to V5-25: hearings, reminders, policy and usage, Stop, parties and contacts, docket, questions, diagnostics.
+  handle("hearings:list", async (matterId: string) => (await matters.store(matterId)).hearings());
+  handle("hearings:add", async (matterId: string, h: Record<string, unknown>) =>
+    (await matters.store(matterId)).addHearing(
+      { date: String(h?.date ?? ""), bench: String(h?.bench ?? ""), directions: String(h?.directions ?? ""), nextDate: String(h?.nextDate ?? ""), nextDateStatus: h?.nextDateStatus === "inferred" ? "inferred" : "confirmed", notes: String(h?.notes ?? "") },
+      { actor: "advocate" },
+    ),
+  );
+  handle("reminders:list", async (matterId: string) => (await matters.store(matterId)).reminders());
+  handle("reminders:add", async (matterId: string, text: string, dueAt: string) => (await matters.store(matterId)).addReminder(String(text ?? ""), String(dueAt ?? ""), { actor: "advocate" }));
+  handle("reminders:done", async (matterId: string, id: string) => {
+    (await matters.store(matterId)).setReminderStatus(String(id), "done", { actor: "advocate" });
+    return (await matters.store(matterId)).reminders();
+  });
+  handle("policy:get", async (matterId: string) => {
+    const store = await matters.store(matterId);
+    return { ...store.policy(), usage: store.usage() };
+  });
+  handle("policy:set", async (matterId: string, p: Record<string, unknown>) => {
+    const store = await matters.store(matterId);
+    store.setPolicy({ confidential: p?.confidential === true, budgetTokens: p?.budgetTokens == null || p.budgetTokens === "" ? null : Number(p.budgetTokens) }, { actor: "advocate" });
+    return { ...store.policy(), usage: store.usage() };
+  });
+  handle("chat:stop", (matterId: string) => agent.stop(matterId));
+  handle("contacts:list", () => contacts.list());
+  handle("contacts:add", (c: Record<string, unknown>) => contacts.add({ name: String(c?.name ?? ""), kind: String(c?.kind ?? "client"), email: String(c?.email ?? ""), phone: String(c?.phone ?? ""), notes: String(c?.notes ?? "") }));
+  handle("contacts:remove", (id: string) => contacts.remove(String(id)));
+  handle("parties:list", async (matterId: string) => {
+    const all = contacts.list();
+    return (await matters.store(matterId)).parties().map((p) => ({ ...p, contact: all.find((c) => c.id === p.contactId) ?? null }));
+  });
+  handle("parties:add", async (matterId: string, contactId: string, role: string, nameInRecord: string) => {
+    if (!contacts.list().some((c) => c.id === contactId)) throw new Error("CONTACT_NOT_FOUND");
+    return (await matters.store(matterId)).addParty(String(contactId), String(role ?? "party"), String(nameInRecord ?? ""), { actor: "advocate" });
+  });
+  handle("docket:list", () => docket(matters, progress));
+  handle("questions:generate", async (matterId: string) => {
+    const r = await questionsDocument(matters, matterId, progress);
+    if (process.env.OPENADVO_TEST !== "1") await shell.openPath(r.file);
+    return r;
+  });
+  handle("diag:preview", async () => diagnosticsEntries(appInfo(), readSettings(), (await matters.list()).length).map((e) => ({ name: e.name, description: e.description, bytes: e.bytes.length })));
+  handle("diag:write", async () => {
+    if (!window) throw new Error("NO_WINDOW");
+    const r = await dialog.showSaveDialog(window, { title: "Save the diagnostics file", defaultPath: `Open Advocate diagnostics ${new Date().toISOString().slice(0, 10)}.zip`, filters: [{ name: "ZIP archive", extensions: ["zip"] }] });
+    if (r.canceled || !r.filePath) return null;
+    const zip = diagnosticsZip(diagnosticsEntries(appInfo(), readSettings(), (await matters.list()).length));
+    writeFileSync(r.filePath, zip);
+    return { path: r.filePath, bytes: zip.length };
+  });
   // V5-13: compare revisions; open a revision in Word and bring the edited copy back.
   handle("drafts:revisions", async (matterId: string, draftId: string) => (await matters.store(matterId)).listRevisions(String(draftId)));
   handle("drafts:compare", async (matterId: string, a: string, b: string) => {
@@ -692,6 +745,8 @@ function exposeTestHooks(): void {
       return (await matters.store(matterId)).studio.runs().at(-1);
     },
     studioTool: (matterId: string, tool: string, params: Record<string, unknown>) => studioTools(hub, studio, matters)(matterId, tool, params, ""),
+    checkReminders: () => notifyReminders(),
+    recordUsageForTest: async (matterId: string, totalTokens: number) => (await matters.store(matterId)).appendEvent({ actor: "agent" }, "agent.usage", null, { model: "test", input: totalTokens, output: 0, totalTokens, cost: 0.01 }),
     // V5-11: the rehearsal with a scripted model.
     rehearseScripted: async (matterId: string, script: Array<{ match: string; answer: string }>) => {
       const fake = new ArgumentStudio(matters, async () => ({ model: "test/scripted", complete: async (_s: string, user: string) => script.find((x) => user.includes(x.match))?.answer ?? "{}" }));
@@ -716,7 +771,23 @@ function euroOfficeRoot(): string {
   return path.join(app.getAppPath(), "resources", "euro-office", platformKey());
 }
 
+// V5-25: a crash writes a local dump in the user data folder; nothing is uploaded. Recent log lines are kept for a diagnostics file.
+crashReporter.start({ uploadToServer: false });
+captureLogs();
+
+/** V5-20: notify due reminders while the application runs. */
+async function notifyReminders(): Promise<number> {
+  if (!matters) return 0;
+  const due = await dueReminders(matters);
+  for (const r of due) {
+    if (Notification.isSupported() && process.env.OPENADVO_TEST !== "1") new Notification({ title: `Reminder: ${r.title}`, body: r.text }).show();
+    window?.webContents.send("reminders:due", r);
+  }
+  return due.length;
+}
+
 app.whenReady().then(() => {
+  setInterval(() => void notifyReminders().catch((e) => console.error(`reminders: ${(e as Error).message}`)), 60_000);
   editorHost = new EditorHost({
     eoRoot: euroOfficeRoot(),
     hostDir: path.join(app.getAppPath(), "src", "editor-host"),
@@ -747,6 +818,8 @@ app.whenReady().then(() => {
       emitChat({ matterId, event: { type: "CUSTOM", name: "openadvo.chat_message", value: { id: randomUUID(), role: "notice", text: `Captured from the court portal: ${detail.name} (${detail.outcome}).` }, timestamp: Date.now() } as never });
     }),
   );
+  // V5-23: the firm's contacts, in the user data folder.
+  contacts = new Contacts(path.join(app.getPath("userData"), "contacts.json"));
   // V5-8: the second OCR engine, when its models are vendored (npm run vendor:ocr).
   setPpocrDir(ppocrDir(resourcesRoot()));
   workHost = agentWorkHost({ matters, research, drafts, portal, ulos });
@@ -784,6 +857,12 @@ app.whenReady().then(() => {
       recordTable: (id) => recordTables.describe(id),
       fillRecordCell: (id, input, sessionId) => recordTables.fillByAgent(id, input, sessionId, findSource),
       studio: (id, tool, params, sessionId) => studioTools(hub, studio, matters)(id, tool, params, sessionId),
+      policy: async (id) => {
+        const store = await matters.store(id);
+        const p = store.policy();
+        return { ...p, usedTokens: store.usage().tokens };
+      },
+      recordUsage: async (id, usage, sessionId) => (await matters.store(id)).appendEvent({ actor: "agent", sessionId }, "agent.usage", null, usage),
     },
     { agentDir: path.join(app.getPath("userData"), "pi-agent"), model: process.env.OPENADVO_MODEL || undefined },
   );

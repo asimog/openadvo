@@ -15,6 +15,7 @@ import { WORK_SCHEMA, WorkStore } from "./work.ts";
 import { STUDIO_SCHEMA, StudioStore } from "./studio.ts";
 import { NOTEBOOK2_SCHEMA, addCorrection, dateAnchor, decideDispute, insertDispute, listCorrections, listDisputes, type EventCorrection, type OcrDispute } from "./notebook2.ts";
 import { AUTHORITY2_SCHEMA } from "./authority2.ts";
+import { PRACTICE_SCHEMA, addHearing, addParty, addReminder, hearings, markImpactChecked, parties, policy, reminders, setPolicy, setReminderStatus, type Hearing, type Party, type Policy, type Reminder } from "./practice.ts";
 import { AUDIT_SCHEMA, addRefusal, eventHash, find, findIndexSeq, inspect, listRefusals, replaceFindIndex, verifyChain, type ChainCheck, type FindHit, type FindRow, type Inspection, type Refusal } from "./audit.ts";
 import { ACCEPTED_TEXT, detectMediaType } from "../document-intelligence/formats.ts";
 import type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus, DraftKind, RevisionAuthor, DraftRecord, RevisionRecord, ParagraphLinkRecord } from "../../shared/records.ts";
@@ -322,6 +323,7 @@ export class MatterStore {
     db.exec(AUDIT_SCHEMA);
     db.exec(NOTEBOOK2_SCHEMA);
     db.exec(AUTHORITY2_SCHEMA);
+    db.exec(PRACTICE_SCHEMA);
     // V5-1: the event chain. Events written before v5 have no hash and start the record.
     const ev = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'event'").get() as { sql?: string } | undefined;
     if (ev?.sql && !ev.sql.includes("prev_hash")) {
@@ -595,6 +597,90 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
     this.db
       .prepare("INSERT INTO event (seq, at, actor, action, subject, session_id, data, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
       .run(row.seq, row.at, row.actor, row.action, row.subject, row.session_id, row.data, row.prev_hash, eventHash(row));
+  }
+
+  // ---- V5-19 to V5-23: hearings, reminders, policy, parties ----
+
+  private human(ctx: WriteContext, what: string): void {
+    if (ctx.actor !== "advocate") throw new MatterStoreError("HUMAN_ONLY", `only the advocate ${what}`);
+  }
+
+  hearings(): Hearing[] {
+    return hearings(this.db);
+  }
+
+  addHearing(h: Omit<Hearing, "id" | "createdAt">, ctx: WriteContext): Hearing {
+    this.human(ctx, "records a hearing");
+    let out: Hearing;
+    try {
+      out = addHearing(this.db, h);
+    } catch (e) {
+      throw new MatterStoreError("BAD_DATE", (e as Error).message);
+    }
+    this.appendEvent(ctx, "hearing.recorded", out.id, { date: out.date, nextDate: out.nextDate, nextDateStatus: out.nextDateStatus });
+    return out;
+  }
+
+  reminders(): Reminder[] {
+    return reminders(this.db);
+  }
+
+  addReminder(text: string, dueAt: string, ctx: WriteContext): Reminder {
+    this.human(ctx, "sets a reminder");
+    let r: Reminder;
+    try {
+      r = addReminder(this.db, text, dueAt);
+    } catch (e) {
+      throw new MatterStoreError("BAD_REMINDER", (e as Error).message);
+    }
+    this.appendEvent(ctx, "reminder.set", r.id, { dueAt: r.dueAt });
+    return r;
+  }
+
+  /** "notified" is written by the application's scheduler; "done" only by the advocate. */
+  setReminderStatus(id: string, status: Reminder["status"], ctx: WriteContext): void {
+    if (status === "done") this.human(ctx, "closes a reminder");
+    setReminderStatus(this.db, id, status);
+    this.appendEvent(ctx, `reminder.${status}`, id, null);
+  }
+
+  policy(): Policy {
+    return policy(this.db);
+  }
+
+  setPolicy(p: Policy, ctx: WriteContext): Policy {
+    this.human(ctx, "sets the matter's confidentiality and budget");
+    const out = setPolicy(this.db, p);
+    this.appendEvent(ctx, "matter.policy_set", null, { ...out });
+    return out;
+  }
+
+  parties(): Party[] {
+    return parties(this.db);
+  }
+
+  addParty(contactId: string, role: string, nameInRecord: string, ctx: WriteContext): Party {
+    this.human(ctx, "links a party");
+    const p = addParty(this.db, contactId, role, nameInRecord);
+    this.appendEvent(ctx, "party.linked", p.id, { contactId, role });
+    return p;
+  }
+
+  markImpactChecked(sourceId: string): boolean {
+    return markImpactChecked(this.db, sourceId);
+  }
+
+  /** V5-21: the tokens and cost the agent's runs recorded in this matter. */
+  usage(): { runs: number; tokens: number; cost: number } {
+    const rows = this.db.prepare("SELECT data FROM event WHERE action = 'agent.usage'").all() as Array<{ data: string }>;
+    let tokens = 0;
+    let cost = 0;
+    for (const r of rows) {
+      const d = JSON.parse(String(r.data)) as { totalTokens?: number; cost?: number };
+      tokens += Number(d.totalTokens ?? 0);
+      cost += Number(d.cost ?? 0);
+    }
+    return { runs: rows.length, tokens, cost: Math.round(cost * 10000) / 10000 };
   }
 
   // ---- V5-1 to V5-4: chain, refusals, Inspector, Find ----

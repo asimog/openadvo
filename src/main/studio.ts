@@ -147,6 +147,8 @@ export class ResearchHub {
       };
     }
     this.allowed(source);
+    // V5-21: a confidential matter sends no query to the open web.
+    if (source === "web" && matterId && (await this.matters.store(matterId)).policy().confidential) throw new SourceError("CONFIDENTIAL_MATTER", "this matter is confidential: web search is off for it");
     if (source === "indiacode") {
       const r = await searchStatutes(q, opts.limit ?? 10);
       await this.log(matterId, source, "search", q, ctx, r.hits.length);
@@ -284,7 +286,7 @@ export class ResearchHub {
 
 // ---------------------------------------------------------------------------------------------
 
-export type Completer = () => Promise<{ model: string; complete: (system: string, user: string, sessionId?: string) => Promise<string> } | null>;
+export type Completer = () => Promise<{ model: string; local?: boolean; complete: (system: string, user: string, sessionId?: string) => Promise<string> } | null>;
 
 export class ArgumentStudio {
   private matters: Matters;
@@ -373,6 +375,7 @@ export class ArgumentStudio {
     if (this.running.has(matterId)) throw new MatterStoreError("LOOP_BUSY", "a loop is already running for this matter");
     const c = await this.completer();
     if (!c) throw new MatterStoreError("NO_MODEL", "no model is available. Set up a model in Pi, then try again");
+    if ((await this.matters.store(matterId)).policy().confidential && c.local === false) throw new MatterStoreError("CONFIDENTIAL_MATTER", `this matter is confidential: ${c.model} is not a model on this computer`);
     const context = await this.context(matterId, issueId);
     if (context.events.length === 0 && context.authorities.length === 0) throw new MatterStoreError("NO_RECORDS", "confirm Notebook events or add authorities first: the loop uses records only");
     const rounds = Math.min(Math.max(Math.trunc(opts.rounds ?? 2), 1), 4);
@@ -446,6 +449,7 @@ export class ArgumentStudio {
   async rehearse(matterId: string, ctx: WriteContext = { actor: "advocate" }): Promise<{ runId: string; added: number; rejected: number }> {
     const c = await this.completer();
     if (!c) throw new MatterStoreError("NO_MODEL", "no model is available. Set up a model in Pi, then try again");
+    if ((await this.matters.store(matterId)).policy().confidential && c.local === false) throw new MatterStoreError("CONFIDENTIAL_MATTER", `this matter is confidential: ${c.model} is not a model on this computer`);
     const context = await this.context(matterId, null);
     const store = await this.matters.store(matterId);
     const runId = randomUUID();

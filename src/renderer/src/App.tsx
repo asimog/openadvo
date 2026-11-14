@@ -20,6 +20,7 @@ import { ArchivedMatters, MatterAdmin, MemoryEditor, RecordTableView } from "./V
 import { CommandBar, MatterProgress, ReviewInbox, SettingsPage, tabName, type Command } from "./V3.tsx";
 import { MailboxAccount } from "./Work.tsx";
 import { ResearchSourceSettings, StudioView } from "./Studio.tsx";
+import { ContactsSettings, DiagnosticsSettings, Docket, PracticeSection } from "./Practice.tsx";
 import { DateAnchorForm, DisputeDecision, EntitiesView, FilesAndJobs, Inspector, RecordIntegrity, inspect } from "./V5.tsx";
 import { EventTable, SourceDetail, SourcesPanel } from "./Sources.tsx";
 import type {
@@ -54,12 +55,24 @@ function baseName(p: string): string {
   return p.split(/[\\/]/).pop() ?? p;
 }
 
-function NewMatterDialog(props: { isOpen: boolean; onOpenChange: (open: boolean) => void; onCreate: (title: string) => Promise<void> }) {
+function NewMatterDialog(props: { isOpen: boolean; onOpenChange: (open: boolean) => void; onCreate: (title: string, client: string) => Promise<void> }) {
   const [title, setTitle] = useState("");
+  const [client, setClient] = useState("");
+  const [confirmClient, setConfirmClient] = useState(false);
   const submit = async () => {
     if (!title.trim()) return;
-    await props.onCreate(title);
+    // V5-23 (RQ-87): a client not yet in the contacts is added only after a visible confirmation.
+    if (client.trim() && !confirmClient) {
+      const known = (await api.listContacts()).some((c) => c.name.toLowerCase() === client.trim().toLowerCase());
+      if (!known) {
+        setConfirmClient(true);
+        return;
+      }
+    }
+    await props.onCreate(title, client.trim());
     setTitle("");
+    setClient("");
+    setConfirmClient(false);
     props.onOpenChange(false);
   };
   return (
@@ -74,9 +87,15 @@ function NewMatterDialog(props: { isOpen: boolean; onOpenChange: (open: boolean)
           onEnter={() => void submit()}
           hasAutoFocus
         />
+        <TextInput label="Client (optional)" description="The person or body you act for" value={client} onChange={(v) => { setClient(v); setConfirmClient(false); }} />
+        {confirmClient ? (
+          <div className="notice" data-testid="new-client-confirm">
+            {client.trim()} is not in your contacts. Creating the matter will add {client.trim()} as a new client.
+          </div>
+        ) : null}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
           <Button label="Cancel" variant="ghost" onClick={() => props.onOpenChange(false)} />
-          <Button label="Create matter" variant="primary" isDisabled={!title.trim()} clickAction={submit} />
+          <Button label={confirmClient ? "Add the client and create the matter" : "Create matter"} variant="primary" isDisabled={!title.trim()} clickAction={submit} />
         </div>
       </div>
     </Dialog>
@@ -234,8 +253,12 @@ export function App() {
     else setDockCarry({ id: Date.now(), text });
   };
 
-  const createMatter = async (title: string) => {
+  const createMatter = async (title: string, client: string) => {
     const m = await api.createMatter(title);
+    if (client) {
+      const c = await api.addContact({ name: client, kind: "client" });
+      await api.addParty(m.id, c.id, "client", "");
+    }
     await refreshMatters();
     const carry = pendingCarry.current;
     pendingCarry.current = null;
@@ -401,13 +424,18 @@ export function App() {
         }
       >
         {settingsOpen ? (
-          <SettingsPage mailbox={<MailboxAccount />} research={<ResearchSourceSettings />} />
+          <SettingsPage mailbox={<MailboxAccount />} research={<ResearchSourceSettings />} contacts={<ContactsSettings />} diagnostics={<DiagnosticsSettings />} />
         ) : !matter ? (
           <Landing
             matters={matters.filter((m) => !m.archived)}
             onOpenMatter={(id, carry) => void openWithCarry(id, carry, false)}
             onNewMatter={askNewMatter}
-            footer={<ArchivedMatters matters={matters} onChanged={refreshMatters} />}
+            footer={
+              <>
+                <Docket onOpen={(id) => void openMatter(id)} />
+                <ArchivedMatters matters={matters} onChanged={refreshMatters} />
+              </>
+            }
           />
         ) : (
           <div className="matter" data-testid="matter-view">
@@ -548,6 +576,7 @@ export function App() {
                             <ReviewList matterId={matter.id} items={reviewItems} onChange={() => void refreshMatter(matter.id)} />
                             <Heading level={3}>Events</Heading>
                             <EventTable events={events} />
+                            <PracticeSection matterId={matter.id} version={version} />
                             <RecordIntegrity matterId={matter.id} version={version} />
                             <FilesAndJobs matterId={matter.id} version={version} />
                           </div>

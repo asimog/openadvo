@@ -105,6 +105,30 @@ const api: OpenAdvoApi = {
   openMatterFile: (matterId, rel) => ipcRenderer.invoke("files:open", matterId, rel),
   listJobsOverview: (matterId) => ipcRenderer.invoke("jobs:list", matterId),
   stopArgumentLoop: (matterId) => ipcRenderer.invoke("studio:stop", matterId),
+  listHearings: (matterId) => ipcRenderer.invoke("hearings:list", matterId),
+  addHearing: (matterId, h) => ipcRenderer.invoke("hearings:add", matterId, h),
+  listReminders: (matterId) => ipcRenderer.invoke("reminders:list", matterId),
+  addReminder: (matterId, text, dueAt) => ipcRenderer.invoke("reminders:add", matterId, text, dueAt),
+  doneReminder: (matterId, id) => ipcRenderer.invoke("reminders:done", matterId, id),
+  getPolicy: (matterId) => ipcRenderer.invoke("policy:get", matterId),
+  setPolicy: (matterId, p) => ipcRenderer.invoke("policy:set", matterId, p),
+  stopChat: (matterId) => ipcRenderer.invoke("chat:stop", matterId),
+  listContacts: () => ipcRenderer.invoke("contacts:list"),
+  addContact: (c) => ipcRenderer.invoke("contacts:add", c),
+  removeContact: (id) => ipcRenderer.invoke("contacts:remove", id),
+  listParties: (matterId) => ipcRenderer.invoke("parties:list", matterId),
+  addParty: (matterId, contactId, role, nameInRecord) => ipcRenderer.invoke("parties:add", matterId, contactId, role, nameInRecord),
+  getDocket: () => ipcRenderer.invoke("docket:list"),
+  generateQuestions: (matterId) => ipcRenderer.invoke("questions:generate", matterId),
+  previewDiagnostics: () => ipcRenderer.invoke("diag:preview"),
+  writeDiagnostics: () => ipcRenderer.invoke("diag:write"),
+  onReminderDue: (listener) => {
+    const handler = (_event: unknown, r: { matterId: string; title: string; text: string }) => listener(r);
+    ipcRenderer.on("reminders:due", handler);
+    return () => {
+      ipcRenderer.removeListener("reminders:due", handler);
+    };
+  },
   listRevisions: (matterId, draftId) => ipcRenderer.invoke("drafts:revisions", matterId, draftId),
   compareRevisions: (matterId, a, b) => ipcRenderer.invoke("drafts:compare", matterId, a, b),
   openInWord: (matterId, revisionId) => ipcRenderer.invoke("drafts:openInWord", matterId, revisionId),

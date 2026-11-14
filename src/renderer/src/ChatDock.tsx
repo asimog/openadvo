@@ -309,6 +309,7 @@ export function ChatDock(props: {
             <span className="dock-busy">
               <Spinner size="sm" />
               <Text type="supporting">Working…</Text>
+              <Button label="Stop" size="sm" variant="ghost" clickAction={async () => { await api.stopChat(props.matterId); }} />
             </span>
           ) : null}
         </div>

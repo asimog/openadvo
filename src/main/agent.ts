@@ -157,6 +157,10 @@ export interface AgentHost {
   chatDir(matterId: string): Promise<string>;
   /** V1-3: the matter's memory.md, or "". The agent reads it; it never writes it. */
   readMemory(matterId: string): Promise<string>;
+  /** V5-21: the matter's confidentiality, budget and the tokens already used. */
+  policy(matterId: string): Promise<{ confidential: boolean; budgetTokens: number | null; usedTokens: number }>;
+  /** V5-21: one run's usage, recorded as an event of the matter. */
+  recordUsage(matterId: string, usage: { model: string; input: number; output: number; totalTokens: number; cost: number }, sessionId: string): Promise<void>;
   /** V4: the Studio tools, one dispatcher. Returns text for the model; errors are returned as text. */
   studio(matterId: string, tool: string, params: Record<string, unknown>, sessionId: string): Promise<string>;
   /** V2-8: a candidate note for memory.md. Returns its id. */
@@ -300,6 +304,16 @@ function formatSources(sources: SourceRecord[]): string {  if (sources.length ==
   return `${sources.length} source(s):\n${lines.join("\n")}`;
 }
 
+/** V5-21: a model served on this computer (its address is localhost). */
+export function isLocalModel(model: { baseUrl?: string }): boolean {
+  try {
+    const h = new URL(model.baseUrl ?? "").hostname.replace(/^\[|\]$/g, "");
+    return h === "localhost" || h === "127.0.0.1" || h === "::1";
+  } catch {
+    return false;
+  }
+}
+
 function keyOf(model: Model<Api>): string {
   return `${model.provider}/${model.id}`;
 }
@@ -325,6 +339,8 @@ interface MatterChat {
   state: ChatState;
   /** Corrections proposed in the current run. They become the run's AG-UI interrupts. */
   proposals: ProposedCorrection[];
+  /** V5-22: the advocate stopped the current run. */
+  stopped?: boolean;
 }
 
 export class Agent {
@@ -378,12 +394,13 @@ export class Agent {
    * V4-3: one plain model call with no tool, for the argument loop. The same model and
    * credentials as the chat. Returns null when no model is available.
    */
-  async completer(): Promise<{ model: string; complete: (system: string, user: string, sessionId?: string) => Promise<string> } | null> {
+  async completer(): Promise<{ model: string; local: boolean; complete: (system: string, user: string, sessionId?: string) => Promise<string> } | null> {
     const model = await this.model();
     if (!model) return null;
     const runtime = await this.modelRuntime();
     return {
       model: keyOf(model),
+      local: isLocalModel(model),
       complete: async (system, user, sessionId) => {
         // Some providers route by session (opencode sends x-opencode-session): one id per loop run.
         const msg = await runtime.completeSimple(model, { systemPrompt: system, messages: [{ role: "user", content: user, timestamp: Date.now() }] }, { sessionId });
@@ -993,6 +1010,20 @@ export class Agent {
       push({ id: randomUUID(), role: "notice", text: "The agent is still working. Wait for the answer, then send again." });
       return;
     }
+    // V5-21: a confidential matter uses only a model on this computer; a budget stops the next run.
+    const pol = await this.host.policy(matterId);
+    if (pol.confidential && !isLocalModel(session.model)) {
+      push({ id: randomUUID(), role: "notice", text: `This matter is confidential: its text goes only to a model on this computer. ${keyOf(session.model)} is not local. Choose a local model, or change the matter's setting.` });
+      await saveMessages(await this.host.chatDir(matterId), state.messages).catch(() => undefined);
+      return;
+    }
+    if (pol.budgetTokens != null && pol.usedTokens >= pol.budgetTokens) {
+      push({ id: randomUUID(), role: "notice", text: `The matter's budget of ${pol.budgetTokens} tokens is used (${pol.usedTokens}). Raise the budget to continue.` });
+      await saveMessages(await this.host.chatDir(matterId), state.messages).catch(() => undefined);
+      return;
+    }
+    chat.stopped = false;
+    const usage = { input: 0, output: 0, totalTokens: 0, cost: 0 };
     const threadId = session.sessionId;
     const runId = randomUUID();
     chat.proposals = [];
@@ -1018,8 +1049,14 @@ export class Agent {
       } else if (event.type === "message_end") {
         endText();
         // A failed model call ends the turn without an exception. It becomes RUN_ERROR; never silence.
-        const ended = event.message as { role?: string; stopReason?: string; errorMessage?: string };
+        const ended = event.message as { role?: string; stopReason?: string; errorMessage?: string; usage?: { input?: number; output?: number; totalTokens?: number; cost?: { total?: number } } };
         if (ended.role === "assistant" && ended.stopReason === "error") failure = `The model call failed: ${ended.errorMessage || "no reason given"}`;
+        if (ended.role === "assistant" && ended.usage) {
+          usage.input += ended.usage.input ?? 0;
+          usage.output += ended.usage.output ?? 0;
+          usage.totalTokens += ended.usage.totalTokens ?? 0;
+          usage.cost += ended.usage.cost?.total ?? 0;
+        }
       } else if (event.type === "tool_execution_start") {
         endText();
         state.messages.push({ id: event.toolCallId, role: "tool", text: `Used tool: ${event.toolName}` });
@@ -1037,6 +1074,9 @@ export class Agent {
       unsubscribe();
       endText();
       state.busy = false;
+      if (chat.stopped) failure = null;
+      if (usage.totalTokens > 0) await this.host.recordUsage(matterId, { model: keyOf(session.model), ...usage }, session.sessionId).catch(() => undefined);
+      if (chat.stopped) state.messages.push({ id: randomUUID(), role: "notice", text: "Stopped by the advocate." });
       // V1-1: the window's messages survive a restart.
       await saveMessages(await this.host.chatDir(matterId), state.messages).catch(() => undefined);
       if (failure) {
@@ -1057,6 +1097,15 @@ export class Agent {
         emit({ type: EventType.RUN_FINISHED, threadId, runId, outcome: { type: "success" } });
       }
     }
+  }
+
+  /** V5-22: stop the matter's running turn between steps. */
+  async stop(matterId: string): Promise<boolean> {
+    const chat = await this.chats.get(matterId);
+    if (!chat || !chat.state.busy) return false;
+    chat.stopped = true;
+    await chat.session.abort();
+    return true;
   }
 
   async disposeAll(): Promise<void> {

@@ -287,3 +287,82 @@ test("v5 D: Word round trip and compare, the victim-name defect, limitation with
     await app.close();
   }
 });
+
+test("v5 E: a new client, hearings, reminders, the docket, a new order's impact, confidentiality and budget, questions, diagnostics", async () => {
+  const base = await mkdtemp(path.join(tmpdir(), "oa-e2ev5e-"));
+  await mkdir(path.join(base, "inbox"), { recursive: true });
+  const first = path.join(base, "inbox", "facts.pdf");
+  await writeFile(first, await pdf(["STATEMENT", "The petitioner was arrested on 05.01.2020."]));
+  const order = path.join(base, "inbox", "new-order.pdf");
+  await writeFile(order, await pdf(["ORDER", "Coram: two judges.", "The matter is adjourned to 08.12.2026."]));
+  const { app, page } = await start(base);
+  const call = bridge(page);
+  try {
+    // ---- V5-23: a new client needs a visible confirmation, then becomes a contact and a party ----
+    await page.getByRole("button", { name: "New matter" }).click();
+    await page.getByLabel("Matter title").fill("Practice v. Docket");
+    await page.getByLabel("Client (optional)").fill("Ram Kumar");
+    await page.getByRole("button", { name: "Create matter" }).click();
+    await expect(page.getByTestId("new-client-confirm")).toContainText("Ram Kumar is not in your contacts");
+    await page.getByRole("button", { name: "Add the client and create the matter" }).click();
+    await expect.poll(async () => (await call<any[]>("listContacts")).map((c) => c.name)).toEqual(["Ram Kumar"]);
+    const matterId: string = (await call<any[]>("listMatters"))[0].id;
+    expect((await call<any[]>("listParties", matterId))[0]).toMatchObject({ role: "client", contact: { name: "Ram Kumar" } });
+    await app.evaluate(({ dialog }, p) => {
+      dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: p })) as typeof dialog.showOpenDialog;
+    }, [first]);
+    await page.getByRole("button", { name: "Add files" }).click();
+    await expect(page.getByText("1 pp.")).toBeVisible({ timeout: 120_000 });
+
+    // ---- V5-19: hearings; V5-20: reminders and the docket ----
+    await page.getByRole("tab", { name: "Matter", exact: true }).click();
+    const hearings = page.getByTestId("hearings");
+    await hearings.getByLabel("Hearing date").fill("2026-11-10");
+    await hearings.getByLabel("Directions").fill("Counter affidavit in four weeks");
+    await hearings.getByLabel("Next date", { exact: true }).fill("2027-01-12");
+    await hearings.getByLabel("Next date is").selectOption("inferred");
+    await hearings.getByRole("button", { name: "Record hearing" }).click();
+    await expect(hearings).toContainText("Next: 12.01.2027 (inferred)");
+    const reminders = page.getByTestId("reminders");
+    await reminders.getByLabel("Reminder").fill("File the rejoinder");
+    await reminders.getByLabel("Remind at").fill("2026-01-01T10:00");
+    await reminders.getByRole("button", { name: "Add reminder" }).click();
+    expect(await app.evaluate(() => (globalThis as any).__openadvoTest.checkReminders())).toBe(1);
+    await page.getByRole("tab", { name: "Sources" }).click();
+    await page.getByRole("tab", { name: "Matter", exact: true }).click();
+    await expect(page.getByTestId("reminders")).toContainText("Due");
+    await page.getByRole("button", { name: "Home" }).click();
+    await expect(page.getByTestId("docket")).toContainText("Practice v. Docket");
+    await expect(page.getByTestId("docket")).toContainText("12.01.2027 (inferred)");
+    await expect(page.getByTestId("docket")).toContainText("File the rejoinder (due)");
+    await page.getByTestId("docket").getByRole("link", { name: "Practice v. Docket" }).click();
+
+    // ---- V5-19: a new order after an approved draft asks for a re-check ----
+    for (const e of (await call<any>("getNotebook", matterId)).events) await call("confirmEvent", matterId, e.id);
+    const lod = await call<any>("generateListOfDates", matterId);
+    await call("approveRevision", matterId, lod.revision.id);
+    await call("addFiles", matterId, [order]);
+    await expect.poll(async () => (await call<any[]>("listReviewItems", matterId)).find((r) => r.kind === "new_order_impact")?.detail ?? "", { timeout: 60_000 }).toContain("Re-check it against the new order");
+
+    // ---- V5-21: confidentiality refuses web research; the budget stops the next run ----
+    await call("setPolicy", matterId, { confidential: true, budgetTokens: 1000 });
+    await expect(call("researchSearch", matterId, "web", "bail")).rejects.toThrow(/CONFIDENTIAL_MATTER/);
+    await call("setPolicy", matterId, { confidential: false, budgetTokens: 1000 });
+    await app.evaluate((_e, id) => (globalThis as any).__openadvoTest.recordUsageForTest(id, 1500), matterId);
+    expect((await call<any>("getPolicy", matterId)).usage.tokens).toBe(1500);
+
+    // ---- V5-24: the questions document ----
+    const q = await call<any>("generateQuestions", matterId);
+    expect(q.questions).toBeGreaterThan(0);
+    expect(existsSync(q.file)).toBe(true);
+
+    // ---- V5-25: diagnostics, shown before saving ----
+    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("button", { name: "Show what the diagnostics file holds" }).click();
+    await expect(page.getByTestId("diagnostics-preview")).toContainText("log.txt");
+    await expect(page.getByTestId("diagnostics-preview")).toContainText("matters.json");
+    await expect(page.getByTestId("contacts")).toContainText("Ram Kumar");
+  } finally {
+    await app.close();
+  }
+});

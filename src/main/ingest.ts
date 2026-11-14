@@ -8,6 +8,7 @@ import { readFile } from "node:fs/promises";
 import { processSource } from "../lib/document-intelligence/index.ts";
 import type { Matters } from "./matters.ts";
 import { extractNotebook } from "./notebook.ts";
+import { orderImpact } from "./practice.ts";
 
 export class Ingest {
   private matters: Matters;
@@ -47,6 +48,8 @@ export class Ingest {
           console.error(`afterIngest: ${(e as Error).message}`);
           return false;
         });
+        // V5-19: a new order or judgment after an approval asks the advocate to re-check the approved drafts.
+        await orderImpact(this.matters, matterId).catch((e) => console.error(`orderImpact: ${(e as Error).message}`));
         if (added > 0 || changed) this.notify(matterId);
         return;
       }

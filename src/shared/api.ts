@@ -8,6 +8,8 @@ import type { InboxItem, ProgressStage, DuplicatePair, MemoryProposal, RecordCol
 export type * from "./work.ts";
 export type * from "./studio.ts";
 export type * from "./audit.ts";
+export type * from "./practice.ts";
+import type { Contact, Hearing, Reminder } from "./practice.ts";
 export type { Entity, OcrDispute } from "./audit.ts";
 import type { ChainCheck, Refusal, Inspection, FindHit, Entity, OcrDispute } from "./audit.ts";
 import type { Assessment, Challenge, QuickCheck, Treatment, ArgumentRun, ArgumentRecord, CorpusPart, ProvisionRecord, ResearchDocument, ResearchHit, ResearchSettings, StudioState } from "./studio.ts";
@@ -156,6 +158,27 @@ export interface OpenAdvoApi {
   openMatterFile(matterId: string, rel: string): Promise<boolean>;
   listJobsOverview(matterId: string): Promise<{ reading: Array<IngestJob & { name: string }>; runs: ArgumentRun[]; running: string | null; indexing: string | null }>;
   stopArgumentLoop(matterId: string): Promise<boolean>;
+  listHearings(matterId: string): Promise<Hearing[]>;
+  /** Human-only (V5-19). */
+  addHearing(matterId: string, h: { date: string; bench?: string; directions?: string; nextDate?: string; nextDateStatus?: "confirmed" | "inferred"; notes?: string }): Promise<Hearing>;
+  listReminders(matterId: string): Promise<Reminder[]>;
+  addReminder(matterId: string, text: string, dueAt: string): Promise<Reminder>;
+  doneReminder(matterId: string, id: string): Promise<Reminder[]>;
+  getPolicy(matterId: string): Promise<{ confidential: boolean; budgetTokens: number | null; usage: { runs: number; tokens: number; cost: number } }>;
+  /** Human-only (V5-21). */
+  setPolicy(matterId: string, p: { confidential: boolean; budgetTokens: number | null }): Promise<{ confidential: boolean; budgetTokens: number | null; usage: { runs: number; tokens: number; cost: number } }>;
+  /** V5-22: stop the agent's run between steps. */
+  stopChat(matterId: string): Promise<boolean>;
+  listContacts(): Promise<Contact[]>;
+  addContact(c: { name: string; kind: string; email?: string; phone?: string; notes?: string }): Promise<Contact>;
+  removeContact(id: string): Promise<Contact[]>;
+  listParties(matterId: string): Promise<Array<{ id: string; contactId: string; role: string; nameInRecord: string; contact: Contact | null }>>;
+  addParty(matterId: string, contactId: string, role: string, nameInRecord: string): Promise<unknown>;
+  getDocket(): Promise<Array<{ matterId: string; title: string; stage: string; next: string; nextHearing: { date: string; status: string } | null; limitation: string | null; openItems: number; reminders: Array<{ id: string; text: string; dueAt: string; status: string }> }>>;
+  generateQuestions(matterId: string): Promise<{ file: string; questions: number }>;
+  previewDiagnostics(): Promise<Array<{ name: string; description: string; bytes: number }>>;
+  writeDiagnostics(): Promise<{ path: string; bytes: number } | null>;
+  onReminderDue(listener: (r: { matterId: string; title: string; text: string }) => void): () => void;
   listRevisions(matterId: string, draftId: string): Promise<RevisionRecord[]>;
   compareRevisions(matterId: string, a: string, b: string): Promise<Array<{ op: "same" | "added" | "removed"; text: string } | { op: "changed"; before: string; after: string }>>;
   openInWord(matterId: string, revisionId: string): Promise<{ file: string; revisionId: string }>;

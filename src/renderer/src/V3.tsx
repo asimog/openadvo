@@ -155,7 +155,7 @@ export function ReviewInbox(props: { matterId: string; version: number; onTab: (
 
 export const APPEARANCE_EVENT = "openadvo:appearance";
 
-export function SettingsPage(props: { mailbox: ReactNode; research?: ReactNode }) {
+export function SettingsPage(props: { mailbox: ReactNode; research?: ReactNode; contacts?: ReactNode; diagnostics?: ReactNode }) {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [mode, setMode] = useState<Appearance>("system");
   useEffect(() => {
@@ -188,6 +188,15 @@ export function SettingsPage(props: { mailbox: ReactNode; research?: ReactNode }
         <Heading level={3}>Research sources</Heading>
         <Text type="supporting">Queries to these sources leave this computer and are recorded in the matter's research log. Turn off a source you do not want used.</Text>
         {props.research}
+      </section>
+      <section className="work-section" aria-label="Contacts">
+        <Heading level={3}>Contacts</Heading>
+        <Text type="supporting">The firm's clients, opposing parties and advocates. A matter's parties link to them.</Text>
+        {props.contacts}
+      </section>
+      <section className="work-section" aria-label="Diagnostics">
+        <Heading level={3}>Diagnostics</Heading>
+        {props.diagnostics}
       </section>
       <section className="work-section" aria-label="Filing manifest key">
         <Heading level={3}>Filing manifest key</Heading>

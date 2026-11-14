@@ -239,3 +239,6 @@ kbd { font-family: ui-monospace, monospace; font-size: 12px; border: 1px solid v
 .diff ins { background: rgba(46, 157, 91, 0.16); text-decoration: none; }
 .diff del { background: rgba(200, 70, 61, 0.14); }
 .draft-row { flex-wrap: wrap; }
+
+.practice-form input, .practice-form select { font: inherit; padding: 3px 6px; border: 1px solid var(--color-border, #c8c8c8); border-radius: 6px; background: transparent; color: inherit; }
+.docket { display: flex; flex-direction: column; gap: 6px; margin-top: 16px; width: 100%; }

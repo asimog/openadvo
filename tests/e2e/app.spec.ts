@@ -209,6 +209,7 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
       "getEntities", "correctEvent", "setDateAnchor", "listOcrDisputes", "decideOcrDispute",
       "quickCheckCitations", "benchTrends", "assessAuthority", "addTreatment", "runRehearsal", "decideChallenge",
       "listRevisions", "compareRevisions", "openInWord", "importFromWord", "filingResult", "reconcileFiling",
+      "listHearings", "addHearing", "listReminders", "addReminder", "doneReminder", "getPolicy", "setPolicy", "stopChat", "listContacts", "addContact", "removeContact", "listParties", "addParty", "getDocket", "generateQuestions", "previewDiagnostics", "writeDiagnostics", "onReminderDue",
     ].sort(),
   );
   await app.close();
