@@ -9,7 +9,7 @@ import { Badge } from "@astryxdesign/core/Badge";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Text } from "@astryxdesign/core/Text";
-import type { FilingState, MatterDetails, Notebook, ResearchState, SourceRecord } from "../../shared/api.ts";
+import type { FilingState, ManifestCheck, MatterDetails, Notebook, ResearchState, SourceRecord } from "../../shared/api.ts";
 
 const api = window.openadvo;
 
@@ -279,6 +279,7 @@ export function FilingView(props: { matterId: string; sources: SourceRecord[]; v
   const [mailNote, setMailNote] = useState<string | null>(null);
   const [account, setAccount] = useState({ host: "", port: "993", user: "", password: "" });
   const [mailFilter, setMailFilter] = useState({ from: "", subject: "" });
+  const [manifestCheck, setManifestCheck] = useState<ManifestCheck | null>(null);
   if (!f) return null;
   const selected = chosen ?? f.annexures.map((a) => a.sourceId);
   const set = f.filingSet;
@@ -370,7 +371,16 @@ export function FilingView(props: { matterId: string; sources: SourceRecord[]; v
               <thead><tr><th>File</th><th>Role</th><th>PDF/A</th><th>SHA-256</th></tr></thead>
               <tbody>{set.manifest.files.map((x) => <tr key={x.name}><td>{x.name}</td><td>{x.role}</td><td>{x.pdfa ? "yes" : "no"}</td><td className="mono">{x.sha256.slice(0, 16)}…</td></tr>)}</tbody>
             </table>
-            <Button label="Show the filing set folder" size="sm" variant="ghost" clickAction={() => api.revealFilingSet(props.matterId)} />
+            <Text type="supporting">Manifest digest: <span className="mono">{set.manifest.digest ?? "none (made before v1)"}</span></Text>
+            <div className="row-actions">
+              <Button label="Show the filing set folder" size="sm" variant="ghost" clickAction={() => api.revealFilingSet(props.matterId)} />
+              <Button label="Verify the manifest" size="sm" variant="ghost" clickAction={async () => setManifestCheck(await api.verifyFilingManifest(props.matterId))} />
+            </div>
+            {manifestCheck ? (
+              <div className="notice" data-testid="manifest-check">
+                {manifestCheck.ok ? "Manifest verified: the digest and every file hash match." : `Manifest NOT verified. Digest: ${manifestCheck.digest}. ${manifestCheck.files.filter((x) => x.outcome !== "match").map((x) => `${x.name}: ${x.outcome}`).join("; ")}`}
+              </div>
+            ) : null}
             <Heading level={4}>Confirmations (yours only; voice cannot confirm)</Heading>
             <div className="row-actions">
               <Button label={confirmed(1) ? "Filing set confirmed (1 of 2)" : "Confirm the filing set (1 of 2)"} size="sm" isDisabled={busy || confirmed(1)} clickAction={() => run(() => api.confirmFiling(props.matterId, set.id, set.payloadSha256, 1))} />

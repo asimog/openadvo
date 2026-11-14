@@ -113,11 +113,28 @@ export interface FilingFile {
   sha256: string;
   size: number;
   pdfa: boolean;
+  /** V1-8: the approved revision the file was rendered from (petition documents only). */
+  revisionId?: string;
+  revisionSeq?: number;
+  revisionSha256?: string;
+}
+
+/** V1-8: one approval in the manifest's trail. */
+export interface ManifestApproval {
+  what: string;
+  by: "advocate";
+  at: string;
+}
+
+export interface ManifestCheck {
+  ok: boolean;
+  digest: "match" | "mismatch" | "absent";
+  files: Array<{ name: string; outcome: "match" | "mismatch" | "missing" }>;
 }
 
 export interface FilingSetRecord {
   id: string;
-  manifest: { matter: string; createdAt: string; files: FilingFile[]; rules: string; limitation: string | null };
+  manifest: { matter: string; createdAt: string; files: FilingFile[]; rules: string; limitation: string | null; approvals?: ManifestApproval[]; digest?: string };
   payloadSha256: string;
   folder: string;
   createdAt: string;

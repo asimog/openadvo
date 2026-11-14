@@ -12,11 +12,13 @@ import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Matters } from "./matters.ts";
 import { convertFile, FORMAT_PDF } from "../lib/converter/index.ts";
-import { checkCompliance, computeLimitation, isPdfA, LIMITATION_RULE, RULES_VERSION } from "../lib/filing/index.ts";
+import { checkCompliance, computeLimitation, isPdfA, LIMITATION_RULE, manifestDigest, RULES_VERSION, verifyManifest } from "../lib/filing/index.ts";
 import { readParagraphs } from "../lib/drafting/index.ts";
 import { MatterStoreError } from "../lib/matter-store/index.ts";
 import type { DraftKind } from "../shared/records.ts";
-import type { FilingFile, FilingSetRecord, FilingState, MatterDetails } from "../shared/work.ts";
+import type { FilingFile, FilingSetRecord, FilingState, ManifestApproval, ManifestCheck, MatterDetails } from "../shared/work.ts";
+
+const sha256 = (text: string | Uint8Array) => createHash("sha256").update(text).digest("hex");
 
 const advocate = { actor: "advocate" as const };
 
@@ -120,6 +122,7 @@ export class Filing {
     const folder = path.join(store.folder, "filing", stamp);
     await mkdir(folder, { recursive: true });
     const files: FilingFile[] = [];
+    const approvals: ManifestApproval[] = [];
     const work = path.join(folder, ".work");
     try {
       let n = 0;
@@ -136,7 +139,9 @@ export class Filing {
           tempDir: path.join(work, `x2t-${r.kind}`),
           extra: "<m_bIsPDFA>true</m_bIsPDFA>\n",
         });
-        files.push(await this.describe(folder, name, r.kind));
+        const rev = d.approved!;
+        files.push({ ...(await this.describe(folder, name, r.kind)), revisionId: rev.id, revisionSeq: rev.seq, revisionSha256: rev.sha256 });
+        approvals.push({ what: `${r.title}, revision ${rev.seq}`, by: "advocate", at: rev.approvedAt ?? "" });
       }
       for (const a of st.annexures) {
         const name = `${String(++n).padStart(2, "0")} ${a.label}.pdf`;
@@ -147,20 +152,38 @@ export class Filing {
       await rm(work, { recursive: true, force: true }).catch(() => undefined);
     }
     const lim = st.limitation;
-    const manifest = {
+    const createdAt = new Date().toISOString();
+    if (lim?.confirmedAt) approvals.push({ what: `Limitation, last day ${lim.deadline}`, by: "advocate", at: lim.confirmedAt });
+    approvals.push({ what: "Approved for filing", by: "advocate", at: createdAt });
+    const body: Record<string, unknown> = {
       matter: store.matter().title,
-      createdAt: new Date().toISOString(),
+      createdAt,
       files,
       rules: RULES_VERSION,
       limitation: lim ? `${lim.deadline} (confirmed ${lim.confirmedAt})` : null,
+      approvals,
     };
+    const manifest = { ...body, digest: manifestDigest(body, sha256) };
     await writeFile(path.join(folder, "manifest.json"), JSON.stringify(manifest, null, 2));
     return store.work.addFilingSet(manifest, folder, advocate);
   }
 
   private async describe(folder: string, name: string, role: string): Promise<FilingFile> {
     const bytes = await readFile(path.join(folder, name));
-    return { name, role, sha256: createHash("sha256").update(bytes).digest("hex"), size: bytes.length, pdfa: isPdfA(bytes) };
+    return { name, role, sha256: sha256(bytes), size: bytes.length, pdfa: isPdfA(bytes) };
+  }
+
+  /** V1-8: recompute the manifest digest and every file hash of the newest filing set. */
+  async verifyManifest(matterId: string): Promise<ManifestCheck | null> {
+    const set = (await this.work(matterId)).filingSet();
+    if (!set) return null;
+    return verifyManifest(set.manifest as never, sha256, async (name) => {
+      try {
+        return sha256(await readFile(path.join(set.folder, name)));
+      } catch {
+        return null;
+      }
+    });
   }
 
   /** Human-only (workflow 11): one of the two confirmations, bound to the payload hash. */

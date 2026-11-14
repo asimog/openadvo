@@ -3,7 +3,7 @@
  * Plain library: no Electron import, no Pi import. Spec: docs/specs/v0-notebook.md.
  */
 
-export const METHOD = "rules-v1";
+export const METHOD = "rules-v2";
 
 export type DateType = "explicit" | "inferred" | "range";
 
@@ -65,11 +65,12 @@ const PATTERNS: Array<{ re: RegExp; read: (m: RegExpExecArray) => Omit<DateHit, 
   },
   {
     // 12.03.2024 / 12/03/2024 / 12-03-2024, read day first; two-digit years are inferred.
-    re: /\b(\d{1,2})[./-](\d{1,2})[./-](\d{4}|\d{2})\b/g,
+    // Both separators are the same, so a time range such as "4-4.30" is not a date (v1 spec V1-9).
+    re: /\b(\d{1,2})([./-])(\d{1,2})\2(\d{4}|\d{2})\b(?!\s*(?:a\.?m\b|p\.?m\b|hrs\b|hours\b))/gi,
     read: (m) => {
-      const short = m[3].length === 2;
-      const y = short ? fullYear(Number(m[3])) : Number(m[3]);
-      const d = iso(y, Number(m[2]), Number(m[1]));
+      const short = m[4].length === 2;
+      const y = short ? fullYear(Number(m[4])) : Number(m[4]);
+      const d = iso(y, Number(m[3]), Number(m[1]));
       return d ? { start: d, end: d, type: short ? "inferred" : "explicit" } : null;
     },
   },
@@ -137,19 +138,57 @@ export interface CandidateEvent {
   method: string;
 }
 
+/** Leading list numbering: "2. ", "(iii) ", "a) ". Removed from a description (v1 spec V1-9). */
+const NUMBERING = /^\s*(?:\(?\d{1,3}[.)]|\([ivxlc]{1,6}\)|[ivxlc]{1,6}\)|\(?[a-z]\))\s+/i;
+
+export function cleanDescription(text: string): string {
+  return text.replace(/\s+/g, " ").trim().replace(NUMBERING, "").trim();
+}
+
+/** A line's text for comparison across pages: lower case, digits and spaces removed. */
+function runningKey(text: string): string {
+  return text.toLowerCase().replace(/[0-9]/g, "").replace(/\s+/g, "");
+}
+
+/**
+ * Running headers and footers: a line whose text, digits ignored, occurs on three or more
+ * pages of one source. Returns their anchor ids (v1 spec V1-9).
+ */
+export function runningLines(lines: LineInput[]): Set<string> {
+  const pages = new Map<string, Set<number>>();
+  for (const l of lines) {
+    const key = `${l.sourceId}|${runningKey(l.text)}`;
+    if (runningKey(l.text).length < 4) continue;
+    if (!pages.has(key)) pages.set(key, new Set());
+    pages.get(key)!.add(l.page);
+  }
+  const out = new Set<string>();
+  for (const l of lines) {
+    const seen = pages.get(`${l.sourceId}|${runningKey(l.text)}`);
+    if (seen && seen.size >= 3) out.add(l.anchorId);
+  }
+  return out;
+}
+
+/** A document metadata line. Its date is not compared across sources for conflicts (v1 spec V1-9). */
+export const METADATA_LINE = /^\s*(?:decided\s+on|date\s+of\s+decision|equivalent\s+citation|date\s+of\s+(?:judgment|order)\s+pronounced|judgment\s+pronounced\s+on|reserved\s+on|pronounced\s+on)\s*:/i;
+
 /**
  * One candidate event per date found on a line. The description is the line, joined with the
  * next line on the same page when the line does not end a sentence.
  */
-export function extractEvents(lines: LineInput[], reading: Reading): CandidateEvent[] {
+export function extractEvents(lines: LineInput[], reading: Reading, skip?: Set<string>): CandidateEvent[] {
   const events: CandidateEvent[] = [];
+  /** Running headers and footers. Pass them when the lines are one page of a longer source. */
+  const running = skip ?? runningLines(lines);
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i];
+    if (running.has(l.anchorId)) continue;
     const dates = findDates(l.text);
     if (dates.length === 0) continue;
     const next = lines[i + 1];
-    const joins = next && next.sourceId === l.sourceId && next.page === l.page && !/[.;:]\s*$/.test(l.text);
-    const description = (joins ? `${l.text} ${next.text}` : l.text).replace(/\s+/g, " ").trim();
+    const joins = next && !running.has(next.anchorId) && next.sourceId === l.sourceId && next.page === l.page && !/[.;:]\s*$/.test(l.text);
+    const description = cleanDescription(joins ? `${l.text} ${next.text}` : l.text);
     dates.forEach((d, n) => {
       events.push({
         id: `ev:${l.anchorId}:${n + 1}`,
@@ -210,6 +249,7 @@ export function findConflicts(events: Array<Pick<CandidateEvent, "id" | "anchorI
       const a = events[i];
       const b = events[j];
       if (a.anchorId === b.anchorId || a.kind !== b.kind) continue;
+      if (METADATA_LINE.test(a.description) || METADATA_LINE.test(b.description)) continue;
       if (a.dateStart === b.dateStart && a.dateEnd === b.dateEnd) continue;
       const ka = keys.get(a.id)!;
       const kb = keys.get(b.id)!;

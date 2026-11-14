@@ -220,6 +220,11 @@ test("steps 6 to 10: research, citations, grounds, filing set, capture, agent fi
     expect(filing.compliance.results.find((r: any) => r.rule === "P-5").outcome).toBe("pass");
     const manifestOnDisk = readFileSync(path.join(set.folder, "manifest.json"), "utf8");
     expect(JSON.parse(manifestOnDisk).files.length).toBe(5);
+    // V1-8: the manifest digest and the file hashes verify; the approval trail is in the manifest.
+    expect(set.manifest.digest).toMatch(/^[0-9a-f]{64}$/);
+    expect(set.manifest.approvals.at(-1).what).toBe("Approved for filing");
+    await page.getByRole("button", { name: "Verify the manifest" }).click();
+    await expect(page.getByTestId("manifest-check")).toContainText("Manifest verified");
 
     // ---- Step 9: the court record, captured in the visible portal window ----
     await page.getByRole("button", { name: "Open court portal" }).click();

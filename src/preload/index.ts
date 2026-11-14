@@ -58,6 +58,7 @@ const api: OpenAdvoApi = {
   computeLimitation: (matterId) => ipcRenderer.invoke("filing:computeLimitation", matterId),
   confirmLimitation: (matterId, id) => ipcRenderer.invoke("filing:confirmLimitation", matterId, id),
   approveForFiling: (matterId) => ipcRenderer.invoke("filing:approve", matterId),
+  verifyFilingManifest: (matterId) => ipcRenderer.invoke("filing:verifyManifest", matterId),
   confirmFiling: (matterId, filingSetId, payloadSha256, step) => ipcRenderer.invoke("filing:confirm", matterId, filingSetId, payloadSha256, step),
   revealFilingSet: (matterId) => ipcRenderer.invoke("filing:reveal", matterId),
   voiceStatus: () => ipcRenderer.invoke("voice:status"),

@@ -107,3 +107,45 @@ export function checkCompliance(input: ComplianceInput): ComplianceResult[] {
   );
   return out;
 }
+
+// ---- V1-8: the tamper-evident manifest (v1 spec; after Mike's tamper-evident exports). ----
+
+/** JSON with object keys sorted, array order kept, and no whitespace. */
+export function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value)) return `[${value.map((v) => canonicalJson(v === undefined ? null : v)).join(",")}]`;
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, v]) => v !== undefined)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(",")}}`;
+}
+
+/** The SHA-256 of the manifest body without its `digest` field. */
+export function manifestDigest(manifest: Record<string, unknown>, sha256: (text: string) => string): string {
+  const { digest: _ignored, ...body } = manifest;
+  return sha256(canonicalJson(body));
+}
+
+export interface ManifestCheck {
+  ok: boolean;
+  digest: "match" | "mismatch" | "absent";
+  files: Array<{ name: string; outcome: "match" | "mismatch" | "missing" }>;
+}
+
+/**
+ * Recompute the digest and every file hash. `readHash` returns the SHA-256 of a file in the
+ * set folder, or null when the file is missing.
+ */
+export async function verifyManifest(
+  manifest: { files: Array<{ name: string; sha256: string }>; digest?: string } & Record<string, unknown>,
+  sha256: (text: string) => string,
+  readHash: (name: string) => Promise<string | null>,
+): Promise<ManifestCheck> {
+  const digest = !manifest.digest ? "absent" : manifestDigest(manifest, sha256) === manifest.digest ? "match" : "mismatch";
+  const files: ManifestCheck["files"] = [];
+  for (const f of manifest.files) {
+    const h = await readHash(f.name);
+    files.push({ name: f.name, outcome: h === null ? "missing" : h === f.sha256 ? "match" : "mismatch" });
+  }
+  return { ok: digest === "match" && files.every((f) => f.outcome === "match"), digest, files };
+}

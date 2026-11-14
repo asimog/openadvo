@@ -4,7 +4,7 @@
  */
 import type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft, DraftCheck, DraftDefect, AgentChanges } from "./records.ts";
 export type { AgentChanges, AgentChange } from "./records.ts";
-import type { AdverseReview, AnnexureRecord, Attestation, AuthorityRecord, CitationCheck, FilingSetRecord, FilingState, IssueRecord, LimitationRecord, MatterDetails, ResearchState } from "./work.ts";
+import type { ManifestCheck, AdverseReview, AnnexureRecord, Attestation, AuthorityRecord, CitationCheck, FilingSetRecord, FilingState, IssueRecord, LimitationRecord, MatterDetails, ResearchState } from "./work.ts";
 export type * from "./work.ts";
 
 import type { AGUIEvent } from "@ag-ui/core";
@@ -143,6 +143,8 @@ export interface OpenAdvoApi {
   /** Human-only: confirmation 1 or 2, bound to the payload hash. */
   confirmFiling(matterId: string, filingSetId: string, payloadSha256: string, step: 1 | 2): Promise<FilingSetRecord>;
   revealFilingSet(matterId: string): Promise<void>;
+  /** V1-8: recompute the manifest digest and the file hashes of the newest filing set. */
+  verifyFilingManifest(matterId: string): Promise<ManifestCheck | null>;
   /** Step 10: speech to text on this machine. Text for the composer only; voice confirms nothing. */
   voiceStatus(): Promise<{ available: boolean; detail: string }>;
   transcribe(samples: Float32Array): Promise<string>;

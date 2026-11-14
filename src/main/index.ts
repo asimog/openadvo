@@ -201,6 +201,7 @@ function registerBridge(): void {
   handle("filing:computeLimitation", (matterId: string) => filing.computeLimitation(matterId));
   handle("filing:confirmLimitation", (matterId: string, id: string) => filing.confirmLimitation(matterId, String(id ?? "")));
   handle("filing:approve", (matterId: string) => filing.approveForFiling(matterId));
+  handle("filing:verifyManifest", (matterId: string) => filing.verifyManifest(matterId));
   handle("filing:confirm", (matterId: string, filingSetId: string, payloadSha256: string, step: number) => {
     if (step !== 1 && step !== 2) throw new Error("BAD_STEP: 1 or 2");
     return filing.confirmFiling(matterId, String(filingSetId ?? ""), String(payloadSha256 ?? ""), step);
