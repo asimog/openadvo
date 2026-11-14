@@ -44,6 +44,8 @@ v0 limit: the corrected paragraph keeps its paragraph properties and the propert
 17. The gate state (workflow 9) comes from one tested mapping, `gateState` in `lib/verification`: an open item about a source link (`no_source`, `broken_link`, `event_not_confirmed`) gives "Blocked pending source verification"; any other open item or an undecided agent change gives "Needs correction"; a check that could not run gives "Needs additional instructions"; otherwise "Ready for advocate review". The first state that applies, in the workflow's order, is shown, with every reason.
 18. Legal review (steps 6, 7) and filing compliance (step 8) are listed as "not available". They never count as passed. While the matter records no parties, every draft stays at "Needs additional instructions" or earlier.
 
-**Not built yet (still step 5).** The editor scrolling to each change when the card steps through it (item f). Built: "N agent change(s) not decided" in the harness bar status (item c).
+19. "Show in editor" on a change opens the draft at its head revision and moves the editor cursor into that paragraph (item f), through the host command `goToAnchor` (builder API `GetContentControlsByTag`, then `Select`).
+
+**Not built yet (still step 5).** The party-name and case-number check: the matter records no parties and no case number. Those fields are a second version of step 1 (build plan, coverage table), so this check waits for the owner.
 
 **Proof task.** The owner runs the checks on a real draft with three planted errors and finds all three, and decides every agent change.

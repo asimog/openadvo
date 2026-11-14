@@ -474,6 +474,21 @@
     return { anchor: anchor, position: 'end' }
   }
 
+  /**
+   * Move the cursor to the paragraph that carries one anchor (editor-design item f: the card
+   * steps through agent changes and the editor follows). Builder API: content control by tag.
+   */
+  function goToAnchor(args) {
+    var anchor = args && typeof args.anchor === 'string' ? args.anchor : ''
+    if (!anchor) throw new Error('goToAnchor needs an anchor')
+    var api = builderApi()
+    if (!api) throw new Error('the document builder API is not available')
+    var controls = api.GetDocument().GetContentControlsByTag(anchor)
+    if (!controls || controls.length === 0) throw new Error('no paragraph carries the anchor ' + anchor)
+    controls[0].Select()
+    return { anchor: anchor, found: controls.length }
+  }
+
   function handleCommand(data) {
     var requestId = data.requestId
     try {
@@ -482,6 +497,8 @@
         commandResult(requestId, true, { mode: data.args && data.args.mode })
       } else if (data.command === 'showSource') {
         commandResult(requestId, true, { anchor: currentAnchor() })
+      } else if (data.command === 'goToAnchor') {
+        commandResult(requestId, true, goToAnchor(data.args))
       } else if (data.command === 'insert') {
         commandResult(requestId, true, insertEvent(data.args))
       } else if (data.command === 'save') {

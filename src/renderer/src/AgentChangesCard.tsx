@@ -10,7 +10,13 @@ const api = window.openadvo;
  * Keep all covers only the changes that are not substantive (item g). Each change shows its
  * before and after, with Keep and Undo. Keep and Undo are bridge functions (decision 5).
  */
-export function AgentChangesCard(props: { matterId: string; group: AgentChanges; onDecided: () => Promise<void> }) {
+export function AgentChangesCard(props: {
+  matterId: string;
+  group: AgentChanges;
+  onDecided: () => Promise<void>;
+  /** Item f: open the draft at this revision and move the editor to the paragraph. */
+  onShow: (draftId: string, anchor: string) => void;
+}) {
   const g = props.group;
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
@@ -37,6 +43,7 @@ export function AgentChangesCard(props: { matterId: string; group: AgentChanges;
       <div className="change-before" data-testid="change-before"><Text type="supporting">Before</Text> {c.before}</div>
       <div className="change-after" data-testid="change-after"><Text type="supporting">After</Text> {c.after}</div>
       <div className="change-actions">
+        <Button label="Show in editor" size="sm" variant="ghost" onClick={() => props.onShow(g.draftId, c.anchor)} />
         <Button label="Keep" size="sm" isDisabled={working} onClick={() => void decide([c], "keep")} />
         <Button label="Undo" size="sm" variant="ghost" isDisabled={working} onClick={() => void decide([c], "undo")} />
       </div>

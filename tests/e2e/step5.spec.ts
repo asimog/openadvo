@@ -103,6 +103,24 @@ test("agent changes: keep, undo, and no approval while one is undecided", async 
     await page.getByRole("tab", { name: "Matter", exact: true }).click();
     await page.getByRole("button", { name: "Open latest" }).click();
     await expect(page.getByTestId("draft-undecided")).toHaveText("2 agent change(s) not decided", { timeout: 60_000 });
+    // Item f: "Show in editor" moves the editor cursor into the changed paragraph.
+    await card.locator('[data-substantive="yes"]').getByRole("button", { name: "Show in editor" }).click();
+    await expect
+      .poll(
+        async () => {
+          const frame = page.frames().find((f) => f.url().includes("/documenteditor/main/index.html"));
+          if (!frame) return null;
+          return frame.evaluate(() => {
+            try {
+              return (globalThis as any).Asc.editor.getJsApi().GetDocument().GetCurrentContentControl()?.GetTag() ?? null;
+            } catch {
+              return null;
+            }
+          });
+        },
+        { timeout: 60_000 },
+      )
+      .toBe(p2.anchor);
   }
 
   // Keep all covers the wording change only.

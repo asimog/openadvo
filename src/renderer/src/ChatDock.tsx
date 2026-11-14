@@ -142,6 +142,8 @@ export function ChatDock(props: {
   onAddPaths: (paths: string[]) => Promise<void>;
   /** A revision was proposed or decided: the open draft moves to its new head. */
   onRevisionsChanged: () => Promise<void>;
+  /** Item f: open a draft and move the editor to one paragraph. */
+  onShowChange: (draftId: string, anchor: string) => void;
 }) {
   const [changes, setChanges] = useState<AgentChanges[]>([]);
   const loadChanges = () => api.agentChanges(props.matterId).then(setChanges, () => setChanges([]));
@@ -287,6 +289,7 @@ export function ChatDock(props: {
               key={group.revisionId}
               matterId={props.matterId}
               group={group}
+              onShow={props.onShowChange}
               onDecided={async () => {
                 await loadChanges();
                 await props.onRevisionsChanged();

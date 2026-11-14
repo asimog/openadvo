@@ -26,3 +26,10 @@ Date: 2026-11-14. Spec: docs/specs/v0-verification.md rules 9 to 15.
 | `npm run typecheck` | no errors |
 | `npm run test:unit` | 46 of 46 pass (migration test extended for `review_item.draft_id`) |
 | `npm run build` then `npx playwright test` | 8 pass, 2 skipped (live-model tests) |
+
+## Fourth part: Show in editor (item f)
+
+| Command | Result |
+|---|---|
+| `npm run test:unit` | 46 of 46 pass |
+| `npm run build` then `npx playwright test` | 8 pass, 2 skipped (live-model tests); step 5 asserts the editor cursor moved into the anchor of the second paragraph |

@@ -127,8 +127,11 @@ export function DraftView(props: {
   dock: HTMLElement | null;
   onChanged: () => Promise<void>;
   onOpenSource: (link: SourceLink) => void;
+  /** Item f: a paragraph to move the editor to. `n` changes for each request. */
+  focus?: { anchor: string; n: number } | null;
 }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
+  const [editorOpened, setEditorOpened] = useState(false);
   /** The revision the editor holds. A human save makes a new revision; every later save names it as the base. */
   const baseRevisionId = useRef(props.revision.id);
   /** Revisions this view saved. A refresh that reports them must not reopen the frame. */
@@ -182,6 +185,7 @@ export function DraftView(props: {
     frameOpened.current = false;
     setUrl(null);
     setDoc(null);
+    setEditorOpened(false);
     setFrameError(null);
     setRevisionInfo({ seq: props.revision.seq, sha256: props.revision.sha256 });
     setApproved(props.revision.approvedAt !== null);
@@ -316,6 +320,7 @@ export function DraftView(props: {
         const state = typeof data.state === "string" ? data.state : "";
         if (state === "opened") {
           frameOpened.current = true;
+          setEditorOpened(true);
           setFrameError(null);
           sendDisplayMode(displayMode);
         } else if (state === "failed" || state === "error") {
@@ -416,6 +421,15 @@ export function DraftView(props: {
       setApproving(false);
     }
   };
+
+  // Item f: move the editor to the paragraph the change card names, once the editor is open.
+  const focusN = props.focus?.n;
+  useEffect(() => {
+    if (!props.focus || !editorOpened) return;
+    sendCommand("goToAnchor", { anchor: props.focus.anchor });
+    // Only a new request moves the editor.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusN, editorOpened]);
 
   // Item c: the status counts the agent changes not decided in the open revision.
   const [undecided, setUndecided] = useState(0);

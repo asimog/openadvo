@@ -120,6 +120,7 @@ export function App() {
   const [drafts, setDrafts] = useState<DraftRecord[]>([]);
   const [openDraft, setOpenDraft] = useState<DraftRecord | null>(null);
   const [openRevision, setOpenRevision] = useState<RevisionRecord | null>(null);
+  const [draftFocus, setDraftFocus] = useState<{ anchor: string; n: number } | null>(null);
   const [focus, setFocus] = useState<SourceLink | null>(null);
   const [sourceId, setSourceId] = useState<string | null>(null);
   const [tab, setTab] = useState("matter");
@@ -305,6 +306,16 @@ export function App() {
                   slotRef={setDockSlot}
                   carry={dockCarry}
                   onAddPaths={(paths) => addPathsTo(matter.id, paths)}
+                  onShowChange={(draftId, anchor) => {
+                    void api.listDrafts(matter.id).then((all) => {
+                      const d = all.find((x) => x.id === draftId);
+                      if (!d?.head) return;
+                      setSourceId(null);
+                      setOpenDraft(d);
+                      setOpenRevision(d.head);
+                      setDraftFocus((f) => ({ anchor, n: (f?.n ?? 0) + 1 }));
+                    });
+                  }}
                   onRevisionsChanged={async () => {
                     await refreshMatter(matter.id);
                     if (!openDraft) return;
@@ -329,6 +340,7 @@ export function App() {
                         await refreshMatter(matter.id);
                       }}
                       onOpenSource={openSource}
+                      focus={draftFocus}
                     />
                   ) : source ? (
                     <SourceDetail matterId={matter.id} source={source} events={events} version={version} focus={focus} dock={dockSlot} />
