@@ -27,6 +27,7 @@ The plan serves [advocate-workflow.md](advocate-workflow.md). The decisions it b
 | 10 | Agent-operated filing and voice | 11, 2 | 3 |
 | V1 | Second version of the components: durable chat, memory, workflows, record table, conference package, petition and prayer, filing manifest, extractor quality, matter rename and archive | 2 to 11, Appendix C 1 and 8 | 4 |
 | V2 | Third version of the components: files other than PDF, document type, same-text duplicates, relative dates, List of Dates rows, interim relief and condonation, signed manifest, memory proposals | 3, 4, 8, 9, Appendix B | 5 |
+| V3 | A finished, polished application: matter progress, review inbox, command bar, settings, matter export, finish and consistency, a build to install | 1, 10, 12, Appendix C 3 | 6 |
 
 The order is the order the task gave, with one change forced by a dependency. The owner wants the complete Euro-Office suite, including its PDF editor, inside the app (2026-11-13). The PDF view of step 2 is that PDF editor, so vendoring and hosting Euro-Office moves from step 4 to step 2. Step 4 then uses the Word editor that step 2 already hosts. Two more notes on the order:
 
@@ -252,6 +253,10 @@ Round 1 steps also list the main-process modules, agent tools, bridge functions,
 - **Built 2026-11-14 (as built):** V2-1 in `src/lib/document-intelligence/formats.ts` (`detectMediaType`, `docxParagraphs`, `paginate`) and `processSource`; V2-2 in `classify.ts` (method `type-rules-v1`), table `source_type`; V2-3 in `similar.ts`, table `duplicate_pair`, review item kind `possible_duplicate`; V2-4 `extractRelative` in `src/lib/notebook/index.ts` (method `rules-v3`); V2-5 table `lod_row`; V2-6 `condonationBlocks`, draft kind `condonation` (migrated), `delayDays`, the matter-details column `interim_relief`; V2-7 `src/main/signing.ts` (`manifest-signing.key` in user data) and `signatureValid`; V2-8 table `memory_proposal` and the tool `propose_memory_note`. After ingestion, `Matters.afterIngest` proposes types and opens same-text review items. Views: `src/renderer/src/V2.tsx`.
 - **Tests (as built):** `tests/unit/formats-v2.test.ts`, `tests/unit/v2.test.ts`; `tests/e2e/v2.spec.ts`; `tests/e2e/steps6to10.spec.ts` extended with the condonation application and the signature check. Report: [2026-11-14-v2-report.md](../.agents/logs/2026-11-14-v2-report.md).
 - **Proof task:** see [specs/v2.md](specs/v2.md). Not yet run by the owner.
+
+### Round 6. V3: a finished, polished application
+
+- **Started 2026-11-14 on the owner's instruction**, which overrides rule B6 for this round. **Spec:** [specs/v3.md](specs/v3.md) (items V3-1 to V3-7).
 
 ## 5. Integration
 
