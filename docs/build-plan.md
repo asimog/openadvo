@@ -274,6 +274,10 @@ Round 1 steps also list the main-process modules, agent tools, bridge functions,
 ### Round 8. V5: the features of the earlier specifications and the research
 
 - **Started 2026-11-15 on the owner's instruction.** **Spec:** [specs/v5.md](specs/v5.md) (items V5-1 to V5-25, and what is not taken, with the reason).
+- **Built 2026-11-15** in five commits: A (V5-1 to V5-5) 0aeb4b7, B (V5-6 to V5-8) ae75ded, C (V5-9 to V5-12) 85ad756, D (V5-13 to V5-18) aa37484, E (V5-19 to V5-25) 576997b.
+- **Found while building:** a real disagreement between the two OCR engines needs a poor image. On a 16-pixel blurred line, Tesseract reads "6,589" as "0,589" and PP-OCRv3 reads it correctly; the e2e test uses that image. `onnxruntime-node` must be a direct dependency, or electron-vite bundles it without its native binding. A Playwright role name matches as a substring, so a docket entry is a link, not a button: a button with the matter title collides with the side navigation.
+- **Tests (as built):** `tests/unit/v5-audit.test.ts`, `v5-notebook.test.ts`, `v5-studio.test.ts`, `v5-filing.test.ts`, `v5-practice.test.ts`; `tests/e2e/v5.spec.ts` (A to E). Report: [2026-11-15-v5-report.md](../.agents/logs/2026-11-15-v5-report.md).
+- **Proof task:** see [specs/v5.md](specs/v5.md). Not yet run by the owner.
 
 ## 5. Integration
 

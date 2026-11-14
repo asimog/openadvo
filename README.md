@@ -13,11 +13,12 @@ npm install
 npm run vendor
 npm run vendor:ulos
 npm run vendor:voice
+npm run vendor:ocr
 npm run build
 npm start
 ```
 
-`npm run vendor` fetches the official Euro-Office release ([docs/euro-office-vendoring.md](docs/euro-office-vendoring.md)). `npm run vendor:ulos` copies the citation validator. `npm run vendor:voice` fetches the speech model.
+`npm run vendor` fetches the official Euro-Office release ([docs/euro-office-vendoring.md](docs/euro-office-vendoring.md)). `npm run vendor:ulos` copies the citation validator. `npm run vendor:voice` fetches the speech model. `npm run vendor:ocr` fetches the second OCR engine's models.
 
 The agent uses the model credentials that Pi already stores for the user ([docs/questions.md](docs/questions.md), Q-2).
 

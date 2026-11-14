@@ -64,7 +64,7 @@ test("dist: the built application starts, reads a PDF, opens the PDF editor and 
     await expect(page.getByTestId("viewer-state")).toContainText("Opened read only", { timeout: 90_000 });
     await page.getByRole("button", { name: "Back to matter" }).click();
     await page.getByRole("button", { name: "Settings" }).click();
-    await expect(page.getByTestId("versions")).toContainText("1.1.0");
+    await expect(page.getByTestId("versions")).toContainText("1.2.0");
     await expect(page.getByTestId("versions")).toContainText("v9.3.6");
   } finally {
     await app.close();

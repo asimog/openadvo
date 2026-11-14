@@ -6,7 +6,7 @@ Each line: the idea, where it came from, and the step it would touch.
 
 | Idea | Source | Step it would touch |
 |---|---|---|
-| An inspector that opens any record and shows its raw form, the events that touched it, and its links in both directions. | Earlier principle P9 and the Macro reference (`openadvodeprecated/docs/decisions.md` section 13) | Any, after round 1 |
+| An inspector that opens any record and shows its raw form, the events that touched it, and its links in both directions. **Built in v5 (V5-3).** | Earlier principle P9 and the Macro reference (`openadvodeprecated/docs/decisions.md` section 13) | Any, after round 1 |
 | A review inbox split into Signal and Noise, keyboard operable. **Built in v3 (V3-2) as "Blocks the work" and "Other".** | Earlier idea M-03 | 3 or later |
 | A command bar that searches commands, matters and records. **Built in v3 (V3-3).** | Earlier idea M-04 | After round 1 |
 | Saved pane layouts per matter, and navigation history. | Earlier idea M-02 | After round 1 |
@@ -36,9 +36,9 @@ Each line: the idea, where it came from, and the step it would touch.
 | An interim-relief section and prayer in the petition, and an application for condonation of delay when limitation has run. **Built in v2 (V2-6).** | V1-7 build | V1-7, second version |
 | Code-sign the Windows build, make installers (NSIS, DMG, AppImage), and update automatically. Needs the owner's certificates and a machine per operating system. | V3-7 build, 2026-11-14 | V3-7, second version |
 | Pack the application code in an ASAR archive with the executables unpacked (the build now ships without ASAR, so the converter and the validator run from plain folders). | V3-7 build, 2026-11-14 | V3-7, second version |
-| An inspector that opens any record with the events that touched it (the earlier idea P9 above is still open). | V3 spec | After round 6 |
+| An inspector that opens any record with the events that touched it (the earlier idea P9 above is still open). **Built in v5 (V5-3).** | V3 spec | After round 6 |
 | Point-in-time versions of statutes: the version in force on the governing date (IPC to BNS and the other 2024 transitions). India Code gives the current text only. | v4 spec | V4-1, second version |
-| Treatment edges between judgments (followed, distinguished, overruled, referred to a larger bench), from the judgments' text. | C1 section 5; v4 spec | V4-2, second version |
+| Treatment edges between judgments (followed, distinguished, overruled, referred to a larger bench), from the judgments' text. **v5 (V5-11) records treatments the advocate enters, with the overruling check; reading them from the judgments' text is still open.** | C1 section 5; v4 spec | V4-2, second version |
 | Full-text search of the judgments themselves. The AWS metadata has no text; the whole Supreme Court set is about 69 GB of PDFs. A text index of the fetched judgments only is possible now. | V4 build | V4-1, second version |
 | Indian Kanoon as a third resolver tier, with the advocate's own API key. | C1 section 5 | V4-1, second version |
 | A second, different model family for the critic and opposing counsel (C1 3.11: heterogeneous adversarial roles). The loop now uses the chat's model for every role. | C1 section 3.11 | V4-3, second version |
