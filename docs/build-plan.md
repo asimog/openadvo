@@ -25,6 +25,7 @@ The plan serves [advocate-workflow.md](advocate-workflow.md). The decisions it b
 | 8 | Annexures, filing compliance, approval, filing PDF | 8E, 9E, 10 | 2 |
 | 9 | Court record capture and client email | 3 | 3 |
 | 10 | Agent-operated filing and voice | 11, 2 | 3 |
+| V1 | Second version of the components: durable chat, memory, workflows, record table, conference package, petition and prayer, filing manifest, extractor quality, matter rename and archive | 2 to 11, Appendix C 1 and 8 | 4 |
 
 The order is the order the task gave, with one change forced by a dependency. The owner wants the complete Euro-Office suite, including its PDF editor, inside the app (2026-11-13). The PDF view of step 2 is that PDF editor, so vendoring and hosting Euro-Office moves from step 4 to step 2. Step 4 then uses the Word editor that step 2 already hosts. Two more notes on the order:
 
@@ -236,6 +237,10 @@ Round 1 steps also list the main-process modules, agent tools, bridge functions,
 - **Started and built 2026-11-14 (as built):** confirmations in `work.ts`, the portal tools `upload_filing_file`, `submit_filing`, `save_portal_receipt` in `src/main/portal.ts`, voice in `src/lib/voice/index.ts` (`@huggingface/transformers` 4.3.2; model by `npm run vendor:voice`) and the composer's microphone. Tests: `tests/e2e/steps6to10.spec.ts` (one end-to-end run of steps 6 to 10 against the built application, with a local stand-in portal and the vendored `ulos`); `tests/e2e/voice.spec.ts` (Windows speech synthesis through Chromium's fake microphone).
 - **Input:** an approved filing set. **Output:** the portal receipt linked to the matter. **Proof task:** the owner files a real SLP through the application, or runs the flow to the last confirmation on the portal's test path if one exists.
 - **Port when the step starts:** `deprecated/docs/specs/L-filing.md`; `deprecated/docs/specs/M-browser.md`; `deprecated/docs/specs/N-desktop-computer-use.md`; [questions.md](questions.md) Q-4.
+
+### Round 4. V1 of the components
+
+- **Started 2026-11-14 on the owner's instruction**, which overrides rule B6 for this round. **Spec:** [specs/v1.md](specs/v1.md) (items V1-1 to V1-10). Each item is built thin, joined to the rest, tested, and pushed to `main` on its own.
 
 ## 5. Integration
 
