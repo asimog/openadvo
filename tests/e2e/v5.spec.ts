@@ -163,3 +163,74 @@ test("v5 B: entities, a correction, a base date and an OCR dispute decided by th
     await app.close();
   }
 });
+
+test("v5 C: quick check, voice, an overruling treatment, the rehearsal and bench trends", async () => {
+  const { parquetWriteBuffer } = await import("hyparquet-writer");
+  const base = await mkdtemp(path.join(tmpdir(), "oa-e2ev5c-"));
+  await mkdir(path.join(base, "inbox"), { recursive: true });
+  const order = path.join(base, "inbox", "order.pdf");
+  await writeFile(order, await pdf(["ORDER", "The petitioner has been in custody since 05.01.2020 and bail was refused on 12.03.2024."]));
+  const parquet = Buffer.from(
+    parquetWriteBuffer({
+      columnData: [
+        { name: "title", data: ["ELDECO HOUSING AND INDUSTRIES LIMITED versus ASHOK VIDYARTHI", "RAM LAL versus STATE"], type: "STRING" },
+        { name: "case_id", data: ["2023 INSC 1043", "2023 INSC 1047"], type: "STRING" },
+        { name: "decision_date", data: ["30-11-2023", "04-12-2023"], type: "STRING" },
+        { name: "disposal_nature", data: ["Appeal(s) allowed", "Appeal(s) dismissed"], type: "STRING" },
+        { name: "path", data: ["2023_16_872_887", "2023_15_808_820"], type: "STRING" },
+      ],
+    }),
+  ).toString("base64");
+  const { app, page } = await start(base);
+  const call = bridge(page);
+  try {
+    await app.evaluate((_e, b) => (globalThis as any).__openadvoTest.setResearchFixtures([{ match: "metadata/parquet/year=2023/metadata.parquet", body: b, base64: true }]), parquet);
+    const matterId = await matterWith(page, app, "Authorities v. Rehearsal", [order]);
+    for (const e of (await call<any>("getNotebook", matterId)).events) await call("confirmEvent", matterId, e.id);
+    const issue = await call<any>("addIssue", matterId, "Whether bail could be refused without weighing four years of custody?");
+    await call("decideIssue", matterId, issue.id, "accepted", "Arises.");
+    await call("addAuthority", matterId, { citation: "2023 INSC 1043", parties: "Eldeco Housing v. Ashok Vidyarthi", decisionDate: "2023-11-29", paragraph: "12", proposition: "p", role: "supporting", issueId: issue.id });
+    await call("indexSupremeCourt", [2023]);
+
+    // ---- V5-9: quick check, labelled not verified ----
+    await page.getByRole("tab", { name: "Studio" }).click();
+    await page.getByRole("button", { name: "Quick check the citations" }).click();
+    await expect(page.getByTestId("quick-check").locator('[data-outcome="mismatch"]')).toContainText("decision date");
+    await expect(page.getByTestId("quick-check")).toContainText("Quick check, not verified");
+
+    // ---- V5-10: voice and an overruling by a smaller bench ----
+    const row = page.getByTestId("authority-row").first();
+    await row.getByLabel("Voice of the authority").selectOption("holding");
+    await row.getByRole("button", { name: "Set voice" }).click();
+    await expect(row).toContainText("Voice confirmed");
+    await row.getByRole("button", { name: "Record treatment" }).click();
+    await row.getByLabel("Treated by (citation)").fill("2024 INSC 5");
+    await row.getByLabel("Its date").fill("2024-01-10");
+    await row.getByLabel("Its bench strength").fill("2");
+    await row.getByLabel("Date of the authority").fill("2023-11-30");
+    await row.getByLabel("Bench strength of the authority").fill("3");
+    await row.getByRole("button", { name: "Save treatment" }).click();
+    await expect(row.getByTestId("treatment")).toContainText("overruled");
+    const kinds = (await call<any[]>("listReviewItems", matterId)).map((r) => r.kind);
+    expect(kinds).toEqual(expect.arrayContaining(["authority_overruled", "treatment_check"]));
+
+    // ---- V5-12: bench trends, descriptive ----
+    await page.getByRole("button", { name: "Show the trends" }).click();
+    await expect(page.getByTestId("bench-trends")).toContainText("2023");
+    await expect(page.getByTestId("bench-trends")).toContainText("50%");
+
+    // ---- V5-11: the rehearsal, with a scripted model ----
+    await app.evaluate((_e, id) => (globalThis as any).__openadvoTest.rehearseScripted(id, [
+      { match: "bench is most likely", answer: JSON.stringify({ questions: [{ question: "How long has the petitioner been in custody?", answer: "Since 05.01.2020, as E1 records.", events: [{ ref: "E1", quote: "in custody since 05.01.2020" }] }] }) },
+      { match: "As counsel for the respondent at the admission hearing", answer: JSON.stringify({ objections: [{ category: "delay", objection: "The petition was filed late.", response: "A1 at para 12.", authorities: [{ ref: "A1", paragraph: "12" }] }] }) },
+    ]), matterId);
+    await page.getByTestId("studio").getByRole("tab", { name: "Rehearsal" }).click();
+    await expect(page.getByTestId("rehearsal")).toContainText("How long has the petitioner been in custody?");
+    await expect(page.getByTestId("rehearsal")).toContainText("The petition was filed late.");
+    const ch = page.getByTestId("challenge").first();
+    await ch.getByRole("button", { name: "Accept" }).click();
+    await expect(ch).toHaveAttribute("data-status", "accepted");
+  } finally {
+    await app.close();
+  }
+});

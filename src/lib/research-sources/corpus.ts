@@ -162,6 +162,11 @@ export class Corpus {
     return r ? this.row(r) : undefined;
   }
 
+  /** V5-12: indexed Supreme Court judgments by year and disposal, as written. */
+  disposalCounts(): Array<{ year: number; disposal: string; n: number }> {
+    return (this.db.prepare("SELECT year, disposal, count(*) AS n FROM judgment WHERE court = 'sc' GROUP BY year, disposal ORDER BY year").all() as Array<Record<string, unknown>>).map((r) => ({ year: Number(r.year), disposal: String(r.disposal), n: Number(r.n) }));
+  }
+
   // ---- fetched judgments ----
 
   private textFile(id: string): string {

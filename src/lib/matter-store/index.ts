@@ -14,6 +14,7 @@ import path from "node:path";
 import { WORK_SCHEMA, WorkStore } from "./work.ts";
 import { STUDIO_SCHEMA, StudioStore } from "./studio.ts";
 import { NOTEBOOK2_SCHEMA, addCorrection, dateAnchor, decideDispute, insertDispute, listCorrections, listDisputes, type EventCorrection, type OcrDispute } from "./notebook2.ts";
+import { AUTHORITY2_SCHEMA } from "./authority2.ts";
 import { AUDIT_SCHEMA, addRefusal, eventHash, find, findIndexSeq, inspect, listRefusals, replaceFindIndex, verifyChain, type ChainCheck, type FindHit, type FindRow, type Inspection, type Refusal } from "./audit.ts";
 import { ACCEPTED_TEXT, detectMediaType } from "../document-intelligence/formats.ts";
 import type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus, DraftKind, RevisionAuthor, DraftRecord, RevisionRecord, ParagraphLinkRecord } from "../../shared/records.ts";
@@ -320,6 +321,7 @@ export class MatterStore {
     db.exec(STUDIO_SCHEMA);
     db.exec(AUDIT_SCHEMA);
     db.exec(NOTEBOOK2_SCHEMA);
+    db.exec(AUTHORITY2_SCHEMA);
     // V5-1: the event chain. Events written before v5 have no hash and start the record.
     const ev = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'event'").get() as { sql?: string } | undefined;
     if (ev?.sql && !ev.sql.includes("prev_hash")) {

@@ -10,7 +10,7 @@ export type * from "./studio.ts";
 export type * from "./audit.ts";
 export type { Entity, OcrDispute } from "./audit.ts";
 import type { ChainCheck, Refusal, Inspection, FindHit, Entity, OcrDispute } from "./audit.ts";
-import type { ArgumentRun, ArgumentRecord, CorpusPart, ProvisionRecord, ResearchDocument, ResearchHit, ResearchSettings, StudioState } from "./studio.ts";
+import type { Assessment, Challenge, QuickCheck, Treatment, ArgumentRun, ArgumentRecord, CorpusPart, ProvisionRecord, ResearchDocument, ResearchHit, ResearchSettings, StudioState } from "./studio.ts";
 
 import type { AGUIEvent } from "@ag-ui/core";
 
@@ -156,6 +156,16 @@ export interface OpenAdvoApi {
   openMatterFile(matterId: string, rel: string): Promise<boolean>;
   listJobsOverview(matterId: string): Promise<{ reading: Array<IngestJob & { name: string }>; runs: ArgumentRun[]; running: string | null; indexing: string | null }>;
   stopArgumentLoop(matterId: string): Promise<boolean>;
+  /** V5-9: not verification. */
+  quickCheckCitations(matterId: string): Promise<QuickCheck[]>;
+  /** V5-12: descriptive, advisory. */
+  benchTrends(): Promise<Array<{ year: number; total: number; allowed: number; dismissed: number; disposed: number; other: number }>>;
+  /** Human-only (V5-10): the advocate's value is confirmed. */
+  assessAuthority(matterId: string, authorityId: string, field: "support" | "voice", value: string, basis: string): Promise<Assessment>;
+  addTreatment(matterId: string, input: { authorityId: string; kind: Treatment["kind"]; byCitation: string; byDate?: string; byBench?: number | null; authorityDate?: string; authorityBench?: number | null; note?: string }): Promise<Treatment>;
+  runRehearsal(matterId: string): Promise<{ runId: string; added: number; rejected: number }>;
+  /** Human-only (V5-11). */
+  decideChallenge(matterId: string, id: string, status: "accepted" | "rejected"): Promise<Challenge[]>;
   getEntities(matterId: string): Promise<{ entities: Entity[]; conflicts: Array<{ key: string; values: string[]; anchors: string[] }> }>;
   /** Human-only (V5-7). */
   correctEvent(matterId: string, eventId: string, input: { dateStart: string; dateEnd?: string; description: string }, reason: string): Promise<Notebook>;

@@ -207,6 +207,7 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
       "corpusParts", "indexSupremeCourt", "listHighCourts", "indexHighCourt", "getResearchSettings", "setResearchSettings", "onStudioChanged", "onStudioProgress",
       "verifyRecordChain", "listRefusals", "inspectRecord", "findInMatter", "listMatterFiles", "openMatterFile", "listJobsOverview", "stopArgumentLoop",
       "getEntities", "correctEvent", "setDateAnchor", "listOcrDisputes", "decideOcrDispute",
+      "quickCheckCitations", "benchTrends", "assessAuthority", "addTreatment", "runRehearsal", "decideChallenge",
     ].sort(),
   );
   await app.close();
@@ -257,6 +258,11 @@ test("the agent session has exactly our tool, and its id is recorded", async () 
     "save_provision",
     "run_argument_loop",
     "list_arguments",
+    "find_in_matter",
+    "quick_check_citations",
+    "assess_authority",
+    "record_treatment",
+    "run_rehearsal",
   ]);
   const sessionId = await app.evaluate((_e, m) => (globalThis as any).__openadvoTest.agentSessionId(m), id);
   const events = await page.evaluate((m) => (globalThis as any).openadvo.listEvents(m), id);

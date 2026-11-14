@@ -172,6 +172,17 @@ export class Research {
       if (!check) out.push(`${c}: not checked by the validator`);
       else if ((check.outcome === "failed" || check.outcome === "unresolved") && !check.attested) out.push(`${c}: ${check.outcome} (${check.reason ?? "no reason"}), not attested`);
     }
+    // V5-10: an overruled authority blocks the grounds (and the petition that repeats them) until addressed;
+    // a cited authority whose voice the advocate has not confirmed holds them in legal review.
+    if (draft.kind === "grounds" || draft.kind === "petition") {
+      const store = await this.matters.store(matterId);
+      for (const r of store.listReviewItems().filter((x) => x.kind === "authority_overruled" && x.status === "open")) out.push(r.detail);
+      const voices = new Map(store.studio.assessments().map((a) => [a.authorityId, a]));
+      for (const a of w.listAuthorities().filter((x) => x.status !== "rejected" && text.includes(x.citation))) {
+        const v = voices.get(a.id);
+        if (!v || v.voice === null || v.voiceStatus !== "confirmed") out.push(`${a.citation}: the voice of the passage relied on (holding, obiter, and so on) is not confirmed`);
+      }
+    }
     if (draft.kind === "grounds") {
       const review = w.adverseReview();
       if (!review) out.push("Adverse-authority review: not recorded");

@@ -187,6 +187,12 @@ test("steps 6 to 10: research, citations, grounds, filing set, capture, agent fi
     await page.getByTestId("adverse-coverage").fill("Citation index 1950 to 2023, party and subject search");
     await page.getByRole("button", { name: "Record review" }).click();
     await expect(page.getByTestId("adverse-status")).toContainText("none_found");
+    // V5-10: the cited authority's voice must be confirmed before the Grounds are approved.
+    await expect(call("approveRevision", matterId, kept.id)).rejects.toThrow(/1950 INSC 1: the voice/);
+    const authorityRow = page.getByTestId("authority-row").filter({ hasText: "1950 INSC 1" }).first();
+    await authorityRow.getByLabel("Voice of the authority").selectOption("holding");
+    await authorityRow.getByRole("button", { name: "Set voice" }).click();
+    await expect(authorityRow).toContainText("Voice confirmed");
     await call("approveRevision", matterId, kept.id);
 
     // ---- The other petition documents, approved by the advocate ----

@@ -109,6 +109,12 @@ export const AGENT_TOOLS = [
   "save_provision",
   "run_argument_loop",
   "list_arguments",
+  // V5: Find, quick check, support and voice, treatment, rehearsal. Candidates only.
+  "find_in_matter",
+  "quick_check_citations",
+  "assess_authority",
+  "record_treatment",
+  "run_rehearsal",
 ] as const;
 
 /** At most this many pages per read_source_text call, so one result never crowds the model out. */
@@ -678,6 +684,57 @@ export class Agent {
         execute: studio("list_arguments"),
       }),
     ];
+    const v5Tools = [
+      defineTool({
+        name: "find_in_matter",
+        label: "Find in matter",
+        description: "Full-text search over the matter: source lines, Notebook events, draft paragraphs, authorities, provisions, memoranda, issues and arguments. Returns where each hit is.",
+        parameters: Type.Object({ query: Type.String() }),
+        execute: studio("find_in_matter"),
+      }),
+      defineTool({
+        name: "quick_check_citations",
+        label: "Quick check citations",
+        description: "Compare every neutral citation of the matter with the local judgment index: found, not_found, mismatch (with the field) or unavailable. A quick check is NOT verification; check_citations runs the validator.",
+        parameters: Type.Object({}),
+        execute: studio("quick_check_citations"),
+      }),
+      defineTool({
+        name: "assess_authority",
+        label: "Assess authority",
+        description: "Propose, as a candidate for the advocate, the support an authority gives (supports, partially_supports, does_not_support, contrary, cannot_assess) or the voice of the passage relied on (holding, obiter, counsel_submission, lower_court_view, dissent, concurrence, unknown), with the basis.",
+        parameters: Type.Object({
+          authority_id: Type.String(),
+          field: Type.Union([Type.Literal("support"), Type.Literal("voice")]),
+          value: Type.String(),
+          basis: Type.String({ description: "Where in the judgment: the paragraph and why." }),
+        }),
+        execute: studio("assess_authority"),
+      }),
+      defineTool({
+        name: "record_treatment",
+        label: "Record treatment",
+        description: "Record that a later judgment overruled, doubted, distinguished, followed or referred an authority to a larger bench, with both judgments' dates and bench strengths when known. Overruled opens a review item that blocks the grounds until the advocate addresses it.",
+        parameters: Type.Object({
+          authority_id: Type.String(),
+          kind: Type.Union([Type.Literal("overruled"), Type.Literal("doubted"), Type.Literal("distinguished"), Type.Literal("followed"), Type.Literal("referred_to_larger_bench")]),
+          by_citation: Type.String(),
+          by_date: Type.Optional(Type.String({ description: "YYYY-MM-DD" })),
+          by_bench: Type.Optional(Type.Integer({ minimum: 1 })),
+          authority_date: Type.Optional(Type.String({ description: "YYYY-MM-DD" })),
+          authority_bench: Type.Optional(Type.Integer({ minimum: 1 })),
+          note: Type.Optional(Type.String()),
+        }),
+        execute: studio("record_treatment"),
+      }),
+      defineTool({
+        name: "run_rehearsal",
+        label: "Run rehearsal",
+        description: "Prepare the admission-hearing rehearsal: the bench's likely questions and opposing counsel's objections, each with an answer anchored to the record. Unanchored answers are dropped. No outcome is predicted.",
+        parameters: Type.Object({}),
+        execute: studio("run_rehearsal"),
+      }),
+    ];
     const v1Tools = [
       defineTool({
         name: "propose_memory_note",
@@ -881,7 +938,7 @@ export class Agent {
       settingsManager: SettingsManager.inMemory({ compaction: { enabled: false } }),
       sessionManager: fresh ? SessionManager.create(this.options.agentDir, sessionDir) : SessionManager.continueRecent(this.options.agentDir, sessionDir),
       tools: [...AGENT_TOOLS],
-      customTools: [listSources, readSourceText, searchSources, listEvents, getChronology, readDraft, getParagraphSource, checkDraftTool, proposeCorrection, ...workTools, ...v1Tools, ...v4Tools],
+      customTools: [listSources, readSourceText, searchSources, listEvents, getChronology, readDraft, getParagraphSource, checkDraftTool, proposeCorrection, ...workTools, ...v1Tools, ...v4Tools, ...v5Tools],
     });
     const active = session.getActiveToolNames();
     if (active.length !== AGENT_TOOLS.length || !AGENT_TOOLS.every((t) => active.includes(t))) {

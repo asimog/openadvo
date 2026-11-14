@@ -13,6 +13,11 @@ import { webFetch, webSearch } from "../lib/research-sources/web.ts";
 import { getBytes, SourceError } from "../lib/research-sources/http.ts";
 import { processPdf } from "../lib/document-intelligence/index.ts";
 import { groundedStatus, runLoop, type ArchivedArgument, type LoopContext } from "../lib/studio/index.ts";
+import { rehearse } from "../lib/studio/rehearsal.ts";
+import { disposalClass, quickCheck } from "../lib/matter-store/authority2.ts";
+import { findCitations } from "../lib/ulos/index.ts";
+import { readParagraphs } from "../lib/drafting/index.ts";
+import { randomUUID } from "node:crypto";
 import { MatterStoreError } from "../lib/matter-store/index.ts";
 import type { Matters } from "./matters.ts";
 import type { WriteContext } from "../shared/records.ts";
@@ -211,6 +216,38 @@ export class ResearchHub {
     return { source, ref, title: page.title || ref, detail: page.contentType, url: ref, sha256: createHash("sha256").update(page.text).digest("hex"), pages, notice: `From the web: for discovery only. It verifies nothing.${page.truncated ? " The page was cut at 24,000 characters." : ""}` };
   }
 
+  // ---- V5-9 and V5-12: quick check and bench trends ----
+
+  /** Every neutral citation of the matter's authorities and drafts, checked against the index. Not verification. */
+  async quickCheck(matterId: string) {
+    const store = await this.matters.store(matterId);
+    const years = new Set(this.parts().filter((p) => p.source === "sc").map((p) => p.year));
+    const index = { yearIndexed: (y: number) => years.has(y), byInsc: (c: string) => this.corpus.byInsc(c) };
+    const out = new Map<string, ReturnType<typeof quickCheck>>();
+    for (const a of store.work.listAuthorities().filter((x) => x.status !== "rejected")) {
+      const cits = findCitations(a.citation);
+      for (const c of cits.length ? cits : [a.citation]) out.set(c, quickCheck(c, { parties: a.parties, decisionDate: a.decisionDate }, index));
+    }
+    for (const d of store.listDrafts()) {
+      if (!d.head) continue;
+      const text = readParagraphs(await store.revisionBytes(d.head.id)).map((x) => x.text).join("\n");
+      for (const c of findCitations(text)) if (!out.has(c)) out.set(c, quickCheck(c, { parties: "", decisionDate: "" }, index));
+    }
+    return [...out.values()];
+  }
+
+  /** Indexed Supreme Court judgments by year and class of disposal. Descriptive; no score for any matter. */
+  trends(): Array<{ year: number; total: number; allowed: number; dismissed: number; disposed: number; other: number }> {
+    const byYear = new Map<number, { year: number; total: number; allowed: number; dismissed: number; disposed: number; other: number }>();
+    for (const r of this.corpus.disposalCounts()) {
+      const y = byYear.get(r.year) ?? { year: r.year, total: 0, allowed: 0, dismissed: 0, disposed: 0, other: 0 };
+      y.total += r.n;
+      y[disposalClass(r.disposal)] += r.n;
+      byYear.set(r.year, y);
+    }
+    return [...byYear.values()].sort((a, b) => a.year - b.year);
+  }
+
   // ---- saving (V4-2) ----
 
   async saveJudgment(matterId: string, ref: string, input: { paragraph?: string; proposition?: string; role?: string; issueId?: string | null }, ctx: WriteContext) {
@@ -275,10 +312,12 @@ export class ArgumentStudio {
   }
 
   /** The records the loop may use: confirmed events, live authorities and provisions. */
-  async context(matterId: string, issueId: string): Promise<LoopContext> {
+  async context(matterId: string, issueId: string | null): Promise<LoopContext> {
     const store = await this.matters.store(matterId);
-    const issue = store.work.listIssues().find((i) => i.id === issueId);
-    if (!issue) throw new MatterStoreError("ISSUE_NOT_FOUND", issueId);
+    // V5-11: the rehearsal takes every accepted issue; the loop takes one.
+    const accepted = store.work.listIssues().filter((i) => i.status === "accepted");
+    const issue = issueId ? store.work.listIssues().find((i) => i.id === issueId) : accepted.length ? { id: "all", text: accepted.map((i) => i.text).join(" "), status: "accepted" as const } : undefined;
+    if (!issue) throw new MatterStoreError(issueId ? "ISSUE_NOT_FOUND" : "NO_ACCEPTED_ISSUE", issueId ?? "accept an issue at the case conference first");
     if (issue.status !== "accepted") throw new MatterStoreError("ISSUE_NOT_ACCEPTED", "run the loop for an issue you accepted at the case conference");
     const nb = await this.matters.notebook(matterId);
     const checks = store.work.listCitationChecks();
@@ -314,6 +353,9 @@ export class ArgumentStudio {
     const c = await this.completer().catch(() => null);
     const running = this.running.get(matterId) ?? null;
     return {
+      assessments: store.studio.assessments(),
+      treatments: store.studio.treatments(),
+      challenges: store.studio.challenges(),
       provisions: store.studio.listProvisions(),
       runs: store.studio.runs(),
       arguments: args.map((a) => ({ ...a, computed: status.get(a.id) ?? "undecided" })),
@@ -395,6 +437,34 @@ export class ArgumentStudio {
   /** Resolves when the matter's loop has finished (tests). */
   async idle(matterId: string): Promise<void> {
     while (this.running.has(matterId)) await new Promise((r) => setTimeout(r, 50));
+  }
+
+  /**
+   * V5-11: the admission-hearing rehearsal. Model answers that are not anchored are dropped;
+   * the verified defects of the matter (open draft defects) join the challenge register.
+   */
+  async rehearse(matterId: string, ctx: WriteContext = { actor: "advocate" }): Promise<{ runId: string; added: number; rejected: number }> {
+    const c = await this.completer();
+    if (!c) throw new MatterStoreError("NO_MODEL", "no model is available. Set up a model in Pi, then try again");
+    const context = await this.context(matterId, null);
+    const store = await this.matters.store(matterId);
+    const runId = randomUUID();
+    const folder = path.join(store.folder, "studio", `rehearsal-${runId}`);
+    await mkdir(folder, { recursive: true });
+    let n = 0;
+    const r = await rehearse(async (system, user, label) => {
+      const response = await c.complete(system, user, `openadvo-rehearsal-${runId}`);
+      await writeFile(path.join(folder, `${String(++n).padStart(3, "0")}-${label}.json`), JSON.stringify({ label, model: c.model, system, user, response }, null, 2));
+      return response;
+    }, context);
+    for (const it of r.items) store.studio.addChallenge({ runId, kind: it.kind, category: it.category, text: it.text, answer: it.answer, refs: it.refs, origin: "generated" });
+    for (const item of store.listReviewItems().filter((x) => x.status === "open" && x.draftId)) {
+      if (store.studio.challenges().some((ch) => ch.origin === "verified_defect" && ch.text === item.detail)) continue;
+      store.studio.addChallenge({ runId, kind: "objection", category: "verified defect", text: item.detail, answer: "", refs: [item.id], origin: "verified_defect" });
+    }
+    store.appendEvent(ctx, "rehearsal.run", runId, { model: c.model, items: r.items.length, rejected: r.rejected.length });
+    this.onChange(matterId);
+    return { runId, added: r.items.length, rejected: r.rejected.length };
   }
 
   /** The weak-points report: for each accepted argument, unanswered questions and attacks not defeated. */

@@ -83,6 +83,9 @@ function human(ctx: WriteContext, what: string): void {
   if (ctx.actor !== "advocate") throw new MatterStoreError("HUMAN_ONLY", `only the advocate ${what}`);
 }
 
+/** V5-10 and V5-11. */
+import { SUPPORTS, TREATMENTS, VOICES, assess, assessments, challenges, decideChallenge, insertChallenge, insertTreatment, overrulingCheck, treatments, type Assessment, type Challenge, type Treatment } from "./authority2.ts";
+
 export class StudioStore {
   private store: MatterStore;
   private db: DatabaseSync;
@@ -129,6 +132,65 @@ export class StudioStore {
     if (Number(r.changes) === 0) throw new MatterStoreError("PROVISION_NOT_FOUND", id);
     this.store.appendEvent(ctx, `provision.${decision}`, id, null);
     return this.listProvisions().find((p) => p.id === id)!;
+  }
+
+  // ---- V5-10: support, voice and treatment ----
+
+  assessments(): Assessment[] {
+    return assessments(this.db);
+  }
+
+  /** The agent's assessment is a candidate; the advocate's is confirmed. */
+  assessAuthority(authorityId: string, field: "support" | "voice", value: string, basis: string, ctx: WriteContext): Assessment {
+    const by = who(ctx);
+    const allowed: readonly string[] = field === "support" ? SUPPORTS : VOICES;
+    if (!allowed.includes(value)) throw new MatterStoreError("BAD_VALUE", `${field} is one of ${allowed.join(", ")}`);
+    if (!this.db.prepare("SELECT 1 FROM authority WHERE id = ?").get(authorityId)) throw new MatterStoreError("AUTHORITY_NOT_FOUND", authorityId);
+    assess(this.db, authorityId, field, value, String(basis ?? ""), by === "advocate");
+    this.store.appendEvent(ctx, `authority.${field}_${by === "advocate" ? "confirmed" : "proposed"}`, authorityId, { value, basis: String(basis ?? "").slice(0, 300) });
+    return this.assessments().find((a) => a.authorityId === authorityId)!;
+  }
+
+  treatments(): Treatment[] {
+    return treatments(this.db);
+  }
+
+  /**
+   * A later judgment's treatment of an authority (I rules 5 to 7). Overruled opens a review item
+   * that blocks the grounds until the advocate records how it is addressed; the overruling check
+   * flags a smaller bench or an earlier judgment, and asks for missing facts.
+   */
+  addTreatment(input: Omit<Treatment, "id" | "createdAt" | "reviewItemId" | "author">, ctx: WriteContext): Treatment {
+    const by = who(ctx);
+    if (!(TREATMENTS as readonly string[]).includes(input.kind)) throw new MatterStoreError("BAD_VALUE", `treatment is one of ${TREATMENTS.join(", ")}`);
+    const au = this.db.prepare("SELECT citation FROM authority WHERE id = ?").get(input.authorityId) as { citation: string } | undefined;
+    if (!au) throw new MatterStoreError("AUTHORITY_NOT_FOUND", input.authorityId);
+    if (!String(input.byCitation ?? "").trim()) throw new MatterStoreError("CITATION_REQUIRED", "name the judgment that treated the authority");
+    let item: string | null = null;
+    if (input.kind === "overruled") item = this.store.openReviewItem("authority_overruled", null, null, `${au.citation} is recorded as overruled by ${input.byCitation}. Record how the grounds address it before they are approved.`);
+    const t = insertTreatment(this.db, { ...input, author: by }, item);
+    const flag = overrulingCheck(t);
+    if (flag) this.store.openReviewItem(flag.kind === "missing_facts" ? "treatment_facts_missing" : "treatment_check", null, null, `${au.citation}: ${flag.detail}`);
+    this.store.appendEvent(ctx, "authority.treatment_added", input.authorityId, { treatment: t.id, kind: t.kind, by: t.byCitation, flag: flag?.kind ?? null });
+    return t;
+  }
+
+  // ---- V5-11: the challenge register ----
+
+  challenges(): Challenge[] {
+    return challenges(this.db);
+  }
+
+  addChallenge(c: Omit<Challenge, "id" | "createdAt" | "status">): void {
+    insertChallenge(this.db, c);
+  }
+
+  /** Human-only. */
+  decideChallenge(id: string, status: "accepted" | "rejected", ctx: WriteContext): Challenge[] {
+    human(ctx, "decides a challenge");
+    if (!decideChallenge(this.db, id, status)) throw new MatterStoreError("CHALLENGE_NOT_FOUND", id);
+    this.store.appendEvent(ctx, `challenge.${status}`, id, null);
+    return this.challenges();
   }
 
   // ---- V4-3: argument runs ----

@@ -6,6 +6,7 @@
 import type { ArgumentStudio, ResearchHub, SourceName } from "./studio.ts";
 import type { Matters } from "./matters.ts";
 import type { ResearchDocument } from "../shared/studio.ts";
+import { ensureFindIndex } from "./audit.ts";
 
 const MAX_PAGES = 5;
 
@@ -67,6 +68,30 @@ export function studioTools(hub: ResearchHub, studio: ArgumentStudio, matters: M
                 `- [${a.computed}; ${a.status}; ${a.ground}/${a.stance}; rating ${Math.round(a.elo)}]${a.attacks ? ` ${a.attackKind} of ${a.attacks.slice(0, 8)}:` : ""} ${a.claim} (id ${a.id})${a.questions.length ? `\n  open questions: ${a.questions.join(" | ")}` : ""}`,
             )
             .join("\n") + `\n${st.loop.detail}. Status is computed from the attack links; the rating orders a cell and is not a probability.`;
+        }
+        case "find_in_matter": {
+          await ensureFindIndex(matters, matterId);
+          const hits = (await matters.store(matterId)).find(s("query"), 20);
+          return hits.length ? hits.map((h, i) => `${i + 1}. [${h.kind}] ${h.label}: ${h.snippet} (ref ${h.ref})`).join("\n") : "No match in the matter.";
+        }
+        case "quick_check_citations": {
+          const r = await hub.quickCheck(matterId);
+          return `Quick check, not verified.\n${r.map((q) => `- ${q.citation}: ${q.outcome}${q.field ? ` (${q.field})` : ""}: ${q.detail}`).join("\n") || "No citation."}`;
+        }
+        case "assess_authority": {
+          const a = (await matters.store(matterId)).studio.assessAuthority(s("authority_id"), s("field") === "voice" ? "voice" : "support", s("value"), s("basis"), agent);
+          return `Proposed as a candidate: support ${a.support ?? "not assessed"} (${a.supportStatus}), voice ${a.voice ?? "not assessed"} (${a.voiceStatus}). The advocate confirms.`;
+        }
+        case "record_treatment": {
+          const t = (await matters.store(matterId)).studio.addTreatment(
+            { authorityId: s("authority_id"), kind: s("kind") as never, byCitation: s("by_citation"), byDate: s("by_date"), byBench: n("by_bench") ?? null, authorityDate: s("authority_date"), authorityBench: n("authority_bench") ?? null, note: s("note") },
+            agent,
+          );
+          return `Recorded: ${t.kind} by ${t.byCitation}${t.reviewItemId ? ". A review item now blocks the grounds until the advocate records how it is addressed" : ""}.`;
+        }
+        case "run_rehearsal": {
+          const r = await studio.rehearse(matterId, agent);
+          return `Rehearsal prepared (${r.added} anchored item(s); ${r.rejected} dropped as unanchored). It is in the Studio's Rehearsal part for the advocate.`;
         }
         default:
           return `Unknown Studio tool: ${tool}`;

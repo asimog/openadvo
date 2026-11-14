@@ -245,6 +245,32 @@ function registerBridge(): void {
     };
   });
   handle("studio:stop", (matterId: string) => studio.stop(matterId));
+  // V5-9 to V5-12: quick check, assessments, treatments, rehearsal, trends. Confirmations are the advocate's.
+  handle("studio:quickCheck", (matterId: string) => hub.quickCheck(matterId));
+  handle("studio:trends", () => hub.trends());
+  handle("studio:assess", async (matterId: string, authorityId: string, field: string, value: string, basis: string) =>
+    (await matters.store(matterId)).studio.assessAuthority(String(authorityId), field === "voice" ? "voice" : "support", String(value), String(basis ?? ""), { actor: "advocate" }),
+  );
+  handle("studio:addTreatment", async (matterId: string, input: Record<string, unknown>) =>
+    (await matters.store(matterId)).studio.addTreatment(
+      {
+        authorityId: String(input?.authorityId ?? ""),
+        kind: String(input?.kind ?? "") as never,
+        byCitation: String(input?.byCitation ?? ""),
+        byDate: String(input?.byDate ?? ""),
+        byBench: Number(input?.byBench) || null,
+        authorityDate: String(input?.authorityDate ?? ""),
+        authorityBench: Number(input?.authorityBench) || null,
+        note: String(input?.note ?? ""),
+      },
+      { actor: "advocate" },
+    ),
+  );
+  handle("studio:rehearse", (matterId: string) => studio.rehearse(matterId));
+  handle("studio:decideChallenge", async (matterId: string, id: string, status: string) => {
+    if (status !== "accepted" && status !== "rejected") throw new Error("BAD_DECISION: accepted or rejected");
+    return (await matters.store(matterId)).studio.decideChallenge(String(id), status, { actor: "advocate" });
+  });
   // V5-6 to V5-8: entities, corrections, date anchors, OCR disputes. Decisions are human-only.
   handle("notebook:entities", async (matterId: string) => {
     const store = await matters.store(matterId);
@@ -615,6 +641,11 @@ function exposeTestHooks(): void {
       return (await matters.store(matterId)).studio.runs().at(-1);
     },
     studioTool: (matterId: string, tool: string, params: Record<string, unknown>) => studioTools(hub, studio, matters)(matterId, tool, params, ""),
+    // V5-11: the rehearsal with a scripted model.
+    rehearseScripted: async (matterId: string, script: Array<{ match: string; answer: string }>) => {
+      const fake = new ArgumentStudio(matters, async () => ({ model: "test/scripted", complete: async (_s: string, user: string) => script.find((x) => user.includes(x.match))?.answer ?? "{}" }));
+      return fake.rehearse(matterId);
+    },
     importEml: async (matterId: string, paths: string[]) => {
       const out = await mail.importEmlFiles(matterId, paths);
       ingest.enqueue(matterId);

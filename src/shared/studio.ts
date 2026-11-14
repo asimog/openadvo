@@ -82,7 +82,58 @@ export interface ArgumentRejection {
 /** Computed by code (grounded semantics), never by a model. */
 export type ArgumentStatus = "in" | "out" | "undecided";
 
+/** V5-10. */
+export interface Assessment {
+  authorityId: string;
+  support: string | null;
+  supportBasis: string;
+  supportStatus: "candidate" | "confirmed";
+  voice: string | null;
+  voiceBasis: string;
+  voiceStatus: "candidate" | "confirmed";
+}
+
+export interface Treatment {
+  id: string;
+  authorityId: string;
+  kind: "overruled" | "doubted" | "distinguished" | "followed" | "referred_to_larger_bench";
+  byCitation: string;
+  byDate: string;
+  byBench: number | null;
+  authorityDate: string;
+  authorityBench: number | null;
+  note: string;
+  author: "advocate" | "agent";
+  reviewItemId: string | null;
+  createdAt: string;
+}
+
+/** V5-11: one entry of the challenge register. */
+export interface Challenge {
+  id: string;
+  runId: string;
+  kind: "bench_question" | "objection";
+  category: string;
+  text: string;
+  answer: string;
+  refs: string[];
+  origin: "generated" | "verified_defect";
+  status: "open" | "accepted" | "rejected";
+  createdAt: string;
+}
+
+/** V5-9. Never a verification: labelled "Quick check, not verified". */
+export interface QuickCheck {
+  citation: string;
+  outcome: "found" | "not_found" | "mismatch" | "unavailable";
+  field: string | null;
+  detail: string;
+}
+
 export interface StudioState {
+  assessments: Assessment[];
+  treatments: Treatment[];
+  challenges: Challenge[];
   provisions: ProvisionRecord[];
   runs: ArgumentRun[];
   arguments: Array<ArgumentRecord & { computed: ArgumentStatus }>;

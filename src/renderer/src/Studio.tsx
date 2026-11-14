@@ -11,6 +11,7 @@ import { TabList, Tab } from "@astryxdesign/core/TabList";
 import type { ArgumentRecord, ArgumentStatus, CorpusPart, EventRecord, IssueRecord, ResearchDocument, ResearchHit, StudioState } from "../../shared/api.ts";
 import { GROUNDS, STANCES } from "../../shared/studio.ts";
 import { InspectButton } from "./V5.tsx";
+import { AuthorityReview, RehearsalPart } from "./StudioV5.tsx";
 
 const api = window.openadvo;
 
@@ -35,10 +36,17 @@ export function StudioView(props: { matterId: string; version: number; conferenc
         <Tab value="conference" label="Conference" />
         <Tab value="sources" label="Search" />
         <Tab value="arguments" label="Arguments" />
+        <Tab value="rehearsal" label="Rehearsal" />
         <Tab value="log" label="Research log" />
       </TabList>
       <div className="studio-body">
-        {part === "conference" ? props.conference : null}
+        {part === "conference" ? (
+          <>
+            {props.conference}
+            <AuthorityReview matterId={props.matterId} version={props.version + changed} />
+          </>
+        ) : null}
+        {part === "rehearsal" ? <RehearsalPart matterId={props.matterId} version={props.version + changed} /> : null}
         {part === "sources" ? <SourcesPart matterId={props.matterId} /> : null}
         {part === "arguments" ? <ArgumentsPart matterId={props.matterId} version={props.version + changed} /> : null}
         {part === "log" ? <LogPart matterId={props.matterId} version={props.version + changed} /> : null}
