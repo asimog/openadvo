@@ -486,7 +486,9 @@ export class WorkStore {
     for (const it of items) {
       if (ids.has(it.sourceId)) throw new MatterStoreError("DUPLICATE_ANNEXURE", it.sourceId);
       ids.add(it.sourceId);
-      if (!this.store.getSource(it.sourceId)) throw new MatterStoreError("SOURCE_NOT_FOUND", it.sourceId);
+      const src = this.store.getSource(it.sourceId);
+      if (!src) throw new MatterStoreError("SOURCE_NOT_FOUND", it.sourceId);
+      if (src.mediaType !== "application/pdf") throw new MatterStoreError("ANNEXURE_NOT_PDF", `${src.name} is not a PDF. An annexure goes into the filing set as it is, so it must be a PDF.`);
     }
     this.db.exec("BEGIN");
     try {

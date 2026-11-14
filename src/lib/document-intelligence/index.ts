@@ -7,6 +7,8 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { MEDIA, docxParagraphs, paginate, textLines } from "./formats.ts";
+
 const nodeRequire = createRequire(import.meta.url);
 
 export interface LineBox {
@@ -216,4 +218,36 @@ export async function processPdf(bytes: Uint8Array, onPage?: (page: PageText) =>
     await onPage?.(page);
   }
   return pages;
+}
+
+/** Read an image (PNG or JPEG) by OCR as one page (V2-1). Its size in pixels is its page size. */
+export async function processImage(bytes: Uint8Array, onPage?: (page: PageText) => Promise<void> | void): Promise<PageText[]> {
+  const { loadImage } = (await import("@napi-rs/canvas")) as typeof import("@napi-rs/canvas");
+  const img = await loadImage(Buffer.from(bytes));
+  const ocr = await ocrPage(Buffer.from(bytes), img.width, img.height, 1);
+  const found = printable(ocr.text) > 0;
+  const page: PageText = {
+    page: 1,
+    width: img.width,
+    height: img.height,
+    kind: found ? "ocr" : "none",
+    text: found ? ocr.text : "",
+    lines: found ? ocr.lines : [],
+    ...(found ? { ocr: { engine: OCR_ENGINE, version: ocrVersion(), confidence: ocr.confidence } } : {}),
+  };
+  await onPage?.(page);
+  return [page];
+}
+
+/** Process one source by its media type (V2-1). */
+export async function processSource(bytes: Uint8Array, mediaType: string, onPage?: (page: PageText) => Promise<void> | void): Promise<PageText[]> {
+  if (mediaType === MEDIA.pdf) return processPdf(bytes, onPage);
+  if (mediaType === MEDIA.png || mediaType === MEDIA.jpeg) return processImage(bytes, onPage);
+  if (mediaType === MEDIA.docx || mediaType === MEDIA.text) {
+    const lines = mediaType === MEDIA.docx ? docxParagraphs(bytes) : textLines(bytes);
+    const pages: PageText[] = paginate(lines).map((p) => ({ ...p, kind: "born_digital" as const }));
+    for (const p of pages) await onPage?.(p);
+    return pages;
+  }
+  throw new Error(`not supported: ${mediaType}`);
 }

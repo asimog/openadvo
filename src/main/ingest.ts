@@ -5,7 +5,7 @@
  * Results reach the matter store only through main/matters.ts.
  */
 import { readFile } from "node:fs/promises";
-import { processPdf } from "../lib/document-intelligence/index.ts";
+import { processSource } from "../lib/document-intelligence/index.ts";
 import type { Matters } from "./matters.ts";
 import { extractNotebook } from "./notebook.ts";
 
@@ -52,7 +52,7 @@ export class Ingest {
       try {
         const { path } = await this.matters.sourceFile(matterId, source.id);
         const bytes = new Uint8Array(await readFile(path));
-        const pages = await processPdf(bytes, async (page) => {
+        const pages = await processSource(bytes, source.mediaType, async (page) => {
           await this.matters.recordPage(matterId, source.id, page);
         });
         await this.matters.finishJob(matterId, source.id, pages.length);

@@ -120,12 +120,12 @@ export function SourcesPanel(props: {
         onDrop={onDrop}
       >
         <Icon icon={ArrowUpTrayIcon} size="md" color="secondary" />
-        <Text type="supporting">Drop PDF files here</Text>
+        <Text type="supporting">Drop files here: PDF, DOCX, text, PNG or JPEG</Text>
       </div>
       {props.sources.length > 0 ? (
         <SourcesTable sources={props.sources} jobs={props.jobs} eventCounts={props.eventCounts} onSelect={props.onSelect} />
       ) : (
-        <Text type="supporting">No sources yet. Add the PDFs of the brief.</Text>
+        <Text type="supporting">No sources yet. Add the files of the brief.</Text>
       )}
     </section>
   );
@@ -136,7 +136,7 @@ function cleanError(e: Error): string {
 }
 
 /** Opens a source in the Euro-Office PDF editor (read only) and closes the view when the source changes. */
-function useSourceView(matterId: string, sourceId: string): { url: string | null; error: string | null } {
+function useSourceView(matterId: string, sourceId: string, enabled: boolean): { url: string | null; error: string | null } {
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -144,6 +144,7 @@ function useSourceView(matterId: string, sourceId: string): { url: string | null
     let opened: string | null = null;
     setUrl(null);
     setError(null);
+    if (!enabled) return;
     api.openSourceView(matterId, sourceId).then(
       (u) => {
         opened = u;
@@ -156,7 +157,7 @@ function useSourceView(matterId: string, sourceId: string): { url: string | null
       live = false;
       if (opened) void api.closeView(opened);
     };
-  }, [matterId, sourceId]);
+  }, [matterId, sourceId, enabled]);
   return { url, error };
 }
 
@@ -233,6 +234,14 @@ export function EventTable(props: { events: EventRecord[] }) {
   );
 }
 
+/** V2-1: what the advocate is told about a source that is not a PDF. */
+const FORMAT_NOTE: Record<string, string> = {
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "DOCX: no PDF view. Each paragraph is one line; pages are blocks of 50 lines, not printed pages.",
+  "text/plain": "Plain text: no PDF view. Pages are blocks of 50 lines, not printed pages.",
+  "image/png": "Image: no PDF view. Read by OCR as one page.",
+  "image/jpeg": "Image: no PDF view. Read by OCR as one page.",
+};
+
 const FRAME_SANDBOX = "allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads";
 
 /**
@@ -260,9 +269,11 @@ export function SourceDetail(props: {
     void api.getSourcePages(props.matterId, props.source.id).then(setPages);
   }, [props.matterId, props.source.id, props.version]);
   const events = props.events.filter((e) => e.subject === props.source.id);
-  const view = useSourceView(props.matterId, props.source.id);
+  const isPdf = props.source.mediaType === "application/pdf";
+  const view = useSourceView(props.matterId, props.source.id, isPdf);
   const unreadable = pages.filter((p) => p.kind !== "born_digital").length;
   const showText = pages.length > 0 && (unreadable > 0 || props.focus !== null);
+  const textOnly = !isPdf;
   const frame = (
     <>
       {view.error ? <div className="notice work-pad" data-testid="viewer-error">{view.error}</div> : null}
@@ -287,6 +298,7 @@ export function SourceDetail(props: {
                 ) : null}
               </div>
               {view.url ? <ViewerState url={view.url} /> : null}
+              {textOnly ? <Text type="supporting" data-testid="viewer-state">{FORMAT_NOTE[props.source.mediaType] ?? "No PDF view for this format."}</Text> : null}
               <details>
                 <summary>Hash, origins and events</summary>
                 <dl className="facts">
@@ -315,7 +327,11 @@ export function SourceDetail(props: {
             props.dock,
           )
         : null}
-      {showText ? (
+      {textOnly ? (
+        <div className="source-info source-text-only">
+          {pages.length > 0 ? <PageText pages={pages} focus={props.focus} /> : <div className="work-pad"><Text type="supporting">Reading the file…</Text></div>}
+        </div>
+      ) : showText ? (
         <Group orientation="vertical" style={{ height: "100%" }}>
           <Panel id="source-frame" defaultSize="62%" minSize="20%">
             {frame}

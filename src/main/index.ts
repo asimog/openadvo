@@ -300,7 +300,7 @@ function registerBridge(): void {
     const result = await dialog.showOpenDialog(window, {
       title: "Add PDF files to the matter",
       properties: ["openFile", "multiSelections"],
-      filters: [{ name: "PDF", extensions: ["pdf"] }],
+      filters: [{ name: "Documents", extensions: ["pdf", "docx", "txt", "png", "jpg", "jpeg"] }],
     });
     return result.canceled ? [] : result.filePaths;
   });

@@ -287,12 +287,12 @@ test("steps 6 to 10: research, citations, grounds, filing set, capture, agent fi
       "Message-ID: <abc123@example.com>", "MIME-Version: 1.0", 'Content-Type: multipart/mixed; boundary="b1"', "",
       "--b1", "Content-Type: text/plain", "", "Please find the letter attached.", "",
       "--b1", "Content-Type: application/pdf", 'Content-Disposition: attachment; filename="client-letter.pdf"', "Content-Transfer-Encoding: base64", "", attachment, "",
-      "--b1", "Content-Type: image/png", 'Content-Disposition: attachment; filename="logo.png"', "Content-Transfer-Encoding: base64", "", "iVBORw0KGgo=", "", "--b1--", "",
+      "--b1", "Content-Type: application/zip", 'Content-Disposition: attachment; filename="logo.zip"', "Content-Transfer-Encoding: base64", "", "UEsFBgAAAAAAAAAAAAAAAAAAAAAAAA==", "", "--b1--", "",
     ].join("\r\n"));
     const mailed = await app.evaluate((_e, a) => (globalThis as any).__openadvoTest.importEml(a.m, [a.f]), { m: matterId, f: eml });
     expect(mailed.attachments).toEqual([
       { message: "client@example.com: Documents for the SLP", name: "client-letter.pdf", outcome: "added" },
-      { message: "client@example.com: Documents for the SLP", name: "logo.png", outcome: "skipped: not a PDF" },
+      { message: "client@example.com: Documents for the SLP", name: "logo.zip", outcome: "skipped: format not accepted" },
     ]);
     const mailEvent = (await call<any[]>("listEvents", matterId)).find((e) => e.action === "source.captured" && e.data.method === "email");
     expect(mailEvent.data.url).toBe("mid:abc123@example.com");

@@ -12,6 +12,7 @@ import { mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promi
 import path from "node:path";
 
 import { WORK_SCHEMA, WorkStore } from "./work.ts";
+import { ACCEPTED_TEXT, detectMediaType } from "../document-intelligence/formats.ts";
 import type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus, DraftKind, RevisionAuthor, DraftRecord, RevisionRecord, ParagraphLinkRecord } from "../../shared/records.ts";
 
 export type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus, DraftKind, RevisionAuthor, DraftRecord, RevisionRecord, ParagraphLinkRecord };
@@ -32,7 +33,6 @@ export class MatterStoreError extends Error {
 const SCHEMA_VERSION = 1;
 const DB_FILE = "matter.db";
 const BLOBS = "blobs";
-const PDF_MAGIC = Buffer.from("%PDF-", "latin1");
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS matter (
@@ -235,9 +235,6 @@ export async function sha256OfFile(file: string): Promise<string> {
   return hash.digest("hex");
 }
 
-function isPdf(bytes: Buffer): boolean {
-  return bytes.length >= PDF_MAGIC.length && bytes.subarray(0, PDF_MAGIC.length).equals(PDF_MAGIC);
-}
 
 async function exists(p: string): Promise<boolean> {
   try {
@@ -442,9 +439,10 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
     } catch (e) {
       return { path: file, outcome: "refused", reason: `cannot read: ${(e as Error).message}` };
     }
-    if (!isPdf(bytes)) {
-      this.appendEvent(ctx, "source.refused", null, { name: path.basename(resolved), reason: "not a PDF" });
-      return { path: file, outcome: "refused", reason: "not a PDF (the file does not start with %PDF-)" };
+    const mediaType = detectMediaType(bytes, path.basename(resolved));
+    if (!mediaType) {
+      this.appendEvent(ctx, "source.refused", null, { name: path.basename(resolved), reason: "format not accepted" });
+      return { path: file, outcome: "refused", reason: `format not accepted (accepted: ${ACCEPTED_TEXT})` };
     }
     const sha256 = createHash("sha256").update(bytes).digest("hex");
     const name = path.basename(resolved);
@@ -468,9 +466,9 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
       .prepare(
         "INSERT INTO source (id, sha256, name, size, media_type, added_at, status, checked_at) VALUES (?, ?, ?, ?, ?, ?, 'ok', ?)",
       )
-      .run(id, sha256, name, bytes.length, "application/pdf", at, at);
+      .run(id, sha256, name, bytes.length, mediaType, at, at);
     this.addOrigin(id, name, resolved, ctx);
-    this.appendEvent(ctx, "source.added", id, { name, sha256, size: bytes.length });
+    this.appendEvent(ctx, "source.added", id, { name, sha256, size: bytes.length, mediaType });
     return { path: file, outcome: "added", source: this.getSource(id) };
   }
 

@@ -67,7 +67,7 @@ test("create, add, duplicate, refuse, restart, integrity", async () => {
   const judgment = path.join(dirs.inbox, "impugned-judgment.pdf");
   const annexure = path.join(dirs.inbox, "annexure-p1.pdf");
   const again = path.join(dirs.inbox, "impugned-judgment (copy).pdf");
-  const note = path.join(dirs.inbox, "note.txt");
+  const note = path.join(dirs.inbox, "note.csv");
   await writeFile(judgment, pdf("judgment"));
   await writeFile(annexure, pdf("annexure"));
   await writeFile(again, pdf("judgment"));

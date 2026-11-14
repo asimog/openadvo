@@ -19,6 +19,15 @@ import { ImapFlow } from "imapflow";
 import type { Matters } from "./matters.ts";
 import { MatterStoreError } from "../lib/matter-store/index.ts";
 
+/** Attachment types taken from a message, with the file ending each one needs (V2-1). */
+const ACCEPTED_TYPES: Record<string, string> = {
+  "application/pdf": ".pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+  "text/plain": ".txt",
+  "image/png": ".png",
+  "image/jpeg": ".jpg",
+};
+
 export interface MailAccount {
   host: string;
   port: number;
@@ -38,7 +47,7 @@ export class Mail {
     this.matters = matters;
   }
 
-  /** Import the PDF attachments of one raw message. `origin` names where the message came from. */
+  /** Import the attachments of one raw message (V2-1: PDF, DOCX, text, PNG, JPEG). `origin` names where the message came from. */
   private async importMessage(matterId: string, raw: Buffer | string, origin: string, out: MailImportResult): Promise<void> {
     const email = await PostalMime.parse(raw);
     const label = `${email.from?.address ?? "unknown sender"}: ${email.subject ?? "(no subject)"}`;
@@ -48,12 +57,13 @@ export class Mail {
     try {
       for (const a of email.attachments) {
         const name = (a.filename || "attachment").replace(/[\\/:*?"<>|]+/g, " ").trim() || "attachment";
-        const isPdfType = a.mimeType === "application/pdf" || name.toLowerCase().endsWith(".pdf");
-        if (!isPdfType) {
-          out.attachments.push({ message: label, name, outcome: "skipped: not a PDF" });
+        // V2-1: the matter store decides the format from the bytes; the name keeps a .txt ending for text.
+        const ext = ACCEPTED_TYPES[a.mimeType] ?? (/.(pdf|docx|txt|png|jpe?g)$/i.test(name) ? "" : null);
+        if (ext === null) {
+          out.attachments.push({ message: label, name, outcome: "skipped: format not accepted" });
           continue;
         }
-        const file = path.join(dir, name.toLowerCase().endsWith(".pdf") ? name : `${name}.pdf`);
+        const file = path.join(dir, ext && !name.toLowerCase().endsWith(ext) ? `${name}${ext}` : name);
         const content = typeof a.content === "string" ? Buffer.from(a.content) : Buffer.from(a.content as ArrayBuffer);
         await writeFile(file, content);
         const [result] = await this.matters.addFiles(matterId, [file], { actor: "advocate" });

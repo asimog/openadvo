@@ -14,7 +14,7 @@ async function fixture() {
   const pdfA = path.join(inbox, "judgment.pdf");
   const pdfB = path.join(inbox, "annexure-p1.pdf");
   const copyA = path.join(inbox, "judgment copy.pdf");
-  const text = path.join(inbox, "note.txt");
+  const text = path.join(inbox, "note.csv");
   await writeFile(pdfA, "%PDF-1.7\nfixture A\n%%EOF\n");
   await writeFile(pdfB, "%PDF-1.4\nfixture B\n%%EOF\n");
   await writeFile(copyA, "%PDF-1.7\nfixture A\n%%EOF\n");

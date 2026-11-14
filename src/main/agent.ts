@@ -271,7 +271,7 @@ export function formatParagraphSource(s: ParagraphSource): string {
 
 function formatSources(sources: SourceRecord[]): string {  if (sources.length === 0) return "The matter has no sources.";
   const lines = sources.map(
-    (s, i) => `${i + 1}. ${s.name} | sha256 ${s.sha256} | ${s.size} bytes | status ${s.status} | added ${s.origins} time(s)`,
+    (s, i) => `${i + 1}. ${s.name} | ${s.mediaType} | sha256 ${s.sha256} | ${s.size} bytes | status ${s.status} | added ${s.origins} time(s)`,
   );
   return `${sources.length} source(s):\n${lines.join("\n")}`;
 }
