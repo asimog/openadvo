@@ -126,7 +126,7 @@ button.link { background: none; border: 0; padding: 0; color: var(--color-text-a
 .work-list { display: flex; flex-direction: column; gap: 6px; margin: 0; padding-left: 18px; }
 .field-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px 12px; }
 .field { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
-.field input, .field select, .field textarea, .row-actions input { font: inherit; padding: 4px 6px; border: 1px solid var(--color-border, #c8c8c8); border-radius: 6px; background: transparent; color: inherit; }
+.field input, .field select, .field textarea, .row-actions input, .workflow-form input, .workflow-form textarea, .memory-text { font: inherit; padding: 4px 6px; border: 1px solid var(--color-border, #c8c8c8); border-radius: 6px; background: transparent; color: inherit; }
 .row-actions { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-left: 6px; }
 .memo-body pre { white-space: pre-wrap; font: inherit; margin: 6px 0; }
 

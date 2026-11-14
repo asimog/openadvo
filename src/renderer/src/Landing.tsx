@@ -194,7 +194,7 @@ export function Landing(props: {
                 </Grid>
               ) : null}
               {category === "workflows" ? (
-                <VStack gap={2}>
+                <VStack gap={2} className="workflow-form">
                   <Heading level={4}>Your workflows</Heading>
                   {workflows.filter((w) => !w.builtIn).map((w) => (
                     <HStack key={w.id} gap={2} vAlign="center">

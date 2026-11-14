@@ -25,7 +25,8 @@
 
 | Path | Holds |
 |---|---|
-| Matters root: `<Documents>/Open Advocate/Matters` (from `app.getPath("documents")`), or the folder in `OPENADVO_HOME` | One folder per matter: `matter.db` and `blobs/<sha256>`. |
+| Matters root: `<Documents>/Open Advocate/Matters` (from `app.getPath("documents")`), or the folder in `OPENADVO_HOME` | One folder per matter: `matter.db`, `blobs/<sha256>`, `filing/<time>/` (filing sets with `manifest.json`), `chat/` (Pi session files in `chat/pi/` and the window's `messages.json`), `memory.md` (the advocate's matter memory), and the marker file `archived` when the matter is archived. |
+| User data: `settings.json` (model, effort, mail account) and `workflows.json` (the advocate's own workflows) | Settings of the application. No secret: the mail password is in `safeStorage`. |
 | Pi credentials | Pi's own credential store for the owner. The application does not read or copy it. See [questions.md](questions.md) Q-2. |
 
 ## Reference repositories

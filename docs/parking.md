@@ -10,10 +10,10 @@ Each line: the idea, where it came from, and the step it would touch.
 | A review inbox split into Signal and Noise, keyboard operable. | Earlier idea M-03 | 3 or later |
 | A command bar that searches commands, matters and records. | Earlier idea M-04 | After round 1 |
 | Saved pane layouts per matter, and navigation history. | Earlier idea M-02 | After round 1 |
-| Matter memory as a markdown file the advocate can read and edit. | Earlier idea M-13 | 6 |
-| Pi session persistence to a file in the matter folder, so the chat history survives a restart. Step 1 keeps the chat in memory for one run. | Step 1 build | 1, second version |
-| A matter rename and archive. | Step 1 build | 1, second version |
-| Render the agent's markdown in the chat pane (the proof run shows raw `**bold**`). | Step 1 proof run | 1, second version |
+| Matter memory as a markdown file the advocate can read and edit. **Moved into v1 (V1-3) by the owner's instruction, 2026-11-14.** | Earlier idea M-13 | 6 |
+| Pi session persistence to a file in the matter folder, so the chat history survives a restart. **Built in v1 (V1-1).** | Step 1 build | 1, second version |
+| A matter rename and archive. **Built in v1 (V1-10).** | Step 1 build | 1, second version |
+| Render the agent's markdown in the chat pane (the proof run shows raw `**bold**`). **Built in v1 (V1-2).** | Step 1 proof run | 1, second version |
 | Run ingestion in a worker thread, so a very large bundle never slows the window. Step 2 runs it in the main process (109 real pages took about 2.6 seconds). | Step 2 build | 2, second version |
 | Answer the editor's `/downloadfile/<key>` request (it asks a document server for the file; today it gets 404 and opens the file through the desktop route anyway). | Step 2 build | 2, second version |
 | Scroll the PDF editor to a line anchor and mark it. | Step 2 spec | 2, second version |
@@ -30,3 +30,7 @@ Each line: the idea, where it came from, and the step it would touch.
 | Clean the event description before generated prose: the step 3 extractor keeps list numbering ("2. In brief …") and repeated date phrases ("on the date of the incident, i.e. 18.3.1988"), and the List of Dates and Synopsis show them. The step 3 extractor owns the text. | Step 4 proof run on real documents | 3, second version |
 | Help the advocate select and order the generated List of Dates rows. v0 converts every confirmed dated line: round 1 proof produced 89 rows against the brief's 5 curated rows, and all 5 real dates were among the 89. | Round 1 proof run | 4, second version |
 | CopilotKit as a chat and approval UI kit over AG-UI. Not taken on 2026-11-14: it would be a second component library beside Astryx (choice 11) and it expects an HTTP runtime. AG-UI itself is adopted (choice 21). | Owner, 2026-11-14 | 6 |
+| A model curator that proposes memory updates after a quiet chat (Mike's scoped memory). v1 memory is written by the advocate only. | Mike analysis, 2026-11-14 | V1-3, second version |
+| Playbooks: rules compiled from the advocate's own drafting guides, to review a petition against them (Mike playbooks). | Mike analysis, 2026-11-14 | 5 or 6, second version |
+| Sign the filing manifest with an Ed25519 key kept in `safeStorage` (Mike signs its exports). | Mike analysis, 2026-11-14 | V1-8, second version |
+| An interim-relief section and prayer in the petition, and an application for condonation of delay when limitation has run. | V1-7 build | V1-7, second version |

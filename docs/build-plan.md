@@ -241,6 +241,9 @@ Round 1 steps also list the main-process modules, agent tools, bridge functions,
 ### Round 4. V1 of the components
 
 - **Started 2026-11-14 on the owner's instruction**, which overrides rule B6 for this round. **Spec:** [specs/v1.md](specs/v1.md) (items V1-1 to V1-10). Each item is built thin, joined to the rest, tested, and pushed to `main` on its own.
+- **Built 2026-11-14 (as built):** V1-9 in `src/lib/notebook/index.ts` (method `rules-v2`); V1-8 in `src/lib/filing/index.ts` (`canonicalJson`, `manifestDigest`, `verifyManifest`) and `src/main/filing.ts`; V1-6 and V1-7 in `src/lib/drafting/structured.ts` and `Drafts.generate` (draft kinds `conference` and `petition`, migrated), check rules 23 and 24 as defect kinds `incomplete` and `prayer_mismatch`, approval refused with `DRAFT_INCOMPLETE`; V1-1 in `src/main/agent.ts` (`SessionManager.continueRecent` in `<matter>/chat/pi`, `messages.json`, `newConversation`); V1-2 in `src/shared/markdown.ts` and `src/renderer/src/Markdown.tsx`; V1-3 in `main/matters.ts` and the tool `read_matter_memory`; V1-4 in `src/lib/workflows/index.ts`; V1-5 in `work.ts` (`record_column`, `record_cell`), `src/main/record-table.ts` and the tools `list_record_table`, `fill_record_cell`; V1-10 in the matter store (`rename`, the `archived` marker file). Views: `src/renderer/src/V1.tsx`, the Record table tab, the chat dock (New conversation, Workflows), the landing page (Workflows, Archived).
+- **Tests (as built):** `tests/unit/notebook-v1.test.ts`, `filing-manifest.test.ts`, `structured.test.ts`, `markdown.test.ts`; `tests/e2e/v1.spec.ts`; `tests/e2e/steps6to10.spec.ts` extended with the conference package, the petition and the manifest check. Report: [2026-11-14-v1-report.md](../.agents/logs/2026-11-14-v1-report.md).
+- **Proof task:** see [specs/v1.md](specs/v1.md). Not yet run by the owner.
 
 ## 5. Integration
 
