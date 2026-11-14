@@ -17,7 +17,8 @@ import { checkDraft, defectItemKind, gateState } from "../lib/verification/index
 import { decideChanges, pendingChanges, proposeInsertion, proposeReplacement, type ChangeDecision } from "../lib/tracked-changes/index.ts";
 import { caseNumbers } from "../lib/verification/index.ts";
 import type { AgentChanges } from "../shared/records.ts";
-import { bodyParagraphs, conferenceBlocks, generateStructured, petitionBlocks, prayerDefect, TITLES, TO_COMPLETE } from "../lib/drafting/structured.ts";
+import { delayDays } from "../lib/filing/index.ts";
+import { bodyParagraphs, conferenceBlocks, condonationBlocks, generateStructured, petitionBlocks, prayerDefect, TITLES, TO_COMPLETE } from "../lib/drafting/structured.ts";
 import type { DraftCheck } from "../shared/records.ts";
 import {
   eventSentence,
@@ -127,7 +128,7 @@ export class Drafts {
    * not put a contested date into prose.
    */
   async generate(matterId: string, kind: DraftKind): Promise<GeneratedDraft> {
-    if (kind === "petition" || kind === "conference") return this.generateStructuredDraft(matterId, kind);
+    if (kind === "petition" || kind === "conference" || kind === "condonation") return this.generateStructuredDraft(matterId, kind);
     if (kind === "questions_of_law" || kind === "grounds") {
       const existing = (await this.matters.listDrafts(matterId)).find((d) => d.kind === kind);
       if (existing?.head) return { draft: existing, revision: existing.head };
@@ -136,7 +137,12 @@ export class Drafts {
       return this.matters.createDraftWithRevision(matterId, kind, title, g.docx, []);
     }
     const notebook = await this.matters.notebook(matterId);
-    const confirmed = notebook.events.filter((e) => e.status === "confirmed" && !e.excluded);
+    let confirmed = notebook.events.filter((e) => e.status === "confirmed" && !e.excluded);
+    // V2-5: the advocate's chosen rows, when a choice exists.
+    if (kind === "list_of_dates") {
+      const rows = new Set(await this.matters.lodRows(matterId));
+      if (rows.size > 0) confirmed = confirmed.filter((e) => rows.has(e.id));
+    }
     if (confirmed.length === 0) {
       throw new MatterStoreError("NO_CONFIRMED_EVENTS", "confirm at least one Notebook event before generating a draft");
     }
@@ -167,7 +173,7 @@ export class Drafts {
    * V1-6 and V1-7: the conference package and the petition, from records only. A second run adds
    * a new revision (author generator) to the same draft; the old revisions stay.
    */
-  private async generateStructuredDraft(matterId: string, kind: "petition" | "conference"): Promise<GeneratedDraft> {
+  private async generateStructuredDraft(matterId: string, kind: "petition" | "conference" | "condonation"): Promise<GeneratedDraft> {
     const store = await this.matters.store(matterId);
     const w = store.work;
     const details = w.details();
@@ -194,6 +200,24 @@ export class Drafts {
         questions: await approvedText("questions_of_law", TITLES.questionsOfLaw),
         grounds: await approvedText("grounds", TITLES.grounds),
         annexures: w.listAnnexures().map((a) => ({ label: a.label, title: a.title })),
+        year: new Date(generatedAt).getFullYear(),
+        interimRelief: details.interimRelief,
+      });
+    } else if (kind === "condonation") {
+      title = "APPLICATION FOR CONDONATION OF DELAY";
+      const lim = w.limitation();
+      if (!lim?.confirmedAt) throw new MatterStoreError("LIMITATION_NOT_CONFIRMED", "compute and confirm limitation on the Filing tab first");
+      const delay = delayDays(lim.deadline, generatedAt);
+      if (delay === 0) throw new MatterStoreError("NO_DELAY", `the petition is in time: the last day of limitation is ${lim.deadline}`);
+      blocks = condonationBlocks({
+        petitioner: details.petitioner,
+        respondent: details.respondent,
+        court: details.court,
+        caseNumber: details.caseNumber,
+        impugnedDate: impugned?.dateStart ?? null,
+        deadline: lim.deadline,
+        delayDays: delay,
+        asOf: generatedAt.slice(0, 10),
         year: new Date(generatedAt).getFullYear(),
       });
     } else {

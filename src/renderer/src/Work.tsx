@@ -79,6 +79,7 @@ export function MatterDetailsForm(props: { matterId: string; nb: Notebook | null
         <Field label="Case number" value={d.caseNumber} onChange={set("caseNumber")} testId="detail-case-number" placeholder="For example: Writ Petition No. 12 of 2023" />
         <Field label="CNR" value={d.cnr} onChange={set("cnr")} testId="detail-cnr" />
         <Field label="Court" value={d.court} onChange={set("court")} testId="detail-court" />
+        <Field label="Interim relief sought (empty when none)" value={d.interimRelief} onChange={set("interimRelief")} testId="detail-interim" placeholder="For example: stay the operation of the impugned judgment" />
         <label className="field">
           <span>Impugned judgment (a confirmed procedural event)</span>
           <select data-testid="detail-impugned" value={d.impugnedEventId ?? ""} onChange={(e) => setD({ ...d, impugnedEventId: e.target.value || null })}>
@@ -95,7 +96,7 @@ export function MatterDetailsForm(props: { matterId: string; nb: Notebook | null
         label="Save matter details"
         size="sm"
         isDisabled={busy}
-        clickAction={() => run(() => api.setMatterDetails(props.matterId, { petitioner: d.petitioner, respondent: d.respondent, caseNumber: d.caseNumber, cnr: d.cnr, court: d.court, impugnedEventId: d.impugnedEventId }))}
+        clickAction={() => run(() => api.setMatterDetails(props.matterId, { petitioner: d.petitioner, respondent: d.respondent, caseNumber: d.caseNumber, cnr: d.cnr, court: d.court, interimRelief: d.interimRelief, impugnedEventId: d.impugnedEventId }))}
       />
       {d.updatedAt ? <Text type="supporting"> Saved {d.updatedAt}.</Text> : null}
       {error ? <div className="notice" role="alert">{error}</div> : null}
@@ -371,14 +372,16 @@ export function FilingView(props: { matterId: string; sources: SourceRecord[]; v
               <thead><tr><th>File</th><th>Role</th><th>PDF/A</th><th>SHA-256</th></tr></thead>
               <tbody>{set.manifest.files.map((x) => <tr key={x.name}><td>{x.name}</td><td>{x.role}</td><td>{x.pdfa ? "yes" : "no"}</td><td className="mono">{x.sha256.slice(0, 16)}…</td></tr>)}</tbody>
             </table>
-            <Text type="supporting">Manifest digest: <span className="mono">{set.manifest.digest ?? "none (made before v1)"}</span></Text>
+            <Text type="supporting">Manifest digest: <span className="mono">{set.manifest.digest ?? "none (made before v1)"}</span>. {set.manifest.signature ? "Signed with the application's key." : "Not signed."}</Text>
             <div className="row-actions">
               <Button label="Show the filing set folder" size="sm" variant="ghost" clickAction={() => api.revealFilingSet(props.matterId)} />
               <Button label="Verify the manifest" size="sm" variant="ghost" clickAction={async () => setManifestCheck(await api.verifyFilingManifest(props.matterId))} />
             </div>
             {manifestCheck ? (
               <div className="notice" data-testid="manifest-check">
-                {manifestCheck.ok ? "Manifest verified: the digest and every file hash match." : `Manifest NOT verified. Digest: ${manifestCheck.digest}. ${manifestCheck.files.filter((x) => x.outcome !== "match").map((x) => `${x.name}: ${x.outcome}`).join("; ")}`}
+                {manifestCheck.ok
+                  ? `Manifest verified: the digest and every file hash match. Signature: ${manifestCheck.signature === "valid" ? "valid" : "not signed (made before v2, or the secret store was not available)"}.`
+                  : `Manifest NOT verified. Digest: ${manifestCheck.digest}. Signature: ${manifestCheck.signature}. ${manifestCheck.files.filter((x) => x.outcome !== "match").map((x) => `${x.name}: ${x.outcome}`).join("; ")}`}
               </div>
             ) : null}
             <Heading level={4}>Confirmations (yours only; voice cannot confirm)</Heading>

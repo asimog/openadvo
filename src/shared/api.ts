@@ -4,7 +4,7 @@
  */
 import type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft, DraftCheck, DraftDefect, AgentChanges } from "./records.ts";
 export type { AgentChanges, AgentChange } from "./records.ts";
-import type { RecordColumn, RecordTable, Workflow, ManifestCheck, AdverseReview, AnnexureRecord, Attestation, AuthorityRecord, CitationCheck, FilingSetRecord, FilingState, IssueRecord, LimitationRecord, MatterDetails, ResearchState } from "./work.ts";
+import type { DuplicatePair, MemoryProposal, RecordColumn, RecordTable, Workflow, ManifestCheck, AdverseReview, AnnexureRecord, Attestation, AuthorityRecord, CitationCheck, FilingSetRecord, FilingState, IssueRecord, LimitationRecord, MatterDetails, ResearchState } from "./work.ts";
 export type * from "./work.ts";
 
 import type { AGUIEvent } from "@ag-ui/core";
@@ -78,6 +78,20 @@ export interface OpenAdvoApi {
   addRecordColumn(matterId: string, question: string): Promise<RecordColumn>;
   /** Human-only (V1-5). */
   decideRecordCell(matterId: string, sourceId: string, columnId: string, decision: "confirm" | "clear"): Promise<RecordTable>;
+  // V2 (docs/specs/v2.md). Human-only where marked.
+  /** Human-only (V2-2). */
+  setSourceType(matterId: string, sourceId: string, type: string): Promise<SourceRecord[]>;
+  listDuplicates(matterId: string): Promise<DuplicatePair[]>;
+  /** Human-only (V2-3). Nothing is merged. */
+  decideDuplicate(matterId: string, reviewItemId: string, decision: "same" | "different"): Promise<DuplicatePair>;
+  getListOfDatesRows(matterId: string): Promise<string[]>;
+  /** Human-only (V2-5). An empty list clears the choice. */
+  setListOfDatesRows(matterId: string, eventIds: string[]): Promise<string[]>;
+  listMemoryProposals(matterId: string): Promise<MemoryProposal[]>;
+  /** Human-only (V2-8). An accepted text is added to memory.md. */
+  decideMemoryProposal(matterId: string, id: string, accept: boolean): Promise<MemoryProposal[]>;
+  /** V2-7: the fingerprint of the manifest signing key, or null when manifests cannot be signed. */
+  signingFingerprint(): Promise<string | null>;
   openMatter(matterId: string): Promise<SourceRecord[]>;
   listSources(matterId: string): Promise<SourceRecord[]>;
   listOrigins(matterId: string, sourceId: string): Promise<OriginRecord[]>;
@@ -132,7 +146,7 @@ export interface OpenAdvoApi {
   saveRevision(matterId: string, draftId: string, bytes: Uint8Array, baseRevisionId: string): Promise<RevisionRecord>;
   approveRevision(matterId: string, revisionId: string): Promise<DraftRecord>;
   /** Step 6: start the Questions of Law or Grounds draft (title only). */
-  generateDraft(matterId: string, kind: "questions_of_law" | "grounds" | "petition" | "conference"): Promise<GeneratedDraft>;
+  generateDraft(matterId: string, kind: "questions_of_law" | "grounds" | "petition" | "conference" | "condonation"): Promise<GeneratedDraft>;
   getResearch(matterId: string): Promise<ResearchState>;
   addIssue(matterId: string, text: string): Promise<IssueRecord>;
   /** Human-only: the case conference decides an issue, with a reason. */

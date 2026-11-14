@@ -90,7 +90,12 @@ function ReviewList(props: { matterId: string; items: ReviewItem[]; onChange: ()
         {props.items.map((item) => (
           <li key={item.id} data-status={item.status}>
             <div>{item.detail}</div>
-            {item.status === "open" ? (
+            {item.status === "open" && item.kind === "possible_duplicate" ? (
+              <div className="review-actions">
+                <Button label="Same document" size="sm" clickAction={async () => { await api.decideDuplicate(props.matterId, item.id, "same"); props.onChange(); }} />
+                <Button label="Different documents" size="sm" variant="ghost" clickAction={async () => { await api.decideDuplicate(props.matterId, item.id, "different"); props.onChange(); }} />
+              </div>
+            ) : item.status === "open" ? (
               <div className="review-actions">
                 <Button label="Resolve" size="sm" clickAction={async () => { await api.resolveReviewItem(props.matterId, item.id); props.onChange(); }} />
                 <Button label="Skip" size="sm" variant="ghost" clickAction={async () => { await api.skipReviewItem(props.matterId, item.id); props.onChange(); }} />
@@ -350,7 +355,7 @@ export function App() {
                       focus={draftFocus}
                     />
                   ) : source ? (
-                    <SourceDetail matterId={matter.id} source={source} events={events} version={version} focus={focus} dock={dockSlot} />
+                    <SourceDetail matterId={matter.id} source={source} events={events} version={version} focus={focus} dock={dockSlot} onChanged={() => void refreshMatter(matter.id)} />
                   ) : (
                     <div className="work-scroll">
                       {notice ? <div className="notice" role="status" data-testid="notice">{notice}</div> : null}

@@ -2,6 +2,8 @@
  * The only caller of the matter store library (decision 4, spec rule 1).
  * Holds one open MatterStore per matter.
  */
+import { classifyDocument, CLASSIFY_METHOD, isDocType } from "../lib/document-intelligence/classify.ts";
+import { possibleDuplicates } from "../lib/document-intelligence/similar.ts";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -209,6 +211,68 @@ export class Matters {
     await writeFile(path.join(store.folder, "memory.md"), text, "utf8");
     store.appendEvent({ actor: "advocate" }, "memory.saved", null, { sha256: createHash("sha256").update(text).digest("hex"), length: text.length });
     return text;
+  }
+
+  // ---- V2-2, V2-3, V2-5, V2-8 ----
+
+  /** V2-2 and V2-3, after ingestion: propose types for read sources, then look for same-text pairs. */
+  async afterIngest(matterId: string): Promise<boolean> {
+    const store = await this.store(matterId);
+    let changed = false;
+    for (const sourceId of store.work.sourcesWithoutType()) {
+      const first = store.listPages(sourceId, 1, 1)[0];
+      const p = classifyDocument(first?.text ?? "");
+      changed = store.work.proposeSourceType(sourceId, p.type, p.matched, CLASSIFY_METHOD) || changed;
+    }
+    const done = new Set(store.listJobs().filter((j) => j.state === "done").map((j) => j.sourceId));
+    const texts = store
+      .listSources()
+      .filter((s) => done.has(s.id))
+      .map((s) => ({ id: s.id, text: store.listPages(s.id).map((pg) => pg.text).join("\n") }));
+    if (store.work.recordDuplicates(possibleDuplicates(texts)) > 0) changed = true;
+    return changed;
+  }
+
+  async setSourceType(matterId: string, sourceId: string, type: string): Promise<SourceRecord[]> {
+    if (!isDocType(type)) throw new MatterStoreError("BAD_TYPE", `not a document type: ${type}`);
+    const store = await this.store(matterId);
+    store.work.setSourceType(sourceId, type, { actor: "advocate" });
+    return store.listSources();
+  }
+
+  async listDuplicates(matterId: string) {
+    return (await this.store(matterId)).work.listDuplicates();
+  }
+
+  async decideDuplicate(matterId: string, reviewItemId: string, decision: "same" | "different") {
+    return (await this.store(matterId)).work.decideDuplicate(reviewItemId, decision, { actor: "advocate" });
+  }
+
+  async lodRows(matterId: string): Promise<string[]> {
+    return (await this.store(matterId)).work.lodRows();
+  }
+
+  async setLodRows(matterId: string, eventIds: string[]): Promise<string[]> {
+    return (await this.store(matterId)).work.setLodRows(eventIds, { actor: "advocate" });
+  }
+
+  async listMemoryProposals(matterId: string) {
+    return (await this.store(matterId)).work.listMemoryProposals();
+  }
+
+  async proposeMemory(matterId: string, text: string, reason: string, sessionId?: string) {
+    return (await this.store(matterId)).work.proposeMemory(text, reason, { actor: "agent", sessionId });
+  }
+
+  /** Human-only. An accepted proposal is added to the end of memory.md, recorded like any save. */
+  async decideMemoryProposal(matterId: string, id: string, accept: boolean) {
+    const store = await this.store(matterId);
+    const m = store.work.decideMemoryProposal(id, accept, { actor: "advocate" });
+    if (accept) {
+      const before = await this.memory(matterId);
+      await this.setMemory(matterId, before.trim() ? `${before.replace(/\s+$/, "")}\n\n${m.text}\n` : `${m.text}\n`);
+    }
+    return store.work.listMemoryProposals();
   }
 
   async rename(matterId: string, title: string): Promise<MatterSummary> {

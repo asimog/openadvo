@@ -201,6 +201,7 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
       // V1 (docs/specs/v1.md).
       "verifyFilingManifest", "renameMatter", "setMatterArchived", "newConversation", "getMemory", "setMemory",
       "listWorkflows", "saveWorkflow", "deleteWorkflow", "getRecordTable", "addRecordColumn", "decideRecordCell",
+      "setSourceType", "listDuplicates", "decideDuplicate", "getListOfDatesRows", "setListOfDatesRows", "listMemoryProposals", "decideMemoryProposal", "signingFingerprint",
     ].sort(),
   );
   await app.close();
@@ -240,6 +241,7 @@ test("the agent session has exactly our tool, and its id is recorded", async () 
     "read_matter_memory",
     "list_record_table",
     "fill_record_cell",
+    "propose_memory_note",
   ]);
   const sessionId = await app.evaluate((_e, m) => (globalThis as any).__openadvoTest.agentSessionId(m), id);
   const events = await page.evaluate((m) => (globalThis as any).openadvo.listEvents(m), id);

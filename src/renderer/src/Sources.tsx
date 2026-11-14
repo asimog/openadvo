@@ -9,6 +9,7 @@ import { Text } from "@astryxdesign/core/Text";
 import { Table, pixel, proportional, useTableSortable, useTableSortableState } from "@astryxdesign/core/Table";
 import { ArrowUpTrayIcon, PaperClipIcon } from "@heroicons/react/24/outline";
 import type { SourceLink } from "./Notebook.tsx";
+import { DocTypeBadge, DocTypeControl } from "./V2.tsx";
 import type { EventRecord, IngestJob, OriginRecord, PageRecord, SourceRecord } from "../../shared/api.ts";
 
 const api = window.openadvo;
@@ -65,6 +66,7 @@ function SourcesTable(props: {
             </button>
           ),
         },
+        { key: "docType", header: "Type", width: pixel(150), renderCell: (s) => <DocTypeBadge source={s} /> },
         { key: "sha256", header: "SHA-256", width: pixel(118), sortable: true, renderCell: (s) => <span className="mono" title={s.sha256}>{shortHash(s.sha256)}</span> },
         { key: "size", header: "Size", width: pixel(78), sortable: true, renderCell: (s) => formatSize(s.size) },
         { key: "status", header: "File", width: pixel(92), sortable: true, renderCell: (s) => statusBadge(s.status) },
@@ -258,6 +260,8 @@ export function SourceDetail(props: {
   version: number;
   focus: SourceLink | null;
   dock: HTMLElement | null;
+  /** V2-2: called after the advocate sets the document type. */
+  onChanged?: () => void;
 }) {
   const [origins, setOrigins] = useState<OriginRecord[]>([]);
   const [pages, setPages] = useState<PageRecord[]>([]);
@@ -297,6 +301,7 @@ export function SourceDetail(props: {
                   />
                 ) : null}
               </div>
+              <DocTypeControl matterId={props.matterId} source={props.source} onChanged={() => props.onChanged?.()} />
               {view.url ? <ViewerState url={view.url} /> : null}
               {textOnly ? <Text type="supporting" data-testid="viewer-state">{FORMAT_NOTE[props.source.mediaType] ?? "No PDF view for this format."}</Text> : null}
               <details>

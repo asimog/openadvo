@@ -3,7 +3,7 @@
  * Plain library: no Electron import, no Pi import. Spec: docs/specs/v0-notebook.md.
  */
 
-export const METHOD = "rules-v2";
+export const METHOD = "rules-v3";
 
 export type DateType = "explicit" | "inferred" | "range";
 
@@ -258,4 +258,87 @@ export function findConflicts(events: Array<Pick<CandidateEvent, "id" | "anchorI
     }
   }
   return out;
+}
+
+/** V2-4: relative date phrases. "thereafter" and other vague words are not here on purpose. */
+const RELATIVE: Array<{ re: RegExp; base: "header" | "previous"; days: number }> = [
+  { re: /\b(?:today|this\s+day|the\s+date\s+hereof)\b/gi, base: "header", days: 0 },
+  { re: /\byesterday\b/gi, base: "header", days: -1 },
+  { re: /\bthe\s+(?:next|following)\s+day\b|\bthe\s+day\s+after\b(?!\s+(?:the|tomorrow))/gi, base: "previous", days: 1 },
+];
+
+function addDays(isoDate: string, days: number): string {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function indian(isoDate: string): string {
+  const [y, m, d] = isoDate.split("-");
+  return `${d}.${m}.${y}`;
+}
+
+/**
+ * V2-4: events dated by a relative phrase. `lines` are all lines of one source in reading order.
+ * "today", "this day", "the date hereof" and "yesterday" use the header date: the first explicit
+ * date on page 1. "the next day", "the following day" and "the day after" use the last explicit
+ * date earlier in the source. Every such date is inferred and names its base in `dateText`.
+ */
+export function extractRelative(lines: Array<LineInput & { reading: Reading }>, skip: Set<string> = new Set()): CandidateEvent[] {
+  const usable = lines.filter((l) => !skip.has(l.anchorId));
+  let header: { date: string; page: number; line: number } | null = null;
+  for (const l of usable) {
+    if (l.page !== 1) break;
+    const d = findDates(l.text).find((h) => h.type === "explicit" && h.start === h.end);
+    if (d) {
+      header = { date: d.start, page: l.page, line: l.line };
+      break;
+    }
+  }
+  const events: CandidateEvent[] = [];
+  let previous: { date: string; page: number; line: number } | null = null;
+  for (let i = 0; i < usable.length; i++) {
+    const l = usable[i];
+    const dates = findDates(l.text);
+    const marks: Array<{ index: number; kind: "date"; date: string } | { index: number; kind: "rel"; text: string; base: "header" | "previous"; days: number }> = [];
+    for (const d of dates) if (d.type === "explicit" && d.start === d.end) marks.push({ index: d.index, kind: "date", date: d.start });
+    for (const r of RELATIVE) {
+      r.re.lastIndex = 0;
+      for (let m = r.re.exec(l.text); m; m = r.re.exec(l.text)) {
+        const at = m.index;
+        if (dates.some((d) => at >= d.index && at < d.index + d.text.length)) continue;
+        marks.push({ index: at, kind: "rel", text: m[0], base: r.base, days: r.days });
+      }
+    }
+    marks.sort((a, b) => a.index - b.index);
+    let n = 0;
+    for (const mark of marks) {
+      if (mark.kind === "date") {
+        previous = { date: mark.date, page: l.page, line: l.line };
+        continue;
+      }
+      const base = mark.base === "header" ? header : previous;
+      if (!base) continue;
+      const date = addDays(base.date, mark.days);
+      const next = usable[i + 1];
+      const joins = next && next.page === l.page && !/[.;:]\s*$/.test(l.text);
+      const description = cleanDescription(joins ? `${l.text} ${next.text}` : l.text);
+      events.push({
+        id: `ev:${l.anchorId}:r${++n}`,
+        sourceId: l.sourceId,
+        anchorId: l.anchorId,
+        page: l.page,
+        line: l.line,
+        dateText: `"${mark.text}" from ${indian(base.date)} (${mark.base === "header" ? "header date" : "earlier date"}, page ${base.page} line ${base.line})`,
+        dateStart: date,
+        dateEnd: date,
+        dateType: "inferred",
+        description,
+        kind: eventKind(description),
+        reading: l.reading,
+        method: METHOD,
+      });
+    }
+  }
+  return events;
 }

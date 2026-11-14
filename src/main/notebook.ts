@@ -3,7 +3,7 @@
  * then date conflicts across the whole matter. Deterministic rules only (lib/notebook).
  * Results reach the matter store only through main/matters.ts.
  */
-import { extractEvents, findConflicts, METHOD, runningLines, type CandidateEvent } from "../lib/notebook/index.ts";
+import { extractEvents, extractRelative, findConflicts, METHOD, runningLines, type CandidateEvent } from "../lib/notebook/index.ts";
 import type { Matters } from "./matters.ts";
 
 export async function extractNotebook(matters: Matters, matterId: string): Promise<number> {
@@ -18,6 +18,8 @@ export async function extractNotebook(matters: Matters, matterId: string): Promi
       const input = pageLines.map((l) => ({ anchorId: l.id, sourceId: l.sourceId, page: l.page, line: l.line, text: l.text }));
       events.push(...extractEvents(input, pageLines[0].reading, running));
     }
+    // V2-4: relative dates, against the header date or the last explicit date.
+    events.push(...extractRelative(lines.map((l) => ({ anchorId: l.id, sourceId: l.sourceId, page: l.page, line: l.line, text: l.text, reading: l.reading })), running));
     await matters.recordEvents(matterId, source.id, events, METHOD);
     added += events.length;
   }

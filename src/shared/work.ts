@@ -8,7 +8,29 @@ export interface MatterDetails {
   court: string;
   /** The Notebook event of the impugned judgment. Limitation starts from its date. */
   impugnedEventId: string | null;
+  /** V2-6: the interim relief sought, as the advocate words it. Empty when none. */
+  interimRelief: string;
   updatedAt: string | null;
+}
+
+/** V2-3: two sources with nearly the same text. Nothing is merged. */
+export interface DuplicatePair {
+  sourceA: string;
+  sourceB: string;
+  overlap: number;
+  reviewItemId: string;
+  decision: "same" | "different" | null;
+  decidedAt: string | null;
+}
+
+/** V2-8: a note the agent proposes for the matter memory. */
+export interface MemoryProposal {
+  id: string;
+  text: string;
+  reason: string;
+  status: "open" | "accepted" | "rejected";
+  createdAt: string;
+  decidedAt: string | null;
 }
 
 export interface IssueRecord {
@@ -129,12 +151,13 @@ export interface ManifestApproval {
 export interface ManifestCheck {
   ok: boolean;
   digest: "match" | "mismatch" | "absent";
+  signature: "valid" | "invalid" | "not_signed";
   files: Array<{ name: string; outcome: "match" | "mismatch" | "missing" }>;
 }
 
 export interface FilingSetRecord {
   id: string;
-  manifest: { matter: string; createdAt: string; files: FilingFile[]; rules: string; limitation: string | null; approvals?: ManifestApproval[]; digest?: string };
+  manifest: { matter: string; createdAt: string; files: FilingFile[]; rules: string; limitation: string | null; approvals?: ManifestApproval[]; digest?: string; publicKey?: string; signature?: string };
   payloadSha256: string;
   folder: string;
   createdAt: string;

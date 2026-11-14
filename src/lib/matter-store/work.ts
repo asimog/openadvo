@@ -24,6 +24,8 @@ import type {
   LimitationRecord,
   MatterDetails,
   MemorandumRecord,
+  DuplicatePair,
+  MemoryProposal,
   RecordCell,
   RecordColumn,
   RecordTable,
@@ -38,7 +40,38 @@ CREATE TABLE IF NOT EXISTS matter_details (
   cnr TEXT NOT NULL DEFAULT '',
   court TEXT NOT NULL DEFAULT '',
   impugned_event_id TEXT,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  interim_relief TEXT NOT NULL DEFAULT ''
+) STRICT;
+CREATE TABLE IF NOT EXISTS source_type (
+  source_id TEXT PRIMARY KEY,
+  proposed TEXT NOT NULL,
+  matched TEXT NOT NULL,
+  method TEXT NOT NULL,
+  proposed_at TEXT NOT NULL,
+  confirmed TEXT,
+  decided_at TEXT
+) STRICT;
+CREATE TABLE IF NOT EXISTS duplicate_pair (
+  source_a TEXT NOT NULL,
+  source_b TEXT NOT NULL,
+  overlap REAL NOT NULL,
+  review_item_id TEXT NOT NULL,
+  decision TEXT CHECK (decision IN ('same', 'different')),
+  decided_at TEXT,
+  PRIMARY KEY (source_a, source_b)
+) STRICT;
+CREATE TABLE IF NOT EXISTS lod_row (
+  event_id TEXT PRIMARY KEY,
+  position INTEGER NOT NULL
+) STRICT;
+CREATE TABLE IF NOT EXISTS memory_proposal (
+  id TEXT PRIMARY KEY,
+  text TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('open', 'accepted', 'rejected')),
+  created_at TEXT NOT NULL,
+  decided_at TEXT
 ) STRICT;
 CREATE TABLE IF NOT EXISTS legal_issue (
   id TEXT PRIMARY KEY,
@@ -258,6 +291,135 @@ export class WorkStore {
     return this.recordTable();
   }
 
+  // ---- V2-2: document type ----
+
+  /** System: record a proposal once per source. A later run never replaces it. */
+  proposeSourceType(sourceId: string, type: string, matched: string, method: string): boolean {
+    const r = this.db.prepare("INSERT INTO source_type (source_id, proposed, matched, method, proposed_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING").run(sourceId, type, matched, method, now());
+    if (Number(r.changes) === 0) return false;
+    this.event({ actor: "system" }, "source.type_proposed", sourceId, { type, matched, method });
+    return true;
+  }
+
+  /** Sources whose text is read and that have no type yet. */
+  sourcesWithoutType(): string[] {
+    return (this.db.prepare("SELECT j.source_id FROM ingest_job j LEFT JOIN source_type t ON t.source_id = j.source_id WHERE j.state = 'done' AND t.source_id IS NULL").all() as Array<{ source_id: string }>).map((r) => String(r.source_id));
+  }
+
+  /** Human-only: the advocate confirms the proposal or sets another type. */
+  setSourceType(sourceId: string, type: string, ctx: WriteContext): void {
+    human(ctx, "sets a document type");
+    if (!this.store.getSource(sourceId)) throw new MatterStoreError("SOURCE_NOT_FOUND", sourceId);
+    this.db
+      .prepare("INSERT INTO source_type (source_id, proposed, matched, method, proposed_at, confirmed, decided_at) VALUES (?, ?, '', 'advocate', ?, ?, ?) ON CONFLICT(source_id) DO UPDATE SET confirmed = excluded.confirmed, decided_at = excluded.decided_at")
+      .run(sourceId, type, now(), type, now());
+    this.event(ctx, "source.type_set", sourceId, { type });
+  }
+
+  // ---- V2-3: same text, different files ----
+
+  listDuplicates(): DuplicatePair[] {
+    return (this.db.prepare("SELECT * FROM duplicate_pair ORDER BY rowid").all() as Array<Record<string, unknown>>).map((r) => ({
+      sourceA: String(r.source_a),
+      sourceB: String(r.source_b),
+      overlap: Number(r.overlap),
+      reviewItemId: String(r.review_item_id),
+      decision: (r.decision ?? null) as DuplicatePair["decision"],
+      decidedAt: r.decided_at == null ? null : String(r.decided_at),
+    }));
+  }
+
+  /** System: open one review item per new pair. A pair already recorded is not opened again. */
+  recordDuplicates(pairs: Array<{ a: string; b: string; overlap: number }>): number {
+    let opened = 0;
+    for (const p of pairs) {
+      const [a, b] = p.a < p.b ? [p.a, p.b] : [p.b, p.a];
+      if (this.db.prepare("SELECT 1 FROM duplicate_pair WHERE source_a = ? AND source_b = ?").get(a, b)) continue;
+      const na = this.store.getSource(a)?.name ?? a;
+      const nb = this.store.getSource(b)?.name ?? b;
+      const id = this.store.openReviewItem(
+        "possible_duplicate",
+        a,
+        null,
+        `${na} and ${nb} have ${Math.round(p.overlap * 100)}% of their text in common. Both files are kept. Decide whether they are the same document.`,
+      );
+      this.db.prepare("INSERT INTO duplicate_pair (source_a, source_b, overlap, review_item_id) VALUES (?, ?, ?, ?)").run(a, b, p.overlap, id);
+      opened++;
+    }
+    return opened;
+  }
+
+  /** Human-only: same document or different documents. Nothing is merged or hidden. */
+  decideDuplicate(reviewItemId: string, decision: "same" | "different", ctx: WriteContext): DuplicatePair {
+    human(ctx, "decides a possible duplicate");
+    const pair = this.listDuplicates().find((d) => d.reviewItemId === reviewItemId);
+    if (!pair) throw new MatterStoreError("DUPLICATE_NOT_FOUND", reviewItemId);
+    this.store.decideReviewItem(reviewItemId, "resolved", ctx);
+    this.db.prepare("UPDATE duplicate_pair SET decision = ?, decided_at = ? WHERE review_item_id = ?").run(decision, now(), reviewItemId);
+    this.event(ctx, "duplicate.decided", reviewItemId, { sourceA: pair.sourceA, sourceB: pair.sourceB, decision });
+    return this.listDuplicates().find((d) => d.reviewItemId === reviewItemId)!;
+  }
+
+  // ---- V2-5: the List of Dates rows ----
+
+  lodRows(): string[] {
+    return (this.db.prepare("SELECT event_id FROM lod_row ORDER BY position").all() as Array<{ event_id: string }>).map((r) => String(r.event_id));
+  }
+
+  /** Human-only: the rows of the List of Dates. An empty list clears the selection (every confirmed event). */
+  setLodRows(eventIds: string[], ctx: WriteContext): string[] {
+    human(ctx, "chooses the List of Dates rows");
+    const known = new Set(this.store.listNotebookEvents().filter((e) => e.status === "confirmed").map((e) => e.id));
+    for (const id of eventIds) if (!known.has(id)) throw new MatterStoreError("EVENT_NOT_CONFIRMED", id);
+    this.db.exec("BEGIN");
+    try {
+      this.db.exec("DELETE FROM lod_row");
+      const ins = this.db.prepare("INSERT INTO lod_row (event_id, position) VALUES (?, ?)");
+      [...new Set(eventIds)].forEach((id, i) => ins.run(id, i + 1));
+      this.db.exec("COMMIT");
+    } catch (e) {
+      this.db.exec("ROLLBACK");
+      throw e;
+    }
+    this.event(ctx, "list_of_dates.rows_set", null, { rows: eventIds.length });
+    return this.lodRows();
+  }
+
+  // ---- V2-8: memory proposals ----
+
+  listMemoryProposals(): MemoryProposal[] {
+    return (this.db.prepare("SELECT * FROM memory_proposal ORDER BY created_at, rowid").all() as Array<Record<string, unknown>>).map((r) => ({
+      id: String(r.id),
+      text: String(r.text),
+      reason: String(r.reason),
+      status: r.status as MemoryProposal["status"],
+      createdAt: String(r.created_at),
+      decidedAt: r.decided_at == null ? null : String(r.decided_at),
+    }));
+  }
+
+  /** The agent proposes; it never writes memory.md. */
+  proposeMemory(text: string, reason: string, ctx: WriteContext): MemoryProposal {
+    if (ctx.actor !== "agent") throw new MatterStoreError("AGENT_ONLY", "memory proposals come from the agent; the advocate edits the memory directly");
+    const t = String(text ?? "").trim().slice(0, 2000);
+    if (!t) throw new MatterStoreError("TEXT_REQUIRED", "a proposal needs its text");
+    const id = randomUUID();
+    this.db.prepare("INSERT INTO memory_proposal (id, text, reason, status, created_at) VALUES (?, ?, ?, 'open', ?)").run(id, t, clean(reason, 500), now());
+    this.event(ctx, "memory.proposed", id, { reason: clean(reason, 500) });
+    return this.listMemoryProposals().find((m) => m.id === id)!;
+  }
+
+  /** Human-only. The caller appends an accepted text to memory.md (main/matters.ts). */
+  decideMemoryProposal(id: string, accept: boolean, ctx: WriteContext): MemoryProposal {
+    human(ctx, "decides a memory proposal");
+    const m = this.listMemoryProposals().find((x) => x.id === id);
+    if (!m) throw new MatterStoreError("PROPOSAL_NOT_FOUND", id);
+    if (m.status !== "open") throw new MatterStoreError("ALREADY_DECIDED", id);
+    this.db.prepare("UPDATE memory_proposal SET status = ?, decided_at = ? WHERE id = ?").run(accept ? "accepted" : "rejected", now(), id);
+    this.event(ctx, `memory.proposal_${accept ? "accepted" : "rejected"}`, id, null);
+    return this.listMemoryProposals().find((x) => x.id === id)!;
+  }
+
   // ---- Matter details (workflow 2; step 1 second version, needed by steps 5, 9) ----
 
   details(): MatterDetails {
@@ -269,6 +431,7 @@ export class WorkStore {
       cnr: String(r?.cnr ?? ""),
       court: String(r?.court ?? ""),
       impugnedEventId: r?.impugned_event_id == null ? null : String(r.impugned_event_id),
+      interimRelief: String(r?.interim_relief ?? ""),
       updatedAt: r?.updated_at == null ? null : String(r.updated_at),
     };
   }
@@ -279,13 +442,13 @@ export class WorkStore {
     const d = { ...this.details(), ...input };
     this.db
       .prepare(
-        `INSERT INTO matter_details (id, petitioner, respondent, case_number, cnr, court, impugned_event_id, updated_at)
-         VALUES (1, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO matter_details (id, petitioner, respondent, case_number, cnr, court, impugned_event_id, interim_relief, updated_at)
+         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET petitioner = excluded.petitioner, respondent = excluded.respondent,
            case_number = excluded.case_number, cnr = excluded.cnr, court = excluded.court,
-           impugned_event_id = excluded.impugned_event_id, updated_at = excluded.updated_at`,
+           impugned_event_id = excluded.impugned_event_id, interim_relief = excluded.interim_relief, updated_at = excluded.updated_at`,
       )
-      .run(clean(d.petitioner, 300), clean(d.respondent, 300), clean(d.caseNumber, 200), clean(d.cnr, 40), clean(d.court, 300), d.impugnedEventId ?? null, now());
+      .run(clean(d.petitioner, 300), clean(d.respondent, 300), clean(d.caseNumber, 200), clean(d.cnr, 40), clean(d.court, 300), d.impugnedEventId ?? null, clean(d.interimRelief, 2000), now());
     const after = this.details();
     this.event(ctx, "matter.details_set", null, { ...after });
     return after;

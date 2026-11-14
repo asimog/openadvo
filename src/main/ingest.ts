@@ -41,7 +41,13 @@ export class Ingest {
       const [source] = await this.matters.sourcesToIngest(matterId);
       if (!source) {
         // Every source is read: build the Notebook from the new text (step 3).
-        if ((await extractNotebook(this.matters, matterId)) > 0) this.notify(matterId);
+        const added = await extractNotebook(this.matters, matterId);
+        // V2-2 and V2-3: document types and same-text pairs.
+        const changed = await this.matters.afterIngest(matterId).catch((e) => {
+          console.error(`afterIngest: ${(e as Error).message}`);
+          return false;
+        });
+        if (added > 0 || changed) this.notify(matterId);
         return;
       }
       if (!(await this.matters.startJob(matterId, source.id))) {

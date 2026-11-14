@@ -15,6 +15,7 @@ import { EditorHost, registerEditorScheme, EO_ORIGIN } from "./editor-host.ts";
 import { euroOfficePaths, platformKey } from "../lib/euro-office/platform.ts";
 import { Research } from "./research.ts";
 import { Filing } from "./filing.ts";
+import { KeyFileSigner } from "./signing.ts";
 import { Portal, portalOptionsFromEnv } from "./portal.ts";
 import { Mail, type MailAccount } from "./mail.ts";
 import { agentWorkHost } from "./agent-work.ts";
@@ -48,6 +49,7 @@ let mail: Mail;
 let ulos: UlosPaths;
 let workHost: AgentWorkHost;
 let recordTables: RecordTables;
+let signer: KeyFileSigner | null = null;
 
 /** Steps 6 to 10 notify the window that a matter changed (a capture, a proposal). */
 function matterChanged(matterId: string): void {
@@ -121,6 +123,18 @@ function registerBridge(): void {
     if (decision !== "confirm" && decision !== "clear") throw new Error("BAD_DECISION: confirm or clear");
     return recordTables.decide(matterId, sourceId, columnId, decision);
   });
+  // V2 (docs/specs/v2.md). Every write here is human-only.
+  handle("sources:setType", (matterId: string, sourceId: string, type: string) => matters.setSourceType(matterId, sourceId, String(type)));
+  handle("duplicates:list", (matterId: string) => matters.listDuplicates(matterId));
+  handle("duplicates:decide", (matterId: string, reviewItemId: string, decision: string) => {
+    if (decision !== "same" && decision !== "different") throw new Error("BAD_DECISION: same or different");
+    return matters.decideDuplicate(matterId, reviewItemId, decision);
+  });
+  handle("lod:getRows", (matterId: string) => matters.lodRows(matterId));
+  handle("lod:setRows", (matterId: string, ids: unknown) => matters.setLodRows(matterId, Array.isArray(ids) ? ids.map(String) : []));
+  handle("memory:proposals", (matterId: string) => matters.listMemoryProposals(matterId));
+  handle("memory:decideProposal", (matterId: string, id: string, accept: boolean) => matters.decideMemoryProposal(matterId, String(id), accept === true));
+  handle("signing:fingerprint", () => (signer ? signer.fingerprint() : null));
   handle("matters:create", (title: string) => matters.create(String(title ?? "")));
   handle("matters:open", async (matterId: string) => {
     const sources = await matters.openMatter(matterId);
@@ -185,7 +199,7 @@ function registerBridge(): void {
   });
   handle("drafts:approveRevision", (matterId: string, revisionId: string) => drafts.approveRevision(matterId, revisionId));
   handle("drafts:generate", (matterId: string, kind: string) => {
-    if (!["questions_of_law", "grounds", "petition", "conference"].includes(kind)) throw new Error("BAD_DRAFT_KIND: questions_of_law, grounds, petition or conference");
+    if (!["questions_of_law", "grounds", "petition", "conference", "condonation"].includes(kind)) throw new Error("BAD_DRAFT_KIND: questions_of_law, grounds, petition, conference or condonation");
     return drafts.generate(matterId, kind as DraftKind);
   });
 
@@ -231,6 +245,7 @@ function registerBridge(): void {
       ...(input?.caseNumber !== undefined ? { caseNumber: String(input.caseNumber) } : {}),
       ...(input?.cnr !== undefined ? { cnr: String(input.cnr) } : {}),
       ...(input?.court !== undefined ? { court: String(input.court) } : {}),
+      ...(input?.interimRelief !== undefined ? { interimRelief: String(input.interimRelief) } : {}),
       ...(input?.impugnedEventId !== undefined ? { impugnedEventId: input.impugnedEventId ? String(input.impugnedEventId) : null } : {}),
     }),
   );
@@ -396,6 +411,8 @@ function exposeTestHooks(): void {
     fillRecordCell: (matterId: string, input: { source: string; column: string; answer: string; quote: string; page: number; line: number }) =>
       recordTables.fillByAgent(matterId, input, "", findSource),
     readMemoryAsAgent: (matterId: string) => matters.memory(matterId),
+    // The agent's propose_memory_note (V2-8), so a test needs no model.
+    proposeMemoryAsAgent: (matterId: string, text: string, reason: string) => matters.proposeMemory(matterId, text, reason),
     importEml: async (matterId: string, paths: string[]) => {
       const out = await mail.importEmlFiles(matterId, paths);
       ingest.enqueue(matterId);
@@ -434,7 +451,8 @@ app.whenReady().then(() => {
     openInEditor: (file, name, kind, readOnly, meta) => editorHost.open(file, name, kind, readOnly, meta),
     legalBlockers: (id, draftId, revisionId) => research.legalBlockers(id, draftId, revisionId),
   });
-  filing = new Filing(matters, euroOfficePaths(euroOfficeRoot()).x2t);
+  signer = KeyFileSigner.create(path.join(app.getPath("userData"), "manifest-signing.key"));
+  filing = new Filing(matters, euroOfficePaths(euroOfficeRoot()).x2t, signer);
   mail = new Mail(matters);
   portal = new Portal(
     matters,
@@ -472,6 +490,7 @@ app.whenReady().then(() => {
       saveEffort: (level) => writeSetting("effort", level),
       chatDir: (id) => matters.chatDir(id),
       readMemory: (id) => matters.memory(id),
+      proposeMemory: async (id, text, reason, sessionId) => (await matters.proposeMemory(id, text, reason, sessionId)).id,
       recordTable: (id) => recordTables.describe(id),
       fillRecordCell: (id, input, sessionId) => recordTables.fillByAgent(id, input, sessionId, findSource),
     },

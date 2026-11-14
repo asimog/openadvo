@@ -22,6 +22,8 @@ export interface SourceRecord {
   status: SourceStatus;
   checkedAt: string | null;
   origins: number;
+  /** V2-2: the document type. A proposal is a candidate until the advocate confirms or sets it. */
+  docType?: { type: string; status: "candidate" | "confirmed"; matched: string } | null;
 }
 
 export interface OriginRecord {
@@ -165,7 +167,7 @@ export interface Notebook {
 
 // ---- Step 4: drafts and revisions (work products). The matter store writes them. ----
 
-export type DraftKind = "list_of_dates" | "synopsis" | "questions_of_law" | "grounds" | "petition" | "conference";
+export type DraftKind = "list_of_dates" | "synopsis" | "questions_of_law" | "grounds" | "petition" | "conference" | "condonation";
 
 /** A generator wrote the revision, or the advocate saved it from the editor. */
 export type RevisionAuthor = "generator" | "advocate" | "agent";

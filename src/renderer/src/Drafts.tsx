@@ -4,6 +4,7 @@ import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Text } from "@astryxdesign/core/Text";
 import type { DraftRecord, RevisionRecord } from "../../shared/api.ts";
+import { ListOfDatesRows } from "./V2.tsx";
 
 const api = window.openadvo;
 
@@ -13,7 +14,7 @@ function errorText(error: unknown): string {
 }
 
 function kindLabel(kind: DraftRecord["kind"]): string {
-  return { list_of_dates: "List of Dates", synopsis: "Synopsis", questions_of_law: "Questions of Law", grounds: "Grounds", petition: "Petition", conference: "Conference package" }[kind];
+  return { list_of_dates: "List of Dates", synopsis: "Synopsis", questions_of_law: "Questions of Law", grounds: "Grounds", petition: "Petition", conference: "Conference package", condonation: "Condonation application" }[kind];
 }
 
 /** The drafts of a matter, and the two generators that write the first revision (step 4). */
@@ -56,9 +57,11 @@ export function DraftsSection(props: {
           <Button label="Start Grounds" size="sm" isDisabled={working} clickAction={() => generate("grounds")} />
           <Button label="Prepare conference package" size="sm" isDisabled={working} clickAction={() => generate("conference")} />
           <Button label="Prepare petition" size="sm" isDisabled={working} clickAction={() => generate("petition")} />
+          <Button label="Prepare condonation application" size="sm" isDisabled={working} clickAction={() => generate("condonation")} />
           {working ? <Text type="supporting">Generating…</Text> : null}
         </div>
       </div>
+      <ListOfDatesRows matterId={props.matterId} version={props.drafts.length} />
       {error ? (
         <div className="notice" role="alert" data-testid="drafts-error">
           {error}

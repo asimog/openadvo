@@ -8,6 +8,7 @@ import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Text } from "@astryxdesign/core/Text";
 import type { MatterSummary, RecordTable, SourceRecord } from "../../shared/api.ts";
+import { MemoryProposals } from "./V2.tsx";
 
 const api = window.openadvo;
 
@@ -62,12 +63,13 @@ export function MemoryEditor(props: { matterId: string }) {
   const [text, setText] = useState<string | null>(null);
   const [saved, setSaved] = useState<string>("");
   const [note, setNote] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
   useEffect(() => {
     void api.getMemory(props.matterId).then((t) => {
       setText(t);
       setSaved(t);
     });
-  }, [props.matterId]);
+  }, [props.matterId, reload]);
   if (text === null) return null;
   return (
     <section className="work-section" aria-label="Matter memory" data-testid="memory">
@@ -89,6 +91,7 @@ export function MemoryEditor(props: { matterId: string }) {
         />
         {note && text === saved ? <Text type="supporting">{note}</Text> : null}
       </div>
+      <MemoryProposals matterId={props.matterId} version={reload} onAccepted={() => setReload((n) => n + 1)} />
     </section>
   );
 }

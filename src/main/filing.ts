@@ -11,8 +11,9 @@ import { createHash } from "node:crypto";
 import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Matters } from "./matters.ts";
+import type { ManifestSigner } from "./signing.ts";
 import { convertFile, FORMAT_PDF } from "../lib/converter/index.ts";
-import { checkCompliance, computeLimitation, isPdfA, LIMITATION_RULE, manifestDigest, RULES_VERSION, verifyManifest } from "../lib/filing/index.ts";
+import { checkCompliance, computeLimitation, delayDays, isPdfA, LIMITATION_RULE, manifestDigest, RULES_VERSION, verifyManifest } from "../lib/filing/index.ts";
 import { readParagraphs } from "../lib/drafting/index.ts";
 import { MatterStoreError } from "../lib/matter-store/index.ts";
 import type { DraftKind } from "../shared/records.ts";
@@ -31,13 +32,23 @@ const REQUIRED: Array<{ kind: DraftKind; title: string }> = [
   { kind: "grounds", title: "Grounds" },
 ];
 
+/** V2-6: the condonation application is required when the confirmed limitation shows a delay today. */
+export const CONDONATION = { kind: "condonation" as DraftKind, title: "Application for Condonation of Delay" };
+
+function required(limitation: { deadline: string; confirmedAt: string | null } | null): Array<{ kind: DraftKind; title: string }> {
+  const late = limitation?.confirmedAt && delayDays(limitation.deadline, new Date().toISOString()) > 0;
+  return late ? [...REQUIRED, CONDONATION] : REQUIRED;
+}
+
 export class Filing {
   private matters: Matters;
   private x2t: string;
+  private signer: ManifestSigner | null;
 
-  constructor(matters: Matters, x2t: string) {
+  constructor(matters: Matters, x2t: string, signer: ManifestSigner | null = null) {
     this.matters = matters;
     this.x2t = x2t;
+    this.signer = signer;
   }
 
   private async work(matterId: string) {
@@ -88,7 +99,7 @@ export class Filing {
     const w = await this.work(matterId);
     const drafts = await this.matters.listDrafts(matterId);
     const rows = [];
-    for (const r of REQUIRED) {
+    for (const r of required(w.limitation())) {
       const d = drafts.find((x) => x.kind === r.kind);
       const approved = d?.approved ?? null;
       const text = approved ? readParagraphs(await this.matters.revisionBytes(matterId, approved.id)).map((p) => p.text).join("\n") : null;
@@ -127,7 +138,7 @@ export class Filing {
     const work = path.join(folder, ".work");
     try {
       let n = 0;
-      for (const r of REQUIRED) {
+      for (const r of required(store.work.limitation())) {
         const d = drafts.find((x) => x.kind === r.kind)!;
         const docxPath = path.join(work, `${r.kind}.docx`);
         await mkdir(work, { recursive: true });
@@ -164,7 +175,11 @@ export class Filing {
       limitation: lim ? `${lim.deadline} (confirmed ${lim.confirmedAt})` : null,
       approvals,
     };
-    const manifest = { ...body, digest: manifestDigest(body, sha256) };
+    // V2-7: the public key is part of the body; the signature is over the digest.
+    if (this.signer) body.publicKey = this.signer.publicKey();
+    const digest = manifestDigest(body, sha256);
+    const manifest: Record<string, unknown> = { ...body, digest };
+    if (this.signer) manifest.signature = this.signer.sign(digest);
     await writeFile(path.join(folder, "manifest.json"), JSON.stringify(manifest, null, 2));
     return store.work.addFilingSet(manifest, folder, advocate);
   }

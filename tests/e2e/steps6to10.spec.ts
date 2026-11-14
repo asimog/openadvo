@@ -229,22 +229,44 @@ test("steps 6 to 10: research, citations, grounds, filing set, capture, agent fi
     await expect(page.getByTestId("filing-blockers")).toContainText("P-4");
     await page.getByRole("button", { name: "Confirm limitation" }).click();
     await expect(page.getByTestId("limitation")).toContainText("(confirmed by you)");
+    // ---- V2-6: the last day has passed, so the condonation application is required ----
+    await expect(page.getByTestId("filing-blockers")).toContainText("Application for Condonation of Delay");
+    const con = await call<any>("generateDraft", matterId, "condonation");
+    const conParas: Array<{ anchor: string; text: string }> = (await call<any>("getRevision", matterId, con.revision.id)).paragraphs.filter((p: any) => p.anchor);
+    expect(conParas.some((p) => /the last day of limitation was 10\.06\.2024\. On \d\d\.\d\d\.\d{4} the delay is \d+ day\(s\)\./.test(p.text))).toBe(true);
+    await expect(call("approveRevision", matterId, con.revision.id)).rejects.toThrow(/DRAFT_INCOMPLETE/);
+    // The advocate writes the reasons (here through a kept change, so the test needs no editor).
+    const reasons = conParas.find((p) => p.text.includes("[TO BE COMPLETED"))!;
+    await app.evaluate((_e, a) => (globalThis as any).__openadvoTest.proposeCorrection(a.m, a.i), {
+      m: matterId,
+      i: { draftId: con.draft.id, anchor: reasons.anchor, expected: reasons.text, replacement: "3. The reasons for the delay: the certified copy was received on 01.07.2024.", reason: "advocate's reasons" },
+    });
+    const head = (await call<any[]>("listDrafts", matterId)).find((d) => d.id === con.draft.id).head;
+    const keptCon = await call<any>("decideAgentChanges", matterId, con.draft.id, head.id, [{ anchor: reasons.anchor, decision: "keep" }]);
+    await call("approveRevision", matterId, keptCon.id);
+    await page.getByRole("tab", { name: "Research" }).click();
+    await page.getByRole("tab", { name: "Filing" }).click();
     await expect(page.getByTestId("filing-blockers")).toHaveCount(0);
     await page.getByRole("button", { name: "Approve for filing and make the filing set" }).click();
     await expect(page.getByTestId("filing-set")).toBeVisible({ timeout: 180_000 });
     const filing = await call<any>("getFiling", matterId);
     const set = filing.filingSet;
     expect(set.manifest.files.map((f: any) => [f.role, f.pdfa])).toEqual([
-      ["synopsis", true], ["list_of_dates", true], ["petition", true], ["questions_of_law", true], ["grounds", true], ["annexure", false],
+      ["synopsis", true], ["list_of_dates", true], ["petition", true], ["questions_of_law", true], ["grounds", true], ["condonation", true], ["annexure", false],
     ]);
     expect(filing.compliance.results.find((r: any) => r.rule === "P-5").outcome).toBe("pass");
     const manifestOnDisk = readFileSync(path.join(set.folder, "manifest.json"), "utf8");
-    expect(JSON.parse(manifestOnDisk).files.length).toBe(6);
+    expect(JSON.parse(manifestOnDisk).files.length).toBe(7);
+    // V2-7: the manifest is signed with the application's key.
+    expect(JSON.parse(manifestOnDisk).publicKey).toContain("BEGIN PUBLIC KEY");
+    expect(JSON.parse(manifestOnDisk).signature).toMatch(/^[A-Za-z0-9+/]+=*$/);
+    expect((await call<any>("verifyFilingManifest", matterId)).signature).toBe("valid");
     // V1-8: the manifest digest and the file hashes verify; the approval trail is in the manifest.
     expect(set.manifest.digest).toMatch(/^[0-9a-f]{64}$/);
     expect(set.manifest.approvals.at(-1).what).toBe("Approved for filing");
     await page.getByRole("button", { name: "Verify the manifest" }).click();
     await expect(page.getByTestId("manifest-check")).toContainText("Manifest verified");
+    await expect(page.getByTestId("manifest-check")).toContainText("Signature: valid");
 
     // ---- Step 9: the court record, captured in the visible portal window ----
     await page.getByRole("button", { name: "Open court portal" }).click();

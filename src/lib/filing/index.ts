@@ -7,6 +7,7 @@
  * (questions.md Q-6). The limitation period is a recorded rule with its source, computed by the
  * system and confirmed by the advocate with the working shown (questions.md Q-7).
  */
+import { createPublicKey, verify as cryptoVerify } from "node:crypto";
 import type { ComplianceResult } from "../../shared/work.ts";
 
 export const RULES_VERSION = "slp-package-v0";
@@ -33,6 +34,14 @@ export function computeLimitation(startIso: string, days: number = LIMITATION_RU
     "Not computed: time spent obtaining a certified copy, court vacations and holidays, and condonation of delay. The advocate confirms or corrects the computation.",
   ].join(" ");
   return { deadline, working };
+}
+
+/** V2-6: the days after the last day of limitation, on `asOf` (ISO dates). Zero when in time. */
+export function delayDays(deadline: string, asOf: string): number {
+  const d = Date.parse(`${deadline}T00:00:00Z`);
+  const a = Date.parse(`${asOf.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(d) || Number.isNaN(a)) return 0;
+  return Math.max(0, Math.round((a - d) / 86_400_000));
 }
 
 /** A PDF/A file declares its part in its XMP metadata (pdfaid:part) and carries an output intent. */
@@ -68,7 +77,7 @@ export function checkCompliance(input: ComplianceInput): ComplianceResult[] {
   const missing = input.drafts.filter((d) => d.approvedSeq === null).map((d) => d.title);
   add(
     "P-1",
-    "Required documents: Synopsis, List of Dates, Petition, Questions of Law and Grounds, each with an approved revision",
+    "Required documents: Synopsis, List of Dates, Petition, Questions of Law and Grounds, and the application for condonation of delay when limitation has run, each with an approved revision",
     "Workflow section 8 (petition structure)",
     missing.length ? "defect" : "pass",
     missing.length ? `Not approved: ${missing.join(", ")}.` : "Every required document has an approved revision.",
@@ -120,15 +129,29 @@ export function canonicalJson(value: unknown): string {
   return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(",")}}`;
 }
 
-/** The SHA-256 of the manifest body without its `digest` field. */
+/**
+ * The SHA-256 of the manifest body without its `digest` and `signature` fields. The public key is
+ * part of the body, so the digest binds it (V2-7).
+ */
 export function manifestDigest(manifest: Record<string, unknown>, sha256: (text: string) => string): string {
-  const { digest: _ignored, ...body } = manifest;
+  const { digest: _d, signature: _s, ...body } = manifest;
   return sha256(canonicalJson(body));
+}
+
+/** V2-7: check an Ed25519 signature (base64) over the digest with a SPKI PEM public key. */
+export function signatureValid(digest: string, signature: string, publicKeyPem: string): boolean {
+  try {
+    return cryptoVerify(null, Buffer.from(digest, "utf8"), createPublicKey(publicKeyPem), Buffer.from(signature, "base64"));
+  } catch {
+    return false;
+  }
 }
 
 export interface ManifestCheck {
   ok: boolean;
   digest: "match" | "mismatch" | "absent";
+  /** V2-7. A manifest made before v2 has no signature: "not_signed", which is not a failure. */
+  signature: "valid" | "invalid" | "not_signed";
   files: Array<{ name: string; outcome: "match" | "mismatch" | "missing" }>;
 }
 
@@ -137,7 +160,7 @@ export interface ManifestCheck {
  * set folder, or null when the file is missing.
  */
 export async function verifyManifest(
-  manifest: { files: Array<{ name: string; sha256: string }>; digest?: string } & Record<string, unknown>,
+  manifest: { files: Array<{ name: string; sha256: string }>; digest?: string; signature?: string; publicKey?: string } & Record<string, unknown>,
   sha256: (text: string) => string,
   readHash: (name: string) => Promise<string | null>,
 ): Promise<ManifestCheck> {
@@ -147,5 +170,7 @@ export async function verifyManifest(
     const h = await readHash(f.name);
     files.push({ name: f.name, outcome: h === null ? "missing" : h === f.sha256 ? "match" : "mismatch" });
   }
-  return { ok: digest === "match" && files.every((f) => f.outcome === "match"), digest, files };
+  const signature: ManifestCheck["signature"] =
+    !manifest.signature || !manifest.publicKey ? "not_signed" : manifest.digest && signatureValid(manifest.digest, manifest.signature, manifest.publicKey) ? "valid" : "invalid";
+  return { ok: digest === "match" && signature !== "invalid" && files.every((f) => f.outcome === "match"), digest, signature, files };
 }

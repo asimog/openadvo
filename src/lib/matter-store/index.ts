@@ -182,7 +182,7 @@ CREATE TRIGGER IF NOT EXISTS conflict_no_delete BEFORE DELETE ON date_conflict B
 -- Step 4: drafts and revisions (work products). A revision is append-only; an approval is its own row.
 CREATE TABLE IF NOT EXISTS draft (
   id TEXT PRIMARY KEY,
-  kind TEXT NOT NULL CHECK (kind IN ('list_of_dates', 'synopsis', 'questions_of_law', 'grounds', 'petition', 'conference')),
+  kind TEXT NOT NULL CHECK (kind IN ('list_of_dates', 'synopsis', 'questions_of_law', 'grounds', 'petition', 'conference', 'condonation')),
   title TEXT NOT NULL,
   created_at TEXT NOT NULL
 ) STRICT;
@@ -314,6 +314,9 @@ export class MatterStore {
     db.exec("PRAGMA foreign_keys = ON;");
     db.exec(SCHEMA);
     db.exec(WORK_SCHEMA);
+    // V2-6: interim relief in the matter details.
+    const md = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'matter_details'").get() as { sql?: string } | undefined;
+    if (md?.sql && !md.sql.includes("interim_relief")) db.exec("ALTER TABLE matter_details ADD COLUMN interim_relief TEXT NOT NULL DEFAULT '';");
     return db;
   }
 
@@ -327,13 +330,13 @@ export class MatterStore {
     if (items?.sql && !items.sql.includes("draft_id")) db.exec("ALTER TABLE review_item ADD COLUMN draft_id TEXT;");
     // Step 6: drafts of the kinds questions_of_law and grounds. V1: petition and conference.
     const draft = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'draft'").get() as { sql?: string } | undefined;
-    if (draft?.sql && !draft.sql.includes("'conference'")) {
+    if (draft?.sql && !draft.sql.includes("'condonation'")) {
       db.exec("PRAGMA foreign_keys = OFF;");
       db.exec("BEGIN");
       try {
         db.exec(`CREATE TABLE draft_step6 (
   id TEXT PRIMARY KEY,
-  kind TEXT NOT NULL CHECK (kind IN ('list_of_dates', 'synopsis', 'questions_of_law', 'grounds', 'petition', 'conference')),
+  kind TEXT NOT NULL CHECK (kind IN ('list_of_dates', 'synopsis', 'questions_of_law', 'grounds', 'petition', 'conference', 'condonation')),
   title TEXT NOT NULL,
   created_at TEXT NOT NULL
 ) STRICT;
@@ -486,8 +489,9 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
     const rows = this.db
       .prepare(
         `SELECT s.id, s.sha256, s.name, s.size, s.media_type, s.added_at, s.status, s.checked_at,
-                (SELECT COUNT(*) FROM origin o WHERE o.source_id = s.id) AS origins
-         FROM source s ORDER BY s.added_at, s.name`,
+                (SELECT COUNT(*) FROM origin o WHERE o.source_id = s.id) AS origins,
+                t.proposed AS t_proposed, t.confirmed AS t_confirmed, t.matched AS t_matched
+         FROM source s LEFT JOIN source_type t ON t.source_id = s.id ORDER BY s.added_at, s.name`,
       )
       .all() as Array<Record<string, unknown>>;
     return rows.map((r) => ({
@@ -500,6 +504,14 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
       status: r.status as SourceStatus,
       checkedAt: r.checked_at == null ? null : String(r.checked_at),
       origins: Number(r.origins),
+      docType:
+        r.t_proposed == null
+          ? null
+          : {
+              type: String(r.t_confirmed ?? r.t_proposed),
+              status: r.t_confirmed == null ? ("candidate" as const) : ("confirmed" as const),
+              matched: String(r.t_matched ?? ""),
+            },
     }));
   }
 
@@ -620,7 +632,8 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
     this.appendEvent({ actor: "system" }, "ingest.failed", sourceId, { error });
   }
 
-  private openReviewItem(kind: string, sourceId: string | null, page: number | null, detail: string): string {
+  /** Opens a review item for the system. Only the advocate decides it. */
+  openReviewItem(kind: string, sourceId: string | null, page: number | null, detail: string): string {
     const id = randomUUID();
     this.db
       .prepare("INSERT INTO review_item (id, kind, source_id, page, detail, status, created_at) VALUES (?, ?, ?, ?, ?, 'open', ?)")

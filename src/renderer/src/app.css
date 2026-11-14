@@ -146,3 +146,11 @@ button.link { background: none; border: 0; padding: 0; color: var(--color-text-a
 .record-cell { display: flex; flex-direction: column; gap: 4px; }
 .record-quote { font-size: 0.9em; opacity: 0.8; }
 .memory-text { width: 100%; min-height: 160px; font-family: var(--font-family-mono, monospace); font-size: 0.9em; }
+
+/* V2 (docs/specs/v2.md) */
+.pick-list { list-style: none; margin: 8px 0; padding: 0; max-height: 320px; overflow: auto; display: flex; flex-direction: column; gap: 4px; }
+.pick-list label { display: flex; gap: 8px; align-items: baseline; cursor: pointer; }
+.lod-rows summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+.proposal { border-left: 3px solid var(--color-border, #d0d4da); padding: 6px 10px; margin: 6px 0; display: flex; flex-direction: column; gap: 4px; }
+.field.inline { flex-direction: row; align-items: center; gap: 8px; }
+.source-text-only { height: 100%; }
