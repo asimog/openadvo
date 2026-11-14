@@ -24,6 +24,20 @@ Step 5 of [../build-plan.md](../build-plan.md). Serves workflow sections 9A and 
 
 **Built in the first part (2026-11-14).** Rules 1 to 8, the bridge function, the harness control, unit tests and one end-to-end assertion.
 
-**Not built yet (still step 5).** Defects stored as review items and the first quality-gate states; the agent's corrections as tracked changes through the Document Builder; the chat summary card with Keep all, Undo all and Review one by one (editor-design items e to g); the approval gate while an agent change is not decided (item h); an agent tool that runs the checks.
+**Built in the second part (2026-11-14): agent changes.**
+
+9. The agent proposes a correction with `propose_correction` (draft, anchor, the paragraph's exact current text, the new text, the reason). `lib/tracked-changes` writes it into the stored DOCX as word-level tracked changes by "Open Advocate agent" (editor-design item a). The result is a new revision with author `agent` and the event `revision.proposed`. A wrong expected text fails with `DOC_STALE_TARGET` (WD-129). A paragraph that already holds an undecided change is refused.
+10. The changes still to decide are read from the head revision's DOCX. There is no second proposal store.
+11. A change is substantive when its changed words hold a digit or a month name (item g). v0 limit: party names and prayers are not recognised, because the matter records no parties.
+12. A run in which the agent proposed changes ends with an AG-UI `RUN_FINISHED` event whose outcome is `interrupt`, one interrupt per change (reason `openadvo.draft_change`). The answer is not a resume run: Keep and Undo are the bridge function `decideAgentChanges` (decision 5). The result is a new revision with author `advocate` and the event `agent_change.decided`.
+13. The chat dock shows one card per draft: before and after of each change, Keep and Undo for each, "Keep all wording changes" (never the substantive ones) and Undo all. The open draft moves to the new head revision.
+14. A revision with an undecided agent change cannot be approved (`AGENT_CHANGES_UNDECIDED`, item h).
+15. The agent tool `check_draft` runs the checks of rules 1 to 8.
+
+A matter made before this part is migrated once when it opens: the revision table is rebuilt so that the author `agent` is allowed. Rows and triggers are kept.
+
+v0 limit: the corrected paragraph keeps its paragraph properties and the properties of its first run. Mixed formatting inside that one paragraph is not kept.
+
+**Not built yet (still step 5).** Defects stored as review items and the first quality-gate states; the editor scrolling to each change when the card steps through it (item f). Built: "N agent change(s) not decided" in the harness bar status (item c).
 
 **Proof task.** The owner runs the checks on a real draft with three planted errors and finds all three, and decides every agent change.

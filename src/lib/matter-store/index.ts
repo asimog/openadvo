@@ -191,7 +191,7 @@ CREATE TABLE IF NOT EXISTS revision (
   sha256 TEXT NOT NULL,
   size INTEGER NOT NULL,
   base_revision_id TEXT REFERENCES revision(id),
-  author TEXT NOT NULL CHECK (author IN ('generator', 'advocate')),
+  author TEXT NOT NULL CHECK (author IN ('generator', 'advocate', 'agent')),
   created_at TEXT NOT NULL,
   UNIQUE (draft_id, seq)
 ) STRICT;
@@ -307,9 +307,42 @@ export class MatterStore {
 
   private static openDb(folder: string): DatabaseSync {
     const db = new DatabaseSync(path.join(folder, DB_FILE));
-    db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
+    db.exec("PRAGMA journal_mode = WAL;");
+    MatterStore.migrate(db);
+    db.exec("PRAGMA foreign_keys = ON;");
     db.exec(SCHEMA);
     return db;
+  }
+
+  /**
+   * Step 5: a revision may be authored by the agent (a proposal of tracked changes).
+   * A matter made before step 5 has the older CHECK; the table is rebuilt once, rows kept.
+   */
+  private static migrate(db: DatabaseSync): void {
+    const row = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'revision'").get() as { sql?: string } | undefined;
+    if (!row?.sql || row.sql.includes("'agent'")) return;
+    db.exec("PRAGMA foreign_keys = OFF;");
+    db.exec("BEGIN");
+    try {
+      db.exec(`CREATE TABLE revision_step5 (
+  id TEXT PRIMARY KEY,
+  draft_id TEXT NOT NULL REFERENCES draft(id),
+  seq INTEGER NOT NULL,
+  sha256 TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  base_revision_id TEXT REFERENCES revision(id),
+  author TEXT NOT NULL CHECK (author IN ('generator', 'advocate', 'agent')),
+  created_at TEXT NOT NULL,
+  UNIQUE (draft_id, seq)
+) STRICT;
+INSERT INTO revision_step5 SELECT id, draft_id, seq, sha256, size, base_revision_id, author, created_at FROM revision;
+DROP TABLE revision;
+ALTER TABLE revision_step5 RENAME TO revision;`);
+      db.exec("COMMIT");
+    } catch (e) {
+      db.exec("ROLLBACK");
+      throw e;
+    }
   }
 
   close(): void {
@@ -886,6 +919,42 @@ export class MatterStore {
       .prepare("INSERT INTO revision (id, draft_id, seq, sha256, size, base_revision_id, author, created_at) VALUES (?, ?, ?, ?, ?, ?, 'advocate', ?)")
       .run(id, draftId, head.seq + 1, sha256, size, head.id, at);
     this.appendEvent(ctx, "revision.saved", id, { draftId, base: head.id, sha256, size });
+    return this.getRevision(id);
+  }
+
+  /**
+   * The agent's proposal: a new revision whose DOCX holds the agent's tracked changes
+   * (editor-design item a). The base must be the head; nothing is kept until the advocate decides.
+   */
+  async proposeRevision(draftId: string, docx: Buffer, baseRevisionId: string, data: Record<string, unknown>, ctx: WriteContext): Promise<RevisionRecord> {
+    if (ctx.actor !== "agent") throw new MatterStoreError("AGENT_ONLY", "a proposal is the agent's");
+    return this.insertRevision(draftId, docx, baseRevisionId, "agent", "revision.proposed", data, ctx);
+  }
+
+  /** The advocate keeps or undoes agent changes (decision 5): a new revision, author advocate. */
+  async decideRevision(draftId: string, docx: Buffer, baseRevisionId: string, data: Record<string, unknown>, ctx: WriteContext): Promise<RevisionRecord> {
+    if (ctx.actor !== "advocate") throw new MatterStoreError("HUMAN_ONLY", "only the advocate keeps or undoes a change");
+    return this.insertRevision(draftId, docx, baseRevisionId, "advocate", "agent_change.decided", data, ctx);
+  }
+
+  private async insertRevision(
+    draftId: string,
+    docx: Buffer,
+    baseRevisionId: string,
+    author: RevisionAuthor,
+    action: string,
+    data: Record<string, unknown>,
+    ctx: WriteContext,
+  ): Promise<RevisionRecord> {
+    const head = this.getDraft(draftId).head;
+    if (!head) throw new MatterStoreError("DRAFT_NOT_FOUND", draftId);
+    if (head.id !== baseRevisionId) throw new MatterStoreError("DOC_STALE_BASE", `the draft now has revision ${head.seq}`);
+    const { sha256, size } = await this.putBlob(docx);
+    const id = randomUUID();
+    this.db
+      .prepare("INSERT INTO revision (id, draft_id, seq, sha256, size, base_revision_id, author, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(id, draftId, head.seq + 1, sha256, size, head.id, author, now());
+    this.appendEvent(ctx, action, id, { draftId, base: head.id, sha256, ...data });
     return this.getRevision(id);
   }
 

@@ -404,6 +404,19 @@ export function DraftView(props: {
     }
   };
 
+  // Item c: the status counts the agent changes not decided in the open revision.
+  const [undecided, setUndecided] = useState(0);
+  useEffect(() => {
+    let live = true;
+    api.agentChanges(props.matterId).then(
+      (groups) => live && setUndecided(groups.find((g) => g.revisionId === props.revision.id)?.changes.length ?? 0),
+      () => live && setUndecided(0),
+    );
+    return () => {
+      live = false;
+    };
+  }, [props.matterId, props.revision.id]);
+
   const harness = (
     <>
       <div className="harness-bar" data-testid="harness-bar">
@@ -414,6 +427,11 @@ export function DraftView(props: {
           </span>
           <Text weight="semibold">{dirty ? "Unsaved changes" : "Saved"}</Text>
           {approved ? <Badge variant="success" label="Approved by advocate" /> : null}
+          {undecided > 0 ? (
+            <Text type="supporting" weight="semibold" data-testid="draft-undecided">
+              {undecided} agent change(s) not decided
+            </Text>
+          ) : null}
           <Text type="supporting" data-testid="draft-verification">
             {check && check.seq === revisionInfo.seq && !dirty
               ? `Facts checked: ${check.defects.length} defect(s). Citations: not verified`

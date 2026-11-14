@@ -164,7 +164,7 @@ export interface Notebook {
 export type DraftKind = "list_of_dates" | "synopsis";
 
 /** A generator wrote the revision, or the advocate saved it from the editor. */
-export type RevisionAuthor = "generator" | "advocate";
+export type RevisionAuthor = "generator" | "advocate" | "agent";
 
 export interface RevisionRecord {
   id: string;
@@ -284,4 +284,22 @@ export interface EventInput {
   kind: "procedural" | "factual";
   reading: "text_layer" | "ocr";
   method: string;
+}
+
+/** One paragraph that holds an agent change the advocate has not decided (step 5). */
+export interface AgentChange {
+  anchor: string;
+  before: string;
+  after: string;
+  /** Editor-design item g: touches a date, a number or an amount. Never part of Keep all. */
+  substantive: boolean;
+}
+
+/** The undecided agent changes of one draft, read from its head revision. */
+export interface AgentChanges {
+  draftId: string;
+  title: string;
+  revisionId: string;
+  seq: number;
+  changes: AgentChange[];
 }

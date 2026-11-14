@@ -107,6 +107,16 @@ function registerBridge(): void {
     return drafts.saveRevision(matterId, draftId, raw, baseRevisionId);
   });
   handle("drafts:check", (matterId: string, draftId: string) => drafts.check(matterId, String(draftId ?? "")));
+  handle("drafts:agentChanges", (matterId: string) => drafts.agentChanges(matterId));
+  // Human-only (decision 5): keep or undo agent changes. Never an agent tool.
+  handle("drafts:decideAgentChanges", (matterId: string, draftId: string, baseRevisionId: string, decisions: unknown) => {
+    if (!Array.isArray(decisions)) throw new Error("BAD_DECISION: a list of decisions is needed");
+    const clean = decisions.map((d: { anchor?: unknown; decision?: unknown }) => {
+      if (d?.decision !== "keep" && d?.decision !== "undo") throw new Error("BAD_DECISION: keep or undo");
+      return { anchor: String(d.anchor ?? ""), decision: d.decision as "keep" | "undo" };
+    });
+    return drafts.decideAgentChanges(matterId, String(draftId ?? ""), String(baseRevisionId ?? ""), clean);
+  });
   handle("drafts:approveRevision", (matterId: string, revisionId: string) => drafts.approveRevision(matterId, revisionId));
   handle("dialog:pickFiles", async () => {
     if (!window) return [];
@@ -200,6 +210,9 @@ function exposeTestHooks(): void {
     agentSessionId: (matterId: string) => agent.sessionId(matterId),
     mattersRoot: () => matters.root,
     ingestIdle: () => ingest.idle(),
+    // Stands in for the agent's propose_correction tool, so a test needs no model.
+    proposeCorrection: (matterId: string, input: { draftId: string; anchor: string; expected: string; replacement: string; reason: string }) =>
+      drafts.proposeCorrection(matterId, input),
   };
 }
 
@@ -232,6 +245,8 @@ app.whenReady().then(() => {
       notebook: (id) => matters.notebook(id),
       drafts: (id, kind) => drafts.readDrafts(id, kind),
       paragraphSource: (id, anchor) => drafts.paragraphSourceAnywhere(id, anchor),
+      checkDraft: (id, draftId) => drafts.check(id, draftId),
+      proposeCorrection: (id, input, sessionId) => drafts.proposeCorrection(id, input, sessionId),
       matterTitle: (id) => matters.title(id),
       recordSession: (id, sessionId, model) => matters.recordAgentSession(id, sessionId, model),
       emit: emitChat,

@@ -28,9 +28,40 @@ import type { ChatEvent, ChatMessage, ChatState, EffortLevel, EffortState, Model
 type ThinkingLevel = EffortLevel;
 const EFFORT_LEVELS: readonly EffortLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 import type { Api, Model } from "@earendil-works/pi-ai";
-import type { DraftKind, ParagraphSource, RevisionRecord } from "../shared/records.ts";
+import type { DraftCheck, DraftKind, ParagraphSource, RevisionRecord } from "../shared/records.ts";
 
-/** The allowlist. Every tool is read only (decision 2; step 1 rule 5, step 4). */
+/** One correction the agent proposed in a run, as the AG-UI interrupt reports it. */
+export interface ProposedCorrection {
+  draftId: string;
+  title: string;
+  revisionId: string;
+  seq: number;
+  anchor: string;
+  before: string;
+  after: string;
+  substantive: boolean;
+  reason: string;
+}
+
+/** The AG-UI interrupt reason for an agent change the advocate must keep or undo. */
+export const DRAFT_CHANGE_INTERRUPT = "openadvo.draft_change";
+
+/** One AG-UI interrupt per proposed change. The answer is keep or undo, given by a bridge function. */
+export function draftChangeInterrupts(proposals: ProposedCorrection[]) {
+  return proposals.map((p) => ({
+    id: `${p.revisionId}:${p.anchor}`,
+    reason: DRAFT_CHANGE_INTERRUPT,
+    message: `Keep or undo the agent's change to a paragraph of ${p.title}.`,
+    responseSchema: { type: "object", properties: { decision: { enum: ["keep", "undo"] } }, required: ["decision"] },
+    metadata: { ...p },
+  }));
+}
+
+/**
+ * The allowlist (decision 2). Every tool reads, except propose_correction, which writes only a
+ * proposal: tracked changes in a new revision that keep nothing until the advocate decides
+ * (editor-design items a, e; decision 5 keeps Keep and Undo off this list).
+ */
 export const AGENT_TOOLS = [
   "list_sources",
   "read_source_text",
@@ -39,6 +70,8 @@ export const AGENT_TOOLS = [
   "get_chronology",
   "read_draft",
   "get_paragraph_source",
+  "check_draft",
+  "propose_correction",
 ] as const;
 
 /** At most this many pages per read_source_text call, so one result never crowds the model out. */
@@ -60,6 +93,12 @@ export interface AgentHost {
   notebook(matterId: string): Promise<Notebook>;
   drafts(matterId: string, kind?: DraftKind): Promise<AgentDraft[]>;
   paragraphSource(matterId: string, anchor: string): Promise<ParagraphSource | null>;
+  checkDraft(matterId: string, draftId: string): Promise<DraftCheck>;
+  proposeCorrection(
+    matterId: string,
+    input: { draftId: string; anchor: string; expected: string; replacement: string; reason: string },
+    sessionId: string,
+  ): Promise<{ revision: RevisionRecord; before: string; after: string; substantive: boolean }>;
   matterTitle(matterId: string): Promise<string>;
   recordSession(matterId: string, sessionId: string, model: string | null): Promise<void>;
   emit(event: ChatEvent): void;
@@ -87,9 +126,11 @@ function systemPrompt(title: string): string {
     `The open matter is: ${title}.`,
     "Your tools are read only: list_sources (the source files), read_source_text (the text of pages of one source, line by line) and search_sources (find a phrase; returns source, page and line).",
     "The Notebook holds dated events extracted by fixed rules: list_events (every field, with filters) and get_chronology (the events the advocate has not excluded, by date). Events are candidates until the advocate confirms them. You cannot confirm, reject or exclude anything.",
-    "The drafts are the generated List of Dates and the Synopsis: read_draft reads the live text of the latest revision of each draft, with the anchor of every paragraph, and get_paragraph_source follows one anchor to its Notebook events and source lines. No model writes the generated text. You cannot change a draft.",
+    "The drafts are the generated List of Dates and the Synopsis: read_draft reads the live text of the latest revision of each draft, with the anchor of every paragraph, and get_paragraph_source follows one anchor to its Notebook events and source lines. No model writes the generated text.",
+    "check_draft runs the fixed factual checks on the latest stored revision of one draft and lists each defect with its evidence.",
+    "propose_correction proposes new text for one paragraph. It becomes a tracked change by you in a new revision. Nothing is kept until the advocate keeps or undoes it; you cannot keep or undo. Give the paragraph's exact current text as expected_text. Propose only what the sources or the Notebook support, and give the reason with its source line.",
     "When you state a fact from a source, cite it as [source name, p. N, l. M]. OCR text is a single reading, not cross-checked: say so when you rely on it.",
-    "You cannot add, change or delete anything in the matter. The advocate decides every legal point.",
+    "Apart from proposals, you cannot add, change or delete anything in the matter. The advocate decides every legal point.",
     "When a request needs a capability you do not have, say so plainly. Never invent sources, hashes or facts.",
     "Write short, plain sentences.",
   ].join("\n");
@@ -139,6 +180,15 @@ export function formatDraft(d: AgentDraft): string {
   return [head, ...d.paragraphs.map((p) => (p.anchor ? `[anchor ${p.anchor}] ${p.text}` : `[no anchor] ${p.text}`))].join("\n");
 }
 
+export function formatCheck(c: DraftCheck, title: string): string {
+  const head = `${title}, revision ${c.seq}: ${c.statementsChecked} statement(s) checked, ${c.defects.length} defect(s). Method: ${c.method}.`;
+  const defects = c.defects.map(
+    (d) => `- [${d.kind}] paragraph ${d.paragraph}${d.anchor ? ` (anchor ${d.anchor})` : ""}: ${d.text}\n  Evidence: ${d.evidence}\n  Action: ${d.action}`,
+  );
+  const notRun = c.notRun.map((n) => `- Not run: ${n.check}. ${n.reason}`);
+  return [head, ...defects, ...notRun].join("\n");
+}
+
 export function formatParagraphSource(s: ParagraphSource): string {
   const head = `Paragraph ${s.anchor}. ${s.events.length} Notebook event(s):`;
   return [
@@ -181,6 +231,8 @@ function resourceLoader(title: string): ResourceLoader {
 interface MatterChat {
   session: AgentSession;
   state: ChatState;
+  /** Corrections proposed in the current run. They become the run's AG-UI interrupts. */
+  proposals: ProposedCorrection[];
 }
 
 export class Agent {
@@ -409,6 +461,56 @@ export class Agent {
         return { content: [{ type: "text", text }], details: { events: source?.events.length ?? 0 } };
       },
     });
+    const draftOfKind = async (kind: DraftKind) => (await host.drafts(matterId, kind))[0];
+    const draftKind = Type.Union([Type.Literal("list_of_dates"), Type.Literal("synopsis")]);
+    const checkDraftTool = defineTool({
+      name: "check_draft",
+      label: "Check draft",
+      description: "Run the fixed factual checks on the latest stored revision of one draft: source links, dates against the Notebook, and agreement between the List of Dates and the Synopsis.",
+      parameters: Type.Object({ draft: draftKind }),
+      execute: async (_id, params) => {
+        const draft = await draftOfKind(params.draft);
+        if (!draft) return { content: [{ type: "text", text: "That draft does not exist yet." }], details: { defects: 0 } };
+        const result = await host.checkDraft(matterId, draft.draftId);
+        return { content: [{ type: "text", text: formatCheck(result, draft.title) }], details: { defects: result.defects.length } };
+      },
+    });
+    const proposeCorrection = defineTool({
+      name: "propose_correction",
+      label: "Propose correction",
+      description:
+        "Propose new text for one paragraph of a draft. It is written as a tracked change by the agent in a new revision. The advocate keeps or undoes it. Fails when expected_text is not the paragraph's current text, or the paragraph already has an undecided change.",
+      parameters: Type.Object({
+        draft: draftKind,
+        anchor: Type.String({ description: "The paragraph anchor, from read_draft." }),
+        expected_text: Type.String({ description: "The paragraph's exact current text, from read_draft." }),
+        new_text: Type.String({ description: "The whole new text of the paragraph." }),
+        reason: Type.String({ description: "Why, with the source line that supports it." }),
+      }),
+      execute: async (_id, params) => {
+        const draft = await draftOfKind(params.draft);
+        if (!draft) return { content: [{ type: "text", text: "That draft does not exist yet." }], details: { proposed: false } };
+        const chat = await this.chats.get(matterId);
+        const result = await host.proposeCorrection(
+          matterId,
+          { draftId: draft.draftId, anchor: params.anchor, expected: params.expected_text, replacement: params.new_text, reason: params.reason },
+          chat?.session.sessionId ?? "",
+        );
+        chat?.proposals.push({
+          draftId: draft.draftId,
+          title: draft.title,
+          revisionId: result.revision.id,
+          seq: result.revision.seq,
+          anchor: params.anchor,
+          before: result.before,
+          after: result.after,
+          substantive: result.substantive,
+          reason: params.reason,
+        });
+        const text = `Proposed as a tracked change in ${draft.title}, revision ${result.revision.seq}${result.substantive ? " (substantive: the advocate decides it on its own)" : ""}. The advocate will keep or undo it.`;
+        return { content: [{ type: "text", text }], details: { proposed: true } };
+      },
+    });
     const runtime = await this.modelRuntime();
     const model = await this.model();
     const { session } = await createAgentSession({
@@ -421,7 +523,7 @@ export class Agent {
       settingsManager: SettingsManager.inMemory({ compaction: { enabled: false } }),
       sessionManager: SessionManager.inMemory(this.options.agentDir),
       tools: [...AGENT_TOOLS],
-      customTools: [listSources, readSourceText, searchSources, listEvents, getChronology, readDraft, getParagraphSource],
+      customTools: [listSources, readSourceText, searchSources, listEvents, getChronology, readDraft, getParagraphSource, checkDraftTool, proposeCorrection],
     });
     const active = session.getActiveToolNames();
     if (active.length !== AGENT_TOOLS.length || !AGENT_TOOLS.every((t) => active.includes(t))) {
@@ -438,7 +540,7 @@ export class Agent {
         text: "No model is available. Sign in to a model provider with Pi first.",
       });
     }
-    return { session, state };
+    return { session, state, proposals: [] };
   }
 
   /** The active tool names of a matter's session. Used by tests and the startup check. */
@@ -477,6 +579,7 @@ export class Agent {
     }
     const threadId = session.sessionId;
     const runId = randomUUID();
+    chat.proposals = [];
     state.busy = true;
     emit({ type: EventType.RUN_STARTED, threadId, runId });
     let current: ChatMessage | null = null;
@@ -521,6 +624,17 @@ export class Agent {
       if (failure) {
         state.messages.push({ id: randomUUID(), role: "notice", text: failure });
         emit({ type: EventType.RUN_ERROR, message: failure });
+      } else if (chat.proposals.length > 0) {
+        // Human in the loop (decisions.md choice 21): the run waits for the advocate. Each
+        // interrupt is one agent change. The answer is a bridge function (decision 5), and the
+        // next run on the thread is an ordinary run.
+        const interrupts = draftChangeInterrupts(chat.proposals);
+        state.messages.push({
+          id: randomUUID(),
+          role: "notice",
+          text: `The agent proposed ${interrupts.length} change(s). Keep or undo each one.`,
+        });
+        emit({ type: EventType.RUN_FINISHED, threadId, runId, outcome: { type: "interrupt", interrupts } });
       } else {
         emit({ type: EventType.RUN_FINISHED, threadId, runId, outcome: { type: "success" } });
       }

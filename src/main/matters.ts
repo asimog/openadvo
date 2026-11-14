@@ -222,6 +222,16 @@ export class Matters {
     return (await this.store(matterId)).saveRevision(draftId, docx, baseRevisionId, ctx);
   }
 
+  /** The agent's proposal of tracked changes (editor-design item a). */
+  async proposeDraftRevision(matterId: string, draftId: string, docx: Buffer, baseRevisionId: string, data: Record<string, unknown>, sessionId?: string): Promise<RevisionRecord> {
+    return (await this.store(matterId)).proposeRevision(draftId, docx, baseRevisionId, data, { actor: "agent", sessionId });
+  }
+
+  /** Human-only (decision 5): keep or undo agent changes. */
+  async decideDraftRevision(matterId: string, draftId: string, docx: Buffer, baseRevisionId: string, data: Record<string, unknown>): Promise<RevisionRecord> {
+    return (await this.store(matterId)).decideRevision(draftId, docx, baseRevisionId, data, { actor: "advocate" });
+  }
+
   /** Human-only (decision 5). */
   async approveRevision(matterId: string, revisionId: string): Promise<DraftRecord> {
     const store = await this.store(matterId);

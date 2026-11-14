@@ -1,0 +1,5 @@
+model: opencode-go/deepseek-v4.1-flash
+events: 110 invalid: 0
+tools: read_source_text, read_draft, get_paragraph_source, check_draft, list_events, propose_correction
+proposals: [{"draftId":"d1","anchor":"oa-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","expected":"On 12.03.2024, the High Court dismissed the writ petition.","replacement":"On 13.03.2024, the High Court dismissed the writ petition.","reason":"judgment.pdf, p. 1, l. 3 reads: \"Judgment dated 13.03.2024: the writ petition is dismissed.\" The date is 13.03.2024, not 12.03.2024."}]
+last: RUN_FINISHED {"type":"interrupt","interrupts":[{"id":"r2:oa-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","reason":"openadvo.draft_change","message":"Keep or undo the agent's change to a paragraph of LIST OF DATES.","responseSchema":{"type":"object","properties":{"decision":{"enum":["keep","undo"]}},"required":["decision"]}

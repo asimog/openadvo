@@ -14,6 +14,8 @@ import type { Matters } from "./matters.ts";
 import { convertFile, FORMAT_DOCX } from "../lib/converter/index.ts";
 import { MatterStoreError } from "../lib/matter-store/index.ts";
 import { checkDraft } from "../lib/verification/index.ts";
+import { decideChanges, pendingChanges, proposeReplacement, type ChangeDecision } from "../lib/tracked-changes/index.ts";
+import type { AgentChanges } from "../shared/records.ts";
 import type { DraftCheck } from "../shared/records.ts";
 import {
   eventSentence,
@@ -234,9 +236,75 @@ export class Drafts {
     }
   }
 
-  /** Human-only approval of one revision (decision 5). */
+  /**
+   * Human-only approval of one revision (decision 5). Editor-design item h: a revision that
+   * holds an agent change the advocate has not decided cannot be approved.
+   */
   async approveRevision(matterId: string, revisionId: string) {
+    const open = pendingChanges(await this.matters.revisionBytes(matterId, revisionId));
+    if (open.length > 0) {
+      throw new MatterStoreError("AGENT_CHANGES_UNDECIDED", `${open.length} agent change(s) are not decided. Keep or undo each one first.`);
+    }
     return this.matters.approveRevision(matterId, revisionId);
+  }
+
+  /**
+   * The agent's correction of one paragraph, written as tracked changes into a new revision
+   * (step 5; editor-design items a, e). The head revision is the base. Nothing is kept until
+   * the advocate decides.
+   */
+  async proposeCorrection(
+    matterId: string,
+    input: { draftId: string; anchor: string; expected: string; replacement: string; reason: string },
+    sessionId?: string,
+  ): Promise<{ revision: RevisionRecord; before: string; after: string; substantive: boolean }> {
+    const draft = await this.matters.getDraft(matterId, input.draftId);
+    if (!draft.head) throw new MatterStoreError("DRAFT_NOT_FOUND", input.draftId);
+    const docx = await this.matters.revisionBytes(matterId, draft.head.id);
+    const { docx: next, change } = proposeReplacement(docx, {
+      anchor: input.anchor,
+      expected: input.expected,
+      replacement: input.replacement,
+      date: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+    });
+    const revision = await this.matters.proposeDraftRevision(
+      matterId,
+      draft.id,
+      next,
+      draft.head.id,
+      { anchor: input.anchor, reason: input.reason, substantive: change.substantive },
+      sessionId,
+    );
+    return { revision, before: change.before, after: change.after, substantive: change.substantive };
+  }
+
+  /** The agent changes not yet decided, for every draft, read from the head revision's DOCX. */
+  async agentChanges(matterId: string): Promise<AgentChanges[]> {
+    const out: AgentChanges[] = [];
+    for (const draft of await this.matters.listDrafts(matterId)) {
+      if (!draft.head) continue;
+      const changes = pendingChanges(await this.matters.revisionBytes(matterId, draft.head.id));
+      if (changes.length > 0) out.push({ draftId: draft.id, title: draft.title, revisionId: draft.head.id, seq: draft.head.seq, changes });
+    }
+    return out;
+  }
+
+  /**
+   * Human-only (decision 5; editor-design items e to g): keep or undo agent changes in the head
+   * revision. The result is a new revision by the advocate. A stale base is refused.
+   */
+  async decideAgentChanges(
+    matterId: string,
+    draftId: string,
+    baseRevisionId: string,
+    decisions: Array<{ anchor: string; decision: ChangeDecision }>,
+  ): Promise<RevisionRecord> {
+    const docx = await this.matters.revisionBytes(matterId, baseRevisionId);
+    const next = decideChanges(docx, decisions);
+    return this.matters.decideDraftRevision(matterId, draftId, next, baseRevisionId, {
+      kept: decisions.filter((d) => d.decision === "keep").map((d) => d.anchor),
+      undone: decisions.filter((d) => d.decision === "undo").map((d) => d.anchor),
+    });
   }
 
   /**

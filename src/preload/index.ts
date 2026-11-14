@@ -41,6 +41,9 @@ const api: OpenAdvoApi = {
   insertFromNotebook: (matterId, draftId, eventId) => ipcRenderer.invoke("drafts:insertFromNotebook", matterId, draftId, eventId),
   saveRevision: (matterId, draftId, bytes, baseRevisionId) => ipcRenderer.invoke("drafts:saveRevision", matterId, draftId, bytes, baseRevisionId),
   approveRevision: (matterId, revisionId) => ipcRenderer.invoke("drafts:approveRevision", matterId, revisionId),
+  agentChanges: (matterId) => ipcRenderer.invoke("drafts:agentChanges", matterId),
+  decideAgentChanges: (matterId, draftId, baseRevisionId, decisions) =>
+    ipcRenderer.invoke("drafts:decideAgentChanges", matterId, draftId, baseRevisionId, decisions),
   onIngestUpdate: (listener) => {
     const handler = (_event: unknown, matterId: string) => listener(matterId);
     ipcRenderer.on("ingest:update", handler);

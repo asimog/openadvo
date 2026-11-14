@@ -305,6 +305,15 @@ export function App() {
                   slotRef={setDockSlot}
                   carry={dockCarry}
                   onAddPaths={(paths) => addPathsTo(matter.id, paths)}
+                  onRevisionsChanged={async () => {
+                    await refreshMatter(matter.id);
+                    if (!openDraft) return;
+                    const next = (await api.listDrafts(matter.id)).find((d) => d.id === openDraft.id);
+                    if (next?.head) {
+                      setOpenDraft(next);
+                      setOpenRevision(next.head);
+                    }
+                  }}
                 />
               </Panel>
               <Separator className="separator" />

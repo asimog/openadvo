@@ -19,7 +19,8 @@ import { Spinner } from "@astryxdesign/core/Spinner";
 import { Text } from "@astryxdesign/core/Text";
 import { ArrowLeftIcon, ChatBubbleLeftRightIcon, PaperClipIcon } from "@heroicons/react/24/outline";
 import { CHAT_MESSAGE_EVENT } from "../../shared/api.ts";
-import type { ChatEvent, ChatMessage as ChatRecord, EffortLevel, EffortState, ModelChoice } from "../../shared/api.ts";
+import { AgentChangesCard } from "./AgentChangesCard.tsx";
+import type { AgentChanges, ChatEvent, ChatMessage as ChatRecord, EffortLevel, EffortState, ModelChoice } from "../../shared/api.ts";
 
 const api = window.openadvo;
 
@@ -139,7 +140,13 @@ export function ChatDock(props: {
   /** Text carried over from the landing page. `id` changes for each new carry. */
   carry: { id: number; text: string } | null;
   onAddPaths: (paths: string[]) => Promise<void>;
+  /** A revision was proposed or decided: the open draft moves to its new head. */
+  onRevisionsChanged: () => Promise<void>;
 }) {
+  const [changes, setChanges] = useState<AgentChanges[]>([]);
+  const loadChanges = () => api.agentChanges(props.matterId).then(setChanges, () => setChanges([]));
+  const onRevisionsChanged = useRef(props.onRevisionsChanged);
+  onRevisionsChanged.current = props.onRevisionsChanged;
   const [messages, setMessages] = useState<ChatRecord[]>([]);
   const [busy, setBusy] = useState(false);
   const [model, setModel] = useState<string | null>(null);
@@ -149,6 +156,8 @@ export function ChatDock(props: {
   useEffect(() => {
     setMessages([]);
     setError(null);
+    setChanges([]);
+    void loadChanges();
     let live = true;
     api.getChat(props.matterId).then(
       (s) => {
@@ -165,7 +174,15 @@ export function ChatDock(props: {
       const e = ev.event as unknown as { type: string } & Record<string, unknown>;
       const add = (message: ChatRecord) => setMessages((m) => (m.some((x) => x.id === message.id) ? m : [...m, message]));
       if (e.type === "RUN_STARTED") setBusy(true);
-      else if (e.type === "RUN_FINISHED") setBusy(false);
+      else if (e.type === "RUN_FINISHED") {
+        setBusy(false);
+        // An AG-UI interrupt: the agent proposed changes the advocate must keep or undo.
+        const outcome = e.outcome as { type?: string } | undefined;
+        if (outcome?.type === "interrupt") {
+          void loadChanges();
+          void onRevisionsChanged.current();
+        }
+      }
       else if (e.type === "RUN_ERROR") {
         setBusy(false);
         add({ id: `error-${String(e.timestamp)}`, role: "notice", text: String(e.message) });
@@ -265,6 +282,17 @@ export function ChatDock(props: {
               ))}
             </ChatMessageList>
           ) : null}
+          {changes.map((group) => (
+            <AgentChangesCard
+              key={group.revisionId}
+              matterId={props.matterId}
+              group={group}
+              onDecided={async () => {
+                await loadChanges();
+                await props.onRevisionsChanged();
+              }}
+            />
+          ))}
         </ChatLayout>
       </div>
     </div>

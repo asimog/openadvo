@@ -2,7 +2,8 @@
  * The bridge contract between the preload script and the renderer.
  * Types, and one constant name. The renderer calls these named functions; it has no other access.
  */
-import type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft, DraftCheck, DraftDefect } from "./records.ts";
+import type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft, DraftCheck, DraftDefect, AgentChanges } from "./records.ts";
+export type { AgentChanges, AgentChange } from "./records.ts";
 
 import type { AGUIEvent } from "@ag-ui/core";
 
@@ -110,4 +111,13 @@ export interface OpenAdvoApi {
   /** Human-only actions (decision 5). `bytes` are the editor's Editor.bin, converted to DOCX in the main process. */
   saveRevision(matterId: string, draftId: string, bytes: Uint8Array, baseRevisionId: string): Promise<RevisionRecord>;
   approveRevision(matterId: string, revisionId: string): Promise<DraftRecord>;
+  /** The agent changes not yet decided, per draft (step 5). */
+  agentChanges(matterId: string): Promise<AgentChanges[]>;
+  /** Human-only (decision 5): keep or undo agent changes in the head revision. Makes a new revision. */
+  decideAgentChanges(
+    matterId: string,
+    draftId: string,
+    baseRevisionId: string,
+    decisions: Array<{ anchor: string; decision: "keep" | "undo" }>,
+  ): Promise<RevisionRecord>;
 }

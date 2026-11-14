@@ -194,6 +194,7 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
       "getNotebook", "confirmEvent", "rejectEvent", "excludeEvent", "includeEvent", "resolveConflict",
       "listDrafts", "getRevision", "getParagraphSource", "generateListOfDates", "generateSynopsis",
       "openRevisionInEditor", "insertFromNotebook", "checkDraft", "saveRevision", "approveRevision",
+      "agentChanges", "decideAgentChanges",
     ].sort(),
   );
   await app.close();
@@ -213,6 +214,8 @@ test("the agent session has exactly our tool, and its id is recorded", async () 
     "get_chronology",
     "read_draft",
     "get_paragraph_source",
+    "check_draft",
+    "propose_correction",
   ]);
   const sessionId = await app.evaluate((_e, m) => (globalThis as any).__openadvoTest.agentSessionId(m), id);
   const events = await page.evaluate((m) => (globalThis as any).openadvo.listEvents(m), id);
