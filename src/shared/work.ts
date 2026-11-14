@@ -179,3 +179,37 @@ export interface ResearchState {
   /** The citation validator: where it is and whether it can run. */
   validator: { available: boolean; detail: string };
 }
+
+/** V1-4: a named, reusable instruction to the agent. */
+export interface Workflow {
+  id: string;
+  title: string;
+  body: string;
+  builtIn: boolean;
+}
+
+/** V1-5: one question of the record table. */
+export interface RecordColumn {
+  id: string;
+  question: string;
+  createdAt: string;
+}
+
+/** V1-5: the answer for one source and one column, with the quoted line. */
+export interface RecordCell {
+  sourceId: string;
+  columnId: string;
+  answer: string;
+  quote: string;
+  page: number;
+  line: number;
+  anchorId: string;
+  author: "agent" | "advocate";
+  status: "candidate" | "confirmed";
+  updatedAt: string;
+}
+
+export interface RecordTable {
+  columns: RecordColumn[];
+  cells: RecordCell[];
+}

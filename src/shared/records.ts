@@ -8,6 +8,8 @@ export interface MatterSummary {
   title: string;
   createdAt: string;
   folder: string;
+  /** V1-10. */
+  archived?: boolean;
 }
 
 export interface SourceRecord {

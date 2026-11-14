@@ -133,6 +133,8 @@ export function NotebookView(props: {
   /** Steps 6 to 10. */
   researchPanel: ReactNode;
   filingPanel: ReactNode;
+  /** V1-5. */
+  recordPanel: ReactNode;
   onChange: (nb: Notebook) => void;
   onOpen: (l: SourceLink) => void;
 }) {
@@ -161,14 +163,16 @@ export function NotebookView(props: {
         <Tab value="procedural" label="Procedural history" />
         <Tab value="matrix" label="Factual Matrix" />
         <Tab value="chronology" label="Chronology" />
+        <Tab value="records" label="Record table" />
         <Tab value="research" label="Research" />
         <Tab value="filing" label="Filing" />
       </TabList>
       <div className="notebook-body">
-        {tab !== "matter" && tab !== "research" && tab !== "filing" && nb ? <Conflicts matterId={props.matterId} nb={nb} onChange={props.onChange} onOpen={props.onOpen} /> : null}
+        {tab !== "matter" && tab !== "research" && tab !== "filing" && tab !== "records" && nb ? <Conflicts matterId={props.matterId} nb={nb} onChange={props.onChange} onOpen={props.onOpen} /> : null}
         {tab === "matter" ? props.overview : null}
         {tab === "sources" ? props.sourcesPanel : null}
         {tab === "research" ? props.researchPanel : null}
+        {tab === "records" ? props.recordPanel : null}
         {tab === "filing" ? props.filingPanel : null}
         {tab === "procedural" ? (
           <EventsTable label="Procedural history" events={events.filter((e) => e.kind === "procedural")} full={false} matterId={props.matterId} onChange={props.onChange} onOpen={props.onOpen} />

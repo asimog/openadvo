@@ -6,7 +6,9 @@ import path from "node:path";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { Matters } from "./matters.ts";
-import { Agent } from "./agent.ts";
+import { Agent, findSource } from "./agent.ts";
+import { RecordTables } from "./record-table.ts";
+import { allWorkflows, parseCustom, remove as removeWorkflow, upsert as upsertWorkflow } from "../lib/workflows/index.ts";
 import { Ingest } from "./ingest.ts";
 import { Drafts } from "./drafts.ts";
 import { EditorHost, registerEditorScheme, EO_ORIGIN } from "./editor-host.ts";
@@ -45,6 +47,7 @@ let portal: Portal;
 let mail: Mail;
 let ulos: UlosPaths;
 let workHost: AgentWorkHost;
+let recordTables: RecordTables;
 
 /** Steps 6 to 10 notify the window that a matter changed (a capture, a proposal). */
 function matterChanged(matterId: string): void {
@@ -79,8 +82,45 @@ function emitChat(event: ChatEvent): void {
   window?.webContents.send("chat:event", event);
 }
 
+function workflowsFile(): string {
+  return path.join(app.getPath("userData"), "workflows.json");
+}
+
+function customWorkflows() {
+  try {
+    return parseCustom(JSON.parse(readFileSync(workflowsFile(), "utf8")));
+  } catch {
+    return [];
+  }
+}
+
+function saveWorkflows(list: ReturnType<typeof customWorkflows>) {
+  mkdirSync(path.dirname(workflowsFile()), { recursive: true });
+  writeFileSync(workflowsFile(), JSON.stringify(list, null, 2));
+  return allWorkflows(list);
+}
+
 function registerBridge(): void {
   handle("matters:list", () => matters.list());
+  // V1-10: rename and archive (human-only).
+  handle("matters:rename", (matterId: string, title: string) => matters.rename(matterId, String(title ?? "")));
+  handle("matters:archive", (matterId: string, archived: boolean) => matters.setArchived(matterId, archived === true));
+  // V1-1: a new conversation.
+  handle("chat:new", (matterId: string) => agent.newConversation(matterId));
+  // V1-3: matter memory (human-only write).
+  handle("memory:get", (matterId: string) => matters.memory(matterId));
+  handle("memory:set", (matterId: string, text: string) => matters.setMemory(matterId, String(text ?? "")));
+  // V1-4: workflows.
+  handle("workflows:list", () => allWorkflows(customWorkflows()));
+  handle("workflows:save", (input: { id?: string; title: string; body: string }) => saveWorkflows(upsertWorkflow(customWorkflows(), input)));
+  handle("workflows:delete", (id: string) => saveWorkflows(removeWorkflow(customWorkflows(), String(id))));
+  // V1-5: the record table. Columns and decisions are human-only.
+  handle("records:get", (matterId: string) => recordTables.table(matterId));
+  handle("records:addColumn", (matterId: string, question: string) => recordTables.addColumn(matterId, String(question ?? "")));
+  handle("records:decide", (matterId: string, sourceId: string, columnId: string, decision: string) => {
+    if (decision !== "confirm" && decision !== "clear") throw new Error("BAD_DECISION: confirm or clear");
+    return recordTables.decide(matterId, sourceId, columnId, decision);
+  });
   handle("matters:create", (title: string) => matters.create(String(title ?? "")));
   handle("matters:open", async (matterId: string) => {
     const sources = await matters.openMatter(matterId);
@@ -352,6 +392,10 @@ function exposeTestHooks(): void {
       drafts.proposeCorrection(matterId, input),
     // The same functions the agent's step 6 to 10 tools call, so tests need no model.
     work: () => workHost,
+    // The agent's fill_record_cell, so a test needs no model.
+    fillRecordCell: (matterId: string, input: { source: string; column: string; answer: string; quote: string; page: number; line: number }) =>
+      recordTables.fillByAgent(matterId, input, "", findSource),
+    readMemoryAsAgent: (matterId: string) => matters.memory(matterId),
     importEml: async (matterId: string, paths: string[]) => {
       const out = await mail.importEmlFiles(matterId, paths);
       ingest.enqueue(matterId);
@@ -401,6 +445,7 @@ app.whenReady().then(() => {
     }),
   );
   workHost = agentWorkHost({ matters, research, drafts, portal, ulos });
+  recordTables = new RecordTables(matters);
   agent = new Agent(
     {
       listSources: (id) => matters.listSources(id),
@@ -425,6 +470,10 @@ app.whenReady().then(() => {
         return typeof v === "string" && v ? v : null;
       },
       saveEffort: (level) => writeSetting("effort", level),
+      chatDir: (id) => matters.chatDir(id),
+      readMemory: (id) => matters.memory(id),
+      recordTable: (id) => recordTables.describe(id),
+      fillRecordCell: (id, input, sessionId) => recordTables.fillByAgent(id, input, sessionId, findSource),
     },
     { agentDir: path.join(app.getPath("userData"), "pi-agent"), model: process.env.OPENADVO_MODEL || undefined },
   );

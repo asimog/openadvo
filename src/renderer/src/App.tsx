@@ -16,6 +16,7 @@ import { NotebookView, type SourceLink } from "./Notebook.tsx";
 import { DraftsSection } from "./Drafts.tsx";
 import { DraftView } from "./DraftView.tsx";
 import { FilingView, MatterDetailsForm, ResearchView } from "./Work.tsx";
+import { ArchivedMatters, MatterAdmin, MemoryEditor, RecordTableView } from "./V1.tsx";
 import { EventTable, SourceDetail, SourcesPanel } from "./Sources.tsx";
 import type {
   AddFileResult,
@@ -285,7 +286,7 @@ export function App() {
         }
         sideNav={
           <AppNav
-            matters={matters}
+            matters={matters.filter((m) => !m.archived)}
             matterId={matterId}
             isCollapsed={navCollapsed}
             onCollapsedChange={setNavByHand}
@@ -294,7 +295,12 @@ export function App() {
         }
       >
         {!matter ? (
-          <Landing matters={matters} onOpenMatter={(id, carry) => void openWithCarry(id, carry, false)} onNewMatter={askNewMatter} />
+          <Landing
+            matters={matters.filter((m) => !m.archived)}
+            onOpenMatter={(id, carry) => void openWithCarry(id, carry, false)}
+            onNewMatter={askNewMatter}
+            footer={<ArchivedMatters matters={matters} onChanged={refreshMatters} />}
+          />
         ) : (
           <div className="matter" data-testid="matter-view">
             <Group orientation="horizontal" style={{ height: "100%" }}>
@@ -375,9 +381,12 @@ export function App() {
                         }
                         researchPanel={<ResearchView matterId={matter.id} version={version} />}
                         filingPanel={<FilingView matterId={matter.id} sources={sources} version={version} />}
+                        recordPanel={<RecordTableView matterId={matter.id} sources={sources} version={version} />}
                         overview={
                           <div>
+                            <MatterAdmin matter={matter} onChanged={refreshMatters} onArchived={goHome} />
                             <MatterDetailsForm matterId={matter.id} nb={nb} version={version} />
+                            <MemoryEditor matterId={matter.id} />
                             <dl className="facts">
                               <dt>Sources</dt><dd>{sources.length}</dd>
                               <dt>Matter folder</dt><dd className="mono">{matter.folder}</dd>

@@ -3,7 +3,9 @@
  * Holds one open MatterStore per matter.
  */
 import path from "node:path";
-import { MatterStore, MatterStoreError, listMatters } from "../lib/matter-store/index.ts";
+import { createHash } from "node:crypto";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { ARCHIVED_FILE, MatterStore, MatterStoreError, listMatters } from "../lib/matter-store/index.ts";
 import type {
   AddFileResult,
   EventRecord,
@@ -180,6 +182,46 @@ export class Matters {
 
   async title(matterId: string): Promise<string> {
     return (await this.store(matterId)).matter().title;
+  }
+
+  // ---- V1-1, V1-3, V1-10: chat folder, matter memory, rename and archive. ----
+
+  /** The folder that holds the matter's chat: Pi session files and the window's messages. */
+  async chatDir(matterId: string): Promise<string> {
+    const dir = path.join((await this.store(matterId)).folder, "chat");
+    await mkdir(dir, { recursive: true });
+    return dir;
+  }
+
+  /** The matter's memory.md: reference text the advocate keeps. Empty when absent. */
+  async memory(matterId: string): Promise<string> {
+    try {
+      return await readFile(path.join((await this.store(matterId)).folder, "memory.md"), "utf8");
+    } catch {
+      return "";
+    }
+  }
+
+  /** Human-only (decision 5). The save is an event with the hash of the new text. */
+  async setMemory(matterId: string, text: string): Promise<string> {
+    const store = await this.store(matterId);
+    if (text.length > 100_000) throw new MatterStoreError("MEMORY_TOO_LONG", "memory is limited to 100,000 characters");
+    await writeFile(path.join(store.folder, "memory.md"), text, "utf8");
+    store.appendEvent({ actor: "advocate" }, "memory.saved", null, { sha256: createHash("sha256").update(text).digest("hex"), length: text.length });
+    return text;
+  }
+
+  async rename(matterId: string, title: string): Promise<MatterSummary> {
+    return (await this.store(matterId)).rename(title, { actor: "advocate" });
+  }
+
+  /** Human-only. Archive writes a marker file; restore removes it. Nothing is deleted. */
+  async setArchived(matterId: string, archived: boolean): Promise<void> {
+    const store = await this.store(matterId);
+    const marker = path.join(store.folder, ARCHIVED_FILE);
+    if (archived) await writeFile(marker, new Date().toISOString(), "utf8");
+    else await rm(marker, { force: true });
+    store.appendEvent({ actor: "advocate" }, archived ? "matter.archived" : "matter.restored", store.matter().id, null);
   }
 
   // ---- Step 4: drafts and revisions. The generation and save paths reach the store only through these. ----

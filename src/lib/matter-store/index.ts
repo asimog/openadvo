@@ -248,6 +248,9 @@ async function exists(p: string): Promise<boolean> {
   }
 }
 
+/** V1-10: an archived matter has this marker file in its folder. Nothing else changes. */
+export const ARCHIVED_FILE = "archived";
+
 /** Matter folders under a root. A folder without `matter.db` is not a matter. */
 export async function listMatters(root: string): Promise<MatterSummary[]> {
   await mkdir(root, { recursive: true });
@@ -262,7 +265,7 @@ export async function listMatters(root: string): Promise<MatterSummary[]> {
       const row = db.prepare("SELECT id, title, created_at FROM matter LIMIT 1").get() as
         | { id: string; title: string; created_at: string }
         | undefined;
-      if (row) out.push({ id: row.id, title: row.title, createdAt: row.created_at, folder });
+      if (row) out.push({ id: row.id, title: row.title, createdAt: row.created_at, folder, archived: await exists(path.join(folder, ARCHIVED_FILE)) });
     } finally {
       db.close();
     }
@@ -390,6 +393,17 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
       created_at: string;
     };
     return { id: row.id, title: row.title, createdAt: row.created_at, folder: this.folder };
+  }
+
+  /** V1-10: the advocate renames the matter. The id and the folder do not change. */
+  rename(title: string, ctx: WriteContext): MatterSummary {
+    if (ctx.actor !== "advocate") throw new MatterStoreError("HUMAN_ONLY", "only the advocate renames a matter");
+    const clean = title.trim();
+    if (!clean) throw new MatterStoreError("MATTER_TITLE_REQUIRED", "a matter needs a title");
+    const before = this.matter().title;
+    this.db.prepare("UPDATE matter SET title = ?").run(clean);
+    this.appendEvent(ctx, "matter.renamed", this.matter().id, { from: before, to: clean });
+    return this.matter();
   }
 
   blobPath(sha256: string): string {

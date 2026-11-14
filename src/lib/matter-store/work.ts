@@ -24,6 +24,9 @@ import type {
   LimitationRecord,
   MatterDetails,
   MemorandumRecord,
+  RecordCell,
+  RecordColumn,
+  RecordTable,
 } from "../../shared/work.ts";
 
 export const WORK_SCHEMA = `
@@ -144,6 +147,24 @@ CREATE TRIGGER IF NOT EXISTS adverse_no_update BEFORE UPDATE ON adverse_review B
 CREATE TRIGGER IF NOT EXISTS confirmation_no_update BEFORE UPDATE ON filing_confirmation BEGIN SELECT RAISE(ABORT, 'confirmations are append-only'); END;
 CREATE TRIGGER IF NOT EXISTS confirmation_no_delete BEFORE DELETE ON filing_confirmation BEGIN SELECT RAISE(ABORT, 'confirmations are append-only'); END;
 CREATE TRIGGER IF NOT EXISTS filing_set_no_update BEFORE UPDATE ON filing_set BEGIN SELECT RAISE(ABORT, 'filing sets are written once'); END;
+CREATE TABLE IF NOT EXISTS record_column (
+  id TEXT PRIMARY KEY,
+  question TEXT NOT NULL,
+  created_at TEXT NOT NULL
+) STRICT;
+CREATE TABLE IF NOT EXISTS record_cell (
+  source_id TEXT NOT NULL,
+  column_id TEXT NOT NULL REFERENCES record_column(id),
+  answer TEXT NOT NULL,
+  quote TEXT NOT NULL,
+  page INTEGER NOT NULL,
+  line INTEGER NOT NULL,
+  anchor_id TEXT NOT NULL,
+  author TEXT NOT NULL CHECK (author IN ('advocate', 'agent')),
+  status TEXT NOT NULL CHECK (status IN ('candidate', 'confirmed')),
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (source_id, column_id)
+) STRICT;
 `;
 
 const now = () => new Date().toISOString();
@@ -170,6 +191,71 @@ export class WorkStore {
 
   private event(ctx: WriteContext, action: string, subject: string | null, data: Record<string, unknown> | null) {
     this.store.appendEvent(ctx, action, subject, data);
+  }
+
+  // ---- V1-5: the record table (v1 spec; after Mike's tabular review) ----
+
+  recordTable(): RecordTable {
+    const columns = (this.db.prepare("SELECT * FROM record_column ORDER BY created_at, rowid").all() as Array<Record<string, unknown>>).map(
+      (r): RecordColumn => ({ id: String(r.id), question: String(r.question), createdAt: String(r.created_at) }),
+    );
+    const cells = (this.db.prepare("SELECT * FROM record_cell").all() as Array<Record<string, unknown>>).map(
+      (r): RecordCell => ({
+        sourceId: String(r.source_id),
+        columnId: String(r.column_id),
+        answer: String(r.answer),
+        quote: String(r.quote),
+        page: Number(r.page),
+        line: Number(r.line),
+        anchorId: String(r.anchor_id),
+        author: r.author as RecordCell["author"],
+        status: r.status as RecordCell["status"],
+        updatedAt: String(r.updated_at),
+      }),
+    );
+    return { columns, cells };
+  }
+
+  /** Human-only: the advocate asks a question of every source. */
+  addRecordColumn(question: string, ctx: WriteContext): RecordColumn {
+    human(ctx, "adds a record table column");
+    const q = clean(question, 300);
+    if (!q) throw new MatterStoreError("COLUMN_TEXT_REQUIRED", "a column needs its question");
+    const id = randomUUID();
+    this.db.prepare("INSERT INTO record_column (id, question, created_at) VALUES (?, ?, ?)").run(id, q, now());
+    this.event(ctx, "record_column.added", id, { question: q });
+    return this.recordTable().columns.find((c) => c.id === id)!;
+  }
+
+  /**
+   * One cell. The caller has already found the quote on the named line (main/record-table.ts).
+   * The agent's cell is a candidate; a new answer replaces the old one and is a candidate again.
+   */
+  fillRecordCell(input: Omit<RecordCell, "author" | "status" | "updatedAt">, ctx: WriteContext): RecordCell {
+    const who = author(ctx);
+    if (!this.recordTable().columns.some((c) => c.id === input.columnId)) throw new MatterStoreError("COLUMN_NOT_FOUND", input.columnId);
+    const answer = clean(input.answer, 1000);
+    if (!answer) throw new MatterStoreError("ANSWER_REQUIRED", "a cell needs an answer");
+    const status = who === "advocate" ? "confirmed" : "candidate";
+    this.db
+      .prepare(
+        "INSERT INTO record_cell (source_id, column_id, answer, quote, page, line, anchor_id, author, status, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
+          "ON CONFLICT (source_id, column_id) DO UPDATE SET answer = excluded.answer, quote = excluded.quote, page = excluded.page, line = excluded.line, anchor_id = excluded.anchor_id, author = excluded.author, status = excluded.status, updated_at = excluded.updated_at",
+      )
+      .run(input.sourceId, input.columnId, answer, clean(input.quote, 1000), input.page, input.line, input.anchorId, who, status, now());
+    this.event(ctx, "record_cell.filled", `${input.sourceId}/${input.columnId}`, { author: who, page: input.page, line: input.line });
+    return this.recordTable().cells.find((c) => c.sourceId === input.sourceId && c.columnId === input.columnId)!;
+  }
+
+  /** Human-only: confirm or clear one cell. */
+  decideRecordCell(sourceId: string, columnId: string, decision: "confirm" | "clear", ctx: WriteContext): RecordTable {
+    human(ctx, "confirms or clears a record table cell");
+    const exists = this.db.prepare("SELECT 1 FROM record_cell WHERE source_id = ? AND column_id = ?").get(sourceId, columnId);
+    if (!exists) throw new MatterStoreError("CELL_NOT_FOUND", `${sourceId}/${columnId}`);
+    if (decision === "confirm") this.db.prepare("UPDATE record_cell SET status = 'confirmed', updated_at = ? WHERE source_id = ? AND column_id = ?").run(now(), sourceId, columnId);
+    else this.db.prepare("DELETE FROM record_cell WHERE source_id = ? AND column_id = ?").run(sourceId, columnId);
+    this.event(ctx, `record_cell.${decision === "confirm" ? "confirmed" : "cleared"}`, `${sourceId}/${columnId}`, null);
+    return this.recordTable();
   }
 
   // ---- Matter details (workflow 2; step 1 second version, needed by steps 5, 9) ----

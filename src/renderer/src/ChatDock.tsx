@@ -20,7 +20,9 @@ import { Text } from "@astryxdesign/core/Text";
 import { ArrowLeftIcon, ChatBubbleLeftRightIcon, MicrophoneIcon, PaperClipIcon, StopIcon } from "@heroicons/react/24/outline";
 import { CHAT_MESSAGE_EVENT } from "../../shared/api.ts";
 import { AgentChangesCard } from "./AgentChangesCard.tsx";
-import type { AgentChanges, ChatEvent, ChatMessage as ChatRecord, EffortLevel, EffortState, ModelChoice } from "../../shared/api.ts";
+import { Markdown } from "./Markdown.tsx";
+import { DropdownMenu } from "@astryxdesign/core/DropdownMenu";
+import type { AgentChanges, ChatEvent, ChatMessage as ChatRecord, EffortLevel, EffortState, ModelChoice, Workflow } from "../../shared/api.ts";
 
 const api = window.openadvo;
 
@@ -113,7 +115,7 @@ function Message(props: { message: ChatRecord }) {
     return (
       <ChatMessage sender="assistant" name="Agent">
         <ChatMessageBubble variant="ghost" width="100%">
-          <div className="chat-text" data-role="agent">{m.text}</div>
+          <div className="chat-text" data-role="agent"><Markdown text={m.text} /></div>
         </ChatMessageBubble>
       </ChatMessage>
     );
@@ -222,6 +224,10 @@ export function ChatDock(props: {
   const [model, setModel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<ChatComposerInputHandle>(null);
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  useEffect(() => {
+    void api.listWorkflows().then(setWorkflows, () => setWorkflows([]));
+  }, []);
 
   useEffect(() => {
     setMessages([]);
@@ -286,6 +292,17 @@ export function ChatDock(props: {
       <div className="dock-header">
         <div className="dock-title">
           <Heading level={2}>{props.title}</Heading>
+          <Button
+            label="New conversation"
+            size="sm"
+            variant="ghost"
+            isDisabled={busy}
+            clickAction={async () => {
+              const s = await api.newConversation(props.matterId);
+              setMessages(s.messages);
+              setModel(s.model);
+            }}
+          />
           {busy ? (
             <span className="dock-busy">
               <Spinner size="sm" />
@@ -344,6 +361,11 @@ export function ChatDock(props: {
                       inputRef.current?.focus();
                       inputRef.current?.insertText(t);
                     }}
+                  />
+                  <DropdownMenu
+                    button={{ label: "Workflows", variant: "ghost", size: "sm", children: "Workflows", isDisabled: busy }}
+                    menuWidth={300}
+                    items={workflows.map((w) => ({ label: w.title, onClick: () => send(w.body) }))}
                   />
                   <ModelPicker isDisabled={busy} key={model ?? "none"} />
                 </div>

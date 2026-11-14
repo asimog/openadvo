@@ -4,7 +4,7 @@
  */
 import type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft, DraftCheck, DraftDefect, AgentChanges } from "./records.ts";
 export type { AgentChanges, AgentChange } from "./records.ts";
-import type { ManifestCheck, AdverseReview, AnnexureRecord, Attestation, AuthorityRecord, CitationCheck, FilingSetRecord, FilingState, IssueRecord, LimitationRecord, MatterDetails, ResearchState } from "./work.ts";
+import type { RecordColumn, RecordTable, Workflow, ManifestCheck, AdverseReview, AnnexureRecord, Attestation, AuthorityRecord, CitationCheck, FilingSetRecord, FilingState, IssueRecord, LimitationRecord, MatterDetails, ResearchState } from "./work.ts";
 export type * from "./work.ts";
 
 import type { AGUIEvent } from "@ag-ui/core";
@@ -60,6 +60,24 @@ export interface EffortState {
 export interface OpenAdvoApi {
   // Queries
   listMatters(): Promise<MatterSummary[]>;
+  // V1 (docs/specs/v1.md). Human-only where marked.
+  /** Human-only (V1-10). */
+  renameMatter(matterId: string, title: string): Promise<MatterSummary>;
+  /** Human-only (V1-10). Nothing is deleted. */
+  setMatterArchived(matterId: string, archived: boolean): Promise<void>;
+  /** V1-1: end the conversation; a new Pi session file starts. */
+  newConversation(matterId: string): Promise<ChatState>;
+  getMemory(matterId: string): Promise<string>;
+  /** Human-only (V1-3). */
+  setMemory(matterId: string, text: string): Promise<string>;
+  listWorkflows(): Promise<Workflow[]>;
+  saveWorkflow(input: { id?: string; title: string; body: string }): Promise<Workflow[]>;
+  deleteWorkflow(id: string): Promise<Workflow[]>;
+  getRecordTable(matterId: string): Promise<RecordTable>;
+  /** Human-only (V1-5). */
+  addRecordColumn(matterId: string, question: string): Promise<RecordColumn>;
+  /** Human-only (V1-5). */
+  decideRecordCell(matterId: string, sourceId: string, columnId: string, decision: "confirm" | "clear"): Promise<RecordTable>;
   openMatter(matterId: string): Promise<SourceRecord[]>;
   listSources(matterId: string): Promise<SourceRecord[]>;
   listOrigins(matterId: string, sourceId: string): Promise<OriginRecord[]>;

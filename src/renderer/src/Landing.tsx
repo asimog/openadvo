@@ -12,7 +12,8 @@ import { ToggleButton, ToggleButtonGroup } from "@astryxdesign/core/ToggleButton
 import { Token } from "@astryxdesign/core/Token";
 import { BookOpenIcon, DocumentTextIcon, FolderIcon, PaperClipIcon, PencilSquareIcon, ScaleIcon } from "@heroicons/react/24/outline";
 import { ModelPicker } from "./ChatDock.tsx";
-import type { MatterSummary } from "../../shared/api.ts";
+import type { MatterSummary, Workflow } from "../../shared/api.ts";
+import { useEffect, type ReactNode } from "react";
 
 const api = window.openadvo;
 
@@ -32,6 +33,7 @@ const CATEGORIES = [
   { key: "sources", label: "Sources", icon: DocumentTextIcon },
   { key: "notebook", label: "Notebook", icon: BookOpenIcon },
   { key: "drafts", label: "Drafts", icon: PencilSquareIcon },
+  { key: "workflows", label: "Workflows", icon: ScaleIcon },
 ] as const;
 
 const SUGGESTIONS: Record<string, Array<{ heading: string; body: string; prompt: string }>> = {
@@ -65,11 +67,23 @@ export function Landing(props: {
   onOpenMatter: (matterId: string, carry: Carry) => void;
   /** Ask for a new matter. The carry is applied after the advocate creates it. */
   onNewMatter: (carry: Carry) => void;
+  /** V1-10: the archived matters. */
+  footer?: ReactNode;
 }) {
   const [category, setCategory] = useState<string | null>(null);
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [draft, setDraft] = useState({ title: "", body: "" });
+  useEffect(() => {
+    void api.listWorkflows().then(setWorkflows, () => setWorkflows([]));
+  }, []);
   const [paths, setPaths] = useState<string[]>([]);
   const inputRef = useRef<ChatComposerInputHandle>(null);
-  const suggestions = category ? SUGGESTIONS[category] : null;
+  const suggestions =
+    category === "workflows"
+      ? workflows.map((w) => ({ heading: w.title, body: w.builtIn ? "Built in" : "Your workflow", prompt: w.body }))
+      : category
+        ? SUGGESTIONS[category]
+        : null;
 
   const carry = (text: string): Carry => ({ text, paths });
   const typed = () => inputRef.current?.getValue() ?? "";
@@ -179,7 +193,30 @@ export function Landing(props: {
                   ))}
                 </Grid>
               ) : null}
+              {category === "workflows" ? (
+                <VStack gap={2}>
+                  <Heading level={4}>Your workflows</Heading>
+                  {workflows.filter((w) => !w.builtIn).map((w) => (
+                    <HStack key={w.id} gap={2} vAlign="center">
+                      <Text>{w.title}</Text>
+                      <Button label="Delete" size="sm" variant="ghost" clickAction={async () => setWorkflows(await api.deleteWorkflow(w.id))} />
+                    </HStack>
+                  ))}
+                  <input aria-label="Workflow title" data-testid="workflow-title" placeholder="Title" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
+                  <textarea aria-label="Workflow instruction" data-testid="workflow-body" placeholder="The instruction to the agent" value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} />
+                  <Button
+                    label="Add workflow"
+                    size="sm"
+                    isDisabled={!draft.title.trim() || !draft.body.trim()}
+                    clickAction={async () => {
+                      setWorkflows(await api.saveWorkflow(draft));
+                      setDraft({ title: "", body: "" });
+                    }}
+                  />
+                </VStack>
+              ) : null}
             </VStack>
+            {props.footer}
           </VStack>
         </LayoutContent>
       }

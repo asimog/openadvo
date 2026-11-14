@@ -7,6 +7,17 @@ import type { ChatEvent, OpenAdvoApi } from "../shared/api.ts";
 
 const api: OpenAdvoApi = {
   listMatters: () => ipcRenderer.invoke("matters:list"),
+  renameMatter: (matterId, title) => ipcRenderer.invoke("matters:rename", matterId, title),
+  setMatterArchived: (matterId, archived) => ipcRenderer.invoke("matters:archive", matterId, archived),
+  newConversation: (matterId) => ipcRenderer.invoke("chat:new", matterId),
+  getMemory: (matterId) => ipcRenderer.invoke("memory:get", matterId),
+  setMemory: (matterId, text) => ipcRenderer.invoke("memory:set", matterId, text),
+  listWorkflows: () => ipcRenderer.invoke("workflows:list"),
+  saveWorkflow: (input) => ipcRenderer.invoke("workflows:save", input),
+  deleteWorkflow: (id) => ipcRenderer.invoke("workflows:delete", id),
+  getRecordTable: (matterId) => ipcRenderer.invoke("records:get", matterId),
+  addRecordColumn: (matterId, question) => ipcRenderer.invoke("records:addColumn", matterId, question),
+  decideRecordCell: (matterId, sourceId, columnId, decision) => ipcRenderer.invoke("records:decide", matterId, sourceId, columnId, decision),
   openMatter: (matterId) => ipcRenderer.invoke("matters:open", matterId),
   listSources: (matterId) => ipcRenderer.invoke("sources:list", matterId),
   listOrigins: (matterId, sourceId) => ipcRenderer.invoke("sources:origins", matterId, sourceId),
