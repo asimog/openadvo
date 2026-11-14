@@ -26,6 +26,7 @@ The plan serves [advocate-workflow.md](advocate-workflow.md). The decisions it b
 | 9 | Court record capture and client email | 3 | 3 |
 | 10 | Agent-operated filing and voice | 11, 2 | 3 |
 | V1 | Second version of the components: durable chat, memory, workflows, record table, conference package, petition and prayer, filing manifest, extractor quality, matter rename and archive | 2 to 11, Appendix C 1 and 8 | 4 |
+| V2 | Third version of the components: files other than PDF, document type, same-text duplicates, relative dates, List of Dates rows, interim relief and condonation, signed manifest, memory proposals | 3, 4, 8, 9, Appendix B | 5 |
 
 The order is the order the task gave, with one change forced by a dependency. The owner wants the complete Euro-Office suite, including its PDF editor, inside the app (2026-11-13). The PDF view of step 2 is that PDF editor, so vendoring and hosting Euro-Office moves from step 4 to step 2. Step 4 then uses the Word editor that step 2 already hosts. Two more notes on the order:
 
@@ -244,6 +245,10 @@ Round 1 steps also list the main-process modules, agent tools, bridge functions,
 - **Built 2026-11-14 (as built):** V1-9 in `src/lib/notebook/index.ts` (method `rules-v2`); V1-8 in `src/lib/filing/index.ts` (`canonicalJson`, `manifestDigest`, `verifyManifest`) and `src/main/filing.ts`; V1-6 and V1-7 in `src/lib/drafting/structured.ts` and `Drafts.generate` (draft kinds `conference` and `petition`, migrated), check rules 23 and 24 as defect kinds `incomplete` and `prayer_mismatch`, approval refused with `DRAFT_INCOMPLETE`; V1-1 in `src/main/agent.ts` (`SessionManager.continueRecent` in `<matter>/chat/pi`, `messages.json`, `newConversation`); V1-2 in `src/shared/markdown.ts` and `src/renderer/src/Markdown.tsx`; V1-3 in `main/matters.ts` and the tool `read_matter_memory`; V1-4 in `src/lib/workflows/index.ts`; V1-5 in `work.ts` (`record_column`, `record_cell`), `src/main/record-table.ts` and the tools `list_record_table`, `fill_record_cell`; V1-10 in the matter store (`rename`, the `archived` marker file). Views: `src/renderer/src/V1.tsx`, the Record table tab, the chat dock (New conversation, Workflows), the landing page (Workflows, Archived).
 - **Tests (as built):** `tests/unit/notebook-v1.test.ts`, `filing-manifest.test.ts`, `structured.test.ts`, `markdown.test.ts`; `tests/e2e/v1.spec.ts`; `tests/e2e/steps6to10.spec.ts` extended with the conference package, the petition and the manifest check. Report: [2026-11-14-v1-report.md](../.agents/logs/2026-11-14-v1-report.md).
 - **Proof task:** see [specs/v1.md](specs/v1.md). Not yet run by the owner.
+
+### Round 5. V2 of the components
+
+- **Started 2026-11-14 on the owner's instruction**, which overrides rule B6 for this round. **Spec:** [specs/v2.md](specs/v2.md) (items V2-1 to V2-8). Each item is built thin, joined to the rest, tested, and pushed to `main`.
 
 ## 5. Integration
 
