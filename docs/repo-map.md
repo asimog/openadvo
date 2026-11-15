@@ -23,6 +23,7 @@ This file owns the folders, the write boundaries, the data outside the repositor
 | `docs/` | Durable documents. See [README.md](README.md). | — |
 | `docs/archive/` | Superseded documents, kept for their history. They govern nothing. | Moved there only. Never edited. |
 | `.agents/logs/` | Session reports: commands run, results and evidence paths. They govern nothing. | — |
+| `.agents/prompts/`, `.agents/templates/` | Successor prompts (the handoff to the next session) and their template, `session-handoff.md`. They govern nothing. | — |
 | `resources/euro-office/` | The vendored Euro-Office parts ([engineering.md](engineering.md) section 2). Never committed, never modified. | The vendor script only. |
 | `resources/ulos/` | The vendored `ulos` validator and its court database. Never committed, never modified. | The vendor script only. |
 | `resources/models/` | The vendored speech model and, in `ppocr/`, the second OCR engine's models. Never committed, never modified. | The vendor scripts only. |
@@ -44,6 +45,8 @@ This file owns the folders, the write boundaries, the data outside the repositor
 
 Read only. Never edit them. Never copy a document whole. Read a file there only when a task names it. Copy code only where a task names the file.
 
+One exception (owner, 2026-11-15): **always** read `C:\dev\pireference` before you write code against the Pi SDK, an extension, a tool, a session feature or a UI context. Read `packages/coding-agent/examples/sdk`, `examples/extensions`, `docs/` and the source. Before you build a harness part, check whether Pi already has it, and use Pi's feature. Never edit the folder, and never commit it into this repository.
+
 | Repository | What it was |
 |---|---|
 | `C:\dev\openadvodeprecated` | Rust kernel, `oa` CLI, specs A to U. |
@@ -51,3 +54,4 @@ Read only. Never edit them. Never copy a document whole. Read a file there only 
 | `C:\dev\advodsh` | DSH plugin testbed: editor host, engine sidecar, document model. |
 | `C:\dev\ulosadvo` | The `ulos` validator. Vendored by `npm run vendor:ulos`. |
 | `C:\dev\archive\research` | Research files C1 to C4, C6, C7. |
+| `C:\dev\pireference` | Pi (`https://github.com/earendil-works/pi`), tag `v1.5.2`, commit `b4afdddf`, cloned 2026-11-15. It matches the pinned `@earendil-works/pi-coding-agent` 1.5.2. Its `REFERENCE.md` records the source. Read it as the exception above says. |

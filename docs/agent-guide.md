@@ -18,6 +18,10 @@ Read these in this order before you change anything:
 
 When a document and the code disagree, the code is right. Report each mismatch to the owner and in your session record.
 
+**Start every work session with `npm run session:start`.** It prints the Node version, the branch, the working tree, the vendored parts, the Pi reference folder, the newest successor prompt and logs, and runs the type check. Add `-- --unit` for the unit tests. It exits non-zero when the project cannot be checked. If the working tree is not clean, find out what the last session left before you change anything.
+
+**Before you write code against Pi** (the SDK, an extension, a tool, a session feature, a UI context), read the Pi reference folder `C:\dev\pireference` ([repo-map.md](repo-map.md), reference repositories). Check whether Pi already has the part you need, and use it. Write in your session record which Pi feature you used, or why none fits.
+
 ## 2. The machine
 
 - Windows 10 x64. Two shells are available: Git Bash (POSIX) and PowerShell 7. Use forward slashes in Git Bash. Quote paths with spaces.
@@ -67,6 +71,7 @@ The agent uses the model credentials of the owner's Pi (`~/.pi/agent/auth.json`)
 | `npm run test:unit` | `node --test` over `tests/unit/**/*.test.ts` |
 | `npm run test:e2e` | Playwright against the built application (`playwright.config.ts`: one worker, 120 s per test) |
 | `npm test` | Unit tests, build, end-to-end tests |
+| `npm run session:start` | The start check of a work session (section 1); `-- --unit` adds the unit tests, `-- --quick` skips the type check |
 | `npm run dist` | The folder to install, in `release/<platform>-unpacked/` (`electron-builder.yml`) |
 
 Run long suites in the background and read their output when they finish. The full end-to-end suite takes about three minutes.
@@ -308,6 +313,12 @@ PY
 - its unit and end-to-end tests pass, with the output recorded;
 - the owning documents are updated, with clean numbering;
 - the owner has completed the phase exit on a real brief (lesson L3).
+
+**Before a session ends (clean state):**
+- `npm run session:start -- --unit` exits 0, and the suites of section 8.4 that apply were run, with the output recorded;
+- no debug output, temporary files or commented-out code is left in the diff;
+- everything is committed;
+- the handoff is written from [../.agents/templates/session-handoff.md](../.agents/templates/session-handoff.md): what is verified, what changed, what is broken or not verified, the next step with what counts as done, and the commands. It goes into the successor prompt in `../.agents/prompts/`.
 
 **Before each commit:**
 - `npm run typecheck`, and the tests for what changed;
