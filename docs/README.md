@@ -11,9 +11,9 @@ Read in this order. Each fact has one owning file. Link to it; do not restate it
 | 3 | [advocate-workflow.md](advocate-workflow.md) | What the advocate experiences: onboarding, the Practice Profile, the interface, a matter from instruction to order, review and approval. It governs every other document. |
 | 4 | [decisions.md](decisions.md) | Accepted decisions (frozen), rulings that still apply, what they supersede, old terms to new terms. |
 | 5 | [architecture.md](architecture.md) | Layers, the stores and what each owns, the three graphs, context assembly, memory, the harness, local intelligence, court adapters, languages. |
-| 6 | [features.md](features.md) | The feature catalogue: 204 features with ids, phases, outputs and dependencies. |
+| 6 | [features.md](features.md) | The feature catalogue: 210 features with ids, phases, outputs and dependencies. |
 | 7 | [skills.md](skills.md) | The skill format, the skills library and the practice packs. |
-| 8 | [build-plan.md](build-plan.md) | The five phases, the order inside each, the proof tests and the exits. |
+| 8 | [build-plan.md](build-plan.md) | The six phases, the order inside each, the proof tests and the exits. |
 | 9 | [harness-hardening.md](harness-hardening.md) | The hardening items H-n and the Pi feature status. |
 | 10 | [harness-build.md](harness-build.md) | How the harness is built: Pi folders, extensions, the permission policy, helper agents; planned side questions and browser. |
 | 11 | [engineering.md](engineering.md) | Engineering choices, the vendored parts and their scripts, the editor rules. |

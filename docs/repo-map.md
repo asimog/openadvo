@@ -13,6 +13,8 @@ This file owns the folders, the write boundaries, the data outside the repositor
 | `src/editor-host/` | The host page that supplies `window.AscDesktopEditor` to the Euro-Office editors. | — |
 | `src/lib/` | Plain domain libraries. No Electron import, no Pi import (decision 6). | — |
 | `src/shared/` | Types shared by main, preload and renderer. No runtime code with side effects. | — |
+| `src/lib/court-adapters/` | **Planned (S1, S14).** One adapter per court; Playwright scripts for scheduled work. | — |
+| `src/main/browser/` | **Planned (S12).** The built-in browser: tabs, hidden agent pages, DevTools Protocol control. | Main-process code only. |
 | `skills/` | **Planned (N1).** Built-in skills and practice packs, one file per skill. | Engineers, through a reviewed change (N8). |
 | `tests/unit/` | `node:test` tests of the plain libraries. | — |
 | `tests/e2e/` | Playwright tests against the built application. | — |

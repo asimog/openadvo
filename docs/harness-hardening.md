@@ -42,8 +42,8 @@ Status words: **built** (in the code and tested), **open** (planned, not built),
 | H-28 | Pi themes | Not used: themes style Pi's terminal interface. Extensions get Pi's dark theme for text they render. | not applicable |
 | H-29 | Pi's built-in tools: `read`, `bash`, `edit`, `write`, `grep`, `find`, `ls` | Off in every session and every helper agent (section 3). Turning them on would reverse decision 2 and let a tool write outside the matter store (decision 4). | owner |
 | H-30 | `pi-durable`, `chord` | Not installed. pi-durable's README calls it experimental, with an API that changes without notice. | owner |
-| H-32 | Side questions (replaces pi-btw) | [harness-build.md](harness-build.md) HB-1. | open |
-| H-33 | Browser for the advocate and the agent | [harness-build.md](harness-build.md) HB-2. | open |
+| H-32 | Side questions (replaces pi-btw) | [harness-build.md](harness-build.md) HB-1; feature O11. | open |
+| H-33 | Browser for the advocate and the agent | [harness-build.md](harness-build.md) HB-2; features S12 to S14. | open |
 | H-31 | Fixes on Pi `main` not yet released (abort mid-batch, "Connection closed" retries, tool schemas) | Upgrade the pinned version when Pi releases them, and run the tests of section 4. | open |
 
 ## 3. Extension policy

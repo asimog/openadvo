@@ -15,11 +15,12 @@ ONNX Runtime is already present for PP-OCR, so a local embedding model can use i
 ## 2. Layers
 
 ```
-User interface        Home · Matters · Research · Knowledge · Court Intelligence · Review Inbox
-                      Calendar · Workflows & Skills · Memory · Settings · matter tabs · chat everywhere
-Agent harness         Pi sessions · planner · skill runner · tool scopes · approvals · checkpoints
+User interface        Home · Matters · Research · Knowledge · Court Intelligence · Browser · Review Inbox
+                      Calendar · Workflows & Skills · Memory · Settings · matter tabs · chat everywhere · side questions
+Agent harness         Pi sessions · extensions · permission policy · planner · skill runner · tool scopes · approvals
+Browser service       advocate tabs · hidden agent pages · DevTools Protocol control · agent-browser (MCP) · Playwright adapters
 Intelligence services Jurisdiction · Local intelligence · Context assembly · Memory · Research
-                      Document · Evidence · Drafting · Verification · Filing · Monitoring · Automation
+                      Document · Evidence · Drafting · Verification · Filing readiness · Monitoring · Automation
 Canonical stores      matter.db (per matter) · blobs · corpus.db · intel.db · advocate.db · skills/
 Derived indexes       FTS5 · vectors · graph edges · analytics views   (rebuildable, own nothing)
 ```
@@ -99,7 +100,7 @@ Memory records are typed, in `matter.db` (matter scope) and `advocate.db` (advoc
 
 ## 9. Court adapters
 
-An adapter is a module per court or portal. It declares what it can do: case status, orders and judgments, cause list, e-filing preparation, defect list, certified copies. It also declares how it gets the data. Each capability returns data with its source and its time. Adapters never submit a filing. Submission stays the two-confirmation flow the code has now.
+An adapter is a module per court or portal. It declares what it can do: case status, orders and judgments, cause list, case-list import for the advocate's matters, defect list, certified copies. It also declares how it gets the data: an official feed, the advocate's session in the built-in browser, a Playwright script, or a manual upload. Each capability returns data with its source and its time. Adapters never submit a filing. Open Advocate produces filing-ready sets, and portal filing by the agent comes last (decision 26). The browser is in [harness-build.md](harness-build.md) HB-2.
 
 ## 10. Languages
 

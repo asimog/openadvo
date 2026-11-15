@@ -101,7 +101,7 @@ Extensions bind with `mode: "rpc"` and the application's UI context (`extensionU
 | `scripts/vendor-pi-extensions.ts`, `scripts/pi-extensions.manifest.json` | Vendoring |
 | `<userData>/pi-agent/` | `settings.json`, `npm/` and `git/` (added packages), `extensions/pi-permission-system/` (policy, logs), `subagent-manager/`, and the extensions' own preference files |
 
-## 2. HB-1: side questions (planned)
+## 2. HB-1: side questions (planned; feature O11, phase 1)
 
 The replacement for pi-btw, built in the window.
 
@@ -116,11 +116,13 @@ The replacement for pi-btw, built in the window.
   - a unit test with the faux model: the side session has no writing tool, and the main session's messages do not change;
   - an end-to-end test: open a side question, bring it into the chat.
 
-## 3. HB-2: browser (planned): option A, plus agent-browser through MCP, plus Playwright scripts
+## 3. HB-2: browser (planned): option A, plus agent-browser through MCP, plus Playwright scripts (features S12, S13, S14)
 
 The assessment is in [../.agents/logs/2026-11-15-browser-and-harness-assessment.md](../.agents/logs/2026-11-15-browser-and-harness-assessment.md).
 
-### 3.1 A: the built-in browser (one engine, two kinds of browsing)
+### 3.1 A: the built-in browser (one engine, two kinds of browsing; S12, phase 1)
+
+It also carries the import of the advocate's case list from eCourts and court portals (feature A12) and adding an existing matter by its CNR (C10).
 
 - **Engine.** Electron's Chromium, already in the application (Electron 45.3.2, Chromium 156).
 - **Advocate browser:**
@@ -143,7 +145,7 @@ The assessment is in [../.agents/logs/2026-11-15-browser-and-harness-assessment.
 - **The court portal window** becomes a tab profile of this browser, keeping its origin list for filing.
 - **Not used:** a remote debugging port with Playwright `connectOverCDP` into the application. It would expose every application window to any local program.
 
-### 3.2 B: agent-browser through MCP
+### 3.2 B: agent-browser through MCP (S13, phase 3)
 
 - **What.** vercel-labs/agent-browser (Rust, Apache-2.0), with a Windows x64 build. `agent-browser mcp` runs an MCP server over stdio. The application's Pi already loads MCP.
 - **Use.** Heavy or parallel background browsing that should not run inside the application process.
@@ -154,7 +156,7 @@ The assessment is in [../.agents/logs/2026-11-15-browser-and-harness-assessment.
   - it uses its own browser profile, never the advocate's.
 - **To settle in a spike:** Chrome for Testing (a large download) against attaching to a hidden Electron page; behaviour on Windows.
 
-### 3.3 C: Playwright scripts
+### 3.3 C: Playwright scripts (S14, phase 3)
 
 - **What.** Fixed, testable scripts per court for scheduled work: cause lists, case status, new orders (features S2 to S5).
 - **Where.** `src/lib/court-adapters/<court>/` in TypeScript. A Python Playwright script is allowed where a court needs it, behind the same adapter interface.

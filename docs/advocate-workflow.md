@@ -4,20 +4,21 @@ Accepted by the owner on 2026-11-15. This file owns what the advocate experience
 
 ## 1. Onboarding
 
-Four steps. The advocate can skip each step. The application never asks for Bar Council or court-portal credentials.
+Five steps. The advocate can skip each step. The application never asks for Bar Council or court-portal credentials. Signing in to a portal in step 5 happens in the portal's own page, in the app's browser; the application does not store the password.
 
 | Step | Asks | Time |
 |---|---|---|
 | 1. You | Name. Role: Advocate, Advocate-on-Record, Senior Advocate, or junior in a chamber. State Bar Council and enrolment number (optional, stored encrypted). | 20 s |
-| 2. Your courts | Search the built-in directory and select courts, with a bench or district under each. Mark one court as primary. | 40 s |
+| 2. Your courts | Search the built-in directory and select your courts. | 30 s |
 | 3. Your work | Practice-area chips (more than one), with one primary. Trial, appellate or both. Civil, criminal or both. | 30 s |
 | 4. Your past work (optional) | Drop a folder of judgments, pleadings, templates and notes. It goes into the Knowledge Library with the status "unreviewed". | 30 s |
+| 5. Your existing matters (optional) | Sign in to eCourts (ecourts.gov.in) or a High Court or Supreme Court portal in the app's browser. The agent reads your case list there and proposes one matter per case, with its CNR, court, parties, stage and next date. You choose which to create. This can also be done later, from Matters. | as long as the portal takes |
 
 The directory of courts and tribunals ships with the application, so onboarding works offline.
 
 ## 2. The Practice Profile
 
-Onboarding ends on one Practice Profile page. The advocate can edit every part of it. It sits under Settings.
+Onboarding builds one Practice Profile page automatically, from the answers, the imported work and the imported matters. The advocate does not fill it in. They can correct any part of it. It sits under Settings, and it updates as the advocate works.
 
 - **Court map:** the selected courts, their packs, and the freshness of each pack.
 - **Practice map:** the enabled practice packs and their proceedings.
@@ -30,7 +31,9 @@ Onboarding ends on one Practice Profile page. The advocate can edit every part o
 
 ## 3. Interface
 
-**Global navigation:** Home · Matters · Research · Knowledge · Court Intelligence · Review Inbox · Calendar · Workflows & Skills · Memory · Settings.
+**Global navigation:** Home · Matters · Research · Knowledge · Court Intelligence · Browser · Review Inbox · Calendar · Workflows & Skills · Memory · Settings.
+
+**Browser.** A tabbed browser in the app window, for court portals, research services and any site. The advocate signs in there, and the sign-ins stay. The agent works in a tab the advocate hands over, or in its own hidden pages, and hands a page back when it needs a login or a CAPTCHA. Downloads become sources of the open matter. See [harness-build.md](harness-build.md) HB-2.
 
 **Home** is the Practice Intelligence Dashboard: active matters, today's and the next hearings, pending filings, court updates, new relevant judgments, changes in law, matters that need attention, research and drafts waiting for review, filing defects, and runs waiting for the advocate. It shows no business figures.
 
@@ -42,10 +45,11 @@ Onboarding ends on one Practice Profile page. The advocate can edit every part o
 - `@` adds a record, a document, an authority or a matter to the context.
 - A plain request is enough. The agent picks the skill and says which one it picked.
 - Every answer ends with a reviewer note and a set of options.
+- A side question (the Side question action, or `/btw <question>`) opens a separate, read-only thread. It cannot change the matter. Nothing returns to the main chat unless the advocate brings it in. See [harness-build.md](harness-build.md) HB-1.
 
 ## 4. A matter, from instruction to order
 
-1. **Open the matter.** The advocate creates it by hand, by voice, from a document or a whole file, from an order, from a cause-list entry, from a case number, or from an email. The agent proposes the classification: practice area, court, case type, parties, stage and statutes. The advocate confirms or corrects it.
+1. **Open the matter.** The advocate creates a new matter by hand, by voice, from a document or a whole file, from an order, from a cause-list entry, from a case number, or from an email. Or they add an existing matter: point to its folder, give its CNR number, forward its email, or describe it in the chat. Or they import their case list from a portal (onboarding step 5). An existing matter can be extended later with a new stage or a related proceeding, such as an appeal, a revision or an execution. The agent proposes the classification: practice area, court, case type, parties, stage and statutes. The advocate confirms or corrects it.
 2. **Check what is missing.** The agent lists missing documents and writes a questions document for the client. The advocate sends it. The agent never sends it.
 3. **Read the record.** Every document gets page and line anchors. The agent proposes facts, dates, parties and contradictions. The advocate confirms each one. A disputed fact stays disputed until the advocate resolves it.
 4. **Settle the forum and the law.** The agent writes the jurisdiction report and the limitation working, and selects the law in force on the governing date. "Undetermined" is a valid answer.
@@ -53,7 +57,7 @@ Onboarding ends on one Practice Profile page. The advocate can edit every part o
 6. **Argue.** The agent proposes issues, element charts and arguments. A critic attacks them. The advocate accepts or rejects each issue and each argument.
 7. **Draft.** The agent drafts from the court's template and from the confirmed records. Each generated paragraph keeps the ids of its records. Agent edits are tracked changes. The advocate keeps or undoes each change.
 8. **Verify.** The checks run on the draft. Open markers (`[CITE]`, `[VERIFY]`, `[REVIEW]`) and undecided changes block approval. The reviewer note says what was read, out of how much.
-9. **File.** The application builds the filing set to the court's current checklist: index, pagination, annexures, court fee and format checks. It prepares the portal bundle. The advocate signs in, solves the CAPTCHA and submits. The application records the result and the signed manifest.
+9. **Ready to file.** The application builds the filing-ready set to the court's current checklist: index, pagination, annexures, court fee, the paper book and format checks, with a signed manifest. The advocate files it on the portal and records the result. Filing on the portal by the agent comes last (decision 26).
 10. **Hearing.** Before the date, the agent writes a one-page hearing brief, bench questions and an oral outline. After the date, the advocate records the directions and the next date. The agent proposes the compliance tasks.
 11. **Order.** A new order comes in as a source. The agent extracts its directions and raises an impact check. If the matter goes on to appeal, revision or execution, the new matter links to this one.
 

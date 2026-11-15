@@ -153,4 +153,4 @@ P is the phase. The output types are draft, chart (a record table or an element 
 | Motor accident and compensation | Claim petition, compensation computation sheet, appeal |
 | Cheque dishonour | Statutory notice, complaint, compounding application |
 
-Each pack file holds: proceedings, courts, governing acts by version (from E3), templates (L1), checklists (T1), record-table columns (H14), stage lists (C4), intake questions, skills, evidence requirements and terms. A pack is content. It owns no matter fact.
+Each pack file holds: proceedings, courts, governing acts by version (from E3), templates (L1), checklists (B14), record-table columns (H14), stage lists (C4), intake questions, skills, evidence requirements and terms. A pack is content. It owns no matter fact.

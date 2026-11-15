@@ -37,11 +37,13 @@ The code follows these decisions now. They keep their numbers.
 | 18 | **No outcome prediction.** No judge personality profile. Bench data is used only for legal-authority research. Replaces ruling R-1. |
 | 19 | ~~**Confidential matters stay local.**~~ Superseded by decision 25. |
 | 20 | **Languages.** English first. Hindi OCR and display in Phase 2. Other regional languages in Phase 4. A translation sits beside the original. It is never the source. |
-| 21 | **Build order.** Five phases ([build-plan.md](build-plan.md)). Each phase ends with real briefs that the owner completes. |
+| 21 | **Build order.** Six phases (phase 6, portal filing by the agent, added by decision 26) ([build-plan.md](build-plan.md)). Each phase ends with real briefs that the owner completes. |
 | 22 | **Pi extensions** (owner, 2026-11-15). Every Pi feature is made available through the harness ([harness-hardening.md](harness-hardening.md)). The advocate can add Pi extensions. Six are bundled: pi-subagent-manager, pi-context-decisions, pi-checklist, pi-context-prune, pi-context-usage and pi-cache-graph. Pi's built-in file and shell tools stay off (decision 2). |
 | 23 | **Pi's agent folder is the application's own** (owner, 2026-11-15). At start the application sets `PI_CODING_AGENT_DIR` to `<userData>/pi-agent`, so every extension keeps its settings and logs there. Model credentials and models are still read from the owner's Pi folder (decision 16). |
 | 24 | **pi-permission-system enforces the tool policy** (owner, 2026-11-15). Its policy file is in the application's Pi folder: allow by default; deny shell commands, Pi's built-in tools and credential files; review log in the application's folder. The rules are in [harness-build.md](harness-build.md) section 1.3. |
 | 25 | **No confidential distinction, for now** (owner, 2026-11-15). Every matter uses the chosen model, loads the extensions and may search the web. Supersedes decision 19 and product hard rule 9. |
+| 26 | **Filing-ready, not filing** (owner, 2026-11-15). Open Advocate produces documents ready to file; the advocate files them. Filing readiness is part of local legal intelligence (features B14 to B20). Filing on a portal by the agent is the last phase (phase 6, feature T4). The portal filing flow already in the code stays as it is until then. |
+| 27 | **docTR is the second OCR engine** (owner, 2026-11-15). It replaces PP-OCR beside Tesseract (feature H3). Comparison between engines, critical-token disputes, a second engine for regional languages, and OCR checks come later (feature H17, phase 4). |
 
 ## 3. Rulings that still apply
 
