@@ -55,3 +55,15 @@ Pi features used: `parseFrontmatter` (skill files), `createAgentSession` with `S
 A first full end-to-end run had one failure: `tests/e2e/v4.spec.ts:100` clicked the only button named "Search", and the new left pane adds a "Search" item. The test now scopes the locator to the research panel. The workflow (section 3) puts Search in the pane.
 
 Evidence: `test-results/phase1-plan-pending.png`, `phase1-report-card.png`, `phase1-side-question.png`, `phase1-jobs.png`, `phase1-inbox.png` (written by `tests/e2e/phase1.spec.ts`; not committed).
+
+## CI after the first push (run 43749235596)
+
+The unit step passed on both runners; the build and end-to-end steps ran on CI for the first time. Linux: 39 passed, 3 failed, 5 skipped. Windows: 41 passed, 1 failed, 5 skipped. Command: `gh run view 43749235596 --log-failed`; artifact `test-results-ubuntu-latest`.
+
+| Test | Cause | Fix |
+|---|---|---|
+| `tests/e2e/v1.spec.ts:108` (both) | The runners have no model credentials, so a new conversation holds the no-model notice. | The test allows that one notice when no model is signed in. |
+| `tests/e2e/v3.spec.ts:102` (Linux) | The Linux runner has no secret store; the window says manifests are not signed. | The test accepts that text or a fingerprint. |
+| `tests/e2e/step4.spec.ts:132` (Linux) | The editor answered "This paragraph has no source link." before the selection reached its cursor. | The test selects and asks again until the source shows (30 s limit). |
+
+Local run after the fix: `npx playwright test tests/e2e/step4.spec.ts tests/e2e/v1.spec.ts tests/e2e/v3.spec.ts`: 3 passed.

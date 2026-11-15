@@ -99,7 +99,9 @@ test("v3: progress, review inbox, command bar, settings, export, finish", async 
     await page.getByRole("button", { name: "Settings" }).click();
     await expect(page.getByTestId("settings")).toBeVisible();
     await expect(page.getByTestId("versions")).toContainText("Electron");
-    await expect(page.getByTestId("signing-fingerprint")).toHaveText(/^[0-9a-f]{4}( [0-9a-f]{4}){3}$/);
+    // A runner with no operating-system secret store (the Linux CI runner has no keyring) cannot
+    // keep the signing key; the window says so instead of a fingerprint (lesson L2).
+    await expect(page.getByTestId("signing-fingerprint")).toHaveText(/^([0-9a-f]{4}( [0-9a-f]{4}){3}|not available: the operating system's secret store is not available, so manifests are not signed)$/);
     await page.getByLabel("Dark").check();
     await expect.poll(() => page.evaluate(() => (globalThis as any).document.documentElement.getAttribute("data-theme"))).toBe("dark");
     const settings = JSON.parse(await readFile(path.join(base, "user", "settings.json"), "utf8"));

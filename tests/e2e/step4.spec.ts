@@ -121,15 +121,20 @@ test("generate, show source, edit and save twice, approve", async () => {
   expect(revision.anchors).toBe(3);
   expect(revision.author).toBe("generator");
   // Show source: put the cursor in the second date paragraph through the editor's own API, then use the bar.
-  await editor.evaluate(() => {
-    const api = (globalThis as any).Asc.editor.getJsApi();
-    const document = api.GetDocument();
-    const paragraph = document.GetAllParagraphs().find((p: any) => p.GetText().includes("dismissed"));
-    paragraph.Select();
-  });
-  await page.getByRole("button", { name: "Show source of this paragraph" }).click();
   const source = page.getByTestId("paragraph-source");
-  await expect(source).toBeVisible({ timeout: 20_000 });
+  // On the Linux runner the editor can answer the command before the selection reaches its
+  // cursor ("This paragraph has no source link."), so select and ask again until it answers.
+  await expect(async () => {
+    await editor.evaluate(() => {
+      const api = (globalThis as any).Asc.editor.getJsApi();
+      const document = api.GetDocument();
+      const paragraph = document.GetAllParagraphs().find((p: any) => p.GetText().includes("dismissed"));
+      paragraph.Select();
+    });
+    await page.waitForTimeout(300);
+    await page.getByRole("button", { name: "Show source of this paragraph" }).click();
+    await expect(source).toBeVisible({ timeout: 3_000 });
+  }).toPass({ timeout: 30_000 });
   await expect(source).toContainText("The High Court dismissed the writ petition");
   await expect(source).toContainText("brief.pdf, p. 1, l. 3");
 
