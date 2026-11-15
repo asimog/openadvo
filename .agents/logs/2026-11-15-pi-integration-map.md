@@ -104,3 +104,55 @@ Rule: the advocate never sees "an extension", a Pi command name or terminal text
 4. **One listener per session**, not per `send()`. A run starts on Pi's `agent_start` and ends on `agent_settled`. This fixes defect 1 and is H-25. Stop also stops the helpers of the matter (defect 2). Helper writes carry the helper's own id (defect 4).
 
 Suggested order: the spike for item 1 and the listener of item 4; then the permission approval; then the checklist plan card and the Jobs view (Phase 1 features O1 and O7); then the settings fields; then H-14.
+
+## 6. Follow-up questions (same date)
+
+### 6.1 SDK or CLI
+
+Decision 2 (frozen) says the agent is Pi embedded through its SDK. Facts that bear on it:
+
+| Need of Open Advocate | SDK in the main process | Pi CLI as a child process (JSON or RPC) |
+|---|---|---|
+| Tools that write `matter.db` through `MatterStore` (single writer, decision 4) | Direct calls | The tools run in the child; they must call back to the app, or open the store from a second process |
+| Many matters open | One process, one session per matter | One child process per open matter |
+| System prompt, resource loader, explicit credential paths, start check of active tools | Objects we construct and read | Command-line flags and RPC commands only |
+| Questions and approvals | Direct objects (H-12) | `extension_ui_request` / `extension_ui_response` lines |
+| Events | Full events, with cumulative snapshots | JSONL; `message_update` loses its snapshots |
+| Shipping | Pi is a library inside Electron's Node | Ship and start a Pi program; manage its processes |
+| Isolation | An extension's crash or leak is inside the app | A crash ends only the child; Stop can end the process |
+| Runs without the window | Needs our own entry point | Available |
+
+### 6.2 A rebranded Pi CLI
+
+- Pi reads `piConfig` from its own `package.json` when it loads (`dist/config.js`): `APP_NAME`, `CONFIG_DIR_NAME` (default `.pi`), `ENV_AGENT_DIR` = `<NAME>_CODING_AGENT_DIR`. So a rebrand edits Pi's package: a source fork, or a patch of the installed package.
+- Bundled extensions name Pi's paths themselves: `PI_CODING_AGENT_DIR` appears 5 times in pi-checklist and once in pi-context-decisions; literal `.pi/` paths appear in six of the seven. After a rebrand, Pi would read `OPENADVO_CODING_AGENT_DIR` and those extensions would still read `PI_CODING_AGENT_DIR`.
+- In the SDK, the advocate sees no Pi name unless the app's own text shows it. The app text that names Pi today: the "Sign in to a model provider with Pi first" notice, and Settings → Pi extensions. Sign-in itself needs Pi's program today (decision 16 reads `~/.pi/agent`). Parked: sign-in inside the window.
+- Parked: an `openadvo` command for runs without the window, on the same SDK harness code. `agent.ts` and `pi-extensions.ts` already have no Electron import.
+
+### 6.3 Helper agents and subagents
+
+Same thing. "Subagent" is pi-subagent-manager's word; "helper agent" is the word in `docs/` and the code comments. Planned features that also start or scope Pi sessions: the skill runner (N2: one scoped session per skill run), the planner and parallel runs (O1, O3), and side questions (O9).
+
+### 6.4 Overlaps between the bundled extensions and the plan
+
+No command name or tool name is registered twice (`/agents`, `/decisions`, `/checklist`, `/pruner`, `/context`, `/cache`, `/permission-system`).
+
+| Overlap | Facts |
+|---|---|
+| Active tool list | `setActiveTools` is called by pi-context-decisions (6 places), pi-context-prune (6), pi-subagent-manager (1), pi-permission-system (1). The app checks the active tools only when a session starts. |
+| Skill and tool choice | pi-context-decisions chooses skills and can filter tools; it is inert until a decision model is chosen, and tool filtering is off by default. The plan's skill registry and tool scope per skill (N1 to N3, Q2, H-5) do the same job. |
+| Context size | Pi's compaction is on (H-2). pi-context-prune is off by default (`enabled: false`); when on, the model sees summaries of earlier tool outputs instead of the outputs. |
+| Plans and tasks | pi-checklist keeps a task list; the planner's plan card (O1) is planned. |
+| Delegation | pi-subagent-manager starts helpers; the planner and skill runner (O1, O3, N2) are planned. Its README says two subagent extensions clash on `/agents`. |
+| Permission layers | The app's guard, pi-permission-system, and each helper type's allowlist. Helpers load no extension (`subagentExtensions: false`); whether pi-permission-system checks a helper's tool calls is not verified. |
+
+### 6.5 How a native form works (permission example)
+
+1. At load, each bundled extension's handlers, commands and tools run inside an `AsyncLocalStorage` that holds the extension's id.
+2. The agent calls a tool with an `ask` rule. pi-permission-system 42.0.0 calls `ui.select("Permission Required\ntool : <name>\nrule : *", ["Yes", "Yes, allow tool \"<name>\" for this session", "No", "No, provide reason"])`.
+3. `extensionUi` reads the id. The adapter for pi-permission-system reads the tool name and builds the app's approval: the tool's plain label, the matter, and four answers.
+4. The window shows the app's approval card.
+5. The advocate's answer maps back to the extension's own option string.
+6. A test runs the adapter on every `ctx.ui` call in the pinned vendored version. A new version that changes a title or an option fails the test before it ships.
+
+Extensions that show state (pi-checklist, pi-context-usage, pi-cache-graph, the helper widget) are drawn from their state or their tool results, not from their text screens. Their settings are written by the app, as `writePermissionPolicy` and `writeSubagentPolicy` do now.

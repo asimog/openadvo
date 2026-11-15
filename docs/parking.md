@@ -19,4 +19,6 @@ Small open items, each with the feature it would touch.
 | Clean event descriptions before generated prose (list numbering and repeated date phrases show in the List of Dates). | L2, H10 |
 | Code-sign the Windows build, make installers, and update automatically. Needs the owner's certificates. | — |
 | Pack the application code in an ASAR archive with the executables unpacked. | — |
+| An `openadvo` command for runs without the window (scheduled court checks, scripts), built on the same SDK harness code, not on a fork of Pi. | O3, S3 |
+| Sign in to a model provider inside the window (`ModelRuntime.login`), so an advocate does not need Pi's own program. | Y4 |
 | Saved pane layouts per matter, and navigation history. | Q5 |
