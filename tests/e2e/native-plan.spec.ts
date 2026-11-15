@@ -150,6 +150,10 @@ test("the plan survives a restart", async () => {
   });
   await first.page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [matterId, "Plan the filing."]);
   await idle(first.page, matterId);
+  // A new conversation keeps the plan.
+  await first.page.evaluate((m) => (globalThis as any).openadvo.newConversation(m), matterId);
+  const next = await first.page.evaluate((m) => (globalThis as any).openadvo.getChat(m), matterId);
+  expect((next.plan as { title: string }).title).toBe("Filing work");
   await first.app.evaluate(({ app }) => app.exit(0));
   await first.app.close().catch(() => undefined);
 
