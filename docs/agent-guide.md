@@ -242,7 +242,7 @@ Report the commands and their results: counts of tests passed, failed and skippe
 Relative links resolve:
 
 ```bash
-for f in AGENTS.md README.md $(find docs -name '*.md' -not -path 'docs/archive/*'); do d=$(dirname "$f"); grep -oE '\]\([^)#]+' "$f" | sed 's/^](//' | grep -vE '^https?:' | while read l; do [ -e "$d/$l" ] || echo "BROKEN $f -> $l"; done; done
+for f in AGENTS.md README.md $(find docs -name '*.md' -not -path 'docs/archive/*'); do d=$(dirname "$f"); grep -oE '\][(][^)#]+' "$f" | sed 's/^\][(]//' | grep -vE '^https?:' | while read l; do [ -e "$d/$l" ] || echo "BROKEN $f -> $l"; done; done
 ```
 
 Feature ids, gaps and phase order:
