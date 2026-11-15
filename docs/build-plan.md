@@ -1,88 +1,138 @@
 # Build plan
 
-Accepted by the owner on 2026-11-15; revised the same day (filing readiness, matter import, docTR, side questions, browser). This file owns the phases, the order of work inside a phase, the proof tests and the exits. The scope of each phase is a list of feature ids from [features.md](features.md) and skill ids from [skills.md](skills.md).
+Accepted by the owner on 2026-11-15. This file owns the phases, their scope, their order and their exits. The scope of each phase is a list of feature ids from [features.md](features.md). Skills are listed with their phase in [skills.md](skills.md).
 
-Rules for every phase (lessons L1, L3 and L5 in [../AGENTS.md](../AGENTS.md)):
+## 1. Rules for every phase
 
-- A phase starts with a one-page spec for the step being started, not for the whole phase. Specs go in [specs/](specs/).
-- Build a thin version of every part of the phase, joined end to end, before any part gets more features.
-- Done means the owner completed a real task on a real brief. A document or a test the agent wrote is not done.
+- A phase builds one or two modules deep and complete: every feature in its scope, with its tests and its views. Nothing is left as a thin version to extend later.
+- A module's spec is written when its work starts, at the depth it needs, in [specs/](specs/).
+- Phases run in order. A feature never needs a feature of a later phase.
+- Done means the owner completed the exit on real briefs. A document or a test the agent wrote is not done (lesson L3 in [../AGENTS.md](../AGENTS.md)).
 
-Harness hardening runs beside Phase 1. Its items and order are in [harness-hardening.md](harness-hardening.md).
+## 2. Phases
 
-## 1. Phases
-
-Six phases. Each phase has a scope and an exit, which the owner completes on real briefs.
-
-### Phase 1: the universal harness (Supreme Court, Delhi High Court, Delhi district courts; criminal, civil and writ packs)
-
-Scope: Q1–Q7, A1–A3, A5, A7, A8, A12, B1–B6, B9, B10, B13–B16, B18–B20, C1–C11, D6, E1, E4, E9, F1, F3, F5, F6, F8, G2, G5, G8, H1, H3 (Tesseract and docTR), H6, H9, H12, H14, I1–I6, I8, J2, J4, K1–K3, K6, K7, K9, L1–L4, L7, L10, M1, M2, M5, N1–N5, N8, N9, O1, O2, O5, O6, O8–O11, P1–P3, P5–P11, P13, R1, R2, S1, S2 (three adapters), S12, V1, V5, W4, Y4, Y5; skills marked P 1.
-
-Order inside the phase: stores and policy (Q2, Q6) → packs and directory (B1–B6, Q1) → matter fields and the SLP move (C1, Q3) → registry and runner (N1–N3, I1) → checks (P1–P11) → the browser (S12) → onboarding, profile and matter import (A1–A3, A5–A8, A12, C10, C11) → skills by pack → navigation (Q7).
-
-Exit: the proof tests of phase 1 (section 2).
-
-### Phase 2: deep law and evidence
-
-Scope: A6, A9, A10, B7, B12, B17, C7, D1–D4, E2, E3, E5–E8, F2, F4, F7, G1, G3, G4, G6, G7, H5, H7, H8, H10, H11, H13, H15, J1, J3, J5–J7, K4, K8, K10, L5, L6, L8, M3, M4, O3, O4, O7, P4, P12, U1, V4, X1; skills marked P 2; packs commercial and arbitration in part.
-
-Exit: the proof tests of phase 2 (section 2).
-
-### Phase 3: court operations, monitoring and communications
-
-Scope: B11, E10, H2, H4, I7, K5, M6, N6, R3, S3–S8, S11, S13, S14, V2, V3, X3, Y2; adapters for two more High Courts the owner names; skills marked P 3.
-
-Exit: the proof tests of phase 3, run over four weeks of real practice.
-
-### Phase 4: builders, automation and the remaining packs
-
-Scope: D5, H16, H17, L9, N7, N10, S9, S10, U2, U3, X2, Y1, Y3; the packs in 19.6; the skills marked P 4; adapters for tribunals in the enabled packs.
-
-Exit: one real brief per new pack completed by the owner, or by an advocate the owner names.
-
-### Phase 5: chamber work
-
-Scope: A11, W1–W3, S2 for the remaining courts of the advocate's profile.
-
-Exit: a matter moved between two installations with roles, comments and review, and nothing lost or exposed.
-
----
-
-### Phase 6: portal filing by the agent
-
-Scope: T4. Until this phase, Open Advocate produces filing-ready sets (B14 to B20) and the advocate files them. The portal filing flow already in the code is kept as it is.
-
-Exit: one real filing completed on each phase 1 portal, with the advocate's two confirmations, and nothing submitted without them.
-
-## 2. Proof tests
-
-The owner runs each test on a real brief. The evidence is the owner's own review against official rules, statutes and judgments. One model agreeing with another is not evidence.
-
-| Test | Phase | What must be correct |
+| Phase | Modules | Features |
 |---|---|---|
-| Onboarding | 1 | The court and practice profile are right in under three minutes; the packs that load match |
-| Supreme Court SLP | 1 | No loss against what the code does today; route and grounds |
-| Criminal bail (Delhi) | 1 | Facts, custody period, provisions in force on the date, authorities, the application draft |
-| Quashing petition (Delhi High Court) | 1 | Ingredients chart with anchors, adverse authority, petition draft |
-| Writ (Delhi High Court) | 1 | Maintainability questions, the filing checklist under current rules |
-| Delhi High Court filing-ready set | 1 | Current checklist, index, paper book, format checks; the advocate files it without changes |
-| Importing existing matters | 1 | The case list read from eCourts or a court portal after the advocate signs in; each proposed matter's CNR, court, parties, stage and next date are right |
-| Adding an existing matter | 1 | A matter added from a folder, a CNR, an email and the chat each gets the right fields and sources |
-| Civil injunction | 2 | Issues, evidence, conditions chart, draft |
-| Section 34 challenge | 2 | Statutory route, limitation, grounds |
-| Returning to an old matter | 2 | Prior decisions, instructions, open items and posture are recovered |
-| New adverse judgment | 3 | Every affected matter and draft is identified; nothing changes without approval |
-| New order in a monitored case | 3 | Order ingested, directions extracted, deadlines proposed, impact check raised |
-| Draft review | 1 | Every error is supported by a source and has an accurate reference |
-| Bulk evidence (1,000+ pages) | 2 | Coverage stated; review table cells anchored; contradictions found |
-| Hindi records | 2 | Readings, disputes and anchors work on a Hindi order |
+| 1 | Harness and stores | 19 |
+| 2 | Local legal intelligence and filing readiness | 17 |
+| 3 | Advocate, matters and the browser | 25 |
+| 4 | Documents, evidence and facts | 18 |
+| 5 | Law, research and authority | 20 |
+| 6 | Drafting and verification | 20 |
+| 7 | Argument and hearings | 10 |
+| 8 | Practice packs: criminal, civil, writ and SLP | 3 |
+| 9 | Court monitoring and communications | 15 |
+| 10 | Memory, knowledge and analytics | 6 |
+| 11 | Builders, automation, languages and the remaining packs | 11 |
+| 12 | Chamber work | 4 |
+| 13 | Portal filing by the agent | 1 |
 
----
+### Phase 1: Harness and stores
 
-## 3. Phase 1, first steps
+The agent harness, the canonical stores and the policy: context assembly, the skill registry and runner, the planner, run controls, the Review Inbox, side questions and the navigation. Harness hardening ([harness-hardening.md](harness-hardening.md)) runs in this phase.
 
-1. Write the one-page spec of the first step: stores and policy (Q2, Q6).
-2. Run two spikes before the code that needs them: the vector index choice (G6, sqlite-vec against a TypeScript index), and the reach of the Delhi High Court and eCourts sites through the visible browser (S2). Each spike has a result file in `spikes/`.
-3. Then follow the order of Phase 1 in section 1.
+Scope: G5, I1, N1–N3, O1–O4, O6–O9, Q2, Q4, Q5, R1, Y4, Y5.
 
-Where the work stands is recorded in the session reports in `../.agents/logs/`.
+Exit: A real matter conversation: the plan card before long work, a skill run with its context package and report card, a side question, and the jobs view showing what the agent read.
+
+### Phase 2: Local legal intelligence and filing readiness
+
+The court and tribunal directory, sources with versions and freshness, court packs (general, rules, registry, procedure), proceeding packs, and the filing-ready set with its checks, paper book and manifest.
+
+Scope: B1–B7, B10–B17, D5, Q1.
+
+Exit: The owner checks the packs of the first courts (questions Q-1) against official sources, and accepts the filing checklist, index and paper-book rules for one Delhi High Court case type.
+
+### Phase 3: Advocate, matters and the browser
+
+Onboarding, the automatic Practice Profile, the Knowledge Library, the universal matter (create, add existing, extend, related matters, stages, overview), intake and mail, the Home dashboard, the court adapter interface, and the built-in browser ([harness-build.md](harness-build.md) HB-2 A) with the import of the advocate's case list.
+
+Scope: A1–A6, A9, C1–C6, C8–C10, H1, M1, R2, S1, S2, S10, V1, V4, W4.
+
+Exit: Onboarding in under three minutes. The advocate's case list imported from eCourts or a court portal after signing in, with the right CNR, court, parties, stage and next date. One matter added from each of a folder, a CNR, an email and the chat.
+
+### Phase 4: Documents, evidence and facts
+
+OCR (Tesseract and docTR), document structure, duplicates and relations, the evidence repository, facts, contradictions, timelines, record-table templates, document operations, the matter evidence graph, typed matter memory, related-matter detection, forum clauses and the jurisdiction report.
+
+Scope: C7, D1, D3, F1, F3, F4, F6, G2, H3–H10, H12, H13.
+
+Exit: A real brief of more than 1,000 pages: coverage stated, review-table cells anchored, contradictions found, and the jurisdiction report with its basis.
+
+### Phase 5: Law, research and authority
+
+The legal corpus beyond the Supreme Court, statutes by version and the law on the governing date, binding effect, conflicts, propositions, the legal knowledge graph, full-text, vector and hybrid retrieval, the evidence vault's questions, research modes, plans, analysis, adverse authority and deliverables.
+
+Scope: D2, E1–E7, G1, G4, G6–G8, H11, J1–J6.
+
+Exit: A research memorandum on a real question: adverse authority found, binding effect explained, the provision in force on the governing date, and coverage stated.
+
+### Phase 6: Drafting and verification
+
+Templates per proceeding and court, generated parts, documents, tracked changes, comparison, citation insertion in the advocate's format, the witness rule, every verification check, the reviewer note, markers, the injection scan, the AI-use disclosure, and learned preferences with the advocate's memory.
+
+Scope: A7, F2, L1–L6, L8, P1–P11.
+
+Exit: Draft review on a real draft: every error found is supported by a source with an accurate reference. A filing-ready Delhi High Court set that the advocate files without changes.
+
+### Phase 7: Argument and hearings
+
+Issues, the argument loop and its critic, element charts with gaps, case theory, the dissent panel, the hearing brief with bench questions, the oral outline, the post-hearing record, cross-examination plans, and a model per role.
+
+Scope: K1–K9, O5.
+
+Exit: A real listing: the hearing brief, bench questions and oral outline before the date; the directions, next date and compliance tasks after it.
+
+### Phase 8: Practice packs: criminal, civil, writ and SLP
+
+The skills of the first packs (questions Q-2) on the finished modules, the SLP pack moved out of the core, and skill review and tests.
+
+Scope: N4, N6, Q3.
+
+Exit: Real briefs: an SLP with no loss against what the code does today; a Delhi bail application; a quashing petition with an ingredients chart; a writ with maintainability questions; a civil injunction with a conditions chart.
+
+### Phase 9: Court monitoring and communications
+
+Pack checks, the Court Intelligence dashboard, the advocate's research services, case status, new orders, cause lists, legal developments, matter impact and the Matter Change Report, alerts, agent-browser through MCP and Playwright scripts ([harness-build.md](harness-build.md) HB-2 B and C), audio and video, messages as instructions, the communication chronology, and calendar sync.
+
+Scope: B8, B9, E8, H2, S3–S8, S11, S12, V2, V3, Y2.
+
+Exit: Four weeks of real practice. A new order in a monitored case is ingested, with its directions and deadlines proposed. A new adverse judgment is traced to every affected matter and draft, and nothing changes without approval.
+
+### Phase 10: Memory, knowledge and analytics
+
+Retrieval answers over memory, the advocate memory graph, approved and rejected positions and playbooks, outcome records, and legal and quality analytics.
+
+Scope: F5, G3, M2, M3, X1, X2.
+
+Exit: Returning to an old matter: prior decisions, instructions, open items and posture are recovered correctly.
+
+### Phase 11: Builders, automation, languages and the remaining packs
+
+The workflow and agent builder, event triggers, skill import, integration manifests, cloud storage import, foreign elements, Hindi and other Indian languages, OCR comparison and a regional second engine, bilingual drafting, and the packs in [skills.md](skills.md) sections 2.5 and 2.6.
+
+Scope: D4, H14, L7, N5, N7, S9, U1–U3, Y1, Y3.
+
+Exit: Hindi records read with anchors. One real brief per new pack, including a Section 34 challenge, completed by the owner or by an advocate the owner names.
+
+### Phase 12: Chamber work
+
+The team list, matter packets, roles and scopes, comments, assignments and review queues.
+
+Scope: A8, W1–W3.
+
+Exit: A matter moved between two installations with its roles, comments and review, and nothing lost or exposed.
+
+### Phase 13: Portal filing by the agent
+
+The agent prepares, uploads and submits on a portal after the advocate's two confirmations. Until this phase, Open Advocate produces filing-ready sets and the advocate files them.
+
+Scope: T1.
+
+Exit: One real filing on each first-court portal, with the advocate's two confirmations, and nothing submitted without them.
+
+## 3. Where the work starts
+
+1. Phase 1 starts with its spec in [specs/](specs/): stores and policy, context assembly, the skill registry and runner, and side questions.
+2. Two spikes settle choices before the phases that need them: the vector index (sqlite-vec against a TypeScript index) before phase 5, and the reach of the Delhi High Court and eCourts sites through the built-in browser before phase 3. Each spike has a result file in `spikes/`.
+3. Where the work stands is recorded in the session reports in `../.agents/logs/`.

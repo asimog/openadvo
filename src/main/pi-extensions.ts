@@ -1,12 +1,12 @@
 /**
- * Pi extensions in Open Advocate (docs/harness-hardening.md section 3; decision 22).
+ * Pi extensions in Open Advocate (docs/harness-hardening.md section 3; decision 21).
  *
  * Two kinds: bundled extensions, vendored at build time into resources/pi-extensions
  * (scripts/vendor-pi-extensions.ts), and packages the advocate adds, which Pi's own package
  * manager installs into the application's Pi folder and records in its settings.json.
- * Every session loads them (decision 25 removed the confidential exception). A host guard and
- * pi-permission-system block Pi's built-in file and shell tools (decisions 2, 24). Pi's agent
- * folder is the application's own folder (decision 23). No Electron import here.
+ * Every session loads them (decision 24 removed the confidential exception). A host guard and
+ * pi-permission-system block Pi's built-in file and shell tools (decisions 2, 23). Pi's agent
+ * folder is the application's own folder (decision 22). No Electron import here.
  */
 import {
   DefaultPackageManager,
@@ -121,16 +121,16 @@ export class PiExtensions {
     }
   }
 
-  /** The policy file of @gotgenes/pi-permission-system. Pi's agent folder is agentDir (decision 23). */
+  /** The policy file of @gotgenes/pi-permission-system. Pi's agent folder is agentDir (decision 22). */
   permissionPolicyFile(): string {
     return path.join(this.options.agentDir, "extensions", "pi-permission-system", "config.json");
   }
 
   /**
-   * pi-permission-system (decision 24). Written on first start; the advocate may edit it. On every
+   * pi-permission-system (decision 23). Written on first start; the advocate may edit it. On every
    * start the safety rules are put back: Pi's built-in tools and every shell command are denied,
    * and credential files are denied on every path-aware tool. Everything else defaults to allow,
-   * because an "ask" in the window gets the default answer (harness-hardening H-13). The review
+   * because an "ask" in the window gets the default answer (harness-hardening H-12). The review
    * log stays on and is written in the application's Pi folder, never in ~/.pi/agent.
    */
   writePermissionPolicy(): void {
@@ -258,7 +258,7 @@ function currentTheme(): unknown {
 /**
  * The extension UI for the window. It follows Pi's RPC UI: notices and status lines work; a
  * terminal screen is shown once as text; a question to the advocate is not supported yet and
- * gets its default answer, with a notice that says so (harness-hardening H-12).
+ * gets its default answer, with a notice that says so (harness-hardening H-11).
  */
 export function extensionUi(host: ExtensionUiHost): ExtensionUIContext {
   const unsupported = (what: string, title: string) => host.notice(`An extension asked: "${title}". ${what} from an extension is not built yet, so it got the default answer.`);

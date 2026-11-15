@@ -162,7 +162,7 @@ export class Filing {
     out.push({
       rule: "P-7",
       title: "The AI-use disclosure can be made: no citation failed or unresolved without an attestation",
-      source: "Ruling R-3; deprecated spec C rule 17 and L rule 3",
+      source: "Ruling R-2; deprecated spec C rule 17 and L rule 3",
       outcome: blocked.length ? "defect" : "pass",
       detail: blocked.length ? `${blocked.join("; ")}.` : "Every checked citation is verified or attested.",
     });

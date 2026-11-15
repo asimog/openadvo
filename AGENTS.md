@@ -45,9 +45,9 @@ The owner is a lawyer. Never give licensing, legal or compliance advice. Record 
 
 These are rules.
 
-- **L1.** Plans and specifications grew faster than working software. Write a spec only when its step starts. A v0 spec is one page.
-- **L2.** Stand-ins were counted as done. A v0 may do little. It may not pretend.
+- **L1.** Plans and specifications grew faster than working software. Specify a module when its work starts, at the depth the module needs, and build it in the same piece of work.
+- **L2.** Stand-ins were counted as done. Nothing may pretend: a feature that does not work yet says so on screen.
 - **L3.** "Done" meant a document or a test the agent wrote. Done now means the owner completed a real task on a real brief.
 - **L4.** The base changed four times across three repositories. The decisions are frozen.
-- **L5.** Every component was designed deep before the next one existed. Build a thin version of every part, joined end to end, before any part gets more features.
+- **L5.** Build each module deep and complete (owner, 2026-11-15): every feature of its phase, its tests, and its place in the window. Not a thin version to extend later. A phase is small enough to finish this way.
 - **L6.** New ideas restarted the plan. Ideas outside the current step go to [docs/parking.md](docs/parking.md).

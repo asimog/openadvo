@@ -18,7 +18,7 @@ The directory of courts and tribunals ships with the application, so onboarding 
 
 ## 2. The Practice Profile
 
-Onboarding builds one Practice Profile page automatically, from the answers, the imported work and the imported matters. The advocate does not fill it in. They can correct any part of it. It sits under Settings, and it updates as the advocate works.
+Onboarding builds one Practice Profile page automatically, from the answers, the imported work and the imported matters. The advocate does not fill it in. They can correct any part of it. It sits under the advocate's profile (section 3), and it updates as the advocate works.
 
 - **Court map:** the selected courts, their packs, and the freshness of each pack.
 - **Practice map:** the enabled practice packs and their proceedings.
@@ -31,13 +31,50 @@ Onboarding builds one Practice Profile page automatically, from the answers, the
 
 ## 3. Interface
 
-**Global navigation:** Home · Matters · Research · Knowledge · Court Intelligence · Browser · Review Inbox · Calendar · Workflows & Skills · Memory · Settings.
+**The left navigation pane.** One pane on the left of the window. It folds to an icon rail while a source, a draft or the browser is open.
+
+```
++ New matter                      (also: add existing, import case list)
+Search                            (command bar: matters, records, commands)
+-------------------------------------------------------------------------
+Home                              dashboard
+Review Inbox                      count of items that block work
+Matters                           all matters; the open and pinned ones listed below it
+   > open and pinned matters      one line each, with the next date
+Calendar                          hearings, deadlines, reminders
+Research                          search and research runs across all matters
+Knowledge                         library, templates, approved positions, playbooks
+Court Intelligence                courts, rules, cause lists, developments, source freshness
+Browser                           tabs for portals and research services
+Workflows & Skills                skills, workflows, the advocate's agents
+-------------------------------------------------------------------------
+(advocate's name)                 opens the advocate profile
+Settings
+```
+
+**The advocate profile** (the name at the foot of the pane) holds what is about the advocate and the practice:
+
+- Identity: name, role, Bar Council and enrolment.
+- Practice Profile: courts, practice areas, statutory map, sources plan (section 2).
+- Preferences: citation format, drafting style and the others learned in use, each with "applied because …".
+- Advocate memory: confirmed records, proposals waiting, history.
+- Imported work and imported matters: what came in, and its review status.
+- Team: juniors, clerks and counsel of the chamber (phase 12).
+
+**Settings** (at the foot of the pane) holds how the application works:
+
+- Models and reasoning effort; the token budget default.
+- Pi extensions and the permission policy; MCP servers.
+- Research sources and the advocate's research services.
+- Mailbox, contacts, calendar sync.
+- Browser: profiles and site data.
+- Appearance, folders, the filing-manifest key, diagnostics, versions.
 
 **Browser.** A tabbed browser in the app window, for court portals, research services and any site. The advocate signs in there, and the sign-ins stay. The agent works in a tab the advocate hands over, or in its own hidden pages, and hands a page back when it needs a login or a CAPTCHA. Downloads become sources of the open matter. See [harness-build.md](harness-build.md) HB-2.
 
 **Home** is the Practice Intelligence Dashboard: active matters, today's and the next hearings, pending filings, court updates, new relevant judgments, changes in law, matters that need attention, research and drafts waiting for review, filing defects, and runs waiting for the advocate. It shows no business figures.
 
-**Inside a matter**, the tabs are: Overview · Parties · Facts & Chronology · Documents & Evidence · Issues · Jurisdiction · Research & Authorities · Arguments & Strategy · Drafts · Proceedings & Hearings · Filing · Tasks & Deadlines · Communications · Memory · Audit.
+**Inside a matter**, the tabs are: Overview · Parties · Facts & Chronology · Documents & Evidence · Issues · Jurisdiction · Research & Authorities · Arguments & Strategy · Drafts · Proceedings & Hearings · Ready to File · Tasks & Deadlines · Communications · Memory · Audit.
 
 **The chat dock** is on every view. It knows which view and which record it is on.
 
@@ -57,7 +94,7 @@ Onboarding builds one Practice Profile page automatically, from the answers, the
 6. **Argue.** The agent proposes issues, element charts and arguments. A critic attacks them. The advocate accepts or rejects each issue and each argument.
 7. **Draft.** The agent drafts from the court's template and from the confirmed records. Each generated paragraph keeps the ids of its records. Agent edits are tracked changes. The advocate keeps or undoes each change.
 8. **Verify.** The checks run on the draft. Open markers (`[CITE]`, `[VERIFY]`, `[REVIEW]`) and undecided changes block approval. The reviewer note says what was read, out of how much.
-9. **Ready to file.** The application builds the filing-ready set to the court's current checklist: index, pagination, annexures, court fee, the paper book and format checks, with a signed manifest. The advocate files it on the portal and records the result. Filing on the portal by the agent comes last (decision 26).
+9. **Ready to file.** The application builds the filing-ready set to the court's current checklist: index, pagination, annexures, court fee, the paper book and format checks, with a signed manifest. The advocate files it on the portal and records the result. Filing on the portal by the agent comes last (decision 25).
 10. **Hearing.** Before the date, the agent writes a one-page hearing brief, bench questions and an oral outline. After the date, the advocate records the directions and the next date. The agent proposes the compliance tasks.
 11. **Order.** A new order comes in as a source. The agent extracts its directions and raises an impact check. If the matter goes on to appeal, revision or execution, the new matter links to this one.
 
@@ -72,4 +109,4 @@ Onboarding builds one Practice Profile page automatically, from the answers, the
 - The agent proposes memory records after a run. The advocate confirms, corrects or rejects each one in the Review Inbox.
 - A model inference never becomes a confirmed fact. A draft never becomes a precedent without approval.
 - Facts never cross from one matter to another. Law and the advocate's own preferences can.
-- The Memory view shows every record with its source, its status and its history.
+- Advocate memory is in the advocate profile. Matter memory is the matter's Memory tab. Both show every record with its source, its status and its history.

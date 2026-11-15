@@ -12,7 +12,7 @@ Status words: **built** (in the code and tested), **open** (planned, not built),
 | H-2 | The conversation grew without limit: compaction was off. | Compaction is on (Pi's default) for every session. | built |
 | H-3 | The first model choice was kept until restart, so "no model" stayed until restart. | Resolve the model again when the cached result is empty, and when credentials change. | open |
 | H-4 | The system prompt said "Your tools are read only" and then listed write and filing tools. | The prompt now says that the writing tools make only proposals, records or filing steps. | built |
-| H-5 | Every session has every tool, including the portal and filing tools. | A tool scope per skill run (features N3, Q2). The chat session keeps the filing tools behind the two confirmations. | open |
+| H-5 | Every session has every tool, including the portal and filing tools. | A tool scope per skill run (features N2, Q2). The chat session keeps the filing tools behind the two confirmations. | open |
 | H-6 | Pi's install telemetry is at its default (on). Pi's docs say it sends provider attribution headers. | A setting in the window that shows the value and lets the advocate change it. Fact only; no recommendation. | open |
 | H-7 | A code comment said the agent never uses `~/.pi`. Credentials and models do come from `~/.pi/agent` (decision 16). | Comment corrected in `src/main/agent.ts`. | built |
 | H-8 | `decisions.md` said five built-in workflows. The code has six. | Corrected in [decisions.md](decisions.md). | built |
@@ -21,30 +21,30 @@ Status words: **built** (in the code and tested), **open** (planned, not built),
 
 | Id | Pi feature | In Open Advocate | Status |
 |---|---|---|---|
-| H-10 | Extensions (`DefaultResourceLoader`) | Every session loads the enabled bundled extensions, the packages the advocate added, and extensions in the application's Pi folder. | built |
-| H-11 | Packages (`DefaultPackageManager`) | Settings → Pi extensions: add from npm, git, a URL or a folder; remove; turn a bundled extension on or off. A change reopens idle conversations. | built |
-| H-12 | Extension UI: `notify`, `setStatus`, text `setWidget`, `custom` | A notice in the matter's chat; status lines above the chat log; a terminal screen rendered once as text. | built |
-| H-13 | Extension UI: `select`, `confirm`, `input`, `editor` | Each question becomes an AG-UI interrupt that the advocate answers in the chat. Until then, the question gets its default answer and a notice says so. | open |
-| H-14 | Extension commands (`/name`) | Typed in the chat, they run through `session.prompt`, with or without a model. | built |
-| H-15 | Command list in the composer | `/` lists extension commands, Pi skills and prompt templates (with feature N4). | open |
-| H-16 | Command actions: new session, fork, tree navigation, switch session | Bind `commandContextActions` through `AgentSessionRuntime`, so an extension command can fork or start a conversation. | open |
-| H-17 | Pi skills (`SKILL.md`) | Discovered from the application's Pi folder. Open Advocate's own skills (decision 14) are built as Pi skills plus a tool scope per skill (H-5). | discovery built; app skills open |
-| H-18 | Prompt templates | Discovered from the application's Pi folder. The built-in workflows move to prompt templates. | discovery built; move open |
-| H-19 | Context files (`AGENTS.md`) | Discovered from the application's Pi folder. A per-matter context file (matter memory) is added to the prompt. | discovery built; matter file open |
-| H-20 | MCP, codemode, tool search | Loaded in every session. A settings view for MCP servers. | loaded built; settings open |
-| H-21 | Steering (`steer`) | A Steer action beside Stop: the message enters after the current tool calls. | open |
-| H-22 | Follow-up (`followUp`) | A message sent during a run is queued as a follow-up. | built |
-| H-23 | Compaction | Automatic compaction on. A manual "Compact" action, and a notice when compaction runs. | automatic built; rest open |
-| H-24 | Session tree, fork, branch, import and export | The chat history as a tree, fork from a message, return to a branch. | open |
-| H-25 | Thinking deltas, tool arguments and results | Shown in the chat, folded by default. | open |
-| H-26 | Retry settings and `agent_settled` | The run ends on `agent_settled`, so retries and queued work finish before the window says "done". | open |
-| H-27 | Scoped models and a model per role | With feature O7. | open |
-| H-28 | Pi themes | Not used: themes style Pi's terminal interface. Extensions get Pi's dark theme for text they render. | not applicable |
-| H-29 | Pi's built-in tools: `read`, `bash`, `edit`, `write`, `grep`, `find`, `ls` | Off in every session and every helper agent (section 3). Turning them on would reverse decision 2 and let a tool write outside the matter store (decision 4). | owner |
-| H-30 | `pi-durable`, `chord` | Not installed. pi-durable's README calls it experimental, with an API that changes without notice. | owner |
-| H-32 | Side questions (replaces pi-btw) | [harness-build.md](harness-build.md) HB-1; feature O11. | open |
-| H-33 | Browser for the advocate and the agent | [harness-build.md](harness-build.md) HB-2; features S12 to S14. | open |
-| H-31 | Fixes on Pi `main` not yet released (abort mid-batch, "Connection closed" retries, tool schemas) | Upgrade the pinned version when Pi releases them, and run the tests of section 4. | open |
+| H-9 | Extensions (`DefaultResourceLoader`) | Every session loads the enabled bundled extensions, the packages the advocate added, and extensions in the application's Pi folder. | built |
+| H-10 | Packages (`DefaultPackageManager`) | Settings → Pi extensions: add from npm, git, a URL or a folder; remove; turn a bundled extension on or off. A change reopens idle conversations. | built |
+| H-11 | Extension UI: `notify`, `setStatus`, text `setWidget`, `custom` | A notice in the matter's chat; status lines above the chat log; a terminal screen rendered once as text. | built |
+| H-12 | Extension UI: `select`, `confirm`, `input`, `editor` | Each question becomes an AG-UI interrupt that the advocate answers in the chat. Until then, the question gets its default answer and a notice says so. | open |
+| H-13 | Extension commands (`/name`) | Typed in the chat, they run through `session.prompt`, with or without a model. | built |
+| H-14 | Command list in the composer | `/` lists extension commands, Pi skills and prompt templates (with feature N3). | open |
+| H-15 | Command actions: new session, fork, tree navigation, switch session | Bind `commandContextActions` through `AgentSessionRuntime`, so an extension command can fork or start a conversation. | open |
+| H-16 | Pi skills (`SKILL.md`) | Discovered from the application's Pi folder. Open Advocate's own skills (decision 14) are built as Pi skills plus a tool scope per skill (H-5). | discovery built; app skills open |
+| H-17 | Prompt templates | Discovered from the application's Pi folder. The built-in workflows move to prompt templates. | discovery built; move open |
+| H-18 | Context files (`AGENTS.md`) | Discovered from the application's Pi folder. A per-matter context file (matter memory) is added to the prompt. | discovery built; matter file open |
+| H-19 | MCP, codemode, tool search | Loaded in every session. A settings view for MCP servers. | loaded built; settings open |
+| H-20 | Steering (`steer`) | A Steer action beside Stop: the message enters after the current tool calls. | open |
+| H-21 | Follow-up (`followUp`) | A message sent during a run is queued as a follow-up. | built |
+| H-22 | Compaction | Automatic compaction on. A manual "Compact" action, and a notice when compaction runs. | automatic built; rest open |
+| H-23 | Session tree, fork, branch, import and export | The chat history as a tree, fork from a message, return to a branch. | open |
+| H-24 | Thinking deltas, tool arguments and results | Shown in the chat, folded by default. | open |
+| H-25 | Retry settings and `agent_settled` | The run ends on `agent_settled`, so retries and queued work finish before the window says "done". | open |
+| H-26 | Scoped models and a model per role | With feature O5. | open |
+| H-27 | Pi themes | Not used: themes style Pi's terminal interface. Extensions get Pi's dark theme for text they render. | not applicable |
+| H-28 | Pi's built-in tools: `read`, `bash`, `edit`, `write`, `grep`, `find`, `ls` | Off in every session and every helper agent (section 3). Turning them on would reverse decision 2 and let a tool write outside the matter store (decision 4). | owner |
+| H-29 | `pi-durable`, `chord` | Not installed. pi-durable's README calls it experimental, with an API that changes without notice. | owner |
+| H-30 | Side questions | [harness-build.md](harness-build.md) HB-1; feature O9. | open |
+| H-31 | Browser for the advocate and the agent | [harness-build.md](harness-build.md) HB-2; features S10 to S12. | open |
+| H-32 | Fixes on Pi `main` not yet released (abort mid-batch, "Connection closed" retries, tool schemas) | Upgrade the pinned version when Pi releases them, and run the tests of section 4. | open |
 
 ## 3. Extension policy
 
@@ -63,11 +63,11 @@ Still needed: a unit test of the `Agent` class (two quick sends, follow-up, mode
 ## 5. Order
 
 1. H-3, then the `Agent` unit test.
-2. H-13 and H-15: questions from extensions (this also turns pi-permission-system `ask` rules into real questions), and the `/` list.
+2. H-12 and H-14: questions from extensions (this also turns pi-permission-system `ask` rules into real questions), and the `/` list.
 3. HB-1 side questions and HB-2 browser, in the order of [harness-build.md](harness-build.md).
-4. H-21, H-23, H-25, H-26: steering, compaction actions, run detail, settled runs.
-5. H-17, H-18, H-19 with Phase 1 features N1 to N4: the skill registry on Pi skills, workflows as prompt templates, the matter context file.
+4. H-20, H-22, H-24, H-25: steering, compaction actions, run detail, settled runs.
+5. H-16, H-17, H-18 with features N1 to N3: the skill registry on Pi skills, workflows as prompt templates, the matter context file.
 6. H-5 with the skill runner.
-7. H-16, H-24: session runtime, fork and tree.
-8. H-20, H-6: MCP servers and telemetry in Settings.
-9. H-31 at each Pi release.
+7. H-15, H-23: session runtime, fork and tree.
+8. H-19, H-6: MCP servers and telemetry in Settings.
+9. H-32 at each Pi release.

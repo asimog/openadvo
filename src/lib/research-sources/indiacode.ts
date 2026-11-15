@@ -1,7 +1,7 @@
 /**
  * V4-1: India Code (indiacode.gov.in), through its DSpace REST API. Plain library.
  * India Code gives the current text. The version in force on a governing date is not computed;
- * the advocate confirms which version applies (ruling R-4).
+ * the advocate confirms which version applies (ruling R-3).
  */
 import { getJson, htmlToText } from "./http.ts";
 

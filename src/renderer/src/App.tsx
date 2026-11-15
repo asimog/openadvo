@@ -140,7 +140,7 @@ function ReviewList(props: { matterId: string; items: ReviewItem[]; onChange: ()
 /**
  * The window. A side navigation that can be hidden; the chat landing page when no matter is open;
  * in a matter, the chat docked on the left and the Notebook, a source or the Word editor on the right
- * (decisions.md choice 20).
+ * (engineering.md EC-10).
  */
 export function App() {
   const [matters, setMatters] = useState<MatterSummary[]>([]);

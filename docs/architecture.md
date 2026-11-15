@@ -15,8 +15,8 @@ ONNX Runtime is already present for PP-OCR, so a local embedding model can use i
 ## 2. Layers
 
 ```
-User interface        Home · Matters · Research · Knowledge · Court Intelligence · Browser · Review Inbox
-                      Calendar · Workflows & Skills · Memory · Settings · matter tabs · chat everywhere · side questions
+User interface        Home · Review Inbox · Matters · Calendar · Research · Knowledge · Court Intelligence
+                      Browser · Workflows & Skills · advocate profile · Settings · matter tabs · chat · side questions
 Agent harness         Pi sessions · extensions · permission policy · planner · skill runner · tool scopes · approvals
 Browser service       advocate tabs · hidden agent pages · DevTools Protocol control · agent-browser (MCP) · Playwright adapters
 Intelligence services Jurisdiction · Local intelligence · Context assembly · Memory · Research
@@ -89,21 +89,21 @@ Memory records are typed, in `matter.db` (matter scope) and `advocate.db` (advoc
 - **Roles.** Intake, jurisdiction, research, evidence, chronology, drafting, review, strategy, filing, hearing, monitoring and memory. Each role is a set of skills and a tool scope, not a separate authority. A reviewer role never approves its own run. A critic can use a different model family.
 - **Controls.** The planner breaks a request into skill runs and shows the plan before it starts long work. The harness also provides checkpoints (Pi session files), retry with limits, timeouts, Stop, budget, an evaluator gate (at most two rewrites), and approvals as AG-UI interrupts that a bridge function answers.
 - **Pi extensions.** Each session loads the advocate's enabled Pi extensions, Pi skills, prompt templates and context files from the application's Pi folder, and MCP, codemode and tool search. Pi's built-in file and shell tools stay off. The build and the policy are in [harness-build.md](harness-build.md).
-- **Policy.** Each skill names its permitted tools. The policy module enforces the list. Human-only actions stay outside the agent. pi-permission-system enforces the tool policy (decision 24).
+- **Policy.** Each skill names its permitted tools. The policy module enforces the list. Human-only actions stay outside the agent. pi-permission-system enforces the tool policy (decision 23).
 
 ## 8. Local intelligence
 
 - **Per court:** a pack in `intel.db`. Every row has `source_url, owner, retrieved_at, checked_by, valid_from, valid_until, access_method, reliability`.
 - **Access methods:** an official feed or download; the advocate's own session in the visible browser; or a manual upload. Never CAPTCHA solving. Never bulk harvesting against a site's terms.
 - **Freshness rule:** a row past its check interval shows as "stale since <date>". A check that depends on a stale row shows "unconfirmed". It never shows "passed".
-- **First release:** the directory of all courts and tribunals (names, seats, benches, portals) ships with the application, so onboarding works offline. The detailed rule packs ship for the Phase 1 courts and grow by phase.
+- **First release:** the directory of all courts and tribunals (names, seats, benches, portals) ships with the application, so onboarding works offline. The detailed rule packs ship for the first courts (questions Q-1) and grow by phase.
 
 ## 9. Court adapters
 
-An adapter is a module per court or portal. It declares what it can do: case status, orders and judgments, cause list, case-list import for the advocate's matters, defect list, certified copies. It also declares how it gets the data: an official feed, the advocate's session in the built-in browser, a Playwright script, or a manual upload. Each capability returns data with its source and its time. Adapters never submit a filing. Open Advocate produces filing-ready sets, and portal filing by the agent comes last (decision 26). The browser is in [harness-build.md](harness-build.md) HB-2.
+An adapter is a module per court or portal. It declares what it can do: case status, orders and judgments, cause list, case-list import for the advocate's matters, defect list, certified copies. It also declares how it gets the data: an official feed, the advocate's session in the built-in browser, a Playwright script, or a manual upload. Each capability returns data with its source and its time. Adapters never submit a filing. Open Advocate produces filing-ready sets, and portal filing by the agent comes last (decision 25). The browser is in [harness-build.md](harness-build.md) HB-2.
 
 ## 10. Languages
 
-English first. Hindi OCR and display come in Phase 2 (Tesseract has Hindi data). Other regional languages come in Phase 4, through OCR data for each language and translation of each line. A translation is a reading of a line, kept beside the original. It is never the source.
+English first. Hindi and other Indian languages come in phase 11 (Tesseract has Hindi data), through OCR data for each language and translation of each line. A translation is a reading of a line, kept beside the original. It is never the source.
 
 ---

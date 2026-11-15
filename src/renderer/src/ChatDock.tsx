@@ -238,7 +238,7 @@ export function ChatDock(props: {
   const [messages, setMessages] = useState<ChatRecord[]>([]);
   const [busy, setBusy] = useState(false);
   const [model, setModel] = useState<string | null>(null);
-  // Decision 22: status lines that Pi extensions set, by key.
+  // Decision 21: status lines that Pi extensions set, by key.
   const [extStatus, setExtStatus] = useState<Record<string, string[]>>({});
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<ChatComposerInputHandle>(null);
@@ -263,7 +263,7 @@ export function ChatDock(props: {
       },
       (e: Error) => live && setError(`The agent could not start: ${e.message}`),
     );
-    // The stream is AG-UI protocol events (decisions.md choice 21).
+    // The stream is AG-UI protocol events (engineering.md EC-11).
     const off = api.onChatEvent((ev: ChatEvent) => {
       if (ev.matterId !== props.matterId) return;
       const e = ev.event as unknown as { type: string } & Record<string, unknown>;

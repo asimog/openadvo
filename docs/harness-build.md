@@ -15,7 +15,7 @@ The defect list and the status of each Pi feature are in [harness-hardening.md](
 ### 1.1 Pi in the application
 
 - Pi (`@earendil-works/pi-coding-agent` 1.5.2) runs in the Electron main process. One session per open matter, saved in `<matter>/chat/pi` (`src/main/agent.ts`).
-- **Pi's agent folder is the application's own folder,** `<userData>/pi-agent` (decision 23). At start, `src/main/index.ts` reads the owner's Pi folder first (normally `~/.pi/agent`). It then sets `PI_CODING_AGENT_DIR` to the application's folder. Every extension that uses Pi's `getAgentDir()` therefore keeps its settings and logs in the application's folder.
+- **Pi's agent folder is the application's own folder,** `<userData>/pi-agent` (decision 22). At start, `src/main/index.ts` reads the owner's Pi folder first (normally `~/.pi/agent`). It then sets `PI_CODING_AGENT_DIR` to the application's folder. Every extension that uses Pi's `getAgentDir()` therefore keeps its settings and logs in the application's folder.
 - **Model credentials and models** are still read from the owner's Pi folder (decision 16): `ModelRuntime.create({ authPath: <owner>/auth.json, modelsPath: <owner>/models.json })`. Pi's default model is read from `<owner>/settings.json`.
 - **Resources.** Each session uses Pi's `DefaultResourceLoader` in the application's folder, with a file-backed `SettingsManager`. It loads:
   - the bundled extensions and the packages the advocate added;
@@ -23,7 +23,7 @@ The defect list and the status of each Pi feature are in [harness-hardening.md](
   - MCP, codemode and tool search.
 - **Tools.** `noTools: "builtin"` and an exclude list keep Pi's built-in tools (`read`, `bash`, `powershell`, `edit`, `write`, `grep`, `find`, `ls`) off. The application's own tools come in as `customTools`. The start check refuses a session that lacks one of the application's tools or has a built-in tool.
 - **Run behaviour.** Compaction is on. A message sent while the agent works is queued as a Pi follow-up. An extension command (`/name`) runs with or without a model. The token budget per matter still applies.
-- **No confidential distinction** (decision 25). Every matter uses the chosen model, loads the extensions and may search the web. The stored `confidential` column is no longer read, and the setting is gone from the window.
+- **No confidential distinction** (decision 24). Every matter uses the chosen model, loads the extensions and may search the web. The matter store keeps a `confidential` column that nothing reads.
 
 ### 1.2 Bundled extensions
 
@@ -39,11 +39,11 @@ The defect list and the status of each Pi feature are in [harness-hardening.md](
 | pi-cache-graph | 1.2.1 | `/cache`: cache use over the session |
 | @gotgenes/pi-permission-system | 42.0.0 | Allow, ask or deny rules for every tool, shell command, MCP server, skill and file path; `/permission-system` |
 
-@narumitw/pi-btw was assessed and removed. Outside Pi's terminal it only answers "/btw requires interactive TUI mode" (`src/btw.ts:275`). HB-1 replaces it.
+@narumitw/pi-btw was assessed and removed. Outside Pi's terminal it only answers "/btw requires interactive TUI mode" (`src/btw.ts:275`). HB-1 provides side questions instead.
 
 **Added extensions.** The advocate adds them in Settings → Pi extensions, from npm, git, a URL or a folder. Pi's package manager installs them in the application's folder and records them in its `settings.json`. npm and git sources need npm or git on the computer. A change reopens idle conversations.
 
-### 1.3 The permission policy (decision 24)
+### 1.3 The permission policy (decision 23)
 
 - **File:** `<userData>/pi-agent/extensions/pi-permission-system/config.json`. This is pi-permission-system's own global config path, because Pi's agent folder is the application's.
 - **Written by** `PiExtensions.writePermissionPolicy()` (`src/main/pi-extensions.ts`). The first start writes the whole file. The advocate may edit it. Every later start puts back the safety rules and keeps everything else:
@@ -60,7 +60,7 @@ The defect list and the status of each Pi feature are in [harness-hardening.md](
   | `permissionReviewLog` | `true` |
   | `debugLog` | `false` |
 
-- **Why allow by default.** In the window, an "ask" gets the default answer until extension questions reach the chat (harness-hardening H-13). So an `ask` acts as `deny`. The advocate may add `ask` or `deny` rules for chosen tools.
+- **Why allow by default.** In the window, an "ask" gets the default answer until extension questions reach the chat (harness-hardening H-12). So an `ask` acts as `deny`. The advocate may add `ask` or `deny` rules for chosen tools.
 - **Logs.** The review log is written to `<userData>/pi-agent/extensions/pi-permission-system/logs/`, never to `~/.pi/agent`.
 - **What the test shows** (`tests/unit/pi-extensions.test.ts`, with a scripted faux model):
   - an allowed tool runs;
@@ -89,7 +89,7 @@ Extensions bind with `mode: "rpc"` and the application's UI context (`extensionU
 | `notify` | A notice in the matter's chat (multi-line notices keep their lines) |
 | `setStatus` and a text `setWidget` | Status lines above the chat log |
 | `custom` (a terminal screen) | Rendered once at 100 columns as text. It cannot be operated. |
-| `select`, `confirm`, `input`, `editor` | The default answer, with a notice that says so (H-13) |
+| `select`, `confirm`, `input`, `editor` | The default answer, with a notice that says so (H-12) |
 
 ### 1.6 Files
 
@@ -101,7 +101,7 @@ Extensions bind with `mode: "rpc"` and the application's UI context (`extensionU
 | `scripts/vendor-pi-extensions.ts`, `scripts/pi-extensions.manifest.json` | Vendoring |
 | `<userData>/pi-agent/` | `settings.json`, `npm/` and `git/` (added packages), `extensions/pi-permission-system/` (policy, logs), `subagent-manager/`, and the extensions' own preference files |
 
-## 2. HB-1: side questions (planned; feature O11, phase 1)
+## 2. HB-1: side questions (planned; feature O9, phase 1)
 
 The replacement for pi-btw, built in the window.
 
@@ -116,13 +116,13 @@ The replacement for pi-btw, built in the window.
   - a unit test with the faux model: the side session has no writing tool, and the main session's messages do not change;
   - an end-to-end test: open a side question, bring it into the chat.
 
-## 3. HB-2: browser (planned): option A, plus agent-browser through MCP, plus Playwright scripts (features S12, S13, S14)
+## 3. HB-2: browser (planned): option A, plus agent-browser through MCP, plus Playwright scripts (features S10, S11, S12)
 
 The assessment is in [../.agents/logs/2026-11-15-browser-and-harness-assessment.md](../.agents/logs/2026-11-15-browser-and-harness-assessment.md).
 
-### 3.1 A: the built-in browser (one engine, two kinds of browsing; S12, phase 1)
+### 3.1 A: the built-in browser (one engine, two kinds of browsing; S10, phase 3)
 
-It also carries the import of the advocate's case list from eCourts and court portals (feature A12) and adding an existing matter by its CNR (C10).
+It also carries the import of the advocate's case list from eCourts and court portals (feature A9) and adding an existing matter by its CNR (C2).
 
 - **Engine.** Electron's Chromium, already in the application (Electron 45.3.2, Chromium 156).
 - **Advocate browser:**
@@ -145,7 +145,7 @@ It also carries the import of the advocate's case list from eCourts and court po
 - **The court portal window** becomes a tab profile of this browser, keeping its origin list for filing.
 - **Not used:** a remote debugging port with Playwright `connectOverCDP` into the application. It would expose every application window to any local program.
 
-### 3.2 B: agent-browser through MCP (S13, phase 3)
+### 3.2 B: agent-browser through MCP (S11, phase 9)
 
 - **What.** vercel-labs/agent-browser (Rust, Apache-2.0), with a Windows x64 build. `agent-browser mcp` runs an MCP server over stdio. The application's Pi already loads MCP.
 - **Use.** Heavy or parallel background browsing that should not run inside the application process.
@@ -156,7 +156,7 @@ It also carries the import of the advocate's case list from eCourts and court po
   - it uses its own browser profile, never the advocate's.
 - **To settle in a spike:** Chrome for Testing (a large download) against attaching to a hidden Electron page; behaviour on Windows.
 
-### 3.3 C: Playwright scripts (S14, phase 3)
+### 3.3 C: Playwright scripts (S12, phase 9)
 
 - **What.** Fixed, testable scripts per court for scheduled work: cause lists, case status, new orders (features S2 to S5).
 - **Where.** `src/lib/court-adapters/<court>/` in TypeScript. A Python Playwright script is allowed where a court needs it, behind the same adapter interface.

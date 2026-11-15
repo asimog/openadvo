@@ -1,6 +1,6 @@
 /**
  * V4-1: the web, for discovery only. A keyless search (DuckDuckGo's HTML page) and a page fetch
- * that returns the page text. Nothing from the web verifies a citation (ruling R-6). Plain library.
+ * that returns the page text. Nothing from the web verifies a citation (ruling R-5). Plain library.
  */
 import { decodeEntities, get, getText, htmlToText, SourceError } from "./http.ts";
 

@@ -786,9 +786,9 @@ function exposeTestHooks(): void {
   };
 }
 
-// Decision 22: the Pi extensions. Bundled ones are vendored in resources/pi-extensions; added ones live in the app's Pi folder.
+// Decision 21: the Pi extensions. Bundled ones are vendored in resources/pi-extensions; added ones live in the app's Pi folder.
 /**
- * Decision 23: Pi's agent folder is the application's own folder, so every Pi extension keeps its
+ * Decision 22: Pi's agent folder is the application's own folder, so every Pi extension keeps its
  * settings and logs there, never in the owner's ~/.pi/agent. Model credentials and models are
  * still read from the owner's Pi folder (decision 16), captured here before the switch.
  */

@@ -112,7 +112,7 @@ export interface DisclosureInput {
   attestations: Array<{ citation: string; reason: string; at: string }>;
 }
 
-/** The paragraphs of the disclosure (R-3; L rule 3). Attested citations are never shown as verified. */
+/** The paragraphs of the disclosure (R-2; L rule 3). Attested citations are never shown as verified. */
 export function disclosureBlocks(i: DisclosureInput): Array<{ text: string; style?: "heading" | "center" }> {
   const blocks: Array<{ text: string; style?: "heading" | "center" }> = [
     { text: "DISCLOSURE OF THE USE OF ARTIFICIAL INTELLIGENCE", style: "center" },

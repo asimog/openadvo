@@ -13,9 +13,9 @@ This file owns the folders, the write boundaries, the data outside the repositor
 | `src/editor-host/` | The host page that supplies `window.AscDesktopEditor` to the Euro-Office editors. | — |
 | `src/lib/` | Plain domain libraries. No Electron import, no Pi import (decision 6). | — |
 | `src/shared/` | Types shared by main, preload and renderer. No runtime code with side effects. | — |
-| `src/lib/court-adapters/` | **Planned (S1, S14).** One adapter per court; Playwright scripts for scheduled work. | — |
-| `src/main/browser/` | **Planned (S12).** The built-in browser: tabs, hidden agent pages, DevTools Protocol control. | Main-process code only. |
-| `skills/` | **Planned (N1).** Built-in skills and practice packs, one file per skill. | Engineers, through a reviewed change (N8). |
+| `src/lib/court-adapters/` | **Planned (S1, S12).** One adapter per court; Playwright scripts for scheduled work. | — |
+| `src/main/browser/` | **Planned (S10).** The built-in browser: tabs, hidden agent pages, DevTools Protocol control. | Main-process code only. |
+| `skills/` | **Planned (N1).** Built-in skills and practice packs, one file per skill. | Engineers, through a reviewed change (N6). |
 | `tests/unit/` | `node:test` tests of the plain libraries. | — |
 | `tests/e2e/` | Playwright tests against the built application. | — |
 | `scripts/` | Node scripts. No PowerShell (decision 9). | — |
@@ -36,8 +36,8 @@ This file owns the folders, the write boundaries, the data outside the repositor
 |---|---|
 | Matters root: `<Documents>/Open Advocate/Matters`, or the folder in `OPENADVO_HOME` | One folder per matter: `matter.db`, `blobs/<sha256>`, `filing/<time>/` (filing sets with `manifest.json`), `chat/` (Pi session files and the window's messages), `memory.md`, `studio/<run>/` (the model calls of an argument-loop or rehearsal run), `questions/`, and the marker file `archived` when the matter is archived. |
 | User data | `settings.json` (model, effort, mail account), `workflows.json` (the advocate's own workflows), `manifest-signing.key` (encrypted with `safeStorage`), `corpus/` (`corpus.db` and the fetched judgment PDFs by SHA-256), `contacts.json`, `word/<matter id>/` (the Word round trip), `logs/editor-host.log`, and `Crashpad/` (local crash dumps; nothing is uploaded). No secret in plain text: the mail password is in `safeStorage`. |
-| User data: `pi-agent/` | The application's Pi folder, which is also Pi's agent folder (`PI_CODING_AGENT_DIR`, decision 23): `settings.json` (packages the advocate added, Pi settings), `npm/` and `git/` (installed packages), `extensions/pi-permission-system/` (`config.json`, the permission policy; `logs/`, the review log), `subagent-manager/` (the helper-agent policy, rewritten on every start), the extensions' own preference files, and any Pi skills, prompt templates, context files or extensions placed there. |
-| User data, **planned (Q6)** | `advocate.db` (profile, preferences, advocate memory, Knowledge Library) and `intel.db` (court directory, packs, sources and their freshness). `skills/` for the advocate's own skills (N1). |
+| User data: `pi-agent/` | The application's Pi folder, which is also Pi's agent folder (`PI_CODING_AGENT_DIR`, decision 22): `settings.json` (packages the advocate added, Pi settings), `npm/` and `git/` (installed packages), `extensions/pi-permission-system/` (`config.json`, the permission policy; `logs/`, the review log), `subagent-manager/` (the helper-agent policy, rewritten on every start), the extensions' own preference files, and any Pi skills, prompt templates, context files or extensions placed there. |
+| User data, **planned (Q4)** | `advocate.db` (profile, preferences, advocate memory, Knowledge Library) and `intel.db` (court directory, packs, sources and their freshness). `skills/` for the advocate's own skills (N1). |
 | Pi credentials | Pi's own credential store. The application does not read or copy it (choice EC-6). |
 
 ## Reference repositories

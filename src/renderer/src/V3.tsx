@@ -328,7 +328,7 @@ export function CommandBar(props: { isOpen: boolean; onClose: () => void; comman
   );
 }
 
-// ---- Decision 22: Pi extensions ----
+// ---- Decision 21: Pi extensions ----
 
 export function PiExtensionsSettings() {
   const [list, setList] = useState<PiExtensionInfo[] | null>(null);

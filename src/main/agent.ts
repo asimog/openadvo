@@ -2,7 +2,7 @@
  * The agent: one Pi session per open matter, embedded in the main process (decision 2).
  *
  * The session gets the tools in AGENT_TOOLS, plus the tools of the Pi extensions the advocate
- * enabled (pi-extensions.ts; decision 22). Pi's built-in file and shell tools are never active.
+ * enabled (pi-extensions.ts; decision 21). Pi's built-in file and shell tools are never active.
  * The Pi session records agent activity; the matter store records only the session id
  * (decision 7). No Electron import here, so tests can run it in plain Node.
  */
@@ -182,7 +182,7 @@ export interface AgentWorkHost {
   portal(matterId: string, action: string, args: Record<string, string>): Promise<string>;
 }
 
-/** The application's default model (owner, 2026-11-14; decisions.md choice 17). Used when it has credentials. */
+/** The application's default model (owner, 2026-11-14; engineering.md EC-7). Used when it has credentials. */
 export const DEFAULT_MODEL = "opencode-go/deepseek-v4.1-flash";
 
 export interface AgentOptions {
@@ -193,10 +193,10 @@ export interface AgentOptions {
   agentDir: string;
   /**
    * The owner's Pi folder (normally ~/.pi/agent): auth.json, models.json and Pi's default model.
-   * Read explicitly, because PI_CODING_AGENT_DIR points at agentDir (decision 23).
+   * Read explicitly, because PI_CODING_AGENT_DIR points at agentDir (decision 22).
    */
   piHome: string;
-  /** The Pi extensions (decision 22). Without it the session loads no extension (tests). */
+  /** The Pi extensions (decision 21). Without it the session loads no extension (tests). */
   extensions?: PiExtensions;
   /** "provider/model" from OPENADVO_MODEL. It wins over the saved choice. */
   model?: string;
@@ -376,7 +376,7 @@ export class Agent {
   private selected: Promise<Model<Api> | undefined> | null = null;
 
   private modelRuntime(): Promise<ModelRuntime> {
-    // Pi's own credential and model store, as the owner set it up (decisions.md choice 16).
+    // Pi's own credential and model store, as the owner set it up (engineering.md EC-6).
     this.runtime ??= ModelRuntime.create({ authPath: path.join(this.options.piHome, "auth.json"), modelsPath: path.join(this.options.piHome, "models.json") });
     return this.runtime;
   }
@@ -966,7 +966,7 @@ export class Agent {
     });
     const runtime = await this.modelRuntime();
     const model = await this.model();
-    // Decision 22: the advocate's Pi extensions load in every session.
+    // Decision 21: the advocate's Pi extensions load in every session.
     const ext = this.options.extensions;
     const settingsManager = ext ? ext.settings() : SettingsManager.inMemory();
     // H-2: compaction on (Pi's default), so a long conversation never stops every run.
@@ -1145,7 +1145,7 @@ export class Agent {
         state.messages.push({ id: randomUUID(), role: "notice", text: failure });
         emit({ type: EventType.RUN_ERROR, message: failure });
       } else if (chat.proposals.length > 0) {
-        // Human in the loop (decisions.md choice 21): the run waits for the advocate. Each
+        // Human in the loop (engineering.md EC-11): the run waits for the advocate. Each
         // interrupt is one agent change. The answer is a bridge function (decision 5), and the
         // next run on the thread is an ordinary run.
         const interrupts = draftChangeInterrupts(chat.proposals);
@@ -1170,7 +1170,7 @@ export class Agent {
     return true;
   }
 
-  /** Decision 22: close every idle session, so the next message reopens it with the current extensions. */
+  /** Decision 21: close every idle session, so the next message reopens it with the current extensions. */
   async reloadIdle(): Promise<number> {
     let closed = 0;
     for (const [id, pending] of [...this.chats]) {

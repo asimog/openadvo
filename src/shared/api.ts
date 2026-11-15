@@ -29,7 +29,7 @@ export interface ChatMessage {
 
 /**
  * Streamed from the main process while the agent works: AG-UI protocol events
- * (decisions.md choice 21), one matter each. A run is RUN_STARTED, then text and tool-call
+ * (engineering.md EC-11), one matter each. A run is RUN_STARTED, then text and tool-call
  * events, then RUN_FINISHED or RUN_ERROR. An advocate message or a notice of the
  * application is a CUSTOM event named CHAT_MESSAGE_EVENT whose value is a ChatMessage.
  */
@@ -52,7 +52,7 @@ export interface ChatState {
   status?: Record<string, string[]>;
 }
 
-/** One Pi extension (decision 22). */
+/** One Pi extension (decision 21). */
 export interface PiExtensionInfo {
   id: string;
   kind: "bundled" | "added";
@@ -108,7 +108,7 @@ export interface OpenAdvoApi {
   getMemory(matterId: string): Promise<string>;
   /** Human-only (V1-3). */
   setMemory(matterId: string, text: string): Promise<string>;
-  /** Decision 22: the Pi extensions, bundled and added. A change reopens idle conversations. */
+  /** Decision 21: the Pi extensions, bundled and added. A change reopens idle conversations. */
   listExtensions(): Promise<PiExtensionInfo[]>;
   addExtension(source: string): Promise<PiExtensionInfo[]>;
   removeExtension(source: string): Promise<PiExtensionInfo[]>;

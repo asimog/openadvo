@@ -322,7 +322,7 @@ export class ArgumentStudio {
     return this.running.get(matterId) ?? null;
   }
 
-  /** V5-21: a used budget refuses the next run. (Decision 25 removed the confidential check.) */
+  /** V5-21: a used budget refuses the next run. (Decision 24 removed the confidential check.) */
   private async admit(matterId: string, c: { model: string; local?: boolean }): Promise<{ budget: number | null; used: number }> {
     const store = await this.matters.store(matterId);
     const pol = store.policy();
