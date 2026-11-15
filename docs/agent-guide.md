@@ -124,6 +124,10 @@ Key files:
 | `src/main/matters.ts` | The only caller of the matter store (decision 4) |
 | `src/lib/matter-store/` | `matter.db`: schema, writes, the hash-chained event record, refusals, Find |
 | `src/main/portal.ts` | The court-portal window, its origin list and the filing guards |
+| `src/main/browser.ts` | The built-in browser (S10): tabs, bookmarks, hidden agent pages, CDP control and downloads |
+| `src/main/library.ts`, `src/lib/library/`, `src/main/matter-proposals.ts` | The Knowledge Library (M1) and the agent's proposed matters (C2) |
+| `src/lib/classification/`, `src/lib/stages/` | The classification proposal (C3) and the stage lists (C4) |
+| `src/renderer/src/RightPane.tsx`, `Onboarding.tsx`, `Profile.tsx`, `Library.tsx`, `Dashboard.tsx`, `MatterProfile.tsx`, `Intake.tsx` | Phase 3's right pane and browser, setup, Practice Profile, library, Home dashboard, matter profile and intake |
 | `src/main/studio.ts`, `src/main/research.ts` | Research sources, the argument loop and rehearsal |
 
 ### 6.2 Patterns to keep

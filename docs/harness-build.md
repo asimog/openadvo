@@ -5,7 +5,7 @@ Owner's instructions, 2026-11-15. This file owns how the agent harness is built:
 - the extensions;
 - the native harness parts: the tool policy, the helpers, the plan and the context meter;
 - the extension interface in the window;
-- HB-1 (side questions, built) and the planned HB-2 (browser).
+- HB-1 (side questions, built) and HB-2 A (the built-in browser, built).
 
 The defect list and the status of each Pi feature are in [harness-hardening.md](harness-hardening.md). The decisions are 22 to 25 in [decisions.md](decisions.md).
 
@@ -100,33 +100,34 @@ The replacement for pi-btw, built in the window.
   - a unit test with the faux model: the side session has no writing tool, and the main session's messages do not change;
   - an end-to-end test: open a side question, bring it into the chat.
 
-## 3. HB-2: browser (planned): option A, plus agent-browser through MCP, plus Playwright scripts (features S10, S11, S12)
+## 3. HB-2: browser: A built, B and C planned (features S10, S11, S12)
 
-The assessment is in [../.agents/logs/2026-11-15-browser-and-harness-assessment.md](../.agents/logs/2026-11-15-browser-and-harness-assessment.md).
+The assessment is in [../.agents/logs/2026-11-15-browser-and-harness-assessment.md](../.agents/logs/2026-11-15-browser-and-harness-assessment.md). A is built in phase 3; B and C are phase 9.
 
-### 3.1 A: the built-in browser (one engine, two kinds of browsing; S10, phase 3)
+### 3.1 A: the built-in browser (one engine, two kinds of browsing; S10, phase 3, built)
 
 It also carries the import of the advocate's case list from eCourts and court portals (feature A9) and adding an existing matter by its CNR (C2).
 
 - **Engine.** Electron's Chromium, already in the application (Electron 45.3.2, Chromium 156).
 - **Advocate browser:**
-  - a tabbed pane in the application window (`WebContentsView`), with an address bar, back and forward;
+  - a tabbed right pane in the application window (`WebContentsView`), with the Matter tab, browser tabs, a new tab, an address bar, back, forward, reload, a bookmark star, a bookmarks bar and a new-tab page;
   - its own persistent profile (`persist:oa-browser`), so the advocate's sign-ins stay;
+  - bookmarks in `<userData>/browser-bookmarks.json` and the last 50 pages in `<userData>/browser-history.json`;
   - downloads become sources of the open matter, with their address recorded;
   - the advocate signs in and solves every CAPTCHA.
 - **Agent pages:**
   - hidden pages in the same engine, each in its own temporary partition, so they never see the advocate's cookies;
-  - "Hand to advocate" moves a hidden page into a visible tab when it needs a login or a CAPTCHA;
+  - "Hand to advocate" shows a hidden page as a visible tab, keeping its state, when it needs a login or a CAPTCHA;
   - the agent acts in the advocate's browser only on a tab the advocate hands over, or on an "agent tab" the advocate can watch.
 - **Control.** `webContents.debugger` (Chrome DevTools Protocol, in-process, no port opened). The agent tools follow agent-browser's design:
-  - `browser_open`, `browser_snapshot` (accessibility tree with `@e1` refs);
+  - `browser_tabs`, `browser_open`, `browser_navigate`, `browser_snapshot` (accessibility tree with `@e1` refs, with a DOM outline for a hidden page);
   - `browser_click`, `browser_fill`, `browser_read`, `browser_screenshot`, `browser_wait`;
-  - `browser_download_to_matter`, `browser_hand_to_advocate`.
+  - `browser_download_to_matter`, `browser_hand_to_advocate`, `browser_close`.
 - **Guards.** From the court portal window:
   - a submit control only through `submit_filing` after both confirmations;
   - uploads only from the newest filing set;
   - tool-policy rules on every `browser_*` tool.
-- **The court portal window** becomes a tab profile of this browser, keeping its origin list for filing.
+- **The court portal window** stays a separate window for filing until phase 13. It keeps its origin list and its two confirmations. The built-in browser is the general browser; it does not carry the filing guards. Moving the portal onto it is part of phase 13.
 - **Not used:** a remote debugging port with Playwright `connectOverCDP` into the application. It would expose every application window to any local program.
 
 ### 3.2 B: agent-browser through MCP (S11, phase 9)
@@ -150,7 +151,7 @@ It also carries the import of the advocate's case list from eCourts and court po
 
 ### 3.4 Order
 
-1. A: the browser pane, CDP control, the agent tools and the handover. Move the court portal onto it.
+1. A (built in phase 3): the browser pane, CDP control, the agent tools and the handover. The court portal moves onto it in phase 13.
 2. C: one Playwright adapter (Supreme Court case status), then the Delhi High Court and eCourts adapters.
 3. B: the agent-browser spike, then vendoring through MCP if it beats A's hidden pages for background work.
 4. Later: Obscura or Moli tested against the court sites as a light engine for C.
