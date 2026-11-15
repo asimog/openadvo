@@ -71,14 +71,31 @@ The defect list and the status of each Pi feature are in [harness-hardening.md](
 
 ### 1.4 Helper agents (pi-subagent-manager)
 
+What a helper is, the helper types and who may start whom are in [specs/agent-framework.md](specs/agent-framework.md) sections 3 and 4. The type table is `src/main/helper-types.ts`.
+
 On every start, the application writes `<userData>/pi-agent/subagent-manager/settings.json` with:
 - `toolFiltering: "allowed"`;
 - `subagentExtensions: false`;
-- `housekeepingEnabled: false`.
+- `housekeepingEnabled: false`;
+- `maxLevels: 3`, `maxConcurrent: 4`, `maxThreads: 24`.
 
-It also writes an overlay per bundled agent type (`architect`, `coder`, `researcher`, `reviewer`, `tasker`, `writer`). Each overlay allows only the application's tools and the manager's controls, blocks Pi's built-in tools, and sets `models: null`, so helpers use the chat's model.
+It writes one Markdown agent file per Open Advocate type (`legal-research`, `record-reader`, `critic`, `drafter`), each with its allowlist, Pi's built-in tools blocked, and its prompt. It writes an overlay with an empty allowlist for each coding type that the manager ships (`architect`, `coder`, `researcher`, `reviewer`, `tasker`, `writer`), so these have no tools. Helpers use the chat's model.
 
-Not yet verified with a live model: whether helpers receive the application's custom tools.
+A helper's tool calls run through the main session's tools and hooks (pi-subagent-manager `src/orch/inherited-tools.ts`). pi-subagent-manager has no per-type list of the types a helper may start: that `legal-research` starts only `record-reader` helpers is a rule in its prompt, and the depth limit stops deeper trees.
+
+Not yet verified with a live model: a helper's run end to end.
+
+### 1.6 One owner for each job (part B2)
+
+| Job | Owner | The other parts |
+|---|---|---|
+| Which tools may run | The guard `openadvo-policy` (Pi's built-in tools), then pi-permission-system (the policy file), then the helper type's allowlist | pi-context-decisions, pi-context-prune, pi-subagent-manager and pi-permission-system may call `setActiveTools`; a built-in tool is still blocked at call time by the guard. |
+| Which skill and which tools a task gets | The skill registry and the tool scope per skill (N1 to N3, Q2, H-5) | pi-context-decisions stays inert: the application sets no decision model, and its tool filtering stays off. |
+| Context size | Pi's compaction with the application's strategy per agent kind (`src/main/agent-context.ts`) | pi-context-prune stays off (`enabled: false`), so two parts never clear the same results. |
+| Plans and tasks | pi-checklist until the planner (O1) is built; then the plan card, through its adapter (part B3) | — |
+| Delegation | pi-subagent-manager, the one helper runtime | No second subagent extension: two clash on `/agents` (pi-subagent-manager README). Skill runs and the planner are not helpers. |
+| Codemode and MCP | Pi's built-in extensions; codemode turns on by itself when an MCP server with codemode exposure connects | The helper allowlists do not include `codemode` or MCP tools. The MCP settings view is H-19. |
+| What a run did | The run trace `chat/trace.jsonl` (H-40) | pi-context-usage and pi-cache-graph show numbers in Pi's terminal only; the context meter comes from the session's numbers (part B3).
 
 ### 1.5 The extension interface in the window
 

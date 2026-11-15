@@ -34,10 +34,10 @@ Status words: **built** (in the code and tested), **open** (planned, not built),
 | H-19 | MCP, codemode, tool search | Loaded in every session. A settings view for MCP servers. | loaded built; settings open |
 | H-20 | Steering (`steer`) | A Steer action beside Stop: the message enters after the current tool calls. | open |
 | H-21 | Follow-up (`followUp`) | A message sent during a run is queued as a follow-up. | built |
-| H-22 | Compaction | Automatic compaction on. A manual "Compact" action, and a notice when compaction runs. | automatic built; rest open |
+| H-22 | Compaction | Automatic compaction on, with a strategy per agent kind: tool-result clearing and a summary form ([specs/agent-framework.md](specs/agent-framework.md) section 7). A manual "Compact" action, and a notice when compaction runs. | automatic and per kind built; rest open |
 | H-23 | Session tree, fork, branch, import and export | The chat history as a tree, fork from a message, return to a branch. | open |
 | H-24 | Thinking deltas, tool arguments and results | Shown in the chat, folded by default. | open |
-| H-25 | Retry settings and `agent_settled` | The run ends on `agent_settled`, so retries and queued work finish before the window says "done". | open |
+| H-25 | Retry settings and `agent_settled` | One listener per session: a run starts on `agent_start` and ends on `agent_settled`, so retries, queued work and turns that a helper's result starts are runs the window sees. | built |
 | H-26 | Scoped models and a model per role | With feature O5. | open |
 | H-27 | Pi themes | Not used: themes style Pi's terminal interface. Extensions get Pi's dark theme for text they render. | not applicable |
 | H-28 | Pi's built-in tools: `read`, `bash`, `edit`, `write`, `grep`, `find`, `ls` | Off in every session and every helper agent (section 3). Turning them on would reverse decision 2 and let a tool write outside the matter store (decision 4). | owner |
@@ -58,13 +58,15 @@ The extension policy, the bundled extensions, the permission policy and the help
 | `tests/e2e/extensions.spec.ts` | Settings lists the seven and turns one off and on; the app writes the permission policy in its own Pi folder and sets `PI_CODING_AGENT_DIR` there; `/context` typed in a matter's chat shows its report; the questions of `/checklist clear` and `/pruner` are answered with Yes, Dismiss and a choice; a wrong answer is refused; Stop closes an open question. | `npx playwright test tests/e2e/extensions.spec.ts` |
 | `tests/unit/extension-questions.test.ts` | Extension questions: the interrupt shape, the answer checks, the extension's own option string, dismiss, timeout with a notice, abort, and cancel. | `node --test tests/unit/extension-questions.test.ts` |
 | `tests/unit/agent.test.ts` | The `Agent` class with a faux model: no model at first, then sign-in gives the open session the model with no restart; removing the credentials empties the model list; two quick sends start one run; a message sent during a run is a follow-up that the model reads in the same run. | `node --test tests/unit/agent.test.ts` |
+| `tests/unit/agent-runs.test.ts` | With a faux model and a stand-in for pi-subagent-manager: a turn that a helper's result starts is a run (shown, saved, counted); Stop stops running helpers and says how many; a nested write carries `<session id>/<parent call id>`; a failed Studio call is an error and the trace records it; Stop ends a tool call that does not return; long results are cut with a hint; reading tools are read-only, writers sequential; the context strategy is loaded. | `node --test tests/unit/agent-runs.test.ts` |
+| `tests/unit/agent-context.test.ts` | Tool-result clearing per agent kind and the matter summary form. | `node --test tests/unit/agent-context.test.ts` |
 | `tests/e2e/app.spec.ts` | The bridge functions; the session has every application tool, no built-in tool, and the bundled extension tools. | `npx playwright test tests/e2e/app.spec.ts` |
 
 Still needed: a live test of a helper agent with a real model.
 
 ## 5. Order
 
-1. H-14: the `/` list.
+1. H-14: the `/` list, after the B3 adapters (section 6).
 2. HB-1 side questions and HB-2 browser, in the order of [harness-build.md](harness-build.md).
 3. H-20, H-22, H-24, H-25: steering, compaction actions, run detail, settled runs.
 4. H-16, H-17, H-18 with features N1 to N3: the skill registry on Pi skills, workflows as prompt templates, the matter context file.
@@ -72,3 +74,21 @@ Still needed: a live test of a helper agent with a real model.
 6. H-15, H-23: session runtime, fork and tree.
 7. H-19, H-6: MCP servers and telemetry in Settings.
 8. H-32 at each Pi release.
+
+## 6. Part B: defects and the agent framework
+
+From the part B work of 2026-11-15 ([../.agents/logs/2026-11-15-part-b-agent-framework.md](../.agents/logs/2026-11-15-part-b-agent-framework.md)). The framework is specified in [specs/agent-framework.md](specs/agent-framework.md).
+
+| Id | Defect or item | Fix | Status |
+|---|---|---|---|
+| H-33 | A helper started with `wait: false` starts a main turn by itself; the window did not see it, did not save it and did not count its usage. | H-25: one listener per session. | built |
+| H-34 | Stop aborted the main turn only; helpers kept running. | Stop calls pi-subagent-manager's `agent_status` and `agent_stop` for each running helper; the notice says how many. | built |
+| H-35 | A helper's writes carried the main session's id; `propose_issue`, `add_authority` and `write_memorandum` carried none. | Every write records `<session id>`, or `<session id>/<parent call id>` for a call made by another tool. | built |
+| H-36 | A failed Studio call was returned as text, so the model and the window saw a success. | The call throws; Pi reports an error. | built |
+| H-37 | The tools did not follow Pi's extension guide. | `StringEnum`, `readOnlyHint`, `executionMode: "sequential"`, Stop ends a call at once, long results cut at Pi's limits with a hint. | built |
+| H-38 | The comment on `writePermissionPolicy` said an `ask` gets the default answer. | Corrected: it is a question. | built |
+| H-39 | Long options of a select question were cut off on narrow buttons. | Options wrap inside their buttons. | built |
+| H-40 | The run trace: what each run did, for the Jobs view and tests. | `chat/trace.jsonl`, one line per run start, tool call, compaction and run end; no arguments or results. | built |
+| H-41 | Helper types for coding work (`coder`, `architect` and others) with every application tool. | Four Open Advocate types with their own allowlists and limits; the coding types get no tools. | built |
+| H-42 | The bundled extensions as native parts: the caller-identity spike, then one adapter per bundled extension, a completeness test and the fallback. | As in the successor prompt, part B3. | open |
+| H-43 | The Firm Agent (feature O10). | [specs/agent-framework.md](specs/agent-framework.md) section 2. | open |
