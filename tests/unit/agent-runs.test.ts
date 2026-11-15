@@ -104,7 +104,11 @@ test("a failed Studio call is an error to the model and the window, and the trac
     await f.agent.send(MATTER, "find it");
     assert.match(seen, /"isError":true/);
     assert.match(seen, /SOURCE_UNREACHABLE/);
-    assert.ok(f.texts("tool").includes("Tool failed: search_statutes"));
+    // The tool row changes in place to failed, with the error and its duration.
+    const row = (await f.agent.getChat(MATTER)).messages.find((m) => m.id === "st-1");
+    assert.equal(row?.tool?.status, "error");
+    assert.match(row?.tool?.error ?? "", /SOURCE_UNREACHABLE/);
+    assert.equal(typeof row?.tool?.durationMs, "number");
     const lines = await f.trace();
     const call = lines.find((l) => l.type === "tool" && l.callId === "st-1");
     assert.equal(call?.error, true);

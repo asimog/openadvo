@@ -162,3 +162,61 @@ test("Stop stops a running helper, and the notice says so", async () => {
     await f.agent.disposeAll();
   }
 });
+
+test("restart: a running helper shows as interrupted once; the next restart does not report it again", async () => {
+  const chatDir = mkdtempSync(path.join(tmpdir(), "openadvo-helpers-restore-"));
+  const { writeFile } = await import("node:fs/promises");
+  await writeFile(
+    path.join(chatDir, "helpers.json"),
+    JSON.stringify([{ id: "h1", callId: "c1", name: "Read the FIR", type: "record-reader", typeName: "record-reader", background: true, state: "running", waiting: false, startedAt: new Date().toISOString(), task: "Read the FIR", output: "partial" }]),
+  );
+  const manager = () => {
+    const texts: string[] = [];
+    const m = new HelperManager({
+      chatDir,
+      model: () => "test",
+      createSession: async () => {
+        throw new Error("not used");
+      },
+      parentContext: () => "",
+      text: (line) => texts.push(line),
+      changed: () => undefined,
+      usage: async () => undefined,
+    });
+    return { m, texts };
+  };
+  const first = manager();
+  assert.equal(await first.m.restore(), 1);
+  assert.match(first.texts.join("\n"), /Interrupted: Read the FIR/);
+  const second = manager();
+  assert.equal(await second.m.restore(), 0);
+  assert.equal(second.texts.length, 0);
+  assert.equal(second.m.all()[0].state, "interrupted");
+});
+
+test("a helper whose session cannot start shows as failed, and the file says so", async () => {
+  const chatDir = mkdtempSync(path.join(tmpdir(), "openadvo-helpers-fail-"));
+  let views: Array<{ state: string }> = [];
+  const m = new HelperManager({
+    chatDir,
+    model: () => "test",
+    createSession: async () => {
+      throw new Error("no model");
+    },
+    parentContext: () => "",
+    text: () => undefined,
+    changed: (v) => (views = v),
+    usage: async () => undefined,
+  });
+  const { HELPER_TYPES } = await import("../../src/main/helper-types.ts");
+  const text = await m.start(HELPER_TYPES[0], "Read the FIR", { background: false }, { tools: [], executeTool: async () => ({ result: { content: [] }, isError: false }) });
+  assert.match(text, /The helper failed: no model/);
+  assert.equal(views.at(-1)?.state, "failed");
+  const { readFile } = await import("node:fs/promises");
+  let saved = "";
+  for (let i = 0; i < 100 && !saved.includes('"failed"'); i++) {
+    await new Promise((r) => setTimeout(r, 10));
+    saved = await readFile(path.join(chatDir, "helpers.json"), "utf8").catch(() => "");
+  }
+  assert.equal(JSON.parse(saved)[0]?.state, "failed", "helpers.json records the failure");
+});

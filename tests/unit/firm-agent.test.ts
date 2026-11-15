@@ -49,6 +49,9 @@ async function fixture() {
     saveEffort: () => undefined,
     policy: async () => ({ budgetTokens: null, usedTokens: 0 }),
     recordUsage: async () => undefined,
+    // The plan strength and the party rule are settings, not matter readers.
+    planStrength: () => "long",
+    partyRule: () => true,
     firm,
   };
   // Any matter reader the Firm Agent touched would fail loudly.

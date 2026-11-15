@@ -50,6 +50,9 @@ async function fixture(): Promise<Fixture> {
     loadEffort: () => null,
     saveEffort: () => undefined,
     policy: async () => ({ budgetTokens: null, usedTokens: 0 }),
+    planStrength: () => "long",
+    partyRule: () => true,
+    parties: async () => [],
     recordUsage: async () => undefined,
   };
   // Tools are never called in these tests; any other host method fails loudly.

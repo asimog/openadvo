@@ -112,3 +112,42 @@ test("ask: Stop refuses the waiting call", async () => {
     await f.agent.disposeAll();
   }
 });
+
+test("ask: two calls in one message wait in the queue; Allow for this conversation covers the second", async () => {
+  let ran = 0;
+  const f = await agentFixture({ policy: { default: "allow", tools: { web_search: "ask" } }, host: { studio: async () => (ran++, "results") } });
+  try {
+    await f.agent.getChat(MATTER);
+    f.core.setResponses([
+      fauxAssistantMessage([fauxToolCall("web_search", { query: "x" }), fauxToolCall("web_search", { query: "y" })], { stopReason: "toolUse" }),
+      fauxAssistantMessage("done"),
+    ]);
+    const run = f.agent.send(MATTER, "go");
+    await until(() => f.questions().length === 1, "the first approval card");
+    await f.agent.answerQuestion(MATTER, f.questions()[0].id, "Allow for this conversation");
+    await run;
+    assert.equal(ran, 2);
+    assert.deepEqual(f.policyLog().map((l) => l.outcome), ["conversation"], "one card, one log line");
+  } finally {
+    await f.agent.disposeAll();
+  }
+});
+
+test("party rule: a party added after the conversation opened still makes a web call ask", async () => {
+  let ran = 0;
+  const parties: string[] = [];
+  const f = await agentFixture({ host: { studio: async () => (ran++, "results"), parties: async () => [...parties] } });
+  try {
+    await f.agent.getChat(MATTER);
+    parties.push("Ramesh Kumar");
+    f.core.setResponses([fauxAssistantMessage([fauxToolCall("web_search", { query: "ramesh kumar bail order" })], { stopReason: "toolUse" }), fauxAssistantMessage("after")]);
+    const run = f.agent.send(MATTER, "go");
+    await until(() => f.questions().length === 1, "the approval card");
+    assert.match(f.questions()[0].message, /Ramesh Kumar, a party to this matter/);
+    await f.agent.answerQuestion(MATTER, f.questions()[0].id, "Refuse");
+    await run;
+    assert.equal(ran, 0);
+  } finally {
+    await f.agent.disposeAll();
+  }
+});
