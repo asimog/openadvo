@@ -189,8 +189,8 @@ export function policyExtension(opts: {
   conversation: string;
   label: (toolName: string) => string;
   ask: (title: string, signal: AbortSignal | undefined) => Promise<Approval>;
-  /** The parties of the open matter, for the party rule. */
-  parties?: () => readonly string[];
+  /** The parties of the open matter, for the party rule, read at each call. */
+  parties?: () => readonly string[] | Promise<readonly string[]>;
   /** The party rule is on unless the advocate turned it off. */
   partyRule?: () => boolean;
   /** A `policy` line for trace.jsonl, for each ask and deny. */
@@ -215,7 +215,10 @@ export function policyExtension(opts: {
       };
       pi.on("tool_call", async (event, ctx) => {
         try {
-          const d = decide(opts.store.read(), event.toolName, event.input, { parties: opts.parties?.() ?? [], partyRule: opts.partyRule?.() });
+          const partyRule = opts.partyRule?.() !== false;
+          // Only a web call reads the parties; an error here fails closed below.
+          const parties = partyRule && (PARTY_TOOLS as readonly string[]).includes(event.toolName) ? ((await opts.parties?.()) ?? []) : [];
+          const d = decide(opts.store.read(), event.toolName, event.input, { parties, partyRule });
           if (d.rule === "allow") return undefined;
           if (d.rule === "deny") {
             opts.store.log({ conversation: opts.conversation, tool: event.toolName, rule: "deny", outcome: "refused", reason: d.reason });
@@ -227,7 +230,9 @@ export function policyExtension(opts: {
           const detail = describeCall(event.toolName, event.input);
           const why = d.reason ? ` ${d.reason}` : "";
           const title = `The agent wants to use ${opts.label(event.toolName)}.${why}${detail}`;
-          const answer = await oneAtATime(async () => {
+          const answer = await oneAtATime(async (): Promise<{ answer: Approval; timedOut: boolean; reused?: boolean }> => {
+            // A call that waited behind an "Allow for this conversation" runs without a new card.
+            if (allowed.has(event.toolName)) return { answer: "conversation", timedOut: false, reused: true };
             const parent = (ctx as { signal?: AbortSignal }).signal;
             // A background helper has no turn of its own: an unanswered card refuses after ten minutes.
             if (!event.parentToolCallId) return { answer: await opts.ask(title, parent), timedOut: false };
@@ -247,6 +252,7 @@ export function policyExtension(opts: {
               parent?.removeEventListener("abort", onAbort);
             }
           });
+          if (answer.reused) return undefined;
           if (answer.timedOut) {
             opts.store.log({ conversation: opts.conversation, tool: event.toolName, rule: "ask", outcome: "timeout" });
             opts.trace?.({ tool: event.toolName, rule: "ask", outcome: "timeout" });

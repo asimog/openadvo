@@ -210,6 +210,7 @@ export class HelperManager {
       });
     }
     if (this.records.size) this.opts.changed(this.views());
+    if (interrupted) await this.persist();
     if (interrupted) {
       const names = [...this.records.values()].filter((r) => r.state === "interrupted").map((r) => r.name);
       this.opts.text(`Interrupted: ${names.join(", ")}. ${interrupted === 1 ? "A helper was" : "Helpers were"} running when the application closed. Partial output is in ${HELPER_DIR}/.`);
@@ -258,7 +259,11 @@ export class HelperManager {
         this.opts.text(`Helper ${record.name} failed: ${(e as Error).message}`, { id, name: record.name, type: type.name, event: "failed", detail: (e as Error).message });
         record.settled = true;
         this.slots.running = Math.max(0, this.slots.running - 1);
+        this.sessions.delete(id);
+        this.opts.changed(this.views());
+        void this.writePartial(record).then(() => this.persist());
       }
+      this.finishes.delete(id);
       finish("done");
     });
 

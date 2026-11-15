@@ -1635,12 +1635,11 @@ export class Agent {
     // The tool policy asks through the session's question queue, made below.
     const questionsRef: { q?: ExtensionQuestions } = {};
     const labels = new Map(spec.tools.map((t) => [t.name, (t as { label?: string }).label ?? t.name]));
-    const parties = spec.kind === "matter" ? await host.parties?.(matterId).catch(() => []) ?? [] : [];
     const policy = policyExtension({
       store: this.policyStore(),
       conversation: matterId,
       label: (name) => labels.get(name) ?? name.replace(/_/g, " "),
-      parties: () => parties,
+      parties: async () => (spec.kind === "matter" ? ((await host.parties?.(matterId)) ?? []) : []),
       partyRule: () => host.partyRule?.() ?? true,
       trace: (line) => {
         const text = JSON.stringify({ at: new Date().toISOString(), session: sessionRef.s?.sessionId ?? null, type: "policy", ...line }) + "\n";
