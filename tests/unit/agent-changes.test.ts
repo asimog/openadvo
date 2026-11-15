@@ -115,11 +115,20 @@ test("a matter made before step 5 is migrated so the agent can author a revision
   const { draft, revision } = await store.createDraftWithRevision("list_of_dates", "LIST OF DATES", g.docx, g.paragraphs, { actor: "advocate" });
   await store.approveRevision(revision.id, { actor: "advocate" });
   store.close();
-  // Put back the step 4 CHECK, as an older matter has it.
+  // Put back the step 4 CHECK, as an older matter has it. The table is rebuilt, not edited in
+  // sqlite_master: SQLite in defensive mode (Node 24 on CI) refuses writes to sqlite_master.
   const db = new DatabaseSync(path.join(store.folder, "matter.db"));
-  db.exec("PRAGMA writable_schema = ON;");
-  db.prepare("UPDATE sqlite_master SET sql = replace(sql, ?, ?) WHERE name = 'revision'").run("'generator', 'advocate', 'agent'", "'generator', 'advocate'");
-  db.exec("PRAGMA writable_schema = OFF;");
+  const oldSql = (db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'revision'").get() as { sql: string }).sql
+    .replace("'generator', 'advocate', 'agent'", "'generator', 'advocate'")
+    .replace(/^CREATE TABLE "?revision"?/, "CREATE TABLE revision_step4");
+  db.exec("PRAGMA foreign_keys = OFF;");
+  db.exec("BEGIN");
+  db.exec(`${oldSql};
+INSERT INTO revision_step4 SELECT id, draft_id, seq, sha256, size, base_revision_id, author, created_at FROM revision;
+DROP TABLE revision;
+ALTER TABLE revision_step4 RENAME TO revision;`);
+  db.exec("COMMIT");
+  assert.ok(!(db.prepare("SELECT sql FROM sqlite_master WHERE name = 'revision'").get() as { sql: string }).sql.includes("'agent'"));
   db.exec("ALTER TABLE review_item DROP COLUMN draft_id;");
   db.close();
 
