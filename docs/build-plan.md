@@ -8,6 +8,8 @@ Rules for every phase (lessons L1, L3 and L5 in [../AGENTS.md](../AGENTS.md)):
 - Build a thin version of every part of the phase, joined end to end, before any part gets more features.
 - Done means the owner completed a real task on a real brief. A document or a test the agent wrote is not done.
 
+Harness hardening runs beside Phase 1. Its items and order are in [harness-hardening.md](harness-hardening.md).
+
 ## 1. Phases
 
 Each phase has a scope and an exit, which the owner completes on real briefs.

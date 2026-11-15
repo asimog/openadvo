@@ -6,7 +6,8 @@ import path from "node:path";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { Matters } from "./matters.ts";
-import { Agent, findSource } from "./agent.ts";
+import { AGENT_TOOLS, Agent, findSource } from "./agent.ts";
+import { PiExtensions } from "./pi-extensions.ts";
 import { RecordTables } from "./record-table.ts";
 import { allWorkflows, parseCustom, remove as removeWorkflow, upsert as upsertWorkflow } from "../lib/workflows/index.ts";
 import { Ingest } from "./ingest.ts";
@@ -148,6 +149,22 @@ function registerBridge(): void {
   handle("memory:get", (matterId: string) => matters.memory(matterId));
   handle("memory:set", (matterId: string, text: string) => matters.setMemory(matterId, String(text ?? "")));
   // V1-4: workflows.
+  handle("extensions:list", () => piExtensions().list());
+  handle("extensions:add", async (source: string) => {
+    const list = await piExtensions().add(String(source));
+    await agent.reloadIdle();
+    return list;
+  });
+  handle("extensions:remove", async (source: string) => {
+    const list = await piExtensions().remove(String(source));
+    await agent.reloadIdle();
+    return list;
+  });
+  handle("extensions:setEnabled", async (input: { id: string; enabled: boolean }) => {
+    const list = piExtensions().setEnabled(String(input.id), Boolean(input.enabled));
+    await agent.reloadIdle();
+    return list;
+  });
   handle("workflows:list", () => allWorkflows(customWorkflows()));
   handle("workflows:save", (input: { id?: string; title: string; body: string }) => saveWorkflows(upsertWorkflow(customWorkflows(), input)));
   handle("workflows:delete", (id: string) => saveWorkflows(removeWorkflow(customWorkflows(), String(id))));
@@ -768,6 +785,27 @@ function exposeTestHooks(): void {
   };
 }
 
+// Decision 22: the Pi extensions. Bundled ones are vendored in resources/pi-extensions; added ones live in the app's Pi folder.
+function piAgentDir(): string {
+  return path.join(app.getPath("userData"), "pi-agent");
+}
+let piExtensionsManager: PiExtensions | null = null;
+function piExtensions(): PiExtensions {
+  if (!piExtensionsManager) {
+    piExtensionsManager = new PiExtensions({
+      agentDir: piAgentDir(),
+      bundledRoot: path.join(resourcesRoot(), "pi-extensions"),
+      loadDisabled: () => {
+        const v = readSettings().disabledExtensions;
+        return Array.isArray(v) ? v.map(String) : [];
+      },
+      saveDisabled: (ids) => writeSetting("disabledExtensions", ids),
+    });
+    piExtensionsManager.writeSubagentPolicy(AGENT_TOOLS);
+  }
+  return piExtensionsManager;
+}
+
 function resourcesRoot(): string {
   return process.env.OPENADVO_RESOURCES ? path.resolve(process.env.OPENADVO_RESOURCES) : path.join(app.getAppPath(), "resources");
 }
@@ -870,7 +908,7 @@ app.whenReady().then(() => {
       },
       recordUsage: async (id, usage, sessionId) => (await matters.store(id)).appendEvent({ actor: "agent", sessionId }, "agent.usage", null, usage),
     },
-    { agentDir: path.join(app.getPath("userData"), "pi-agent"), model: process.env.OPENADVO_MODEL || undefined },
+    { agentDir: piAgentDir(), model: process.env.OPENADVO_MODEL || undefined, extensions: piExtensions() },
   );
   ingest = new Ingest(matters, (matterId) => window?.webContents.send("ingest:update", matterId));
   registerBridge();

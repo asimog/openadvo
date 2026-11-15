@@ -1,8 +1,9 @@
 /**
  * The agent: one Pi session per open matter, embedded in the main process (decision 2).
  *
- * The session gets only the tools in AGENT_TOOLS. Our own ResourceLoader loads no
- * extensions, skills, prompt templates or context files, so nothing else can add a tool.
+ * The session gets the tools in AGENT_TOOLS, plus the tools of the Pi extensions the advocate
+ * enabled (pi-extensions.ts; decision 22). Pi's built-in file and shell tools are never active.
+ * A confidential matter loads no extension.
  * The Pi session records agent activity; the matter store records only the session id
  * (decision 7). No Electron import here, so tests can run it in plain Node.
  */
@@ -14,6 +15,7 @@ import {
   SettingsManager,
   createAgentSession,
   createExtensionRuntime,
+  type ExtensionUIContext,
   defineTool,
   type AgentSession,
   type ResourceLoader,
@@ -24,13 +26,14 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { AnchorRecord, PageRecord, SourceRecord, Notebook, NotebookEvent } from "../lib/matter-store/index.ts";
 import { EventType, type AGUIEvent } from "@ag-ui/core";
-import { CHAT_MESSAGE_EVENT } from "../shared/api.ts";
+import { CHAT_MESSAGE_EVENT, EXTENSION_STATUS_EVENT } from "../shared/api.ts";
 import type { ChatEvent, ChatMessage, ChatState, EffortLevel, EffortState, ModelChoice } from "../shared/api.ts";
 
 type ThinkingLevel = EffortLevel;
 const EFFORT_LEVELS: readonly EffortLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { DraftCheck, DraftKind, ParagraphSource, RevisionRecord } from "../shared/records.ts";
+import { BUILTIN_TOOL_NAMES, extensionUi, type PiExtensions } from "./pi-extensions.ts";
 
 /** One correction the agent proposed in a run, as the AG-UI interrupt reports it. */
 export interface ProposedCorrection {
@@ -185,8 +188,13 @@ export interface AgentWorkHost {
 export const DEFAULT_MODEL = "opencode-go/deepseek-v4.1-flash";
 
 export interface AgentOptions {
-  /** Pi's own folder for this application. Never the owner's ~/.pi. */
+  /**
+   * Pi's own folder for this application: settings, packages, extension state. Model
+   * credentials and models still come from the owner's ~/.pi/agent (decision 16, EC-6).
+   */
   agentDir: string;
+  /** The Pi extensions (decision 22). Without it the session loads no extension (tests). */
+  extensions?: PiExtensions;
   /** "provider/model" from OPENADVO_MODEL. It wins over the saved choice. */
   model?: string;
 }
@@ -195,7 +203,7 @@ function systemPrompt(title: string): string {
   return [
     "You are the Open Advocate agent. You work for an Advocate-on-Record of the Supreme Court of India.",
     `The open matter is: ${title}.`,
-    "Your tools are read only: list_sources (the source files), read_source_text (the text of pages of one source, line by line) and search_sources (find a phrase; returns source, page and line).",
+    "Most of your tools read the matter. The tools that write make only proposals, records or filing steps, as described below. The reading tools: list_sources (the source files), read_source_text (the text of pages of one source, line by line) and search_sources (find a phrase; returns source, page and line).",
     "The Notebook holds dated events extracted by fixed rules: list_events (every field, with filters) and get_chronology (the events the advocate has not excluded, by date). Events are candidates until the advocate confirms them. You cannot confirm, reject or exclude anything.",
     "The drafts are the generated List of Dates and the Synopsis: read_draft reads the live text of the latest revision of each draft, with the anchor of every paragraph, and get_paragraph_source follows one anchor to its Notebook events and source lines. No model writes the generated text.",
     "check_draft runs the fixed factual checks on the latest stored revision of one draft and lists each defect with its evidence.",
@@ -955,26 +963,53 @@ export class Agent {
     });
     const runtime = await this.modelRuntime();
     const model = await this.model();
+    // Decision 22: the advocate's Pi extensions load, except in a confidential matter (hard rule 9).
+    const confidential = (await host.policy(matterId)).confidential;
+    const ext = this.options.extensions;
+    const settingsManager = ext ? ext.settings() : SettingsManager.inMemory();
+    // H-2: compaction on (Pi's default), so a long conversation never stops every run.
+    settingsManager.applyOverrides({ compaction: { enabled: true } });
     const { session } = await createAgentSession({
       cwd: this.options.agentDir,
       agentDir: this.options.agentDir,
       modelRuntime: runtime,
       model,
       thinkingLevel: this.effort(),
-      resourceLoader: resourceLoader(title),
-      settingsManager: SettingsManager.inMemory({ compaction: { enabled: false } }),
+      resourceLoader: ext ? await ext.loader({ systemPrompt: systemPrompt(title), confidential }) : resourceLoader(title),
+      settingsManager,
       sessionManager: fresh ? SessionManager.create(this.options.agentDir, sessionDir) : SessionManager.continueRecent(this.options.agentDir, sessionDir),
-      tools: [...AGENT_TOOLS],
+      // Decision 2: Pi's built-in file and shell tools are off; our tools and extension tools are on.
+      noTools: "builtin",
+      excludeTools: [...BUILTIN_TOOL_NAMES],
       customTools: [listSources, readSourceText, searchSources, listEvents, getChronology, readDraft, getParagraphSource, checkDraftTool, proposeCorrection, ...workTools, ...v1Tools, ...v4Tools, ...v5Tools],
     });
     const active = session.getActiveToolNames();
-    if (active.length !== AGENT_TOOLS.length || !AGENT_TOOLS.every((t) => active.includes(t))) {
+    const builtins = active.filter((t) => (BUILTIN_TOOL_NAMES as readonly string[]).includes(t));
+    if (!AGENT_TOOLS.every((t) => active.includes(t)) || builtins.length > 0 || (confidential && active.length !== AGENT_TOOLS.length)) {
       session.dispose();
-      throw new Error(`agent tool allowlist violated: ${JSON.stringify(active)}`);
+      throw new Error(`agent tool policy violated: ${JSON.stringify(active)}`);
     }
+    const chatRef: { state?: ChatState } = {};
+    const ui: ExtensionUIContext = extensionUi({
+      notice: (text) => {
+        const message: ChatMessage = { id: randomUUID(), role: "notice", text };
+        chatRef.state?.messages.push(message);
+        host.emit({ matterId, event: { timestamp: Date.now(), type: EventType.CUSTOM, name: CHAT_MESSAGE_EVENT, value: message } as unknown as AGUIEvent });
+      },
+      status: (key, lines) => {
+        const st = chatRef.state;
+        if (!st) return;
+        st.status ??= {};
+        if (lines === undefined) delete st.status[key];
+        else st.status[key] = lines;
+        host.emit({ matterId, event: { timestamp: Date.now(), type: EventType.CUSTOM, name: EXTENSION_STATUS_EVENT, value: { ...st.status } } as unknown as AGUIEvent });
+      },
+    });
+    await session.bindExtensions({ uiContext: ui, mode: "rpc", onError: (err) => console.error(`pi extension error: ${JSON.stringify(err)}`) });
     const modelName = session.model ? `${session.model.provider}/${session.model.id}` : null;
     await host.recordSession(matterId, session.sessionId, modelName);
-    const state: ChatState = { messages: fresh ? [] : await loadMessages(chatDir), busy: false, model: modelName };
+    const state: ChatState = { messages: fresh ? [] : await loadMessages(chatDir), busy: false, model: modelName, confidentialSession: confidential };
+    chatRef.state = state;
     if (!modelName) {
       state.messages.push({
         id: randomUUID(),
@@ -1011,33 +1046,54 @@ export class Agent {
       emit({ type: EventType.CUSTOM, name: CHAT_MESSAGE_EVENT, value: message });
     };
     push({ id: randomUUID(), role: "advocate", text: clean });
-    if (!session.model) {
+    // A Pi extension command ("/name") runs without a model; anything else needs one.
+    if (!session.model && !clean.startsWith("/")) {
       push({ id: randomUUID(), role: "notice", text: "The agent cannot answer: no model is available." });
       await saveMessages(await this.host.chatDir(matterId), state.messages).catch(() => undefined);
       return;
     }
     if (state.busy) {
-      push({ id: randomUUID(), role: "notice", text: "The agent is still working. Wait for the answer, then send again." });
+      // H-1: a message sent while the agent works is a Pi follow-up, read when the current run ends.
+      if (session.isStreaming && !clean.startsWith("/")) {
+        try {
+          await session.followUp(clean);
+          push({ id: randomUUID(), role: "notice", text: "Queued: the agent reads this when it finishes the current work." });
+        } catch (e) {
+          push({ id: randomUUID(), role: "notice", text: `The message was not queued: ${(e as Error).message}` });
+        }
+      } else {
+        push({ id: randomUUID(), role: "notice", text: "The agent is still working. Wait for the answer, then send again." });
+      }
       return;
     }
-    // V5-21: a confidential matter uses only a model on this computer; a budget stops the next run.
-    const pol = await this.host.policy(matterId);
-    if (pol.confidential && !isLocalModel(session.model)) {
-      push({ id: randomUUID(), role: "notice", text: `This matter is confidential: its text goes only to a model on this computer. ${keyOf(session.model)} is not local. Choose a local model, or change the matter's setting.` });
+    // H-1: claim the session before the first await, so two quick sends never start two runs.
+    state.busy = true;
+    const release = async (text: string) => {
+      state.busy = false;
+      push({ id: randomUUID(), role: "notice", text });
       await saveMessages(await this.host.chatDir(matterId), state.messages).catch(() => undefined);
-      return;
+    };
+    // V5-21: a confidential matter uses only a model on this computer; a budget stops the next run.
+    let pol: Awaited<ReturnType<AgentHost["policy"]>>;
+    try {
+      pol = await this.host.policy(matterId);
+    } catch (e) {
+      return release(`The agent cannot start: ${(e as Error).message}`);
+    }
+    if (pol.confidential && session.model && !isLocalModel(session.model)) {
+      return release(`This matter is confidential: its text goes only to a model on this computer. ${keyOf(session.model)} is not local. Choose a local model, or change the matter's setting.`);
+    }
+    if (pol.confidential && !state.confidentialSession) {
+      return release("This matter became confidential after its conversation opened with Pi extensions loaded. Start a new conversation, so it opens without extensions.");
     }
     if (pol.budgetTokens != null && pol.usedTokens >= pol.budgetTokens) {
-      push({ id: randomUUID(), role: "notice", text: `The matter's budget of ${pol.budgetTokens} tokens is used (${pol.usedTokens}). Raise the budget to continue.` });
-      await saveMessages(await this.host.chatDir(matterId), state.messages).catch(() => undefined);
-      return;
+      return release(`The matter's budget of ${pol.budgetTokens} tokens is used (${pol.usedTokens}). Raise the budget to continue.`);
     }
     chat.stopped = false;
     const usage = { input: 0, output: 0, totalTokens: 0, cost: 0 };
     const threadId = session.sessionId;
     const runId = randomUUID();
     chat.proposals = [];
-    state.busy = true;
     emit({ type: EventType.RUN_STARTED, threadId, runId });
     let current: ChatMessage | null = null;
     let failure: string | null = null;
@@ -1085,7 +1141,7 @@ export class Agent {
       endText();
       state.busy = false;
       if (chat.stopped) failure = null;
-      if (usage.totalTokens > 0) await this.host.recordUsage(matterId, { model: keyOf(session.model), ...usage }, session.sessionId).catch(() => undefined);
+      if (usage.totalTokens > 0 && session.model) await this.host.recordUsage(matterId, { model: keyOf(session.model), ...usage }, session.sessionId).catch(() => undefined);
       if (chat.stopped) state.messages.push({ id: randomUUID(), role: "notice", text: "Stopped by the advocate." });
       // V1-1: the window's messages survive a restart.
       await saveMessages(await this.host.chatDir(matterId), state.messages).catch(() => undefined);
@@ -1116,6 +1172,23 @@ export class Agent {
     chat.stopped = true;
     await chat.session.abort();
     return true;
+  }
+
+  /** Decision 22: close every idle session, so the next message reopens it with the current extensions. */
+  async reloadIdle(): Promise<number> {
+    let closed = 0;
+    for (const [id, pending] of [...this.chats]) {
+      try {
+        const chat = await pending;
+        if (chat.state.busy) continue;
+        chat.session.dispose();
+      } catch {
+        // A session that failed to start is simply dropped.
+      }
+      this.chats.delete(id);
+      closed++;
+    }
+    return closed;
   }
 
   async disposeAll(): Promise<void> {

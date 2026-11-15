@@ -5,8 +5,12 @@
 import { test, expect, _electron as electron, type ElectronApplication, type Page } from "@playwright/test";
 import { mkdtemp, mkdir, writeFile, rm, appendFile, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { appEnv } from "./env.ts";
+
+/** Tools registered by Pi extensions and Pi's own extension factories (decision 22). */
+const EXTENSION_TOOL = /^(agent_[a-z_]+|checklist_[a-z_]+|context_tree_query|context_prune|codemode|tool_search|mcp__.*)$/;
 
 const repo = path.resolve(import.meta.dirname, "../..");
 
@@ -200,6 +204,7 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
       "openPortal", "importEmail", "getMailAccount", "setMailAccount", "fetchMail", "voiceStatus", "transcribe",
       // V1 (docs/specs/v1.md).
       "verifyFilingManifest", "renameMatter", "setMatterArchived", "newConversation", "getMemory", "setMemory",
+      "listExtensions", "addExtension", "removeExtension", "setExtensionEnabled",
       "listWorkflows", "saveWorkflow", "deleteWorkflow", "getRecordTable", "addRecordColumn", "decideRecordCell",
       "setSourceType", "listDuplicates", "decideDuplicate", "getListOfDatesRows", "setListOfDatesRows", "listMemoryProposals", "decideMemoryProposal", "signingFingerprint",
       "getProgress", "getInbox", "searchSources", "getAppInfo", "getAppearance", "setAppearance", "exportMatter",
@@ -215,13 +220,17 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
   await app.close();
 });
 
-test("the agent session has exactly our tool, and its id is recorded", async () => {
+test("the agent session has our tools, no built-in Pi tool, and its id is recorded", async () => {
   const dirs = await makeDirs();
   const { app, page } = await launch(dirs);
   await createMatter(page, "Tool allowlist");
   const id = await matterId(app);
-  const tools = await app.evaluate((_e, m) => (globalThis as any).__openadvoTest.agentToolNames(m), id);
-  expect(tools).toEqual([
+  const tools: string[] = await app.evaluate((_e, m) => (globalThis as any).__openadvoTest.agentToolNames(m), id);
+  // Decision 22: Pi extension tools may be added; Pi's built-in file and shell tools never are.
+  for (const builtin of ["read", "bash", "powershell", "edit", "write", "grep", "find", "ls"]) expect(tools).not.toContain(builtin);
+  // The bundled extensions are vendored (npm run vendor:extensions): their tools are active.
+  if (existsSync(path.join(process.cwd(), "resources", "pi-extensions", "vendor.lock.json"))) for (const t of ["checklist_create", "agent_spawn", "context_tree_query"]) expect(tools).toContain(t);
+  expect(tools.filter((t) => !EXTENSION_TOOL.test(t)).sort()).toEqual([
     "list_sources",
     "read_source_text",
     "search_sources",
@@ -265,7 +274,7 @@ test("the agent session has exactly our tool, and its id is recorded", async () 
     "assess_authority",
     "record_treatment",
     "run_rehearsal",
-  ]);
+  ].sort());
   const sessionId = await app.evaluate((_e, m) => (globalThis as any).__openadvoTest.agentSessionId(m), id);
   const events = await page.evaluate((m) => (globalThis as any).openadvo.listEvents(m), id);
   const started = events.find((e: any) => e.action === "agent.session_started");

@@ -13,7 +13,7 @@ The code follows these decisions now. They keep their numbers.
 | No. | Decision |
 |---|---|
 | 1 | One desktop application of our own, in Electron, in TypeScript. Setup: electron-vite. Main process, preload bridge, React renderer. |
-| 2 | The agent is Pi, embedded in the main process through its SDK. The agent gets only the tools we register. It gets no shell tool and no file-write tool. |
+| 2 | The agent is Pi, embedded in the main process through its SDK. The agent gets the tools we register and the tools of the Pi extensions the advocate enabled (decision 22). It gets no shell tool and no file-write tool. |
 | 3 | The renderer is React. It holds no business logic and has no file access (`contextIsolation` on, `nodeIntegration` off, `sandbox` on). |
 | 4 | Each store has one writer. The matter store is the single writer of matter facts: a matter folder, `matter.db` (SQLite), files stored by SHA-256, and an append-only, hash-chained event record. |
 | 5 | Human-only actions are named functions on the preload bridge. They are never agent tools. |
@@ -38,6 +38,7 @@ The code follows these decisions now. They keep their numbers.
 | 19 | **Confidential matters stay local.** A confidential matter uses only local models and makes no web query. |
 | 20 | **Languages.** English first. Hindi OCR and display in Phase 2. Other regional languages in Phase 4. A translation sits beside the original. It is never the source. |
 | 21 | **Build order.** Five phases ([build-plan.md](build-plan.md)). Each phase ends with real briefs that the owner completes. |
+| 22 | **Pi extensions** (owner, 2026-11-15). Every Pi feature is made available through the harness ([harness-hardening.md](harness-hardening.md)). The advocate can add Pi extensions. Six are bundled: pi-subagent-manager, pi-context-decisions, pi-checklist, pi-context-prune, pi-context-usage and pi-cache-graph. Pi's built-in file and shell tools stay off (decision 2). A confidential matter loads no extension (decision 19). |
 
 ## 3. Rulings that still apply
 
@@ -58,7 +59,7 @@ R-1 (an advisory outcome score) is superseded by decision 18.
 | One product for Supreme Court Advocates-on-Record, from the impugned judgment to a filing-ready SLP | [archive/2026-11-15/advocate-workflow.md](archive/2026-11-15/advocate-workflow.md) | 10, and [advocate-workflow.md](advocate-workflow.md) |
 | Supreme Court documents are English; Hindi OCR is out of scope (old decision 10) | [archive/2026-11-15/decisions.md](archive/2026-11-15/decisions.md) | 20 |
 | Build steps 1 to 10 and rounds v0 to v5 | [archive/2026-11-15/build-plan.md](archive/2026-11-15/build-plan.md), [archive/2026-11-15/specs/](archive/2026-11-15/specs/) | 21 |
-| Five built-in SLP workflows as the only workflows | `src/lib/workflows` | 14. The SLP work becomes the SLP skill (SK-308) and the Supreme Court pack (feature Q3). |
+| Six built-in SLP workflows as the only workflows | `src/lib/workflows` | 14. The SLP work becomes the SLP skill (SK-308) and the Supreme Court pack (feature Q3). |
 | An advisory outcome score (R-1) | [archive/2026-11-15/decisions.md](archive/2026-11-15/decisions.md) | 18 |
 | The architecture of the three earlier repositories (Rust kernel, `oa` CLI, DSH plugins) | [repo-map.md](repo-map.md) | 1, 2, 4, 6 (unchanged) |
 
@@ -70,7 +71,7 @@ R-1 (an advisory outcome score) is superseded by decision 18.
 | Sources view | The Documents & Evidence tab |
 | Studio, Research and Argument Studio | The Research & Authorities and the Arguments & Strategy tabs. The code module keeps the name `studio`. |
 | Practice view | The Proceedings & Hearings and the Tasks & Deadlines tabs |
-| Workflow (the five SLP workflows) | Skill and workflow ([skills.md](skills.md)) |
+| Workflow (the six SLP workflows) | Skill and workflow ([skills.md](skills.md)) |
 | Step, round, v0 to v5 | Phase and feature id ([build-plan.md](build-plan.md), [features.md](features.md)) |
 | Kernel | The stores and their writer modules |
 | `oa` commands | Bridge functions (for the advocate) and agent tools (for the agent) |

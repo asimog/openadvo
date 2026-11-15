@@ -20,7 +20,8 @@
     "vendor:ulos": "node scripts/vendor-ulos.ts",
     "vendor:voice": "node scripts/vendor-voice.ts",
     "dist": "electron-vite build && electron-builder --dir",
-    "vendor:ocr": "node scripts/vendor-ocr.ts"
+    "vendor:ocr": "node scripts/vendor-ocr.ts",
+    "vendor:extensions": "node scripts/vendor-pi-extensions.ts"
   },
   "devDependencies": {
     "@astryxdesign/cli": "0.7.15",

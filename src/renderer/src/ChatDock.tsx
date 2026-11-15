@@ -18,7 +18,7 @@ import { Selector } from "@astryxdesign/core/Selector";
 import { Spinner } from "@astryxdesign/core/Spinner";
 import { Text } from "@astryxdesign/core/Text";
 import { ArrowLeftIcon, ChatBubbleLeftRightIcon, PlusCircleIcon, MicrophoneIcon, PaperClipIcon, StopIcon } from "@heroicons/react/24/outline";
-import { CHAT_MESSAGE_EVENT } from "../../shared/api.ts";
+import { CHAT_MESSAGE_EVENT, EXTENSION_STATUS_EVENT } from "../../shared/api.ts";
 import { AgentChangesCard } from "./AgentChangesCard.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { DropdownMenu } from "@astryxdesign/core/DropdownMenu";
@@ -118,6 +118,22 @@ function Message(props: { message: ChatRecord }) {
           <div className="chat-text" data-role="agent"><Markdown text={m.text} /></div>
         </ChatMessageBubble>
       </ChatMessage>
+    );
+  }
+  // A Pi extension's screen arrives as a fenced text block (pi-extensions.ts, custom).
+  if (m.text.startsWith("```")) {
+    return (
+      <ChatSystemMessage>
+        <div className="chat-text" data-role={m.role}><Markdown text={m.text} /></div>
+      </ChatSystemMessage>
+    );
+  }
+  // A multi-line notice (for example a Pi extension's report) keeps its lines.
+  if (m.text.includes(String.fromCharCode(10))) {
+    return (
+      <ChatSystemMessage>
+        <pre className="ext-pre" data-role={m.role}>{m.text.trim()}</pre>
+      </ChatSystemMessage>
     );
   }
   return (
@@ -222,6 +238,8 @@ export function ChatDock(props: {
   const [messages, setMessages] = useState<ChatRecord[]>([]);
   const [busy, setBusy] = useState(false);
   const [model, setModel] = useState<string | null>(null);
+  // Decision 22: status lines that Pi extensions set, by key.
+  const [extStatus, setExtStatus] = useState<Record<string, string[]>>({});
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<ChatComposerInputHandle>(null);
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
@@ -241,6 +259,7 @@ export function ChatDock(props: {
         setMessages(s.messages);
         setBusy(s.busy);
         setModel(s.model);
+        setExtStatus(s.status ?? {});
       },
       (e: Error) => live && setError(`The agent could not start: ${e.message}`),
     );
@@ -266,6 +285,7 @@ export function ChatDock(props: {
       else if (e.type === "TEXT_MESSAGE_CONTENT") setMessages((m) => m.map((x) => (x.id === e.messageId ? { ...x, text: x.text + String(e.delta) } : x)));
       else if (e.type === "TOOL_CALL_START") add({ id: String(e.toolCallId), role: "tool", text: `Used tool: ${String(e.toolCallName)}` });
       else if (e.type === "CUSTOM" && e.name === CHAT_MESSAGE_EVENT) add(e.value as ChatRecord);
+      else if (e.type === "CUSTOM" && e.name === EXTENSION_STATUS_EVENT) setExtStatus((e.value as Record<string, string[]>) ?? {});
     });
     return () => {
       live = false;
@@ -325,6 +345,13 @@ export function ChatDock(props: {
       </div>
       <div className="dock-chat" data-testid="chat-log">
         {error ? <div className="notice dock-notice">{error}</div> : null}
+        {Object.keys(extStatus).length > 0 ? (
+          <div className="dock-ext-status mono" data-testid="extension-status" aria-label="Extension status">
+            {Object.entries(extStatus).map(([key, lines]) => (
+              <div key={key} title={key}>{lines.join(" · ")}</div>
+            ))}
+          </div>
+        ) : null}
         <ChatLayout
           density="compact"
           emptyState={

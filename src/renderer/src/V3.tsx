@@ -7,7 +7,7 @@ import { Badge } from "@astryxdesign/core/Badge";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Text } from "@astryxdesign/core/Text";
-import type { AppInfo, Appearance, InboxItem, ProgressStage } from "../../shared/api.ts";
+import type { AppInfo, Appearance, InboxItem, PiExtensionInfo, ProgressStage } from "../../shared/api.ts";
 import { DateAnchorForm, DisputeDecision } from "./V5.tsx";
 
 const api = window.openadvo;
@@ -180,6 +180,11 @@ export function SettingsPage(props: { mailbox: ReactNode; research?: ReactNode; 
           ))}
         </div>
       </section>
+      <section className="work-section" aria-label="Pi extensions">
+        <Heading level={3}>Pi extensions</Heading>
+        <Text type="supporting">Extensions add tools and commands to the agent. An extension runs code on this computer, so add only one whose source you have reviewed. Pi's built-in file and shell tools stay off. A confidential matter loads no extension. A change applies when a conversation next opens.</Text>
+        <PiExtensionsSettings />
+      </section>
       <section className="work-section" aria-label="Mailbox">
         <Heading level={3}>Authorised mailbox</Heading>
         {props.mailbox}
@@ -319,6 +324,78 @@ export function CommandBar(props: { isOpen: boolean; onClose: () => void; comman
           })}
         </ul>
       </div>
+    </div>
+  );
+}
+
+// ---- Decision 22: Pi extensions ----
+
+export function PiExtensionsSettings() {
+  const [list, setList] = useState<PiExtensionInfo[] | null>(null);
+  const [source, setSource] = useState("");
+  const [working, setWorking] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  useEffect(() => {
+    void api.listExtensions().then(setList, (e: Error) => setMessage(e.message));
+  }, []);
+  const run = async (what: string, fn: () => Promise<PiExtensionInfo[]>) => {
+    setWorking(true);
+    setMessage(`${what}…`);
+    try {
+      setList(await fn());
+      setMessage(null);
+    } catch (e) {
+      setMessage(`${what} failed: ${(e as Error).message}`);
+    } finally {
+      setWorking(false);
+    }
+  };
+  if (!list) return message ? <Text>{message}</Text> : null;
+  return (
+    <div data-testid="pi-extensions">
+      {list.length === 0 ? <Text>No extension is installed. The bundled extensions come from npm run vendor:extensions.</Text> : null}
+      <ul className="plain-list">
+        {list.map((x) => (
+          <li key={x.id} data-testid={`pi-extension-${x.id}`}>
+            <Text weight="semibold">{x.id}</Text> {x.version ? <span className="mono">{x.version}</span> : null} <Badge label={x.kind === "bundled" ? "bundled" : "added"} />{" "}
+            {x.error ? <Badge label="failed to load" variant="error" /> : null}
+            <div>
+              <Text type="supporting">
+                {x.tools.length ? `Tools: ${x.tools.join(", ")}. ` : ""}
+                {x.commands.length ? `Commands: ${x.commands.map((c) => "/" + c).join(", ")}. ` : ""}
+                {!x.tools.length && !x.commands.length && !x.error ? "Tools and commands show after a conversation opens. " : ""}
+                {x.error ? `Error: ${x.error}` : ""}
+              </Text>
+            </div>
+            <div className="row-actions">
+              {x.kind === "bundled" ? (
+                <label className="radio">
+                  <input type="checkbox" checked={x.enabled} disabled={working} onChange={() => void run(x.enabled ? "Turning off" : "Turning on", () => api.setExtensionEnabled(x.id, !x.enabled))} /> On
+                </label>
+              ) : (
+                <Button label="Remove" size="sm" variant="ghost" isDisabled={working} clickAction={() => void run("Removing", () => api.removeExtension(x.source))} />
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+      <div className="row-actions">
+        <input
+          className="text-input"
+          aria-label="Extension source"
+          placeholder="npm:name@1.2.3, git:github.com/owner/repo@v1, or a folder"
+          value={source}
+          onChange={(e) => setSource(e.target.value)}
+          disabled={working}
+        />
+        <Button label="Add extension" size="sm" isDisabled={working || !source.trim()} clickAction={() => void run("Installing", async () => {
+          const r = await api.addExtension(source);
+          setSource("");
+          return r;
+        })} />
+      </div>
+      <Text type="supporting">npm and git sources need npm or git on this computer. A folder always works.</Text>
+      {message ? <Text>{message}</Text> : null}
     </div>
   );
 }

@@ -24,6 +24,7 @@ This file owns the folders, the write boundaries, the data outside the repositor
 | `resources/euro-office/` | The vendored Euro-Office parts ([engineering.md](engineering.md) section 2). Never committed, never modified. | The vendor script only. |
 | `resources/ulos/` | The vendored `ulos` validator and its court database. Never committed, never modified. | The vendor script only. |
 | `resources/models/` | The vendored speech model and, in `ppocr/`, the second OCR engine's models. Never committed, never modified. | The vendor scripts only. |
+| `resources/pi-extensions/` | The bundled Pi extensions ([harness-hardening.md](harness-hardening.md) section 3). Never committed, never modified. | The vendor script only. |
 | `out/` | Build output of electron-vite. Not committed. | — |
 | `release/` | The folder to install, made by `npm run dist`. Not committed. | — |
 
@@ -33,6 +34,7 @@ This file owns the folders, the write boundaries, the data outside the repositor
 |---|---|
 | Matters root: `<Documents>/Open Advocate/Matters`, or the folder in `OPENADVO_HOME` | One folder per matter: `matter.db`, `blobs/<sha256>`, `filing/<time>/` (filing sets with `manifest.json`), `chat/` (Pi session files and the window's messages), `memory.md`, `studio/<run>/` (the model calls of an argument-loop or rehearsal run), `questions/`, and the marker file `archived` when the matter is archived. |
 | User data | `settings.json` (model, effort, mail account), `workflows.json` (the advocate's own workflows), `manifest-signing.key` (encrypted with `safeStorage`), `corpus/` (`corpus.db` and the fetched judgment PDFs by SHA-256), `contacts.json`, `word/<matter id>/` (the Word round trip), `logs/editor-host.log`, and `Crashpad/` (local crash dumps; nothing is uploaded). No secret in plain text: the mail password is in `safeStorage`. |
+| User data: `pi-agent/` | The application's Pi folder: `settings.json` (packages the advocate added, Pi settings), `npm/` and `git/` (installed packages), `subagent-manager/` (the helper-agent policy, rewritten on every start), and any Pi skills, prompt templates, context files or extensions placed there. |
 | User data, **planned (Q6)** | `advocate.db` (profile, preferences, advocate memory, Knowledge Library) and `intel.db` (court directory, packs, sources and their freshness). `skills/` for the advocate's own skills (N1). |
 | Pi credentials | Pi's own credential store. The application does not read or copy it (choice EC-6). |
 

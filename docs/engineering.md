@@ -10,7 +10,7 @@ These choices are in the code now. They carry over from the archived decisions (
 |---|---|---|
 | EC-1 | **Component library: Astryx** (`@astryxdesign/core` with `@astryxdesign/theme-neutral`). Prebuilt CSS, so no StyleX build plugin. No second component library. | `src/renderer` |
 | EC-2 | **SQLite: the built-in `node:sqlite`** (`DatabaseSync`) in the main process. No native SQLite addon. If an Electron upgrade changes its API, `better-sqlite3` replaces it behind the same store module. | `src/lib/matter-store` |
-| EC-3 | **Pi package: `@earendil-works/pi-coding-agent`**, pinned exact. The session uses our own `ResourceLoader` (no extensions, skills, prompt templates or context files are discovered), an in-memory `SettingsManager`, and `tools: [<our tool names>]` with `customTools`. This enforces "only the tools we register". Skills of decision 14 are our own files, loaded by our runner, not Pi's skill discovery. | `src/main/agent.ts` |
+| EC-3 | **Pi package: `@earendil-works/pi-coding-agent`**, pinned exact. Each session uses Pi's `DefaultResourceLoader` and a file-backed `SettingsManager` in the application's Pi folder (`<userData>/pi-agent`), so extensions, packages, Pi skills, prompt templates and context files load from there (decision 22). `noTools: "builtin"` and an exclude list keep Pi's built-in tools off; our tools come through `customTools`. A confidential matter's loader keeps only the host guard. | `src/main/agent.ts`, `src/main/pi-extensions.ts` |
 | EC-4 | **Panes: `react-resizable-panels`.** | `src/renderer` |
 | EC-5 | **Tests: Playwright against the built application** (`_electron.launch`), and `node:test` for the plain libraries. | `tests/e2e`, `tests/unit` |
 | EC-6 | **Model credentials: Pi's own credential store.** The application stores no model secret. | `src/main/agent.ts` |
@@ -19,6 +19,7 @@ These choices are in the code now. They carry over from the archived decisions (
 | EC-9 | **PDF text: `pdfjs-dist`.** Page images for OCR: `@napi-rs/canvas`. OCR: `tesseract.js` with bundled English data, and PP-OCR through ONNX Runtime as the second engine. | `src/lib/document-intelligence` |
 | EC-10 | **Window layout.** One title bar of our own. A side navigation that folds to an icon rail. In a matter, the chat is docked on the left and the view fills the right. Icons: `@heroicons/react`. The navigation of [advocate-workflow.md](advocate-workflow.md) section 3 extends this layout (feature Q7). | `src/renderer/src/App.tsx` |
 | EC-11 | **Agent to window stream: the AG-UI protocol** (`@ag-ui/core`, pinned exact; types and schemas only) over our own IPC. No HTTP server. A question or an approval is an AG-UI interrupt. The answer to a human-only action is recorded by a bridge function. | `src/main/agent.ts`, `src/renderer/src/ChatDock.tsx` |
+| EC-12 | **Extension UI: Pi's RPC pattern.** Extensions bind with `mode: "rpc"` and a UI context of our own: notices, status lines, and terminal screens rendered once as text. | `src/main/pi-extensions.ts` |
 
 New choices that Phase 1 needs (the vector index, the skill file format, the `intel.db` and `advocate.db` schemas) are made in the spec of the step that needs them, and are then added here.
 
@@ -32,6 +33,7 @@ The vendored parts are not in the repository. Each has its own script. A script 
 | `ulos` citation validator and its court database | `npm run vendor:ulos` | `ULOS_SRC`, default `C:\dev\ulosadvo` | `resources/ulos/<platform>/` |
 | Speech model (Whisper) | `npm run vendor:voice` | Hugging Face, revision in `VOICE_REVISION`; hashes written to `vendor.lock.json` | `resources/models/` |
 | Second OCR engine (PP-OCR) | `npm run vendor:ocr` | RapidOCR models at a pinned revision, checked by SHA-256 in `scripts/vendor-ocr.ts` | `resources/models/ppocr/` |
+| Bundled Pi extensions | `npm run vendor:extensions` | npm, exact versions; registry integrity checked against `scripts/pi-extensions.manifest.json`; no install scripts, no peer packages | `resources/pi-extensions/` |
 
 **Euro-Office risk and its test.** `window.AscDesktopEditor` is not a documented interface. A new release can add or change a call. Before every release upgrade: open a DOCX and a PDF, type, run one agent edit, save and reopen. Log every `AscDesktopEditor` call and fail on a call that the host does not answer.
 

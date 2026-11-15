@@ -16,11 +16,12 @@ npm run vendor
 npm run vendor:ulos
 npm run vendor:voice
 npm run vendor:ocr
+npm run vendor:extensions
 npm run build
 npm start
 ```
 
-`npm run vendor` fetches the official Euro-Office release ([docs/engineering.md](docs/engineering.md) section 2). `npm run vendor:ulos` copies the citation validator. `npm run vendor:voice` fetches the speech model. `npm run vendor:ocr` fetches the second OCR engine's models.
+`npm run vendor` fetches the official Euro-Office release ([docs/engineering.md](docs/engineering.md) section 2). `npm run vendor:ulos` copies the citation validator. `npm run vendor:voice` fetches the speech model. `npm run vendor:ocr` fetches the second OCR engine's models. `npm run vendor:extensions` installs the bundled Pi extensions ([docs/harness-hardening.md](docs/harness-hardening.md)).
 
 The agent uses the model credentials that Pi already stores for the user ([docs/engineering.md](docs/engineering.md), choice EC-6).
 

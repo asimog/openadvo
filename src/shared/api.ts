@@ -41,10 +41,29 @@ export interface ChatEvent {
 /** The name of the CUSTOM event that carries one ChatMessage of the application. */
 export const CHAT_MESSAGE_EVENT = "openadvo.chat_message";
 
+/** The CUSTOM event that carries the status lines of the Pi extensions: { [key]: lines }. */
+export const EXTENSION_STATUS_EVENT = "openadvo.extension_status";
+
 export interface ChatState {
   messages: ChatMessage[];
   busy: boolean;
   model: string | null;
+  /** Status lines that Pi extensions set (setStatus, setWidget with text), by key. */
+  status?: Record<string, string[]>;
+  /** The session was opened while the matter was confidential, so it loaded no extension. */
+  confidentialSession?: boolean;
+}
+
+/** One Pi extension (decision 22). */
+export interface PiExtensionInfo {
+  id: string;
+  kind: "bundled" | "added";
+  version: string | null;
+  source: string;
+  enabled: boolean;
+  tools: string[];
+  commands: string[];
+  error: string | null;
 }
 
 /** One model from pi-ai's list of models that have credentials. */
@@ -91,6 +110,11 @@ export interface OpenAdvoApi {
   getMemory(matterId: string): Promise<string>;
   /** Human-only (V1-3). */
   setMemory(matterId: string, text: string): Promise<string>;
+  /** Decision 22: the Pi extensions, bundled and added. A change reopens idle conversations. */
+  listExtensions(): Promise<PiExtensionInfo[]>;
+  addExtension(source: string): Promise<PiExtensionInfo[]>;
+  removeExtension(source: string): Promise<PiExtensionInfo[]>;
+  setExtensionEnabled(id: string, enabled: boolean): Promise<PiExtensionInfo[]>;
   listWorkflows(): Promise<Workflow[]>;
   saveWorkflow(input: { id?: string; title: string; body: string }): Promise<Workflow[]>;
   deleteWorkflow(id: string): Promise<Workflow[]>;

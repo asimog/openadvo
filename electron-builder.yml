@@ -15,6 +15,7 @@ files:
   - resources/euro-office/**
   - resources/ulos/**
   - resources/models/**
+  - resources/pi-extensions/**
   - package.json
   - "!**/*.map"
 win:
