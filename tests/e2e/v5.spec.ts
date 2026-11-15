@@ -291,7 +291,7 @@ test("v5 D: Word round trip and compare, the victim-name defect, limitation with
   }
 });
 
-test("v5 E: a new client, hearings, reminders, the docket, a new order's impact, confidentiality and budget, questions, diagnostics", async () => {
+test("v5 E: a new client, hearings, reminders, the docket, a new order's impact, the budget, questions, diagnostics", async () => {
   const base = await mkdtemp(path.join(tmpdir(), "oa-e2ev5e-"));
   await mkdir(path.join(base, "inbox"), { recursive: true });
   const first = path.join(base, "inbox", "facts.pdf");
@@ -347,9 +347,7 @@ test("v5 E: a new client, hearings, reminders, the docket, a new order's impact,
     await call("addFiles", matterId, [order]);
     await expect.poll(async () => (await call<any[]>("listReviewItems", matterId)).find((r) => r.kind === "new_order_impact")?.detail ?? "", { timeout: 60_000 }).toContain("Re-check it against the new order");
 
-    // ---- V5-21: confidentiality refuses web research; the budget stops the next run ----
-    await call("setPolicy", matterId, { confidential: true, budgetTokens: 1000 });
-    await expect(call("researchSearch", matterId, "web", "bail")).rejects.toThrow(/CONFIDENTIAL_MATTER/);
+    // ---- V5-21: the budget stops the next run (decision 25 removed the confidential setting) ----
     await call("setPolicy", matterId, { confidential: false, budgetTokens: 1000 });
     await app.evaluate((_e, id) => (globalThis as any).__openadvoTest.recordUsageForTest(id, 1500), matterId);
     expect((await call<any>("getPolicy", matterId)).usage.tokens).toBe(1500);

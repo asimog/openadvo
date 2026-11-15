@@ -3,14 +3,12 @@
  *
  * The session gets the tools in AGENT_TOOLS, plus the tools of the Pi extensions the advocate
  * enabled (pi-extensions.ts; decision 22). Pi's built-in file and shell tools are never active.
- * A confidential matter loads no extension.
  * The Pi session records agent activity; the matter store records only the session id
  * (decision 7). No Electron import here, so tests can run it in plain Node.
  */
 import {
   ModelRuntime,
   SessionManager,
-  getAgentDir,
   resolveCliModel,
   SettingsManager,
   createAgentSession,
@@ -160,8 +158,8 @@ export interface AgentHost {
   chatDir(matterId: string): Promise<string>;
   /** V1-3: the matter's memory.md, or "". The agent reads it; it never writes it. */
   readMemory(matterId: string): Promise<string>;
-  /** V5-21: the matter's confidentiality, budget and the tokens already used. */
-  policy(matterId: string): Promise<{ confidential: boolean; budgetTokens: number | null; usedTokens: number }>;
+  /** V5-21: the matter's token budget and the tokens already used. */
+  policy(matterId: string): Promise<{ budgetTokens: number | null; usedTokens: number }>;
   /** V5-21: one run's usage, recorded as an event of the matter. */
   recordUsage(matterId: string, usage: { model: string; input: number; output: number; totalTokens: number; cost: number }, sessionId: string): Promise<void>;
   /** V4: the Studio tools, one dispatcher. Returns text for the model; errors are returned as text. */
@@ -193,6 +191,11 @@ export interface AgentOptions {
    * credentials and models still come from the owner's ~/.pi/agent (decision 16, EC-6).
    */
   agentDir: string;
+  /**
+   * The owner's Pi folder (normally ~/.pi/agent): auth.json, models.json and Pi's default model.
+   * Read explicitly, because PI_CODING_AGENT_DIR points at agentDir (decision 23).
+   */
+  piHome: string;
   /** The Pi extensions (decision 22). Without it the session loads no extension (tests). */
   extensions?: PiExtensions;
   /** "provider/model" from OPENADVO_MODEL. It wins over the saved choice. */
@@ -374,7 +377,7 @@ export class Agent {
 
   private modelRuntime(): Promise<ModelRuntime> {
     // Pi's own credential and model store, as the owner set it up (decisions.md choice 16).
-    this.runtime ??= ModelRuntime.create();
+    this.runtime ??= ModelRuntime.create({ authPath: path.join(this.options.piHome, "auth.json"), modelsPath: path.join(this.options.piHome, "models.json") });
     return this.runtime;
   }
 
@@ -393,7 +396,7 @@ export class Agent {
       }
       const ours = (await runtime.getAvailable()).find((m) => keyOf(m) === DEFAULT_MODEL);
       if (ours) return ours;
-      const piSettings = SettingsManager.create(this.options.agentDir, getAgentDir());
+      const piSettings = SettingsManager.create(this.options.agentDir, this.options.piHome);
       const provider = piSettings.getDefaultProvider();
       const id = piSettings.getDefaultModel();
       const available = await runtime.getAvailable();
@@ -963,8 +966,7 @@ export class Agent {
     });
     const runtime = await this.modelRuntime();
     const model = await this.model();
-    // Decision 22: the advocate's Pi extensions load, except in a confidential matter (hard rule 9).
-    const confidential = (await host.policy(matterId)).confidential;
+    // Decision 22: the advocate's Pi extensions load in every session.
     const ext = this.options.extensions;
     const settingsManager = ext ? ext.settings() : SettingsManager.inMemory();
     // H-2: compaction on (Pi's default), so a long conversation never stops every run.
@@ -975,7 +977,7 @@ export class Agent {
       modelRuntime: runtime,
       model,
       thinkingLevel: this.effort(),
-      resourceLoader: ext ? await ext.loader({ systemPrompt: systemPrompt(title), confidential }) : resourceLoader(title),
+      resourceLoader: ext ? await ext.loader({ systemPrompt: systemPrompt(title) }) : resourceLoader(title),
       settingsManager,
       sessionManager: fresh ? SessionManager.create(this.options.agentDir, sessionDir) : SessionManager.continueRecent(this.options.agentDir, sessionDir),
       // Decision 2: Pi's built-in file and shell tools are off; our tools and extension tools are on.
@@ -985,7 +987,7 @@ export class Agent {
     });
     const active = session.getActiveToolNames();
     const builtins = active.filter((t) => (BUILTIN_TOOL_NAMES as readonly string[]).includes(t));
-    if (!AGENT_TOOLS.every((t) => active.includes(t)) || builtins.length > 0 || (confidential && active.length !== AGENT_TOOLS.length)) {
+    if (!AGENT_TOOLS.every((t) => active.includes(t)) || builtins.length > 0) {
       session.dispose();
       throw new Error(`agent tool policy violated: ${JSON.stringify(active)}`);
     }
@@ -1008,7 +1010,7 @@ export class Agent {
     await session.bindExtensions({ uiContext: ui, mode: "rpc", onError: (err) => console.error(`pi extension error: ${JSON.stringify(err)}`) });
     const modelName = session.model ? `${session.model.provider}/${session.model.id}` : null;
     await host.recordSession(matterId, session.sessionId, modelName);
-    const state: ChatState = { messages: fresh ? [] : await loadMessages(chatDir), busy: false, model: modelName, confidentialSession: confidential };
+    const state: ChatState = { messages: fresh ? [] : await loadMessages(chatDir), busy: false, model: modelName };
     chatRef.state = state;
     if (!modelName) {
       state.messages.push({
@@ -1073,18 +1075,12 @@ export class Agent {
       push({ id: randomUUID(), role: "notice", text });
       await saveMessages(await this.host.chatDir(matterId), state.messages).catch(() => undefined);
     };
-    // V5-21: a confidential matter uses only a model on this computer; a budget stops the next run.
+    // V5-21: a used budget stops the next run.
     let pol: Awaited<ReturnType<AgentHost["policy"]>>;
     try {
       pol = await this.host.policy(matterId);
     } catch (e) {
       return release(`The agent cannot start: ${(e as Error).message}`);
-    }
-    if (pol.confidential && session.model && !isLocalModel(session.model)) {
-      return release(`This matter is confidential: its text goes only to a model on this computer. ${keyOf(session.model)} is not local. Choose a local model, or change the matter's setting.`);
-    }
-    if (pol.confidential && !state.confidentialSession) {
-      return release("This matter became confidential after its conversation opened with Pi extensions loaded. Start a new conversation, so it opens without extensions.");
     }
     if (pol.budgetTokens != null && pol.usedTokens >= pol.budgetTokens) {
       return release(`The matter's budget of ${pol.budgetTokens} tokens is used (${pol.usedTokens}). Raise the budget to continue.`);

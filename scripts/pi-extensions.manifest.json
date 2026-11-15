@@ -1,11 +1,53 @@
 {
   "comment": "Pi extensions bundled with the application (owner, 2026-11-15). Exact npm versions with the registry's integrity. npm run vendor:extensions installs them into resources/pi-extensions. docs/harness-hardening.md section 3 owns the policy.",
   "extensions": [
-    { "name": "pi-subagent-manager", "version": "1.9.0", "integrity": "sha512-4sxwF+n2p24Ngzp4/+zH/VHZ4Ogxalqj8c3O3rCBLvQ5kSoC4DXPQa5y0jNgjXNvdg/H46Or73NWd1BcmgZlxA==", "source": "https://github.com/championswimmer/pi-subagent-manager", "gitHead": "6f036d758742229c6b155a41c96880c523597921" },
-    { "name": "pi-context-decisions", "version": "4.0.0", "integrity": "sha512-W0vobNG539MsbTKwo5s+dPhMOFvU2f7KN8EtIfMEwvsX8Ac3ZaZ+qVylchyt+lDo+JRRCUSSPSi6AqZx1B29/g==", "source": "https://github.com/championswimmer/pi-context-decisions", "gitHead": "c8ed53f6ce0cf320712dd607bf23087f443b16b2" },
-    { "name": "pi-checklist", "version": "3.3.0", "integrity": "sha512-cxyPN+wqVMHY15hwFODHYMlC72jhosVSdwjTWH/DJVITW1tcteURDnEOIJOdSfwIz3oPOWO+sxGJ8okV9cKMnQ==", "source": "https://github.com/championswimmer/pi-checklist", "gitHead": "9ce75e21915275743631b2199419d8ccfbc424b0" },
-    { "name": "pi-context-prune", "version": "2.2.0", "integrity": "sha512-cOxqZph5xVWLgYynPKu10vYH6WBe7wu9xREVmffvWH2TgQ8T3wPDDsdX8XR1F5XPAhVsqj+XPJ1nzErbegIUHw==", "source": "https://github.com/championswimmer/pi-context-prune", "gitHead": "4935ed9f01ef83306c63aa267df734671ef66b83" },
-    { "name": "pi-context-usage", "version": "2.1.0", "integrity": "sha512-D0xmL41Ry5uGAE/mcNZfFiq9KWk4OX3PdrCrEH/6CHMXxuW9cCPlLqIWTYCKM2qry45nvNvxJJlPv9g7SPxVRQ==", "source": "https://github.com/championswimmer/pi-context-usage", "gitHead": "87510727c4d2cc689ef595a543eca0fddc7cbe0b" },
-    { "name": "pi-cache-graph", "version": "1.2.1", "integrity": "sha512-SM0MiZCpE4gaVhN4k9cP9SlMZkUjE52zUMxKx1oiXawYfHFtFwZnhIZTmg1OzD0KV537GjBrgHYXyM9Ll0Q/Nw==", "source": "https://github.com/championswimmer/pi-cache-graph", "gitHead": "6e8141b6ba435ac1e9ed59399c99f38fd548eba1" }
+    {
+      "name": "pi-subagent-manager",
+      "version": "1.9.0",
+      "integrity": "sha512-4sxwF+n2p24Ngzp4/+zH/VHZ4Ogxalqj8c3O3rCBLvQ5kSoC4DXPQa5y0jNgjXNvdg/H46Or73NWd1BcmgZlxA==",
+      "source": "https://github.com/championswimmer/pi-subagent-manager",
+      "gitHead": "6f036d758742229c6b155a41c96880c523597921"
+    },
+    {
+      "name": "pi-context-decisions",
+      "version": "4.0.0",
+      "integrity": "sha512-W0vobNG539MsbTKwo5s+dPhMOFvU2f7KN8EtIfMEwvsX8Ac3ZaZ+qVylchyt+lDo+JRRCUSSPSi6AqZx1B29/g==",
+      "source": "https://github.com/championswimmer/pi-context-decisions",
+      "gitHead": "c8ed53f6ce0cf320712dd607bf23087f443b16b2"
+    },
+    {
+      "name": "pi-checklist",
+      "version": "3.3.0",
+      "integrity": "sha512-cxyPN+wqVMHY15hwFODHYMlC72jhosVSdwjTWH/DJVITW1tcteURDnEOIJOdSfwIz3oPOWO+sxGJ8okV9cKMnQ==",
+      "source": "https://github.com/championswimmer/pi-checklist",
+      "gitHead": "9ce75e21915275743631b2199419d8ccfbc424b0"
+    },
+    {
+      "name": "pi-context-prune",
+      "version": "2.2.0",
+      "integrity": "sha512-cOxqZph5xVWLgYynPKu10vYH6WBe7wu9xREVmffvWH2TgQ8T3wPDDsdX8XR1F5XPAhVsqj+XPJ1nzErbegIUHw==",
+      "source": "https://github.com/championswimmer/pi-context-prune",
+      "gitHead": "4935ed9f01ef83306c63aa267df734671ef66b83"
+    },
+    {
+      "name": "pi-context-usage",
+      "version": "2.1.0",
+      "integrity": "sha512-D0xmL41Ry5uGAE/mcNZfFiq9KWk4OX3PdrCrEH/6CHMXxuW9cCPlLqIWTYCKM2qry45nvNvxJJlPv9g7SPxVRQ==",
+      "source": "https://github.com/championswimmer/pi-context-usage",
+      "gitHead": "87510727c4d2cc689ef595a543eca0fddc7cbe0b"
+    },
+    {
+      "name": "pi-cache-graph",
+      "version": "1.2.1",
+      "integrity": "sha512-SM0MiZCpE4gaVhN4k9cP9SlMZkUjE52zUMxKx1oiXawYfHFtFwZnhIZTmg1OzD0KV537GjBrgHYXyM9Ll0Q/Nw==",
+      "source": "https://github.com/championswimmer/pi-cache-graph",
+      "gitHead": "6e8141b6ba435ac1e9ed59399c99f38fd548eba1"
+    },
+    {
+      "name": "@gotgenes/pi-permission-system",
+      "version": "42.0.0",
+      "integrity": "sha512-imhOymTbnj1iqnJDujqtnp79Su63PyQ+SAP0UqooC2E9yL9HzP/ISYTYkthvhq2aNbwTPBZZSjqI3jBdvmZ7ZQ==",
+      "source": "https://github.com/gotgenes/pi-packages"
+    }
   ]
 }

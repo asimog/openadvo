@@ -113,16 +113,13 @@ export function PracticeSection(props: { matterId: string; version: number }) {
         </div>
         {contacts.length === 0 ? <Text type="supporting">No contacts yet. Add them in Settings.</Text> : null}
       </section>
-      <section className="work-section" aria-label="Confidentiality and budget" data-testid="policy">
-        <Heading level={3}>Confidentiality and the agent's budget</Heading>
+      <section className="work-section" aria-label="Agent budget" data-testid="policy">
+        <Heading level={3}>The agent's budget</Heading>
         {policy ? (
           <>
-            <label className="radio">
-              <input type="checkbox" checked={policy.confidential} onChange={(e) => void act(() => api.setPolicy(props.matterId, { confidential: e.target.checked, budgetTokens: policy.budgetTokens }))} /> Confidential: the matter's text goes only to a model on this computer, and web search is off
-            </label>
             <div className="row-actions practice-form">
               <input aria-label="Token budget" placeholder="Token budget (empty: none)" value={budget} onChange={(e) => setBudget(e.target.value)} />
-              <Button label="Set budget" size="sm" variant="ghost" clickAction={() => act(() => api.setPolicy(props.matterId, { confidential: policy.confidential, budgetTokens: budget.trim() ? Number(budget) : null }))} />
+              <Button label="Set budget" size="sm" variant="ghost" clickAction={() => act(() => api.setPolicy(props.matterId, { confidential: false, budgetTokens: budget.trim() ? Number(budget) : null }))} />
             </div>
             <Text type="supporting" data-testid="usage">
               The agent has used {policy.usage.tokens.toLocaleString()} tokens in {policy.usage.runs} run(s), cost {policy.usage.cost.toFixed(4)} as the provider reports it{policy.budgetTokens ? `, of a budget of ${policy.budgetTokens.toLocaleString()}` : ""}.

@@ -8,6 +8,7 @@ import { pathToFileURL } from "node:url";
 import { Matters } from "./matters.ts";
 import { AGENT_TOOLS, Agent, findSource } from "./agent.ts";
 import { PiExtensions } from "./pi-extensions.ts";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { RecordTables } from "./record-table.ts";
 import { allWorkflows, parseCustom, remove as removeWorkflow, upsert as upsertWorkflow } from "../lib/workflows/index.ts";
 import { Ingest } from "./ingest.ts";
@@ -786,6 +787,17 @@ function exposeTestHooks(): void {
 }
 
 // Decision 22: the Pi extensions. Bundled ones are vendored in resources/pi-extensions; added ones live in the app's Pi folder.
+/**
+ * Decision 23: Pi's agent folder is the application's own folder, so every Pi extension keeps its
+ * settings and logs there, never in the owner's ~/.pi/agent. Model credentials and models are
+ * still read from the owner's Pi folder (decision 16), captured here before the switch.
+ */
+let ownerPiHome: string | null = null;
+function claimPiAgentDir(): void {
+  if (ownerPiHome) return;
+  ownerPiHome = getAgentDir();
+  process.env.PI_CODING_AGENT_DIR = piAgentDir();
+}
 function piAgentDir(): string {
   return path.join(app.getPath("userData"), "pi-agent");
 }
@@ -802,6 +814,7 @@ function piExtensions(): PiExtensions {
       saveDisabled: (ids) => writeSetting("disabledExtensions", ids),
     });
     piExtensionsManager.writeSubagentPolicy(AGENT_TOOLS);
+    piExtensionsManager.writePermissionPolicy();
   }
   return piExtensionsManager;
 }
@@ -831,6 +844,7 @@ async function notifyReminders(): Promise<number> {
 }
 
 app.whenReady().then(() => {
+  claimPiAgentDir();
   setInterval(() => void notifyReminders().catch((e) => console.error(`reminders: ${(e as Error).message}`)), 60_000);
   editorHost = new EditorHost({
     eoRoot: euroOfficeRoot(),
@@ -908,7 +922,7 @@ app.whenReady().then(() => {
       },
       recordUsage: async (id, usage, sessionId) => (await matters.store(id)).appendEvent({ actor: "agent", sessionId }, "agent.usage", null, usage),
     },
-    { agentDir: piAgentDir(), model: process.env.OPENADVO_MODEL || undefined, extensions: piExtensions() },
+    { agentDir: piAgentDir(), piHome: ownerPiHome ?? getAgentDir(), model: process.env.OPENADVO_MODEL || undefined, extensions: piExtensions() },
   );
   ingest = new Ingest(matters, (matterId) => window?.webContents.send("ingest:update", matterId));
   registerBridge();

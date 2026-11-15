@@ -14,10 +14,11 @@ Read in this order. Each fact has one owning file. Link to it; do not restate it
 | 6 | [features.md](features.md) | The feature catalogue: 204 features with ids, phases, outputs and dependencies. |
 | 7 | [skills.md](skills.md) | The skill format, the skills library and the practice packs. |
 | 8 | [build-plan.md](build-plan.md) | The five phases, the order inside each, the proof tests and the exits. |
-| 9 | [harness-hardening.md](harness-hardening.md) | The hardening items H-n, the Pi feature status, the extension policy. |
-| 10 | [engineering.md](engineering.md) | Engineering choices, the vendored parts and their scripts, the editor rules. |
-| 11 | [repo-map.md](repo-map.md) | Folders, write boundaries, data outside the repository, the reference repositories. |
-| 12 | [specs/](specs/) | One-page specs, one per started step. |
+| 9 | [harness-hardening.md](harness-hardening.md) | The hardening items H-n and the Pi feature status. |
+| 10 | [harness-build.md](harness-build.md) | How the harness is built: Pi folders, extensions, the permission policy, helper agents; planned side questions and browser. |
+| 11 | [engineering.md](engineering.md) | Engineering choices, the vendored parts and their scripts, the editor rules. |
+| 12 | [repo-map.md](repo-map.md) | Folders, write boundaries, data outside the repository, the reference repositories. |
+| 13 | [specs/](specs/) | One-page specs, one per started step. |
 | — | [questions.md](questions.md) | Open questions for the owner, with the default used until answered. |
 | — | [parking.md](parking.md) | Items outside the current step (lesson L6). |
 

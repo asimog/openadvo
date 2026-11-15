@@ -50,8 +50,6 @@ export interface ChatState {
   model: string | null;
   /** Status lines that Pi extensions set (setStatus, setWidget with text), by key. */
   status?: Record<string, string[]>;
-  /** The session was opened while the matter was confidential, so it loaded no extension. */
-  confidentialSession?: boolean;
 }
 
 /** One Pi extension (decision 22). */

@@ -87,8 +87,8 @@ Memory records are typed, in `matter.db` (matter scope) and `advocate.db` (advoc
 - **Sessions.** One Pi session per matter for chat. One session per skill run, with that skill's tool scope. Several runs can go in parallel inside the main process.
 - **Roles.** Intake, jurisdiction, research, evidence, chronology, drafting, review, strategy, filing, hearing, monitoring and memory. Each role is a set of skills and a tool scope, not a separate authority. A reviewer role never approves its own run. A critic can use a different model family.
 - **Controls.** The planner breaks a request into skill runs and shows the plan before it starts long work. The harness also provides checkpoints (Pi session files), retry with limits, timeouts, Stop, budget, an evaluator gate (at most two rewrites), and approvals as AG-UI interrupts that a bridge function answers.
-- **Pi extensions.** Each non-confidential session loads the advocate's enabled Pi extensions, Pi skills, prompt templates and context files from the application's Pi folder, and MCP, codemode and tool search. Pi's built-in file and shell tools stay off. The policy is in [harness-hardening.md](harness-hardening.md) section 3.
-- **Policy.** Each skill names its permitted tools. The policy module enforces the list. Human-only actions stay outside the agent. Confidential matters use local models only.
+- **Pi extensions.** Each session loads the advocate's enabled Pi extensions, Pi skills, prompt templates and context files from the application's Pi folder, and MCP, codemode and tool search. Pi's built-in file and shell tools stay off. The build and the policy are in [harness-build.md](harness-build.md).
+- **Policy.** Each skill names its permitted tools. The policy module enforces the list. Human-only actions stay outside the agent. pi-permission-system enforces the tool policy (decision 24).
 
 ## 8. Local intelligence
 

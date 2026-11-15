@@ -182,7 +182,7 @@ export function SettingsPage(props: { mailbox: ReactNode; research?: ReactNode; 
       </section>
       <section className="work-section" aria-label="Pi extensions">
         <Heading level={3}>Pi extensions</Heading>
-        <Text type="supporting">Extensions add tools and commands to the agent. An extension runs code on this computer, so add only one whose source you have reviewed. Pi's built-in file and shell tools stay off. A confidential matter loads no extension. A change applies when a conversation next opens.</Text>
+        <Text type="supporting">Extensions add tools and commands to the agent. An extension runs code on this computer, so add only one whose source you have reviewed. Pi's built-in file and shell tools stay off, and the permission policy in the application's Pi folder decides every tool call. A change applies when a conversation next opens.</Text>
         <PiExtensionsSettings />
       </section>
       <section className="work-section" aria-label="Mailbox">

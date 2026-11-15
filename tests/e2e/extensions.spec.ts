@@ -12,7 +12,7 @@ import { appEnv } from "./env.ts";
 
 const repo = path.resolve(import.meta.dirname, "../..");
 const vendored = existsSync(path.join(repo, "resources", "pi-extensions", "vendor.lock.json"));
-const BUNDLED = ["pi-subagent-manager", "pi-context-decisions", "pi-checklist", "pi-context-prune", "pi-context-usage", "pi-cache-graph"];
+const BUNDLED = ["pi-subagent-manager", "pi-context-decisions", "pi-checklist", "pi-context-prune", "pi-context-usage", "pi-cache-graph", "@gotgenes/pi-permission-system"];
 
 async function launch() {
   const base = await mkdtemp(path.join(tmpdir(), "oa-ext-"));
@@ -23,7 +23,7 @@ async function launch() {
   const app = await electron.launch({ args: [repo], env: appEnv({ OPENADVO_HOME: home, OPENADVO_USER_DATA: userData, OPENADVO_TEST: "1" }) });
   const page = await app.firstWindow();
   await page.waitForLoadState("domcontentloaded");
-  return { app, page };
+  return { app, page, userData };
 }
 
 test("settings lists the bundled Pi extensions, and one can be turned off and on", async () => {
@@ -45,7 +45,11 @@ test("settings lists the bundled Pi extensions, and one can be turned off and on
 
 test("an extension command typed in the chat runs and shows its output", async () => {
   test.skip(!vendored, "run npm run vendor:extensions");
-  const { app, page } = await launch();
+  const { app, page, userData } = await launch();
+  // Decisions 23 and 24: Pi's agent folder is the app's own, and the permission policy is written there.
+  const policyFile = path.join(userData, "pi-agent", "extensions", "pi-permission-system", "config.json");
+  expect(existsSync(policyFile)).toBe(true);
+  expect(await app.evaluate(() => process.env.PI_CODING_AGENT_DIR)).toBe(path.join(userData, "pi-agent"));
   await page.getByRole("button", { name: "New matter" }).click();
   await page.getByLabel("Matter title").fill("Extension command");
   await page.getByRole("button", { name: "Create matter" }).click();

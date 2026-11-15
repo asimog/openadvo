@@ -21,7 +21,7 @@ Status words: **built** (in the code and tested), **open** (planned, not built),
 
 | Id | Pi feature | In Open Advocate | Status |
 |---|---|---|---|
-| H-10 | Extensions (`DefaultResourceLoader`) | Every non-confidential session loads the enabled bundled extensions, the packages the advocate added, and extensions in the application's Pi folder. | built |
+| H-10 | Extensions (`DefaultResourceLoader`) | Every session loads the enabled bundled extensions, the packages the advocate added, and extensions in the application's Pi folder. | built |
 | H-11 | Packages (`DefaultPackageManager`) | Settings → Pi extensions: add from npm, git, a URL or a folder; remove; turn a bundled extension on or off. A change reopens idle conversations. | built |
 | H-12 | Extension UI: `notify`, `setStatus`, text `setWidget`, `custom` | A notice in the matter's chat; status lines above the chat log; a terminal screen rendered once as text. | built |
 | H-13 | Extension UI: `select`, `confirm`, `input`, `editor` | Each question becomes an AG-UI interrupt that the advocate answers in the chat. Until then, the question gets its default answer and a notice says so. | open |
@@ -31,7 +31,7 @@ Status words: **built** (in the code and tested), **open** (planned, not built),
 | H-17 | Pi skills (`SKILL.md`) | Discovered from the application's Pi folder. Open Advocate's own skills (decision 14) are built as Pi skills plus a tool scope per skill (H-5). | discovery built; app skills open |
 | H-18 | Prompt templates | Discovered from the application's Pi folder. The built-in workflows move to prompt templates. | discovery built; move open |
 | H-19 | Context files (`AGENTS.md`) | Discovered from the application's Pi folder. A per-matter context file (matter memory) is added to the prompt. | discovery built; matter file open |
-| H-20 | MCP, codemode, tool search | Loaded for non-confidential matters. A settings view for MCP servers. | loaded built; settings open |
+| H-20 | MCP, codemode, tool search | Loaded in every session. A settings view for MCP servers. | loaded built; settings open |
 | H-21 | Steering (`steer`) | A Steer action beside Stop: the message enters after the current tool calls. | open |
 | H-22 | Follow-up (`followUp`) | A message sent during a run is queued as a follow-up. | built |
 | H-23 | Compaction | Automatic compaction on. A manual "Compact" action, and a notice when compaction runs. | automatic built; rest open |
@@ -42,38 +42,20 @@ Status words: **built** (in the code and tested), **open** (planned, not built),
 | H-28 | Pi themes | Not used: themes style Pi's terminal interface. Extensions get Pi's dark theme for text they render. | not applicable |
 | H-29 | Pi's built-in tools: `read`, `bash`, `edit`, `write`, `grep`, `find`, `ls` | Off in every session and every helper agent (section 3). Turning them on would reverse decision 2 and let a tool write outside the matter store (decision 4). | owner |
 | H-30 | `pi-durable`, `chord` | Not installed. pi-durable's README calls it experimental, with an API that changes without notice. | owner |
+| H-32 | Side questions (replaces pi-btw) | [harness-build.md](harness-build.md) HB-1. | open |
+| H-33 | Browser for the advocate and the agent | [harness-build.md](harness-build.md) HB-2. | open |
 | H-31 | Fixes on Pi `main` not yet released (abort mid-batch, "Connection closed" retries, tool schemas) | Upgrade the pinned version when Pi releases them, and run the tests of section 4. | open |
 
 ## 3. Extension policy
 
-1. **Bundled extensions.** These six are vendored by `npm run vendor:extensions`, at exact npm versions. The script checks each registry integrity hash in `scripts/pi-extensions.manifest.json`. They install with no install scripts and no peer packages.
-
-   | Extension | Version | Adds |
-   |---|---|---|
-   | pi-subagent-manager | 1.9.0 | Helper agents in parallel. Tools `agent_spawn`, `agent_wait`, `agent_steer` and others; command `/agents`. |
-   | pi-context-decisions | 4.0.0 | Picks which Pi skills to show the model for the task. Command `/decisions`. |
-   | pi-checklist | 3.3.0 | A task checklist for the session. Tools `checklist_create`, `checklist_read`, `checklist_update`; command `/checklist`. |
-   | pi-context-prune | 2.2.0 | Summarises finished tool output and prunes it from the context. Tools `context_tree_query`, `context_prune`; command `/pruner`. |
-   | pi-context-usage | 2.1.0 | Command `/context`: what fills the context window. |
-   | pi-cache-graph | 1.2.1 | Command `/cache`: cache use over the session. |
-
-2. **Added extensions.** The advocate adds them in Settings. Pi's package manager installs them in the application's Pi folder and records them in its `settings.json`. npm and git sources need npm or git on the computer. A local folder always works. The panel says that an extension runs code on the computer, and Pi's own docs say to review a package's source before install.
-3. **Pi's built-in tools stay off.** Sessions start with `noTools: "builtin"` and an exclude list. A host guard extension blocks any call to a built-in tool. The start check refuses a session that has a built-in tool, or that lacks one of the application's tools.
-4. **Helper agents (pi-subagent-manager).** On every start, the application writes a policy into its Pi folder: `toolFiltering: "allowed"`, no extension reloads inside helpers, and no housekeeping model. It also writes an overlay for each bundled agent type, which allows only the application's tools and the manager's controls, blocks Pi's built-in tools, and inherits the chat's model.
-5. **Confidential matters (hard rule 9).** A confidential matter's session loads only the host guard: no extension, no MCP, no codemode. A session that opened with extensions refuses to run if the matter later becomes confidential, and asks for a new conversation.
-6. **Facts recorded, not evaluated:**
-   - pi-context-prune and pi-checklist keep their preferences under Pi's agent folder, which is `~/.pi/agent` unless `PI_CODING_AGENT_DIR` is set. They share those files with the owner's own Pi.
-   - pi-context-prune's summariser uses the chat's model unless its settings name another.
-   - pi-context-decisions has no decision model until one is configured.
-   - pi-subagent-manager's bundled agent types name coding models in `modelSuggestions`. The overlay sets `models: null`, so helpers use the chat's model.
-7. **What does not work in the window:** interactive terminal screens (dialogs and editors inside `/agents`, `/checklist` and `/pruner`). They show once as text, or as a notice that they need Pi's terminal interface (H-13).
+The extension policy, the bundled extensions, the permission policy and the helper-agent policy are in [harness-build.md](harness-build.md) section 1.
 
 ## 4. Tests
 
 | Test | Checks | Command |
 |---|---|---|
-| `tests/unit/pi-extensions.test.ts` | The six load with no error, with their tools and commands; a confidential matter loads only the guard; a session has no built-in tool; a bundled extension turns off; the helper policy files. | `node --test tests/unit/pi-extensions.test.ts` |
-| `tests/e2e/extensions.spec.ts` | Settings lists the six and turns one off and on; `/context` typed in a matter's chat shows its report. | `npx playwright test tests/e2e/extensions.spec.ts` |
+| `tests/unit/pi-extensions.test.ts` | The seven load with no error, with their tools and commands; the permission policy and its repair on start; with a faux model, an allowed tool runs, a denied tool is withheld, a credential path is refused and logged in the app's folder; a bundled extension turns off; the helper policy files. | `node --test tests/unit/pi-extensions.test.ts` |
+| `tests/e2e/extensions.spec.ts` | Settings lists the seven and turns one off and on; the app writes the permission policy in its own Pi folder and sets `PI_CODING_AGENT_DIR` there; `/context` typed in a matter's chat shows its report. | `npx playwright test tests/e2e/extensions.spec.ts` |
 | `tests/e2e/app.spec.ts` | The bridge functions; the session has every application tool, no built-in tool, and the bundled extension tools. | `npx playwright test tests/e2e/app.spec.ts` |
 
 Still needed: a unit test of the `Agent` class (two quick sends, follow-up, model re-resolution: H-1, H-3), and a live test of a helper agent with a real model.
@@ -81,10 +63,11 @@ Still needed: a unit test of the `Agent` class (two quick sends, follow-up, mode
 ## 5. Order
 
 1. H-3, then the `Agent` unit test.
-2. H-13 and H-15: questions from extensions, and the `/` list.
-3. H-21, H-23, H-25, H-26: steering, compaction actions, run detail, settled runs.
-4. H-17, H-18, H-19 with Phase 1 features N1 to N4: the skill registry on Pi skills, workflows as prompt templates, the matter context file.
-5. H-5 with the skill runner.
-6. H-16, H-24: session runtime, fork and tree.
-7. H-20, H-6: MCP servers and telemetry in Settings.
-8. H-31 at each Pi release.
+2. H-13 and H-15: questions from extensions (this also turns pi-permission-system `ask` rules into real questions), and the `/` list.
+3. HB-1 side questions and HB-2 browser, in the order of [harness-build.md](harness-build.md).
+4. H-21, H-23, H-25, H-26: steering, compaction actions, run detail, settled runs.
+5. H-17, H-18, H-19 with Phase 1 features N1 to N4: the skill registry on Pi skills, workflows as prompt templates, the matter context file.
+6. H-5 with the skill runner.
+7. H-16, H-24: session runtime, fork and tree.
+8. H-20, H-6: MCP servers and telemetry in Settings.
+9. H-31 at each Pi release.

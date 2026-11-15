@@ -4,8 +4,9 @@
  * Two kinds: bundled extensions, vendored at build time into resources/pi-extensions
  * (scripts/vendor-pi-extensions.ts), and packages the advocate adds, which Pi's own package
  * manager installs into the application's Pi folder and records in its settings.json.
- * A confidential matter loads no extension (hard rule 9). A host guard blocks Pi's built-in
- * file and shell tools in every session (decision 2). No Electron import here.
+ * Every session loads them (decision 25 removed the confidential exception). A host guard and
+ * pi-permission-system block Pi's built-in file and shell tools (decisions 2, 24). Pi's agent
+ * folder is the application's own folder (decision 23). No Electron import here.
  */
 import {
   DefaultPackageManager,
@@ -27,6 +28,8 @@ export const BUILTIN_TOOL_NAMES = ["read", "bash", "powershell", "edit", "write"
 
 /** The control tools of pi-subagent-manager. Helper agents may coordinate with these. */
 const SUBAGENT_CONTROLS = ["agent_output", "agent_pause", "agent_status", "agent_steer", "agent_stop", "agent_types", "agent_update", "agent_wait"];
+/** Files no tool may read or write, on every path-aware tool (pi-permission-system "path" rules). */
+const CREDENTIAL_PATHS = ["*auth.json", "*.env", "*.env.*", "*/.ssh/*", "*manifest-signing.key", "*models.json"];
 /** The agent types pi-subagent-manager ships. Each gets a host-owned overlay. */
 const SUBAGENT_TYPES = ["architect", "coder", "researcher", "reviewer", "tasker", "writer"];
 
@@ -118,8 +121,42 @@ export class PiExtensions {
     }
   }
 
-  /** The resource loader for one session. A confidential matter gets only the host guard. */
-  async loader(input: { systemPrompt: string; confidential: boolean }): Promise<DefaultResourceLoader> {
+  /** The policy file of @gotgenes/pi-permission-system. Pi's agent folder is agentDir (decision 23). */
+  permissionPolicyFile(): string {
+    return path.join(this.options.agentDir, "extensions", "pi-permission-system", "config.json");
+  }
+
+  /**
+   * pi-permission-system (decision 24). Written on first start; the advocate may edit it. On every
+   * start the safety rules are put back: Pi's built-in tools and every shell command are denied,
+   * and credential files are denied on every path-aware tool. Everything else defaults to allow,
+   * because an "ask" in the window gets the default answer (harness-hardening H-13). The review
+   * log stays on and is written in the application's Pi folder, never in ~/.pi/agent.
+   */
+  writePermissionPolicy(): void {
+    const file = this.permissionPolicyFile();
+    let current: { permission?: Record<string, unknown> } & Record<string, unknown> = {};
+    try {
+      current = JSON.parse(readFileSync(file, "utf8")) as typeof current;
+    } catch {
+      current = {
+        permissionReviewLog: true,
+        debugLog: false,
+        yoloMode: false,
+        permission: { "*": "allow", mcp: { "*": "allow" }, skill: { "*": "allow" }, external_directory: "allow" },
+      };
+    }
+    const permission = { ...(current.permission ?? {}) };
+    for (const t of BUILTIN_TOOL_NAMES) if (t !== "bash") permission[t] = "deny";
+    permission.bash = { "*": "deny" };
+    const paths: Record<string, unknown> = typeof permission.path === "object" && permission.path ? { ...(permission.path as Record<string, unknown>) } : { "*": "allow" };
+    for (const p of CREDENTIAL_PATHS) paths[p] = "deny";
+    permission.path = paths;
+    writeOwned(file, JSON.stringify({ ...current, yoloMode: false, permission }, null, 2) + "\n");
+  }
+
+  /** The resource loader for one session. */
+  async loader(input: { systemPrompt: string; extraFactories?: InlineExtension[] }): Promise<DefaultResourceLoader> {
     const guard: InlineExtension = {
       name: "openadvo-policy",
       hidden: true,
@@ -128,18 +165,14 @@ export class PiExtensions {
         pi.on("tool_call", (event) => (blocked.has(event.toolName) ? { block: true, reason: "Pi's built-in file and shell tools are off in Open Advocate." } : undefined));
       },
     };
-    const factories: InlineExtension[] = input.confidential
-      ? [guard]
-      : [guard, { name: "mcp", factory: createMcpExtension(), replaceable: true }, { name: "codemode", factory: createCodemodeExtension(), replaceable: true }, { name: "tool_search", factory: createToolSearchExtension(), replaceable: true }];
+    const factories: InlineExtension[] = [guard, { name: "mcp", factory: createMcpExtension(), replaceable: true }, { name: "codemode", factory: createCodemodeExtension(), replaceable: true }, { name: "tool_search", factory: createToolSearchExtension(), replaceable: true }, ...(input.extraFactories ?? [])];
     const loader = new DefaultResourceLoader({
       cwd: this.options.agentDir,
       agentDir: this.options.agentDir,
       settingsManager: this.settings(),
       systemPrompt: input.systemPrompt,
-      additionalExtensionPaths: input.confidential ? [] : this.enabledBundledPaths(),
+      additionalExtensionPaths: this.enabledBundledPaths(),
       extensionFactories: factories,
-      // A confidential matter: no third-party code, which may call a remote model or the network.
-      extensionsOverride: input.confidential ? (base) => ({ ...base, extensions: base.extensions.filter((e) => e.path.includes("openadvo-policy")) }) : undefined,
     });
     await loader.reload();
     this.remember(loader.getExtensions());

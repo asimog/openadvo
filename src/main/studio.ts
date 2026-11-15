@@ -147,8 +147,6 @@ export class ResearchHub {
       };
     }
     this.allowed(source);
-    // V5-21: a confidential matter sends no query to the open web.
-    if (source === "web" && matterId && (await this.matters.store(matterId)).policy().confidential) throw new SourceError("CONFIDENTIAL_MATTER", "this matter is confidential: web search is off for it");
     if (source === "indiacode") {
       const r = await searchStatutes(q, opts.limit ?? 10);
       await this.log(matterId, source, "search", q, ctx, r.hits.length);
@@ -324,11 +322,10 @@ export class ArgumentStudio {
     return this.running.get(matterId) ?? null;
   }
 
-  /** V5-21: a confidential matter uses a local model only; a used budget refuses the next run. */
+  /** V5-21: a used budget refuses the next run. (Decision 25 removed the confidential check.) */
   private async admit(matterId: string, c: { model: string; local?: boolean }): Promise<{ budget: number | null; used: number }> {
     const store = await this.matters.store(matterId);
     const pol = store.policy();
-    if (pol.confidential && c.local === false) throw new MatterStoreError("CONFIDENTIAL_MATTER", `this matter is confidential: ${c.model} is not a model on this computer`);
     const used = store.usage().tokens;
     if (pol.budgetTokens != null && used >= pol.budgetTokens) throw new MatterStoreError("BUDGET_USED", `the matter's budget of ${pol.budgetTokens} tokens is used (${used}). Raise the budget to continue`);
     return { budget: pol.budgetTokens, used };

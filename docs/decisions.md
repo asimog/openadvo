@@ -35,10 +35,13 @@ The code follows these decisions now. They keep their numbers.
 | 16 | **Rules are dated.** Every court rule, statute version and source has its source, its retrieval date and its check interval. A row past its interval is stale. A check that depends on a stale row is "unconfirmed", never "passed". |
 | 17 | **Court adapters prepare. They never submit.** An adapter declares its capabilities and its access method. It never solves a CAPTCHA, never holds court credentials, and never submits a filing. Submission keeps the two-confirmation flow of the code. |
 | 18 | **No outcome prediction.** No judge personality profile. Bench data is used only for legal-authority research. Replaces ruling R-1. |
-| 19 | **Confidential matters stay local.** A confidential matter uses only local models and makes no web query. |
+| 19 | ~~**Confidential matters stay local.**~~ Superseded by decision 25. |
 | 20 | **Languages.** English first. Hindi OCR and display in Phase 2. Other regional languages in Phase 4. A translation sits beside the original. It is never the source. |
 | 21 | **Build order.** Five phases ([build-plan.md](build-plan.md)). Each phase ends with real briefs that the owner completes. |
-| 22 | **Pi extensions** (owner, 2026-11-15). Every Pi feature is made available through the harness ([harness-hardening.md](harness-hardening.md)). The advocate can add Pi extensions. Six are bundled: pi-subagent-manager, pi-context-decisions, pi-checklist, pi-context-prune, pi-context-usage and pi-cache-graph. Pi's built-in file and shell tools stay off (decision 2). A confidential matter loads no extension (decision 19). |
+| 22 | **Pi extensions** (owner, 2026-11-15). Every Pi feature is made available through the harness ([harness-hardening.md](harness-hardening.md)). The advocate can add Pi extensions. Six are bundled: pi-subagent-manager, pi-context-decisions, pi-checklist, pi-context-prune, pi-context-usage and pi-cache-graph. Pi's built-in file and shell tools stay off (decision 2). |
+| 23 | **Pi's agent folder is the application's own** (owner, 2026-11-15). At start the application sets `PI_CODING_AGENT_DIR` to `<userData>/pi-agent`, so every extension keeps its settings and logs there. Model credentials and models are still read from the owner's Pi folder (decision 16). |
+| 24 | **pi-permission-system enforces the tool policy** (owner, 2026-11-15). Its policy file is in the application's Pi folder: allow by default; deny shell commands, Pi's built-in tools and credential files; review log in the application's folder. The rules are in [harness-build.md](harness-build.md) section 1.3. |
+| 25 | **No confidential distinction, for now** (owner, 2026-11-15). Every matter uses the chosen model, loads the extensions and may search the web. Supersedes decision 19 and product hard rule 9. |
 
 ## 3. Rulings that still apply
 
@@ -60,6 +63,7 @@ R-1 (an advisory outcome score) is superseded by decision 18.
 | Supreme Court documents are English; Hindi OCR is out of scope (old decision 10) | [archive/2026-11-15/decisions.md](archive/2026-11-15/decisions.md) | 20 |
 | Build steps 1 to 10 and rounds v0 to v5 | [archive/2026-11-15/build-plan.md](archive/2026-11-15/build-plan.md), [archive/2026-11-15/specs/](archive/2026-11-15/specs/) | 21 |
 | Six built-in SLP workflows as the only workflows | `src/lib/workflows` | 14. The SLP work becomes the SLP skill (SK-308) and the Supreme Court pack (feature Q3). |
+| Confidential matters: local models only, no web query, no extensions (decision 19, hard rule 9) | [product.md](product.md), this file | 25 |
 | An advisory outcome score (R-1) | [archive/2026-11-15/decisions.md](archive/2026-11-15/decisions.md) | 18 |
 | The architecture of the three earlier repositories (Rust kernel, `oa` CLI, DSH plugins) | [repo-map.md](repo-map.md) | 1, 2, 4, 6 (unchanged) |
 
