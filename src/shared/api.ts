@@ -87,6 +87,12 @@ export interface ContextMeter {
   cacheRead: number;
   cacheWrite: number;
 }
+/** Settings → Tool permissions (native-harness-parts section 2). */
+export interface ToolPolicyView {
+  policy: { default: "allow" | "ask" | "deny"; tools: Record<string, "allow" | "ask" | "deny"> };
+  tools: Array<{ name: string; label: string }>;
+}
+
 /** CUSTOM event whose value is the conversation's ContextMeter. */
 export const CONTEXT_EVENT = "openadvo.context";
 
@@ -283,6 +289,9 @@ export interface OpenAdvoApi {
   answerExtensionQuestion(matterId: string, questionId: string, answer: string | boolean | null): Promise<void>;
   /** O10, human-only: the advocate took a Firm Agent handoff to its matter, or dismissed it. Returns the handoffs left. */
   closeFirmHandoff(id: string): Promise<FirmHandoff[]>;
+  /** Settings → Tool permissions: the policy and the agent's tools. */
+  getToolPolicy(): Promise<ToolPolicyView>;
+  setToolPolicy(policy: ToolPolicyView["policy"]): Promise<ToolPolicyView>;
   /** Human-only: clear the conversation's plan. */
   clearPlan(conversationId: string): Promise<void>;
   /** Compact the conversation now (Pi's compaction with the kind's summary form). */

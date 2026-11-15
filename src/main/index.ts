@@ -6,7 +6,10 @@ import path from "node:path";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { Matters } from "./matters.ts";
-import { Agent, findSource } from "./agent.ts";
+import { AGENT_TOOLS, Agent, findSource } from "./agent.ts";
+import { FIRM_TOOLS } from "./firm-agent.ts";
+import { PLAN_TOOLS } from "./plan.ts";
+import { PolicyStore, cleanPolicy } from "./tool-policy.ts";
 import { PiExtensions } from "./pi-extensions.ts";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { RecordTables } from "./record-table.ts";
@@ -299,6 +302,9 @@ function registerBridge(): void {
   // Native harness parts: the plan (clear is human-only) and Compact now.
   handle("chat:clear-plan", (id: string) => agent.clearPlan(String(id ?? "")));
   handle("chat:compact", (id: string) => agent.compact(String(id ?? "")));
+  // Settings → Tool permissions (native-harness-parts section 2). The file is checked on write.
+  handle("tool-policy:get", () => ({ policy: agent.policyStore().read(), tools: policyTools() }));
+  handle("tool-policy:set", (policy: unknown) => ({ policy: agent.policyStore().write(cleanPolicy(policy)), tools: policyTools() }));
   handle("chat:answer-question", (matterId: string, questionId: unknown, answer: unknown) => {
     if (typeof questionId !== "string" || !questionId) throw new Error("BAD_REQUEST: a question id is required");
     if (answer !== null && typeof answer !== "string" && typeof answer !== "boolean") throw new Error("BAD_REQUEST: the answer is a string, true or false, or null");
@@ -814,6 +820,19 @@ function claimPiAgentDir(): void {
 function piAgentDir(): string {
   return path.join(app.getPath("userData"), "pi-agent");
 }
+/** The tool policy file and its review log (native-harness-parts section 2), written with defaults on first start. */
+function toolPolicy(): PolicyStore {
+  const store = new PolicyStore(path.join(app.getPath("userData"), "tool-policy.json"), path.join(app.getPath("userData"), "logs", "tool-policy.jsonl"));
+  store.ensure();
+  return store;
+}
+
+/** The agent's tools, for Settings → Tool permissions: the matter tools, the firm tools, the plan and helpers. */
+function policyTools(): Array<{ name: string; label: string }> {
+  const names = [...new Set<string>([...AGENT_TOOLS, ...FIRM_TOOLS, ...PLAN_TOOLS, "start_helper"])].sort();
+  return names.map((name) => ({ name, label: name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " ") }));
+}
+
 /** O10: the Firm Agent's folder in user data: its Pi session, messages, handoffs, trace and usage. */
 function firmAgentDir(): string {
   return path.join(app.getPath("userData"), "firm-agent");
@@ -957,7 +976,7 @@ app.whenReady().then(() => {
         workflows: async () => allWorkflows(customWorkflows()),
       },
     },
-    { agentDir: piAgentDir(), piHome: ownerPiHome ?? getAgentDir(), model: process.env.OPENADVO_MODEL || undefined, extensions: piExtensions() },
+    { agentDir: piAgentDir(), piHome: ownerPiHome ?? getAgentDir(), model: process.env.OPENADVO_MODEL || undefined, extensions: piExtensions(), policy: toolPolicy() },
   );
   ingest = new Ingest(matters, (matterId) => window?.webContents.send("ingest:update", matterId));
   registerBridge();

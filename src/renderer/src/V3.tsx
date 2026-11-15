@@ -7,7 +7,7 @@ import { Badge } from "@astryxdesign/core/Badge";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Text } from "@astryxdesign/core/Text";
-import type { AppInfo, Appearance, InboxItem, PiExtensionInfo, ProgressStage } from "../../shared/api.ts";
+import type { AppInfo, Appearance, InboxItem, PiExtensionInfo, ProgressStage, ToolPolicyView } from "../../shared/api.ts";
 import { DateAnchorForm, DisputeDecision } from "./V5.tsx";
 
 const api = window.openadvo;
@@ -182,8 +182,13 @@ export function SettingsPage(props: { mailbox: ReactNode; research?: ReactNode; 
       </section>
       <section className="work-section" aria-label="Pi extensions">
         <Heading level={3}>Pi extensions</Heading>
-        <Text type="supporting">Extensions add tools and commands to the agent. An extension runs code on this computer, so add only one whose source you have reviewed. Pi's built-in file and shell tools stay off, and the permission policy in the application's Pi folder decides every tool call. A change applies when a conversation next opens.</Text>
+        <Text type="supporting">Extensions add tools and commands to the agent. An extension runs code on this computer, so add only one whose source you have reviewed. Pi's built-in file and shell tools stay off, and the tool permissions below decide every tool call. A change applies when a conversation next opens.</Text>
         <PiExtensionsSettings />
+      </section>
+      <section className="work-section" aria-label="Tool permissions">
+        <Heading level={3}>Tool permissions</Heading>
+        <Text type="supporting">For each tool of the agent: Allow, Ask (the agent waits for your approval in the chat), or Refuse. Pi's built-in file and shell tools, and any call that names a credential file, are always refused. A change applies to the next tool call.</Text>
+        <ToolPermissionsSettings />
       </section>
       <section className="work-section" aria-label="Mailbox">
         <Heading level={3}>Authorised mailbox</Heading>
@@ -330,6 +335,56 @@ export function CommandBar(props: { isOpen: boolean; onClose: () => void; comman
 
 // ---- Decision 21: Pi extensions ----
 
+/** Settings → Tool permissions (native-harness-parts section 2). */
+export function ToolPermissionsSettings() {
+  const [data, setData] = useState<ToolPolicyView | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  useEffect(() => {
+    void api.getToolPolicy().then(setData, (e: Error) => setMessage(e.message));
+  }, []);
+  if (!data) return message ? <Text>{message}</Text> : null;
+  const save = async (policy: ToolPolicyView["policy"]) => {
+    try {
+      setData(await api.setToolPolicy(policy));
+      setMessage("Saved.");
+    } catch (e) {
+      setMessage(`Not saved: ${(e as Error).message}`);
+    }
+  };
+  const RULES = [["allow", "Allow"], ["ask", "Ask"], ["deny", "Refuse"]] as const;
+  return (
+    <div data-testid="tool-permissions">
+      <label className="row-actions">
+        <Text weight="semibold">Every other tool</Text>
+        <select aria-label="Rule for every other tool" value={data.policy.default} onChange={(e) => void save({ ...data.policy, default: e.target.value as "allow" })}>
+          {RULES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+      </label>
+      <ul className="plain-list">
+        {data.tools.map((t) => (
+          <li key={t.name} className="row-actions" data-testid={`tool-rule-${t.name}`}>
+            <Text>{t.label}</Text> <span className="mono">{t.name}</span>
+            <select
+              aria-label={`Rule for ${t.label}`}
+              value={data.policy.tools[t.name] ?? ""}
+              onChange={(e) => {
+                const tools = { ...data.policy.tools };
+                if (e.target.value) tools[t.name] = e.target.value as "allow";
+                else delete tools[t.name];
+                void save({ ...data.policy, tools });
+              }}
+            >
+              <option value="">As every other tool</option>
+              {RULES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </li>
+        ))}
+      </ul>
+      {message ? <Text>{message}</Text> : null}
+    </div>
+  );
+}
+
 export function PiExtensionsSettings() {
   const [list, setList] = useState<PiExtensionInfo[] | null>(null);
   const [source, setSource] = useState("");
@@ -353,7 +408,7 @@ export function PiExtensionsSettings() {
   if (!list) return message ? <Text>{message}</Text> : null;
   return (
     <div data-testid="pi-extensions">
-      {list.length === 0 ? <Text>No extension is installed. The bundled extensions come from npm run vendor:extensions.</Text> : null}
+      {list.length === 0 ? <Text>No extension is installed.</Text> : null}
       <ul className="plain-list">
         {list.map((x) => (
           <li key={x.id} data-testid={`pi-extension-${x.id}`}>

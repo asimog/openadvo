@@ -10,7 +10,8 @@ import path from "node:path";
 import { appEnv } from "./env.ts";
 
 /** Tools registered by Pi extensions and Pi's own extension factories (decision 22). */
-const EXTENSION_TOOL = /^(agent_[a-z_]+|checklist_[a-z_]+|context_tree_query|context_prune|codemode|tool_search|mcp__.*)$/;
+/** Tools of Pi's built-in MCP, codemode and tool search extensions, and of MCP servers. */
+const EXTENSION_TOOL = /^(codemode|tool_search|mcp__.*)$/;
 
 const repo = path.resolve(import.meta.dirname, "../..");
 
@@ -214,7 +215,7 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
       "getEntities", "correctEvent", "setDateAnchor", "listOcrDisputes", "decideOcrDispute",
       "quickCheckCitations", "benchTrends", "assessAuthority", "addTreatment", "runRehearsal", "decideChallenge",
       "listRevisions", "compareRevisions", "openInWord", "importFromWord", "filingResult", "reconcileFiling",
-      "listHearings", "addHearing", "listReminders", "addReminder", "doneReminder", "getPolicy", "setPolicy", "stopChat", "answerExtensionQuestion", "closeFirmHandoff", "listContacts", "addContact", "removeContact", "listParties", "addParty", "getDocket", "generateQuestions", "previewDiagnostics", "writeDiagnostics", "onReminderDue",
+      "listHearings", "addHearing", "listReminders", "addReminder", "doneReminder", "getPolicy", "setPolicy", "stopChat", "answerExtensionQuestion", "closeFirmHandoff", "clearPlan", "compactChat", "getToolPolicy", "setToolPolicy", "listContacts", "addContact", "removeContact", "listParties", "addParty", "getDocket", "generateQuestions", "previewDiagnostics", "writeDiagnostics", "onReminderDue",
     ].sort(),
   );
   await app.close();
@@ -228,8 +229,8 @@ test("the agent session has our tools, no built-in Pi tool, and its id is record
   const tools: string[] = await app.evaluate((_e, m) => (globalThis as any).__openadvoTest.agentToolNames(m), id);
   // Decision 22: Pi extension tools may be added; Pi's built-in file and shell tools never are.
   for (const builtin of ["read", "bash", "powershell", "edit", "write", "grep", "find", "ls"]) expect(tools).not.toContain(builtin);
-  // The bundled extensions are vendored (npm run vendor:extensions): their tools are active.
-  if (existsSync(path.join(process.cwd(), "resources", "pi-extensions", "vendor.lock.json"))) for (const t of ["checklist_create", "agent_spawn", "context_tree_query"]) expect(tools).toContain(t);
+  // The harness parts that were bundled extensions are native tools now (native-harness-parts.md).
+  for (const gone of ["checklist_create", "agent_spawn", "context_tree_query"]) expect(tools).not.toContain(gone);
   expect(tools.filter((t) => !EXTENSION_TOOL.test(t)).sort()).toEqual([
     "list_sources",
     "read_source_text",
@@ -274,6 +275,9 @@ test("the agent session has our tools, no built-in Pi tool, and its id is record
     "assess_authority",
     "record_treatment",
     "run_rehearsal",
+    "plan_set",
+    "plan_update",
+    "start_helper",
   ].sort());
   const sessionId = await app.evaluate((_e, m) => (globalThis as any).__openadvoTest.agentSessionId(m), id);
   const events = await page.evaluate((m) => (globalThis as any).openadvo.listEvents(m), id);

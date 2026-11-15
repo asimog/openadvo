@@ -6,8 +6,9 @@ import { Icon } from "@astryxdesign/core/Icon";
 import { Spinner } from "@astryxdesign/core/Spinner";
 import { Text } from "@astryxdesign/core/Text";
 import { BuildingLibraryIcon, PlusCircleIcon } from "@heroicons/react/24/outline";
-import { CHAT_MESSAGE_EVENT, EXTENSION_QUESTIONS_EVENT, FIRM_AGENT_ID, FIRM_HANDOFFS_EVENT } from "../../shared/api.ts";
-import type { ChatEvent, ChatMessage as ChatRecord, ExtensionQuestion, FirmHandoff } from "../../shared/api.ts";
+import { CHAT_MESSAGE_EVENT, EXTENSION_QUESTIONS_EVENT, FIRM_AGENT_ID, FIRM_HANDOFFS_EVENT, PLAN_EVENT } from "../../shared/api.ts";
+import { PlanCard } from "./PlanCard.tsx";
+import type { ChatEvent, ChatMessage as ChatRecord, ExtensionQuestion, FirmHandoff, Plan } from "../../shared/api.ts";
 import { Message } from "./ChatDock.tsx";
 import { ExtensionQuestionCard } from "./ExtensionQuestionCard.tsx";
 import type { Carry } from "./Landing.tsx";
@@ -24,6 +25,7 @@ export function FirmChat(props: { onOpenMatter: (matterId: string, carry: Carry)
   const [busy, setBusy] = useState(false);
   const [questions, setQuestions] = useState<ExtensionQuestion[]>([]);
   const [handoffs, setHandoffs] = useState<FirmHandoff[]>([]);
+  const [plan, setPlan] = useState<Plan | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<ChatComposerInputHandle>(null);
 
@@ -36,6 +38,7 @@ export function FirmChat(props: { onOpenMatter: (matterId: string, carry: Carry)
         setBusy(s.busy);
         setQuestions(s.questions ?? []);
         setHandoffs(s.handoffs ?? []);
+        setPlan(s.plan ?? null);
       },
       (e: Error) => live && setError(`The Firm Agent could not start: ${e.message}`),
     );
@@ -54,6 +57,7 @@ export function FirmChat(props: { onOpenMatter: (matterId: string, carry: Carry)
       else if (e.type === "CUSTOM" && e.name === CHAT_MESSAGE_EVENT) add(e.value as ChatRecord);
       else if (e.type === "CUSTOM" && e.name === EXTENSION_QUESTIONS_EVENT) setQuestions((e.value as ExtensionQuestion[]) ?? []);
       else if (e.type === "CUSTOM" && e.name === FIRM_HANDOFFS_EVENT) setHandoffs((e.value as FirmHandoff[]) ?? []);
+      else if (e.type === "CUSTOM" && e.name === PLAN_EVENT) setPlan((e.value as Plan | null) ?? null);
     });
     return () => {
       live = false;
@@ -93,6 +97,7 @@ export function FirmChat(props: { onOpenMatter: (matterId: string, carry: Carry)
         Ask about the whole firm: what is pending, which hearings come next, which deadlines are near, which workflow fits. It reads each matter's stage, hearings, deadlines and open items, and your workflows. It does not read a matter's documents. It proposes; you decide. Not yet available to it: the Knowledge Library and advocate memory.
       </Text>
       {error ? <div className="notice">{error}</div> : null}
+      {plan ? <PlanCard conversationId={FIRM_AGENT_ID} plan={plan} /> : null}
       {messages.length > 0 ? (
         <div className="firm-log" data-testid="firm-log">
           <ChatMessageList density="compact" isStreaming={busy}>

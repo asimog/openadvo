@@ -24,9 +24,16 @@ export function ExtensionQuestionCard(props: { matterId: string; question: Exten
       setError((e as Error).message);
     }
   };
+  // The tool policy's approval (native-harness-parts section 2) is the application's own question.
+  const approval = q.metadata.asker === "Open Advocate";
   return (
-    <section className="question-card" aria-label={`Question from an extension: ${q.message}`} data-testid="extension-question" data-kind={kind}>
-      <Text type="supporting">An extension asks</Text>
+    <section
+      className="question-card"
+      aria-label={approval ? `Approval: ${q.message}` : `Question from an extension: ${q.message}`}
+      data-testid={approval ? "approval-card" : "extension-question"}
+      data-kind={kind}
+    >
+      <Text type="supporting">{approval ? "Approval needed" : "An extension asks"}</Text>
       <Text weight="semibold">{q.message}</Text>
       {detail ? <Text>{detail}</Text> : null}
       {q.expiresAt ? <Text type="supporting">If you do not answer by {new Date(q.expiresAt).toLocaleTimeString()}, it gets the default answer.</Text> : null}
@@ -49,7 +56,7 @@ export function ExtensionQuestionCard(props: { matterId: string; question: Exten
       {kind === "editor" ? <TextArea label="Answer" isLabelHidden rows={6} value={text} onChange={(v) => setText(v)} /> : null}
       <div className="question-options">
         {kind === "input" || kind === "editor" ? <Button label="Send answer" size="sm" variant="primary" clickAction={() => answer(text)} /> : null}
-        <Button label="Dismiss" size="sm" variant="ghost" clickAction={() => answer(null)} />
+        {approval ? null : <Button label="Dismiss" size="sm" variant="ghost" clickAction={() => answer(null)} />}
       </div>
       {error ? <Text type="supporting" data-testid="question-error">{error}</Text> : null}
     </section>

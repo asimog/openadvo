@@ -18,12 +18,13 @@ import { Selector } from "@astryxdesign/core/Selector";
 import { Spinner } from "@astryxdesign/core/Spinner";
 import { Text } from "@astryxdesign/core/Text";
 import { ArrowLeftIcon, ChatBubbleLeftRightIcon, PlusCircleIcon, MicrophoneIcon, PaperClipIcon, StopIcon } from "@heroicons/react/24/outline";
-import { CHAT_MESSAGE_EVENT, EXTENSION_QUESTIONS_EVENT, EXTENSION_STATUS_EVENT } from "../../shared/api.ts";
+import { CHAT_MESSAGE_EVENT, CONTEXT_EVENT, EXTENSION_QUESTIONS_EVENT, EXTENSION_STATUS_EVENT, PLAN_EVENT } from "../../shared/api.ts";
+import { ContextMeterView, PlanCard } from "./PlanCard.tsx";
 import { AgentChangesCard } from "./AgentChangesCard.tsx";
 import { ExtensionQuestionCard } from "./ExtensionQuestionCard.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { DropdownMenu } from "@astryxdesign/core/DropdownMenu";
-import type { AgentChanges, ChatEvent, ChatMessage as ChatRecord, EffortLevel, EffortState, ExtensionQuestion, ModelChoice, Workflow } from "../../shared/api.ts";
+import type { AgentChanges, ChatEvent, ChatMessage as ChatRecord, ContextMeter, EffortLevel, EffortState, ExtensionQuestion, ModelChoice, Plan, Workflow } from "../../shared/api.ts";
 
 const api = window.openadvo;
 
@@ -249,6 +250,8 @@ export function ChatDock(props: {
   const [extStatus, setExtStatus] = useState<Record<string, string[]>>({});
   // H-12: questions from Pi extensions that wait for the advocate.
   const [questions, setQuestions] = useState<ExtensionQuestion[]>([]);
+  const [plan, setPlan] = useState<Plan | null>(null);
+  const [meter, setMeter] = useState<ContextMeter | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<ChatComposerInputHandle>(null);
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
@@ -261,6 +264,8 @@ export function ChatDock(props: {
     setError(null);
     setChanges([]);
     setQuestions([]);
+    setPlan(null);
+    setMeter(null);
     void loadChanges();
     let live = true;
     // H-3: the session may take a model after it opened (sign-in with Pi, or credentials changed).
@@ -276,6 +281,8 @@ export function ChatDock(props: {
         setModel(s.model);
         setExtStatus(s.status ?? {});
         setQuestions(s.questions ?? []);
+        setPlan(s.plan ?? null);
+        setMeter(s.context ?? null);
       },
       (e: Error) => live && setError(`The agent could not start: ${e.message}`),
     );
@@ -305,6 +312,8 @@ export function ChatDock(props: {
       else if (e.type === "CUSTOM" && e.name === CHAT_MESSAGE_EVENT) add(e.value as ChatRecord);
       else if (e.type === "CUSTOM" && e.name === EXTENSION_STATUS_EVENT) setExtStatus((e.value as Record<string, string[]>) ?? {});
       else if (e.type === "CUSTOM" && e.name === EXTENSION_QUESTIONS_EVENT) setQuestions((e.value as ExtensionQuestion[]) ?? []);
+      else if (e.type === "CUSTOM" && e.name === PLAN_EVENT) setPlan((e.value as Plan | null) ?? null);
+      else if (e.type === "CUSTOM" && e.name === CONTEXT_EVENT) setMeter(e.value as ContextMeter);
     });
     return () => {
       live = false;
@@ -361,6 +370,7 @@ export function ChatDock(props: {
             </span>
           </div>
         ) : null}
+        <ContextMeterView meter={meter} busy={busy} onCompact={async () => setMeter(await api.compactChat(props.matterId))} />
         <div className="dock-slot" ref={props.slotRef} />
       </div>
       <div className="dock-chat" data-testid="chat-log">
@@ -431,8 +441,9 @@ export function ChatDock(props: {
             />
           }
         >
-          {messages.length > 0 || changes.length > 0 || questions.length > 0 ? (
+          {messages.length > 0 || changes.length > 0 || questions.length > 0 || plan ? (
             <>
+          {plan ? <PlanCard conversationId={props.matterId} plan={plan} /> : null}
           {messages.length > 0 ? (
             <ChatMessageList density="compact" isStreaming={busy}>
               {messages.map((m) => (
