@@ -128,7 +128,7 @@ test("Steer and Stop from the status line, and Stop on the chat stops every help
   await app.close();
 });
 
-test("after a background start_helper returns, the helper still uses the parent's tools", async () => {
+test("after a background start_helper returns, the helper uses the parent's tools and its result goes with the next message", async () => {
   const { app, page } = await launch();
   const matterId = await newMatter(app, page, "Background tool use");
   await script(app, {
@@ -139,10 +139,11 @@ test("after a background start_helper returns, the helper still uses the parent'
   await expect.poll(() => notices(page, matterId), { timeout: 60000 }).toEqual(expect.arrayContaining([expect.stringContaining("Helper Source counter finished.")]));
   expect((await notices(page, matterId)).some((t) => t.includes("failed"))).toBe(false);
 
-  // The result waits; Use results brings it to the agent.
+  // The result waits; the advocate's next message carries it, and no turn starts by itself.
   await script(app, { agent: [{ text: "Used the source count." }] });
-  await page.getByTestId("status-line").getByRole("button", { name: "Use results" }).click();
+  await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [matterId, "Now continue."]);
   await expect.poll(async () => (await page.evaluate((m) => (globalThis as any).openadvo.getChat(m), matterId)).busy, { timeout: 60000 }).toBe(false);
+  await expect.poll(() => notices(page, matterId), { timeout: 30000 }).toEqual(expect.arrayContaining([expect.stringContaining("The results of 1 background helper go with this message.")]));
   const requests = await seen(app);
   expect(requests.some((r) => r.queue === "agent" && r.last.includes("The matter has no sources."))).toBe(true);
   await app.close();
