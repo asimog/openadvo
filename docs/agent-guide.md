@@ -126,8 +126,10 @@ Key files:
 | `src/main/portal.ts` | The court-portal window, its origin list and the filing guards |
 | `src/main/browser.ts` | The built-in browser (S10): tabs, bookmarks, hidden agent pages, CDP control and downloads |
 | `src/main/library.ts`, `src/lib/library/`, `src/main/matter-proposals.ts` | The Knowledge Library (M1) and the agent's proposed matters (C2) |
+| `src/main/evidence.ts`, `src/main/document-ops.ts`, `src/lib/evidence/`, `src/lib/matter-store/evidence.ts` | Phase 4's post-ingest analysis, the evidence records, facts, structure, relations, memory, jurisdiction and PDF operations |
 | `src/lib/classification/`, `src/lib/stages/` | The classification proposal (C3) and the stage lists (C4) |
 | `src/renderer/src/RightPane.tsx`, `Onboarding.tsx`, `Profile.tsx`, `Library.tsx`, `Dashboard.tsx`, `MatterProfile.tsx`, `Intake.tsx` | Phase 3's right pane and browser, setup, Practice Profile, library, Home dashboard, matter profile and intake |
+| `src/renderer/src/Phase4.tsx` | Phase 4's facts, evidence, structure, jurisdiction and typed-memory views |
 | `src/main/studio.ts`, `src/main/research.ts` | Research sources, the argument loop and rehearsal |
 
 ### 6.2 Patterns to keep
