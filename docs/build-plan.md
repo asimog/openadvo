@@ -31,7 +31,7 @@ Accepted by the owner on 2026-11-15. This file owns the phases, their scope, the
 
 The agent harness, the canonical stores and the policy: context assembly, the skill registry and runner, the planner, run controls, the Review Inbox, side questions and the navigation. Harness hardening ([harness-hardening.md](harness-hardening.md)) runs in this phase.
 
-Scope: G5, I1, N1–N3, O1–O4, O6–O9, Q2, Q4, Q5, R1, Y4, Y5.
+Scope: G5, I1, N1–N3, O1–O4, O6–O10, Q2, Q4, Q5, R1, Y4, Y5.
 
 Exit: A real matter conversation: the plan card before long work, a skill run with its context package and report card, a side question, and the jobs view showing what the agent read.
 

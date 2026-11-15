@@ -214,6 +214,7 @@ Filing readiness is part of local intelligence: the court's registry rules (B5) 
 | O7 | Jobs view: every run, its state, its cost, its package, its report card; also package view: what the agent received, what it did not receive, and why | 1 | X | Jobs view | N2 |
 | O8 | Approvals as interrupts, answered by bridge functions | 1 | B/X | — | — |
 | O9 | Side questions ([harness-build.md](harness-build.md) HB-1): a read-only side thread from the chat dock or `/btw`; nothing returns to the main chat unless the advocate brings it in | 1 | N | Side panel | Q2 |
+| O10 | Firm Agent: one agent per advocate (a solo practitioner is a firm) that sees every matter's summary, the Knowledge Library and advocate memory, answers firm-wide questions, and hands instructions to a Matter Agent after the advocate sees them; it never mixes one matter's facts into another ([specs/agent-framework.md](specs/agent-framework.md)) | 1 | N | Firm chat on Home | Q2 |
 
 ## P. Verification and quality control
 
