@@ -58,3 +58,8 @@ Unit tests changed only where the new behavior changed the expected result: hidd
 
 - `4a911cf` Native harness parts: helpers v2, policy gaps, plan panel, summaries, cost.
 - `bf1f09e` Docs: the native harness parts as built.
+- `68c4590` Report: native parts phase finished, with commands and what is not verified.
+- `8fd0e90` Helpers stop when the conversation is replaced; app tool list follows the new tools.
+- `d38033d` Plan test: a new conversation keeps the plan.
+
+Note: `8fd0e90` and `d38033d` came after this report. Their tests passed (`native-helpers` Steer/Stop and background tool use; `native-plan` restart with a new conversation).
