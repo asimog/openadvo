@@ -35,6 +35,7 @@ import { StringEnum, type Api, type Model } from "@earendil-works/pi-ai";
 import type { DraftCheck, DraftKind, ParagraphSource, RevisionRecord } from "../shared/records.ts";
 import { BUILTIN_TOOL_NAMES, ExtensionQuestions, extensionUi, type PiExtensions } from "./pi-extensions.ts";
 import { CONTEXT_STRATEGY, contextExtension, type AgentKind } from "./agent-context.ts";
+import { APPROVAL_OPTIONS, PolicyStore, policyExtension, type Approval } from "./tool-policy.ts";
 import { FIRM_READ_ONLY, FIRM_TOOLS, firmSystemPrompt, firmTools, type FirmHost } from "./firm-agent.ts";
 
 /** One correction the agent proposed in a run, as the AG-UI interrupt reports it. */
@@ -208,6 +209,8 @@ export interface AgentOptions {
   model?: string;
   /** Extensions given in code (tests; the application's own parts). Loaded after the others. */
   inlineExtensions?: InlineExtension[];
+  /** The tool policy (native-harness-parts section 2). Absent: a policy file in agentDir. */
+  policy?: PolicyStore;
 }
 
 function systemPrompt(title: string): string {
@@ -500,6 +503,13 @@ export class Agent {
   }
 
   private selected: Promise<Model<Api> | undefined> | null = null;
+
+  private policyFile: PolicyStore | null = null;
+  /** The tool policy store (native-harness-parts section 2). */
+  policyStore(): PolicyStore {
+    this.policyFile ??= this.options.policy ?? new PolicyStore(path.join(this.options.agentDir, "tool-policy.json"), path.join(this.options.agentDir, "logs", "tool-policy.jsonl"));
+    return this.policyFile;
+  }
 
   private modelRuntime(): Promise<ModelRuntime> {
     // Pi's own credential and model store, as the owner set it up (engineering.md EC-6).
@@ -1203,6 +1213,21 @@ export class Agent {
   ): Promise<MatterChat> {
     const host = this.host;
     const { chatDir, sessionDir } = spec;
+    // The tool policy asks through the session's question queue, made below.
+    const questionsRef: { q?: ExtensionQuestions } = {};
+    const labels = new Map(spec.tools.map((t) => [t.name, (t as { label?: string }).label ?? t.name]));
+    const policy = policyExtension({
+      store: this.policyStore(),
+      conversation: matterId,
+      label: (name) => labels.get(name) ?? name.replace(/_/g, " "),
+      ask: async (title, signal) => {
+        const q = questionsRef.q;
+        if (!q) return "refuse";
+        const end = await q.ask({ kind: "select", title, options: Object.values(APPROVAL_OPTIONS), asker: "Open Advocate" }, { signal });
+        if (end.how !== "answered") return "refuse";
+        return ((Object.entries(APPROVAL_OPTIONS) as Array<[Approval, string]>).find(([, v]) => v === end.value)?.[0] ?? "refuse") as Approval;
+      },
+    });
     const runtime = await this.modelRuntime();
     const model = await this.model();
     // Decision 21: the advocate's Pi extensions load in every session.
@@ -1216,7 +1241,7 @@ export class Agent {
       modelRuntime: runtime,
       model,
       thinkingLevel: this.effort(),
-      resourceLoader: ext ? await ext.loader({ systemPrompt: spec.prompt, extraFactories: [contextExtension(spec.kind), ...(this.options.inlineExtensions ?? [])] }) : resourceLoader(spec.prompt),
+      resourceLoader: ext ? await ext.loader({ systemPrompt: spec.prompt, extraFactories: [policy, contextExtension(spec.kind), ...(this.options.inlineExtensions ?? [])] }) : resourceLoader(spec.prompt),
       settingsManager,
       sessionManager: fresh ? SessionManager.create(this.options.agentDir, sessionDir) : SessionManager.continueRecent(this.options.agentDir, sessionDir),
       // Decision 2: Pi's built-in file and shell tools are off; our tools and extension tools are on.
@@ -1236,6 +1261,7 @@ export class Agent {
       if (chatRef.state) chatRef.state.questions = open;
       host.emit({ matterId, event: { timestamp: Date.now(), type: EventType.CUSTOM, name: EXTENSION_QUESTIONS_EVENT, value: open } as unknown as AGUIEvent });
     });
+    questionsRef.q = questions;
     const ui: ExtensionUIContext = extensionUi({
       questions,
       notice: (text) => {

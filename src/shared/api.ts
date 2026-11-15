@@ -95,6 +95,8 @@ export interface ExtensionQuestion {
     placeholder?: string;
     /** editor: the starting text. */
     prefill?: string;
+    /** Who asks: "Open Advocate" for its own approvals; absent for an extension. */
+    asker?: string;
   };
 }
 

@@ -165,15 +165,8 @@ export class PiExtensions {
 
   /** The resource loader for one session. */
   async loader(input: { systemPrompt: string; extraFactories?: InlineExtension[] }): Promise<DefaultResourceLoader> {
-    const guard: InlineExtension = {
-      name: "openadvo-policy",
-      hidden: true,
-      factory: (pi) => {
-        const blocked = new Set<string>(BUILTIN_TOOL_NAMES);
-        pi.on("tool_call", (event) => (blocked.has(event.toolName) ? { block: true, reason: "Pi's built-in file and shell tools are off in Open Advocate." } : undefined));
-      },
-    };
-    const factories: InlineExtension[] = [guard, { name: "mcp", factory: createMcpExtension(), replaceable: true }, { name: "codemode", factory: createCodemodeExtension(), replaceable: true }, { name: "tool_search", factory: createToolSearchExtension(), replaceable: true }, ...(input.extraFactories ?? [])];
+    // The guard is the tool policy (src/main/tool-policy.ts), added by the agent to every session.
+    const factories: InlineExtension[] = [{ name: "mcp", factory: createMcpExtension(), replaceable: true }, { name: "codemode", factory: createCodemodeExtension(), replaceable: true }, { name: "tool_search", factory: createToolSearchExtension(), replaceable: true }, ...(input.extraFactories ?? [])];
     const loader = new DefaultResourceLoader({
       cwd: this.options.agentDir,
       agentDir: this.options.agentDir,
