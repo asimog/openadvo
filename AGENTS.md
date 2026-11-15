@@ -1,6 +1,6 @@
 # Open Advocate: standing orders
 
-Open Advocate is one desktop agentic harness for Indian litigation, before every court and tribunal. The advocate gives an instruction, the agent does the work through litigation skills, and the advocate decides every legal point. No practice management: no billing, time, CRM or marketing. Start from [docs/README.md](docs/README.md). Keep this file short: standing orders only. Detail lives in `docs/`.
+Open Advocate is one desktop agentic harness for Indian litigation, before every court and tribunal. The advocate gives an instruction, the agent does the work through litigation skills, and the advocate decides every legal point. No practice management: no billing, time, CRM or marketing. Start from [docs/README.md](docs/README.md). Coding agents also read [docs/agent-guide.md](docs/agent-guide.md). Keep this file short: standing orders only. Detail lives in `docs/`.
 
 ## Working with the user
 

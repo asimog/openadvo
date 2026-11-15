@@ -19,6 +19,7 @@ Read in this order. Each fact has one owning file. Link to it; do not restate it
 | 11 | [engineering.md](engineering.md) | Engineering choices, the vendored parts and their scripts, the editor rules. |
 | 12 | [repo-map.md](repo-map.md) | Folders, write boundaries, data outside the repository, the reference repositories. |
 | 13 | [specs/](specs/) | One-page specs, one per started step. |
+| 14 | [agent-guide.md](agent-guide.md) | How a coding agent works here: setup, commands, code patterns, recipes, testing, verification, document rules, pitfalls. |
 | — | [questions.md](questions.md) | Open questions for the owner, with the default used until answered. |
 | — | [parking.md](parking.md) | Items outside the current step (lesson L6). |
 
