@@ -10,7 +10,7 @@ Status words: **built** (in the code and tested), **open** (planned, not built),
 |---|---|---|---|
 | H-1 | Two quick sends could start two runs: `busy` was set after an await. | `send()` sets `busy` before the first await and clears it on every early return. A message sent during a run becomes a Pi follow-up. | built |
 | H-2 | The conversation grew without limit: compaction was off. | Compaction is on (Pi's default) for every session. | built |
-| H-3 | The first model choice was kept until restart, so "no model" stayed until restart. | Resolve the model again when the cached result is empty, and when credentials change. | open |
+| H-3 | The first model choice was kept until restart, so "no model" stayed until restart. With no model, Pi's agent holds a stand-in model named `unknown/unknown`, so the "no model" check never matched. | "No model" is never cached. A change in the size or time of `auth.json` or `models.json` makes Pi read them again and the model is chosen again. An open session with no model, or with a model whose provider lost its credentials, takes the current model before its next run, with a notice in the chat. The stand-in model counts as no model. | built |
 | H-4 | The system prompt said "Your tools are read only" and then listed write and filing tools. | The prompt now says that the writing tools make only proposals, records or filing steps. | built |
 | H-5 | Every session has every tool, including the portal and filing tools. | A tool scope per skill run (features N2, Q2). The chat session keeps the filing tools behind the two confirmations. | open |
 | H-6 | Pi's install telemetry is at its default (on). Pi's docs say it sends provider attribution headers. | A setting in the window that shows the value and lets the advocate change it. Fact only; no recommendation. | open |
@@ -56,18 +56,18 @@ The extension policy, the bundled extensions, the permission policy and the help
 |---|---|---|
 | `tests/unit/pi-extensions.test.ts` | The seven load with no error, with their tools and commands; the permission policy and its repair on start; with a faux model, an allowed tool runs, a denied tool is withheld, a credential path is refused and logged in the app's folder; a bundled extension turns off; the helper policy files. | `node --test tests/unit/pi-extensions.test.ts` |
 | `tests/e2e/extensions.spec.ts` | Settings lists the seven and turns one off and on; the app writes the permission policy in its own Pi folder and sets `PI_CODING_AGENT_DIR` there; `/context` typed in a matter's chat shows its report. | `npx playwright test tests/e2e/extensions.spec.ts` |
+| `tests/unit/agent.test.ts` | The `Agent` class with a faux model: no model at first, then sign-in gives the open session the model with no restart; removing the credentials empties the model list; two quick sends start one run; a message sent during a run is a follow-up that the model reads in the same run. | `node --test tests/unit/agent.test.ts` |
 | `tests/e2e/app.spec.ts` | The bridge functions; the session has every application tool, no built-in tool, and the bundled extension tools. | `npx playwright test tests/e2e/app.spec.ts` |
 
-Still needed: a unit test of the `Agent` class (two quick sends, follow-up, model re-resolution: H-1, H-3), and a live test of a helper agent with a real model.
+Still needed: a live test of a helper agent with a real model.
 
 ## 5. Order
 
-1. H-3, then the `Agent` unit test.
-2. H-12 and H-14: questions from extensions (this also turns pi-permission-system `ask` rules into real questions), and the `/` list.
-3. HB-1 side questions and HB-2 browser, in the order of [harness-build.md](harness-build.md).
-4. H-20, H-22, H-24, H-25: steering, compaction actions, run detail, settled runs.
-5. H-16, H-17, H-18 with features N1 to N3: the skill registry on Pi skills, workflows as prompt templates, the matter context file.
-6. H-5 with the skill runner.
-7. H-15, H-23: session runtime, fork and tree.
-8. H-19, H-6: MCP servers and telemetry in Settings.
-9. H-32 at each Pi release.
+1. H-12 and H-14: questions from extensions (this also turns pi-permission-system `ask` rules into real questions), and the `/` list.
+2. HB-1 side questions and HB-2 browser, in the order of [harness-build.md](harness-build.md).
+3. H-20, H-22, H-24, H-25: steering, compaction actions, run detail, settled runs.
+4. H-16, H-17, H-18 with features N1 to N3: the skill registry on Pi skills, workflows as prompt templates, the matter context file.
+5. H-5 with the skill runner.
+6. H-15, H-23: session runtime, fork and tree.
+7. H-19, H-6: MCP servers and telemetry in Settings.
+8. H-32 at each Pi release.

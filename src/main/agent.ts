@@ -20,7 +20,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { AnchorRecord, PageRecord, SourceRecord, Notebook, NotebookEvent } from "../lib/matter-store/index.ts";
 import { EventType, type AGUIEvent } from "@ag-ui/core";
@@ -337,6 +337,12 @@ function keyOf(model: Model<Api>): string {
   return `${model.provider}/${model.id}`;
 }
 
+/** The session's model, or undefined. With no model, Pi's agent holds a stand-in named "unknown/unknown". */
+function sessionModel(session: AgentSession): Model<Api> | undefined {
+  const m = session.model;
+  return m && !(m.provider === "unknown" && m.id === "unknown") ? m : undefined;
+}
+
 function resourceLoader(title: string): ResourceLoader {
   return {
     getExtensions: () => ({ extensions: [], errors: [], runtime: createExtensionRuntime() }),
@@ -381,32 +387,88 @@ export class Agent {
     return this.runtime;
   }
 
+  /** H-3: the size and time of the owner's credential and model files when the model was last chosen. */
+  private stamp: string | null = null;
+
+  /** H-3: the size and time of auth.json and models.json. The contents are never read here. */
+  private async credentialStamp(): Promise<string> {
+    const parts = await Promise.all(
+      ["auth.json", "models.json"].map(async (name) => {
+        try {
+          const s = await stat(path.join(this.options.piHome, name));
+          return `${s.size}:${s.mtimeMs}`;
+        } catch {
+          return "none";
+        }
+      }),
+    );
+    return parts.join("|");
+  }
+
+  /** H-3: when the credentials or the models change, Pi reads them again and the model is chosen again. */
+  private async syncCredentials(): Promise<void> {
+    const stamp = await this.credentialStamp();
+    if (stamp === this.stamp) return;
+    const first = this.stamp === null;
+    this.stamp = stamp;
+    if (first && !this.runtime) return;
+    const runtime = await this.modelRuntime();
+    await runtime.refresh({ allowNetwork: false }).catch(() => undefined);
+    this.selected = null;
+  }
+
   /**
    * The model for new sessions. Order: OPENADVO_MODEL, the advocate's saved choice,
    * the application default (DEFAULT_MODEL), Pi's own default model setting,
-   * then pi-ai's first available model.
+   * then pi-ai's first available model. H-3: "no model" is never kept, and a change of
+   * credentials chooses again.
    */
-  private model(): Promise<Model<Api> | undefined> {
-    this.selected ??= (async () => {
-      const runtime = await this.modelRuntime();
-      const wanted = this.options.model ?? this.host.loadModelKey() ?? undefined;
-      if (wanted) {
-        const r = resolveCliModel({ cliModel: wanted, modelRuntime: runtime });
-        if (r.model && runtime.hasConfiguredAuth(r.model.provider)) return r.model;
-      }
-      const ours = (await runtime.getAvailable()).find((m) => keyOf(m) === DEFAULT_MODEL);
-      if (ours) return ours;
-      const piSettings = SettingsManager.create(this.options.agentDir, this.options.piHome);
-      const provider = piSettings.getDefaultProvider();
-      const id = piSettings.getDefaultModel();
-      const available = await runtime.getAvailable();
-      if (provider && id) {
-        const found = available.find((m) => m.provider === provider && m.id === id);
-        if (found) return found;
-      }
-      return available[0];
-    })();
-    return this.selected;
+  private async model(): Promise<Model<Api> | undefined> {
+    await this.syncCredentials();
+    const pending = (this.selected ??= this.resolveModel());
+    const model = await pending;
+    if (!model && this.selected === pending) this.selected = null;
+    return model;
+  }
+
+  private async resolveModel(): Promise<Model<Api> | undefined> {
+    const runtime = await this.modelRuntime();
+    // getAvailable checks the credentials now; hasConfiguredAuth reads what it found.
+    const available = await runtime.getAvailable();
+    const wanted = this.options.model ?? this.host.loadModelKey() ?? undefined;
+    if (wanted) {
+      const r = resolveCliModel({ cliModel: wanted, modelRuntime: runtime });
+      if (r.model && runtime.hasConfiguredAuth(r.model.provider)) return r.model;
+    }
+    const ours = available.find((m) => keyOf(m) === DEFAULT_MODEL);
+    if (ours) return ours;
+    const piSettings = SettingsManager.create(this.options.agentDir, this.options.piHome);
+    const provider = piSettings.getDefaultProvider();
+    const id = piSettings.getDefaultModel();
+    if (provider && id) {
+      const found = available.find((m) => m.provider === provider && m.id === id);
+      if (found) return found;
+    }
+    return available[0];
+  }
+
+  /**
+   * H-3: an open session that has no model, or whose model lost its credentials, takes the
+   * current model. A notice in the chat says which model it now uses.
+   */
+  private async ensureModel(matterId: string, chat: MatterChat): Promise<void> {
+    const { session, state } = chat;
+    const model = await this.model();
+    const runtime = await this.modelRuntime();
+    const current = sessionModel(session);
+    if (current && runtime.hasConfiguredAuth(current.provider)) return;
+    if (!model) return;
+    await session.setModel(model);
+    state.model = keyOf(model);
+    await this.host.recordSession(matterId, session.sessionId, state.model);
+    const message: ChatMessage = { id: randomUUID(), role: "notice", text: `The agent now uses the model ${state.model}.` };
+    state.messages.push(message);
+    this.host.emit({ matterId, event: { timestamp: Date.now(), type: EventType.CUSTOM, name: CHAT_MESSAGE_EVENT, value: message } as unknown as AGUIEvent });
   }
 
   /**
@@ -433,6 +495,7 @@ export class Agent {
 
   /** pi-ai's list of models that have credentials. */
   async listModels(): Promise<ModelChoice[]> {
+    await this.syncCredentials();
     const runtime = await this.modelRuntime();
     const available = await runtime.getAvailable();
     return available.map((m) => ({ key: keyOf(m), provider: m.provider, id: m.id, name: m.name }));
@@ -445,6 +508,7 @@ export class Agent {
 
   /** Select a model for every open session and for new ones. The choice is saved; Pi's own default is not changed. */
   async setModel(key: string): Promise<string> {
+    await this.syncCredentials();
     const runtime = await this.modelRuntime();
     const available = await runtime.getAvailable();
     const model = available.find((m) => keyOf(m) === key);
@@ -1008,7 +1072,8 @@ export class Agent {
       },
     });
     await session.bindExtensions({ uiContext: ui, mode: "rpc", onError: (err) => console.error(`pi extension error: ${JSON.stringify(err)}`) });
-    const modelName = session.model ? `${session.model.provider}/${session.model.id}` : null;
+    const started = sessionModel(session);
+    const modelName = started ? keyOf(started) : null;
     await host.recordSession(matterId, session.sessionId, modelName);
     const state: ChatState = { messages: fresh ? [] : await loadMessages(chatDir), busy: false, model: modelName };
     chatRef.state = state;
@@ -1032,7 +1097,10 @@ export class Agent {
   }
 
   async getChat(matterId: string): Promise<ChatState> {
-    const { state } = await this.chat(matterId);
+    const chat = await this.chat(matterId);
+    const { state } = chat;
+    // H-3: a model the advocate signed in to after the session opened is used at once.
+    if (!state.busy) await this.ensureModel(matterId, chat).catch(() => undefined);
     return { ...state, messages: [...state.messages] };
   }
 
@@ -1048,12 +1116,6 @@ export class Agent {
       emit({ type: EventType.CUSTOM, name: CHAT_MESSAGE_EVENT, value: message });
     };
     push({ id: randomUUID(), role: "advocate", text: clean });
-    // A Pi extension command ("/name") runs without a model; anything else needs one.
-    if (!session.model && !clean.startsWith("/")) {
-      push({ id: randomUUID(), role: "notice", text: "The agent cannot answer: no model is available." });
-      await saveMessages(await this.host.chatDir(matterId), state.messages).catch(() => undefined);
-      return;
-    }
     if (state.busy) {
       // H-1: a message sent while the agent works is a Pi follow-up, read when the current run ends.
       if (session.isStreaming && !clean.startsWith("/")) {
@@ -1075,6 +1137,16 @@ export class Agent {
       push({ id: randomUUID(), role: "notice", text });
       await saveMessages(await this.host.chatDir(matterId), state.messages).catch(() => undefined);
     };
+    // H-3: resolve the model again if the session has none or its credentials changed.
+    try {
+      await this.ensureModel(matterId, chat);
+    } catch (e) {
+      return release(`The agent cannot use the model: ${(e as Error).message}`);
+    }
+    // A Pi extension command ("/name") runs without a model; anything else needs one.
+    if (!sessionModel(session) && !clean.startsWith("/")) {
+      return release("The agent cannot answer: no model is available. Sign in to a model provider with Pi first.");
+    }
     // V5-21: a used budget stops the next run.
     let pol: Awaited<ReturnType<AgentHost["policy"]>>;
     try {
@@ -1137,7 +1209,8 @@ export class Agent {
       endText();
       state.busy = false;
       if (chat.stopped) failure = null;
-      if (usage.totalTokens > 0 && session.model) await this.host.recordUsage(matterId, { model: keyOf(session.model), ...usage }, session.sessionId).catch(() => undefined);
+      const used = sessionModel(session);
+      if (usage.totalTokens > 0 && used) await this.host.recordUsage(matterId, { model: keyOf(used), ...usage }, session.sessionId).catch(() => undefined);
       if (chat.stopped) state.messages.push({ id: randomUUID(), role: "notice", text: "Stopped by the advocate." });
       // V1-1: the window's messages survive a restart.
       await saveMessages(await this.host.chatDir(matterId), state.messages).catch(() => undefined);

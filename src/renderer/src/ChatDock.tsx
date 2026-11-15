@@ -46,9 +46,15 @@ export function ModelPicker(props: { isDisabled: boolean }) {
   const [effort, setEffort] = useState<EffortState | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    void api.listModels().then(setModels, (e: Error) => setError(e.message));
-    void api.getModel().then(setCurrent);
-    void api.getEffort().then(setEffort, () => undefined);
+    const read = () => {
+      void api.listModels().then(setModels, (e: Error) => setError(e.message));
+      void api.getModel().then(setCurrent);
+      void api.getEffort().then(setEffort, () => undefined);
+    };
+    read();
+    // H-3: the advocate signs in with Pi outside the window; read the models again on return.
+    window.addEventListener("focus", read);
+    return () => window.removeEventListener("focus", read);
   }, []);
   const providers = [...new Set(models.map((m) => m.provider))];
   const options = providers.map((p) => ({
@@ -253,6 +259,11 @@ export function ChatDock(props: {
     setChanges([]);
     void loadChanges();
     let live = true;
+    // H-3: the session may take a model after it opened (sign-in with Pi, or credentials changed).
+    const readModel = () => {
+      void api.getChat(props.matterId).then((s) => live && setModel(s.model), () => undefined);
+    };
+    window.addEventListener("focus", readModel);
     api.getChat(props.matterId).then(
       (s) => {
         if (!live) return;
@@ -271,6 +282,7 @@ export function ChatDock(props: {
       if (e.type === "RUN_STARTED") setBusy(true);
       else if (e.type === "RUN_FINISHED") {
         setBusy(false);
+        readModel();
         // An AG-UI interrupt: the agent proposed changes the advocate must keep or undo.
         const outcome = e.outcome as { type?: string } | undefined;
         if (outcome?.type === "interrupt") {
@@ -280,6 +292,7 @@ export function ChatDock(props: {
       }
       else if (e.type === "RUN_ERROR") {
         setBusy(false);
+        readModel();
         add({ id: `error-${String(e.timestamp)}`, role: "notice", text: String(e.message) });
       } else if (e.type === "TEXT_MESSAGE_START") add({ id: String(e.messageId), role: "agent", text: "" });
       else if (e.type === "TEXT_MESSAGE_CONTENT") setMessages((m) => m.map((x) => (x.id === e.messageId ? { ...x, text: x.text + String(e.delta) } : x)));
@@ -290,6 +303,7 @@ export function ChatDock(props: {
     return () => {
       live = false;
       off();
+      window.removeEventListener("focus", readModel);
     };
   }, [props.matterId]);
 
