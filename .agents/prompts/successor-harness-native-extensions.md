@@ -1,4 +1,4 @@
-# Successor prompt: Pi reference, assessments, and bundled extensions as native parts
+# Successor prompt: Pi reference, assessments (helpers, codemode, MCP, custom tools), and bundled extensions as native parts
 
 You are the lead engineer of `C:\dev\openadvo`. Read this whole prompt before you act.
 
@@ -67,9 +67,33 @@ Known facts (verify each one):
 
 Report: what is loaded, what is active, what a script or a server can reach, what the tests show, and what the window would need (H-19). Facts only, plus the tests you ran.
 
-### A4. Report
+### A4. Assess the app's custom tools and imports against Pi's extension guide
 
-Write `.agents/logs/<date>-subagents-codemode-mcp.md`: what you did, the commands and their results, the evidence paths, and the tables of A2 and A3. Then stop and tell the owner in plain words what you found. Do not start part B until the owner says so.
+The standard is Pi's `docs/extensions.md` in `C:\dev\pireference` (the same file ships in `node_modules/@earendil-works/pi-coding-agent/docs/`): the sections "Available Imports", "Tool parameter schemas and TypeBox", "Custom Tools", "Tool Definition", "Output Truncation", "Tool Exposure" and "Calling Other Tools". Read them in full first.
+
+Known facts about the 36 tools defined with `defineTool` in `src/main/agent.ts` (verify each one; counts are from a text search):
+
+| Pi's guide says | In `agent.ts` |
+|---|---|
+| `promptSnippet` gives a one-line entry in the default system prompt; `promptGuidelines` adds rules that name the tool | 0 and 0. The app writes its own system prompt (`systemPrompt()`), passed to the loader. Check whether Pi's default prompt sections are used at all, and whether the tool descriptions and the app's prompt say the same thing. |
+| Prefer `StringEnum` from `@earendil-works/pi-ai` for string choices (a plain `enum` that every provider accepts) | 0 `StringEnum`; 10 `Type.Union` of `Type.Literal`. |
+| Errors: throw from `execute`, or return `isError: true` | 6 `throw`, 1 `isError`. The Studio dispatcher's comment says "errors are returned as text": check whether a failed call is reported to the model and to the window as a success. |
+| `annotations` (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`); without them a tool counts as not read-only and possibly destructive | 0. Reading tools and writing tools look the same to pi-permission-system and to codemode. |
+| `executionMode: "sequential"` for a tool that must not run at the same time as others; calls of one message run in parallel by default | 0. Check the writing tools (proposals, records, tracked changes) for read-modify-write across an `await`. |
+| `outputSchema` and `structuredContent` for data results; codemode scripts get `structuredContent` | 0 and 0. |
+| Use the abort `signal` in `execute` | 0. Check whether Stop can end a long tool call. |
+| Tools must truncate output (50KB or 2000 lines; `truncateHead` and the other helpers) | No Pi truncation helper is used. `read_source_text` has its own page limit. Check every tool. |
+| `exposure` (`direct`, `model-only`, `codemode`, `deferred`, `hidden`) and `defaultActive` | Not set (all `direct`). Check what codemode and helpers see. |
+| `withFileMutationQueue()` for tools that change files | Check whether any tool writes a file outside `matter.db` (drafts, DOCX). |
+| Imports: Pi maps `@earendil-works/pi-coding-agent`, `pi-agent-core`, `pi-ai`, `pi-tui` and `typebox` to its own copies for extensions; import `Type` from `typebox` | `agent.ts` imports `Type` from `typebox`. No bundled extension carries its own copy of Pi's packages under `resources/pi-extensions/node_modules`. Check the inline factories in `pi-extensions.ts`, and that the app and the extensions share one copy of each Pi class at run time. |
+
+Also check: labels and descriptions (plain, and each names what it reads, what it writes and what it may not do, as `docs/agent-guide.md` recipe 7.2 asks); the parameter schemas against pi-schema's rules (no `Type.Refine`, no codecs, coercion of loose arguments); `details` with the same type across all results of a tool; `usage` for tools that make nested model calls (the argument loop and the Studio tools).
+
+Report a table: tool, what Pi's guide asks, what the code does, the fix. Write the fixes as part B items. Do not change the tools in part A.
+
+### A5. Report
+
+Write `.agents/logs/<date>-subagents-codemode-mcp-tools.md`: what you did, the commands and their results, the evidence paths, and the tables of A2, A3 and A4. Then stop and tell the owner in plain words what you found. Do not start part B until the owner says so.
 
 ## 6. Part B: build only after the owner says so
 
@@ -83,6 +107,8 @@ Write `.agents/logs/<date>-subagents-codemode-mcp.md`: what you did, the command
 6. Long options of a select question are cut off on narrow buttons in the chat card (`ExtensionQuestionCard.tsx`); see `.agents/logs/2026-11-15-harness-hardening/extension-question-select.png`.
 
 Write a failing test first for each of 1 to 4.
+
+Add the custom-tool fixes from A4 here, each with a test (for example: a failed Studio call reaches the model and the window as a failure; a reading tool carries `readOnlyHint`; Stop ends a long tool call).
 
 ### B2. Overlaps between the bundled extensions and the plan
 
