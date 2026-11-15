@@ -17,6 +17,8 @@ files:
   - resources/models/**
   - extensions/**
   - skills/**
+  - adapters/**
+  - resources/adapters/**
   - package.json
   - "!**/*.map"
 win:

@@ -54,10 +54,19 @@ export class Filing {
   private x2t: string;
   private signer: ManifestSigner | null;
 
+  /** B12: the court's checklist as compliance rows (phase 2). Set by the application. */
+  courtRules: ((matterId: string) => Promise<ComplianceResult[]>) | null = null;
+
   constructor(matters: Matters, x2t: string, signer: ManifestSigner | null = null) {
     this.matters = matters;
     this.x2t = x2t;
     this.signer = signer;
+  }
+
+  /** B13: the PDFs of the newest filing set, with their paths. */
+  async files(matterId: string): Promise<Array<{ name: string; path: string }>> {
+    const set = (await this.work(matterId)).filingSet();
+    return set ? set.manifest.files.map((f) => ({ name: f.name, path: path.join(set.folder, f.name) })) : [];
   }
 
   private async work(matterId: string) {
@@ -132,8 +141,10 @@ export class Filing {
     // V5-15, V5-17: victim identity in an approved draft, the disclosure's blockers, the conversion check.
     const extra = await this.v5Rules(matterId, rows, filingSet);
     results.push(...extra);
+    // Phase 2: the court's checklist. An open item is "not checked"; the advocate files.
+    if (this.courtRules) results.push(...(await this.courtRules(matterId).catch((e: Error) => [{ rule: "C-0", title: "The court's filing checklist", source: "court adapter", outcome: "not_checked" as const, detail: `It could not be read: ${e.message}` }])));
     // P-5 and P-8 are checked on the set itself, so they cannot block making the set.
-    const blockers = results.filter((r) => r.outcome === "defect" && r.rule !== "P-5" && r.rule !== "P-8").map((r) => `${r.rule}: ${r.detail}`);
+    const blockers = results.filter((r) => r.outcome === "defect" && r.rule !== "P-5" && r.rule !== "P-8" && !r.rule.startsWith("C-")).map((r) => `${r.rule}: ${r.detail}`);
     return { details, annexures, limitation, compliance: { version: RULES_VERSION, results }, blockers, filingSet };
   }
 

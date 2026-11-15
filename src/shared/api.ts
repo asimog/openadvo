@@ -19,6 +19,10 @@ import type { ContextCandidate, ContextPackageRecord, JobRow, ReportCard, RoleSu
 import type { AdvocateProfile, IntelSource, Freshness, MemoryRecord, PreferenceRecord, StoreChains } from "./stores.ts";
 export type * from "./skills.ts";
 export type * from "./stores.ts";
+export type * from "./intel.ts";
+import type { AdapterSummary, BenchRow, DefectRow, FormatCheckResult, MatterChecklist, PackList, AdapterProceeding } from "./intel.ts";
+import type { DirectoryCourt } from "../lib/court-directory/index.ts";
+export type { DirectoryCourt };
 
 export type { AGUIEvent };
 export type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft, DraftCheck, DraftDefect };
@@ -450,6 +454,47 @@ export interface OpenAdvoApi {
   listIntelSources(): Promise<Array<IntelSource & { freshness: Freshness }>>;
   /** Q4: the hash chains of advocate.db and intel.db. */
   storeChains(): Promise<StoreChains>;
+  // ---- Phase 2: local legal intelligence and filing readiness ----
+  /** B1: search the court directory (offline). */
+  searchCourts(query: string): Promise<{ version: string; note: string; courts: DirectoryCourt[] }>;
+  /** B1: the appeal route from a court. */
+  appealRoute(courtId: string): Promise<Array<{ id: string; name: string; appealNote: string | null }>>;
+  /** The advocate's courts and practice areas, which decide what is needed. */
+  getCourtProfile(): Promise<{ courts: string[]; practice: string[] }>;
+  /** Human-only: set the advocate's courts and practice areas. */
+  setCourtProfile(input: { courts?: string[]; practice?: string[] }): Promise<{ courts: string[]; practice: string[] }>;
+  /** Court Intelligence: the advocate's courts, adapters and lists. Nothing is downloaded. */
+  courtOverview(): Promise<Array<{ court: DirectoryCourt; route: Array<{ id: string; name: string }>; adapter: AdapterSummary | null; lists: Array<{ key: string; kind: string; title: string; recommended: boolean; caseTypes: string[]; built: PackList | null }>; proceedings: AdapterProceeding[]; benches: BenchRow[] }>>;
+  /** Every adapter in its tier, with its version, error or shadowing. */
+  listAdapters(fresh?: boolean): Promise<AdapterSummary[]>;
+  /** Human-only: copy an adapter into the advocate's folder to change it. */
+  forkAdapter(id: string): Promise<AdapterSummary>;
+  /** Human-only: add an adapter from an adapter.json file. */
+  addAdapter(file: string): Promise<AdapterSummary>;
+  /** Build (or rebuild) one list now: downloads only its document. */
+  buildList(adapterId: string, key: string): Promise<PackList>;
+  /** A built list, or null. */
+  getList(adapterId: string, key: string): Promise<PackList | null>;
+  /** B10, human-only: correct an item (n) or add one (n null), with its source. */
+  editList(listId: string, change: { n: number | null; text: string; source: string; ref?: string }): Promise<PackList>;
+  /** B2, human-only: upload a source document by hand. */
+  uploadSource(adapterId: string, sourceKey: string, file: string): Promise<{ sourceKey: string; pages: number }>;
+  /** B7, human-only: add a bench row with its source. */
+  addBench(input: { court: string; date: string; bench: string; judges: string; source: string }): Promise<BenchRow>;
+  /** B11, human-only: the matter's court and case type; the lists it needs are built now. */
+  setFilingTarget(matterId: string, court: string, caseType: string): Promise<MatterChecklist>;
+  /** B11: the matter's checklist with its states. */
+  getChecklist(matterId: string): Promise<MatterChecklist>;
+  /** B11, human-only: tick an item, untick it, or mark it not applicable (with the reason). */
+  checkItem(matterId: string, listId: string, itemId: string, state: "open" | "done" | "not_applicable", note: string): Promise<void>;
+  /** B13: the court's format checks on the newest filing set. */
+  formatChecks(matterId: string): Promise<{ results: FormatCheckResult[]; reason: string | null }>;
+  /** B14: the matter's registry defects. */
+  listDefects(matterId: string): Promise<DefectRow[]>;
+  /** B14, human-only: paste the registry's defect list. */
+  importDefects(matterId: string, text: string): Promise<DefectRow[]>;
+  /** B14, human-only: mark a defect cured, or open again. */
+  setDefect(matterId: string, id: string, cured: boolean): Promise<DefectRow[]>;
   /** Compact the conversation now (Pi's compaction with the kind's summary form). */
   compactChat(conversationId: string): Promise<ContextMeter>;
   listContacts(): Promise<Contact[]>;

@@ -1,0 +1,66 @@
+{
+  "id": "in-dj-delhi",
+  "version": "1.0.0",
+  "title": "District courts of Delhi",
+  "courts": ["in.dj.delhi"],
+  "author": "built-in",
+  "review": "not reviewed: each quote was read in the Delhi High Court's e-filing rules (which also govern the District Courts) and in the High Court Rules and Orders, Volume I, Chapter 1, on 2026-11-16; the advocate checks each list",
+  "hosts": ["delhihighcourt.nic.in"],
+  "general": {
+    "courtRules": "https://delhihighcourt.nic.in/web/court-rules",
+    "efilingRules": "https://delhihighcourt.nic.in/web/e-filing"
+  },
+  "sources": [
+    {
+      "key": "dhc.efiling.rules",
+      "title": "Rules for On-line Electronic Filing (e-Filing)",
+      "kind": "rules",
+      "owner": "High Court of Delhi",
+      "checkDays": 60,
+      "reliability": "official",
+      "locate": { "index": "https://delhihighcourt.nic.in/web/e-filing", "linkText": "Rules For On-line Electronic Filing" },
+      "url": "https://delhihighcourt.nic.in/web/sites/default/files/efiling/NotificationFile_X74GTJ7YAKY.pdf"
+    },
+    {
+      "key": "dhc.ro.v1c1",
+      "title": "High Court Rules and Orders, Volume I, Chapter 1: Practice in the trial of civil suits",
+      "kind": "rules",
+      "owner": "High Court of Delhi",
+      "checkDays": 180,
+      "reliability": "official",
+      "locate": { "index": "https://delhihighcourt.nic.in/web/court-rules", "linkText": "Volume I chapter 1 : practice in the trial of civil suits" },
+      "url": "https://delhihighcourt.nic.in/files/2024-04/courtrulefile_ugb1p5l6.pdf"
+    }
+  ],
+  "lists": [
+    {
+      "key": "filing.efiling_format",
+      "kind": "checklist",
+      "title": "E-filing format in the District Courts: every case type",
+      "needs": { "caseTypes": ["*"] },
+      "source": "dhc.efiling.rules",
+      "items": [
+        { "text": "Paper size A4 (29.7 cm x 21 cm); margins 2 cm top and bottom, 4 cm left and right.", "quote": "Paper size : A-4 (29.7 cm x 21 cm)", "ref": "e-Filing Rules, rule 6.1" },
+        { "text": "Typed documents are converted into OCR-searchable PDF or PDF/A.", "quote": "converted into Optical Character Recognition (OCR) searchable Portable Document Format (PDF) or PDF/A", "ref": "e-Filing Rules, rule 6.2" },
+        { "text": "A document typed in a local language uses a Unicode font of size 14.", "quote": "If any document is typed in a local language in Trial Courts", "ref": "e-Filing Rules, rule 6.1" },
+        { "text": "The e-file is at most 20 MB; a larger file is split into parts of at most 20 MB, or filed through the E-Sewa Kendra.", "quote": "exceeds 20 MB, the Advocate or litigant should either split the e-file in parts not exceeding 20 MB", "ref": "e-Filing Rules, rule 3.4" },
+        { "text": "E-filed documents may be authenticated by digital signature, Aadhaar e-Sign, or (in the District Courts) an OTP to the person's mobile phone.", "quote": "for the District Courts a litigant in person or advocate who does not possess a digital signature", "ref": "e-Filing Rules, rule 7.3" }
+      ]
+    },
+    {
+      "key": "rules.civil_practice_part_a",
+      "kind": "rules",
+      "title": "Rules and Orders, Vol. I, Ch. 1, Part A: court hours, holidays and cause lists",
+      "needs": { "caseTypes": ["CS", "Civil suit"], "practice": ["civil"] },
+      "source": "dhc.ro.v1c1",
+      "extract": { "start": "Court Hours, Holidays and Cause Lists", "end": "Part B" }
+    }
+  ],
+  "formatChecks": [
+    { "key": "dj.size", "title": "E-file of at most 20 MB (District Courts)", "check": "pdf_max_mb", "value": 20, "source": "dhc.efiling.rules", "quote": "maximum size of the e-file is fixed at 100 MB for the High Court and 20 MB for the District Court", "ref": "e-Filing Rules, rule 3.4" },
+    { "key": "dj.searchable", "title": "OCR-searchable text on every page", "check": "pdf_searchable", "source": "dhc.efiling.rules", "quote": "should be merged as a single OCR searchable PDF file", "ref": "e-Filing Rules, rules 6.2 and 8.1" },
+    { "key": "dj.a4", "title": "A4 pages", "check": "pdf_page_size", "value": "A4", "source": "dhc.efiling.rules", "quote": "Paper size : A-4 (29.7 cm x 21 cm)", "ref": "e-Filing Rules, rule 6.1" }
+  ],
+  "defects": [],
+  "proceedings": []
+}

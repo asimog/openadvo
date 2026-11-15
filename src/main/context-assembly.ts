@@ -39,6 +39,8 @@ export interface RetrievalDeps {
   ensureFind(): Promise<void>;
   /** The matter memory text. */
   memory(): Promise<string>;
+  /** The court's rules for the matter's filing (phase 2), when the application has them. */
+  rules?(): Promise<Array<{ id: string; label: string; text: string; anchors: string[]; stale: boolean; verified: boolean }>>;
 }
 
 export async function retrieve(deps: RetrievalDeps, kinds: readonly ContextKind[], request: string, pinned: string[]): Promise<ContextItem[]> {
@@ -149,6 +151,12 @@ export async function retrieve(deps: RetrievalDeps, kinds: readonly ContextKind[
   if (want.has("drafts")) {
     for (const d of drafts) {
       items.push({ id: d.id, kind: "draft", label: d.title, text: `Draft ${d.title} (${d.kind}): ${d.revisionCount} revision${d.revisionCount === 1 ? "" : "s"}${d.approved ? ", approved" : ", not approved"}. Read it with read_draft.`, anchors: [d.id], matterId, relevance: 0.6, date: d.head?.createdAt ?? null, provenance: "matter drafts" });
+    }
+  }
+
+  if (want.has("rules") && deps.rules) {
+    for (const r of await deps.rules()) {
+      items.push({ id: r.id, kind: "rule", label: r.label, text: r.text, anchors: r.anchors, matterId, relevance: 0.7, stale: r.stale, verification: r.verified ? "verified" : "unverified", provenance: "the court's rules, from its adapter" });
     }
   }
 

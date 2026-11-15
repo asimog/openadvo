@@ -34,7 +34,7 @@ function skillFile(dir: string, folder: string, text: string) {
   writeFileSync(path.join(dir, folder, "SKILL.md"), text);
 }
 
-async function fixture(opts: { budget?: { budgetTokens: number | null; usedTokens: number }; issues?: string[] } = {}) {
+async function fixture(opts: { budget?: { budgetTokens: number | null; usedTokens: number }; issues?: string[]; forum?: string | null } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), "oa-runner-"));
   const store = await MatterStore.create(path.join(root, "matters"), "Runner v. Test", { actor: "advocate" });
   const file = path.join(root, "Order.txt");
@@ -43,6 +43,7 @@ async function fixture(opts: { budget?: { budgetTokens: number | null; usedToken
   const sourceId = added.source!.id;
   const skills = path.join(root, "skills");
   skillFile(skills, "chronology", "---\nname: test-chronology\nid: SK-900\nversion: 0.1.0\ntitle: Test chronology\ndescription: Lists dates.\nrole: chronology\noutput: list\nrequired_context: [sources]\npermitted_tools: [list_sources, list_events]\nchecks: [schema, anchors, p3_dates]\n---\nList the dates with anchors.\n");
+  skillFile(skills, "sc-only", "---\nname: test-sc-only\nid: SK-902\nversion: 0.1.0\ntitle: SC only\ndescription: For the Supreme Court.\nrole: chronology\noutput: list\ncourts: [in.sc]\nrequired_context: [rules]\npermitted_tools: [list_sources]\n---\nWork.\n");
   skillFile(skills, "issues", "---\nname: test-issues\nid: SK-901\nversion: 0.1.0\ntitle: Test issues\ndescription: Proposes issues.\nrole: strategy\noutput: list\nrequired_context: [sources, issues]\npermitted_tools: [list_sources, propose_issue]\napproval_points: [before_write]\n---\nPropose the issues.\n");
   const registry = new SkillRegistry({ builtIn: path.join(root, "none"), advocate: skills }, AGENT_TOOLS);
   const issues: string[] = opts.issues ?? [];
@@ -53,7 +54,13 @@ async function fixture(opts: { budget?: { budgetTokens: number | null; usedToken
       notebook: async () => store.notebook(),
       policy: async () => opts.budget ?? { budgetTokens: null, usedTokens: 0 },
       work: { proposeIssue: async (_m: string, text: string) => (issues.push(text), "Recorded as a candidate issue.") } as never,
-      harness: { registry: (fresh) => registry.get(fresh === true), store: async () => store, ensureFind: async () => undefined },
+      harness: {
+        registry: (fresh) => registry.get(fresh === true),
+        store: async () => store,
+        ensureFind: async () => undefined,
+        rules: async () => [{ id: "rule-1", label: "Filing a petition, item 1", text: "An affidavit supports the petition (Order V rule 1)", anchors: ["rule-1"], stale: true, verified: true }],
+        forumRefusal: async (_m, courts) => (opts.forum === undefined ? null : opts.forum === null ? null : courts.includes(opts.forum) ? null : `This skill is for ${courts.join(", ")}; the matter's court is ${opts.forum}.`),
+      },
     },
   });
   const cards = () =>
@@ -293,5 +300,39 @@ test("a / command calls the skill through the Matter Agent; an unknown skill is 
     assert.equal(f.store.skillRuns().length, 0);
   } finally {
     await f.close();
+  }
+});
+
+test("D5: a skill for named courts is refused in a matter of another court; in its own court it gets the court's rules with their flags", async () => {
+  const f = await fixture({ forum: "in.hc.delhi" });
+  try {
+    await f.agent.getChat(MATTER);
+    f.core.setResponses(router((_c, n) => (n === 0 ? fauxAssistantMessage([fauxToolCall("run_skill", { skill: "SK-902", request: "x", reason: "y" })], { stopReason: "toolUse" }) : fauxAssistantMessage("ok")), () => fauxAssistantMessage("never")));
+    await f.agent.send(MATTER, "go");
+    const [run] = f.store.skillRuns();
+    assert.equal(run.state, "refused");
+    assert.match(run.report!.reason, /Wrong jurisdiction: This skill is for in.sc; the matter's court is in.hc.delhi/);
+  } finally {
+    await f.close();
+  }
+  const g = await fixture({ forum: "in.sc" });
+  try {
+    await g.agent.getChat(MATTER);
+    let saw = "";
+    g.core.setResponses(
+      router(
+        (_c, n) => (n === 0 ? fauxAssistantMessage([fauxToolCall("run_skill", { skill: "SK-902", request: "x", reason: "y" })], { stopReason: "toolUse" }) : fauxAssistantMessage("ok")),
+        (c) => {
+          saw = JSON.stringify(c.messages);
+          return fauxAssistantMessage(json({ items: [] }));
+        },
+      ),
+    );
+    await g.agent.send(MATTER, "go");
+    assert.equal(g.store.skillRuns()[0].state, "done");
+    assert.match(saw, /An affidavit supports the petition/);
+    assert.match(saw, /flags=\\"stale\\"/);
+  } finally {
+    await g.close();
   }
 });

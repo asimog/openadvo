@@ -263,3 +263,16 @@ export async function processSource(bytes: Uint8Array, mediaType: string, onPage
   }
   throw new Error(`not supported: ${mediaType}`);
 }
+
+/** B13: whether a PDF has bookmarks (an outline). */
+export async function pdfHasOutline(bytes: Uint8Array): Promise<boolean> {
+  const lib = await pdfjs();
+  const task = lib.getDocument({ data: bytes.slice(), useSystemFonts: false, verbosity: 0 });
+  try {
+    const doc = await task.promise;
+    const outline = await doc.getOutline();
+    return Array.isArray(outline) && outline.length > 0;
+  } finally {
+    await task.destroy();
+  }
+}

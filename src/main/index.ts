@@ -40,6 +40,8 @@ import { Mail, type MailAccount } from "./mail.ts";
 import { agentWorkHost } from "./agent-work.ts";
 import { SkillRegistry } from "./skills.ts";
 import { registerHarnessBridge } from "./harness-bridge.ts";
+import { registerIntelBridge } from "./intel-bridge.ts";
+import { CourtIntel } from "./court-intel.ts";
 import { AdvocateStore } from "../lib/advocate-store/index.ts";
 import { IntelStore } from "../lib/intel-store/index.ts";
 import { searchCitationIndex, ulosPaths, type UlosPaths } from "../lib/ulos/index.ts";
@@ -82,6 +84,8 @@ let studio: ArgumentStudio;
 let advocateStore: AdvocateStore;
 let intelStore: IntelStore;
 let skillRegistry: SkillRegistry;
+/** Phase 2: the court adapter framework. */
+let courtIntel: CourtIntel;
 
 /** Steps 6 to 10 notify the window that a matter changed (a capture, a proposal). */
 function matterChanged(matterId: string): void {
@@ -971,6 +975,15 @@ app.whenReady().then(() => {
   recordTables = new RecordTables(matters);
   advocateStore = AdvocateStore.open(app.getPath("userData"));
   intelStore = IntelStore.open(app.getPath("userData"));
+  courtIntel = new CourtIntel({
+    intel: intelStore,
+    advocate: advocateStore,
+    store: (id) => matters.store(id),
+    filingFiles: (id) => filing.files(id),
+    dirs: { builtIn: path.join(app.getAppPath(), "adapters"), vendored: path.join(resourcesRoot(), "adapters"), advocate: path.join(app.getPath("userData"), "adapters") },
+    docsDir: path.join(app.getPath("userData"), "intel", "docs"),
+  });
+  filing.courtRules = (id) => courtIntel.compliance(id);
   skillRegistry = new SkillRegistry({ builtIn: path.join(app.getAppPath(), "skills"), advocate: path.join(app.getPath("userData"), "skills") }, AGENT_TOOLS);
   agent = new Agent(
     {
@@ -1037,6 +1050,8 @@ app.whenReady().then(() => {
         registry: (fresh) => skillRegistry.get(fresh === true),
         store: (id) => matters.store(id),
         ensureFind: (id) => ensureFindIndex(matters, id),
+        rules: (id) => courtIntel.rulesContext(id),
+        forumRefusal: (id, courts) => courtIntel.forumRefusal(id, courts),
       },
       firm: {
         matters: () => docket(matters, progress),
@@ -1050,6 +1065,7 @@ app.whenReady().then(() => {
   );
   ingest = new Ingest(matters, (matterId) => window?.webContents.send("ingest:update", matterId));
   registerBridge();
+  registerIntelBridge(handle, { intel: courtIntel, matters });
   registerHarnessBridge(handle, { matters, agent, progress, skills: skillRegistry, advocate: advocateStore, intel: intelStore, corpus: () => hub?.corpus ?? null });
   exposeTestHooks();
   createWindow();

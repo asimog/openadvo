@@ -14,7 +14,7 @@ export const QUESTION_TYPES = ["law", "happened", "agreed", "client_wants", "cou
 export type QuestionType = (typeof QUESTION_TYPES)[number];
 
 /** The kinds of record a skill can ask the package for. */
-export const CONTEXT_KINDS = ["sources", "lines", "events", "conflicts", "issues", "authorities", "drafts", "memory"] as const;
+export const CONTEXT_KINDS = ["sources", "lines", "events", "conflicts", "issues", "authorities", "drafts", "memory", "rules"] as const;
 export type ContextKind = (typeof CONTEXT_KINDS)[number];
 
 /** Checks the gate can run in phase 1. Any other name reports "not available yet". */

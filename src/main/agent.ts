@@ -201,6 +201,10 @@ export interface HarnessHost {
   registry(fresh?: boolean): Registry;
   store(matterId: string): Promise<MatterStore>;
   ensureFind(matterId: string): Promise<void>;
+  /** Phase 2: the court's rules for the matter's filing, as context items. */
+  rules?(matterId: string): Promise<Array<{ id: string; label: string; text: string; anchors: string[]; stale: boolean; verified: boolean }>>;
+  /** D5: why a skill naming these courts may not run in this matter, or null. */
+  forumRefusal?(matterId: string, courts: readonly string[]): Promise<string | null>;
 }
 
 export interface AgentWorkHost {
@@ -1754,6 +1758,8 @@ export class Agent {
           store: () => harness.store(matterId),
           ensureFind: () => harness.ensureFind(matterId),
           memory: () => host.readMemory(matterId),
+          rules: harness.rules ? () => harness.rules!(matterId) : undefined,
+          forumRefusal: harness.forumRefusal ? (courts) => harness.forumRefusal!(matterId, courts) : undefined,
           createSession: (input) => this.skillSession(sessionRef.s, input),
           ask: askAdvocate,
           notice: (line) => notice(line),

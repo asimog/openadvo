@@ -8,7 +8,7 @@
 import { createHash } from "node:crypto";
 import type { ContextPackageRecord, PackageExclusion, PackageItemRecord, PackageType, QuestionType } from "../../shared/skills.ts";
 
-export type ItemKind = "source" | "line" | "event" | "conflict" | "issue" | "authority" | "draft" | "memory" | "pinned";
+export type ItemKind = "source" | "line" | "event" | "conflict" | "issue" | "authority" | "draft" | "memory" | "pinned" | "rule";
 
 export interface ContextItem {
   id: string;
@@ -43,11 +43,11 @@ export interface ContextItem {
  * events, then the parties' statements. What the client wants: the dated instructions.
  */
 export const RANK_POLICY: Record<QuestionType, ItemKind[]> = {
-  law: ["pinned", "authority", "issue", "memory", "draft", "line", "event", "conflict", "source"],
-  happened: ["pinned", "line", "source", "event", "conflict", "issue", "draft", "authority", "memory"],
-  agreed: ["pinned", "line", "source", "event", "memory", "conflict", "issue", "draft", "authority"],
-  client_wants: ["pinned", "memory", "line", "event", "issue", "draft", "source", "conflict", "authority"],
-  court_directed: ["pinned", "line", "source", "event", "issue", "draft", "conflict", "memory", "authority"],
+  law: ["pinned", "authority", "rule", "issue", "memory", "draft", "line", "event", "conflict", "source"],
+  happened: ["pinned", "line", "source", "event", "conflict", "issue", "draft", "rule", "authority", "memory"],
+  agreed: ["pinned", "line", "source", "event", "memory", "conflict", "issue", "draft", "rule", "authority"],
+  client_wants: ["pinned", "memory", "line", "event", "issue", "draft", "source", "conflict", "rule", "authority"],
+  court_directed: ["pinned", "rule", "line", "source", "event", "issue", "draft", "conflict", "memory", "authority"],
 };
 
 const QUESTION_WORDS: Array<[QuestionType, RegExp]> = [

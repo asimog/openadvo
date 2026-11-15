@@ -40,6 +40,10 @@ export interface SkillRunnerDeps {
   store(): Promise<MatterStore>;
   ensureFind(): Promise<void>;
   memory(): Promise<string>;
+  /** Phase 2: the court's rules for the matter's filing, as context items. */
+  rules?(): ReturnType<NonNullable<import("./context-assembly.ts").RetrievalDeps["rules"]>>;
+  /** D5: why a skill naming these courts may not run in this matter, or null. */
+  forumRefusal?(courts: readonly string[]): Promise<string | null>;
   /** A session in `sessionDir` with this prompt and these tools; `resume` continues the newest file there. */
   createSession(input: { prompt: string; tools: ToolDefinition[]; sessionDir: string; resume: boolean }): Promise<AgentSession>;
   /** An approval card (O8). True when the advocate allows. */
@@ -156,6 +160,9 @@ export class SkillRunner {
     try {
       // Refusals before any work.
       if (this.deps.plan()?.approval === "pending") return await end("refused", "The plan waits for the advocate's approval. No skill runs until the advocate approves it.");
+      // D5: a skill for named courts stops when the matter's court is not one of them or has no adapter.
+      const wrongForum = skill.courts.length ? ((await this.deps.forumRefusal?.(skill.courts)) ?? null) : null;
+      if (wrongForum) return await end("refused", `Wrong jurisdiction: ${wrongForum}`);
       const pol = await this.deps.budget();
       if (pol.budgetTokens != null && pol.usedTokens >= pol.budgetTokens) return await end("refused", `The matter's budget of ${pol.budgetTokens} tokens is used (${pol.usedTokens}).`);
       if (!resumed && skill.approvalPoints.includes("before_start")) {
@@ -167,7 +174,7 @@ export class SkillRunner {
       const budget = skill.budgetTokens ?? this.limits.defaultBudget;
       const packageBudget = Math.floor(budget * this.limits.packageShare);
       let record: ContextPackageRecord;
-      const items = await retrieve({ matterId: this.deps.matterId, store, ensureFind: this.deps.ensureFind, memory: this.deps.memory }, skill.requiredContext, request, input.pinned);
+      const items = await retrieve({ matterId: this.deps.matterId, store, ensureFind: this.deps.ensureFind, memory: this.deps.memory, rules: this.deps.rules }, skill.requiredContext, request, input.pinned);
       const pkg: BuiltPackage = buildPackage({ matterId: this.deps.matterId, skillId: skill.id, skillVersion: skill.version, packageType: skill.packageType, questionType: skill.questionType, request, budget: packageBudget, items });
       const earlier = resumed?.packageId ? store.contextPackage(resumed.packageId) : store.packageByHash(pkg.record.hash);
       if (earlier) {

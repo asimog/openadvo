@@ -16,6 +16,8 @@ import { STUDIO_SCHEMA, StudioStore } from "./studio.ts";
 import { NOTEBOOK2_SCHEMA, addCorrection, dateAnchor, decideDispute, insertDispute, listCorrections, listDisputes, type EventCorrection, type OcrDispute } from "./notebook2.ts";
 import { AUTHORITY2_SCHEMA } from "./authority2.ts";
 import { PRACTICE_SCHEMA, addHearing, addParty, addReminder, hearings, markImpactChecked, parties, policy, reminders, setPolicy, setReminderStatus, type Hearing, type Party, type Policy, type Reminder } from "./practice.ts";
+import { FILING_CHECKS_SCHEMA, checkStates, defects as listDefects, setCheck, setTarget, target as filingTarget } from "./filing-checks.ts";
+import type { CheckState, DefectRow, FilingTarget } from "../../shared/intel.ts";
 import { SKILL_RUN_SCHEMA, insertPackage, listRuns, packageById, packageByHash, runById } from "./skill-runs.ts";
 import type { ContextPackageRecord, ReportCard, RunState, SkillRunRecord } from "../../shared/skills.ts";
 import { AUDIT_SCHEMA, addRefusal, eventHash, find, findIndexSeq, inspect, listRefusals, replaceFindIndex, verifyChain, type ChainCheck, type FindHit, type FindRow, type Inspection, type Refusal } from "./audit.ts";
@@ -327,6 +329,7 @@ export class MatterStore {
     db.exec(AUTHORITY2_SCHEMA);
     db.exec(PRACTICE_SCHEMA);
     db.exec(SKILL_RUN_SCHEMA);
+    db.exec(FILING_CHECKS_SCHEMA);
     // V5-1: the event chain. Events written before v5 have no hash and start the record.
     const ev = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'event'").get() as { sql?: string } | undefined;
     if (ev?.sql && !ev.sql.includes("prev_hash")) {
@@ -687,6 +690,61 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
       cost += Number(d.cost ?? 0);
     }
     return { runs: rows.length, tokens, cost: Math.round(cost * 10000) / 10000 };
+  }
+
+  // ---- Phase 2 (B11, B14): the filing target, the checklist states and the defects ----
+
+  filingTarget(): FilingTarget | null {
+    return filingTarget(this.db);
+  }
+
+  /** Human-only: the court (a directory id) and the case type of the matter's filing. */
+  setFilingTarget(t: Omit<FilingTarget, "setAt">, ctx: WriteContext): FilingTarget {
+    this.human(ctx, "sets the court and case type of the filing");
+    if (!/^[a-z0-9.-]{2,80}$/.test(t.court)) throw new MatterStoreError("BAD_COURT", `not a court of the directory: ${t.court}`);
+    const caseType = t.caseType.trim();
+    if (!caseType) throw new MatterStoreError("BAD_CASE_TYPE", "give the case type");
+    setTarget(this.db, { ...t, caseType });
+    this.appendEvent(ctx, "filing_target.set", null, { court: t.court, caseType, list: t.listKey, adapter: t.adapterId });
+    return filingTarget(this.db)!;
+  }
+
+  checklistStates(listIds: string[]): Map<string, { state: CheckState; note: string; decidedAt: string }> {
+    return checkStates(this.db, listIds);
+  }
+
+  /** Human-only: tick, untick or mark not applicable one checklist item. */
+  setChecklistItem(listId: string, itemId: string, state: CheckState, note: string, ctx: WriteContext): void {
+    this.human(ctx, "ticks a checklist item");
+    if (!["open", "done", "not_applicable"].includes(state)) throw new MatterStoreError("BAD_STATE", "open, done or not_applicable");
+    if (state === "not_applicable" && !note.trim()) throw new MatterStoreError("NOTE_NEEDED", "say why the item does not apply");
+    setCheck(this.db, listId, itemId, state, note.trim());
+    this.appendEvent(ctx, "checklist_item.set", itemId, { list: listId, state });
+  }
+
+  defects(): DefectRow[] {
+    return listDefects(this.db);
+  }
+
+  /** B14: the registry's defects, as the advocate pasted them; each matched to a defect class or not. */
+  addDefects(rows: Array<{ text: string; classKey: string | null; classTitle: string | null; step: string | null }>, ctx: WriteContext): DefectRow[] {
+    this.human(ctx, "records the registry's defects");
+    const at = now();
+    for (const r of rows) {
+      const id = randomUUID();
+      this.db.prepare("INSERT INTO defect (id, text, class_key, class_title, step, state, created_at, cured_at) VALUES (?, ?, ?, ?, ?, 'open', ?, NULL)").run(id, r.text.slice(0, 2000), r.classKey, r.classTitle, r.step, at);
+      this.appendEvent(ctx, "defect.recorded", id, { class: r.classKey });
+    }
+    return listDefects(this.db);
+  }
+
+  /** Human-only: a defect is cured, or open again. */
+  setDefect(id: string, cured: boolean, ctx: WriteContext): DefectRow[] {
+    this.human(ctx, "marks a defect cured");
+    const r = this.db.prepare("UPDATE defect SET state = ?, cured_at = ? WHERE id = ?").run(cured ? "cured" : "open", cured ? now() : null, id);
+    if (!r.changes) throw new MatterStoreError("NOT_FOUND", `no defect ${id}`);
+    this.appendEvent(ctx, cured ? "defect.cured" : "defect.reopened", id, null);
+    return listDefects(this.db);
   }
 
   // ---- Phase 1 (N2, I1, O3): skill runs and their context packages ----

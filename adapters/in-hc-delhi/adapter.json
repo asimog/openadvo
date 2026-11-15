@@ -1,0 +1,89 @@
+{
+  "id": "in-hc-delhi",
+  "version": "1.0.0",
+  "title": "High Court of Delhi",
+  "courts": ["in.hc.delhi"],
+  "author": "built-in",
+  "review": "not reviewed: each quote was read in the Delhi High Court's e-filing rules and its practice direction No. 74/Rules/DHC on 2026-11-16; the advocate checks each list",
+  "hosts": ["delhihighcourt.nic.in", "dhcefiling.nic.in"],
+  "general": {
+    "website": "https://delhihighcourt.nic.in/",
+    "courtRules": "https://delhihighcourt.nic.in/web/court-rules",
+    "practiceDirections": "https://delhihighcourt.nic.in/web/notifications-practice-directions",
+    "efilingRules": "https://delhihighcourt.nic.in/web/e-filing",
+    "efiling": "https://dhcefiling.nic.in/eFiling/"
+  },
+  "sources": [
+    {
+      "key": "dhc.efiling.rules",
+      "title": "Rules for On-line Electronic Filing (e-Filing)",
+      "kind": "rules",
+      "owner": "High Court of Delhi",
+      "checkDays": 60,
+      "reliability": "official",
+      "locate": { "index": "https://delhihighcourt.nic.in/web/e-filing", "linkText": "Rules For On-line Electronic Filing" },
+      "url": "https://delhihighcourt.nic.in/web/sites/default/files/efiling/NotificationFile_X74GTJ7YAKY.pdf"
+    },
+    {
+      "key": "dhc.pd.a4",
+      "title": "Practice directions: use of A4 size paper",
+      "kind": "practice_direction",
+      "owner": "High Court of Delhi",
+      "checkDays": 90,
+      "reliability": "official",
+      "locate": { "index": "https://delhihighcourt.nic.in/web/e-filing", "linkText": "Use of A4 size paper uniformly" },
+      "url": "https://delhihighcourt.nic.in/web/sites/default/files/efiling/PRACTICE_DIRECTIONS.pdf"
+    }
+  ],
+  "lists": [
+    {
+      "key": "filing.efiling_format",
+      "kind": "checklist",
+      "title": "E-filing format: every case type",
+      "needs": { "caseTypes": ["*"] },
+      "source": "dhc.efiling.rules",
+      "items": [
+        { "text": "Paper size A4 (29.7 cm x 21 cm); margins 2 cm top and bottom, 4 cm left and right; justified.", "quote": "Paper size : A-4 (29.7 cm x 21 cm)", "ref": "e-Filing Rules, rule 6.1" },
+        { "text": "Font Times New Roman, size 14, line spacing 1.5; quotations and indents size 12 in single spacing.", "quote": "for quotations and indents font size 12 in single line spacing", "ref": "e-Filing Rules, rule 6.1" },
+        { "text": "Typed documents are converted into OCR-searchable PDF or PDF/A; PDF/A is preferred.", "quote": "converted into Optical Character Recognition (OCR) searchable Portable Document Format (PDF) or PDF/A", "ref": "e-Filing Rules, rule 6.2" },
+        { "text": "Documents that are not text are scanned at 300 DPI in OCR-searchable mode.", "quote": "scanned using an image resolution of 300 DPI (Dots per inch) in OCR searchable mode", "ref": "e-Filing Rules, rule 6.3" },
+        { "text": "The PDF is digitally signed by the party or the advocate (or e-Sign; else a signed print-out is scanned).", "quote": "The PDF document shall be digitally signed either by the parties and/or by their Advocate", "ref": "e-Filing Rules, rule 7.1" },
+        { "text": "Text and scanned documents are merged into one OCR-searchable PDF, bookmarked as per the Master Index.", "quote": "merged as a single OCR searchable PDF file and should be book-marked as per the Master Index", "ref": "e-Filing Rules, rule 8.1" },
+        { "text": "The e-file is at most 100 MB for the High Court; a larger file goes through a Designated Centre.", "quote": "maximum size of the e-file is fixed at 100 MB for the High Court", "ref": "e-Filing Rules, rule 3.4" }
+      ]
+    },
+    {
+      "key": "filing.paper",
+      "kind": "checklist",
+      "title": "Paper filing: A4 practice direction",
+      "needs": { "caseTypes": ["*"] },
+      "source": "dhc.pd.a4",
+      "items": [
+        { "text": "A4 paper of not less than 75 GSM is used for all pleadings, affidavits, applications and memoranda of appeal.", "quote": "A4 size paper (29.7 cm X 21 cm) having not less than 75 GSM", "ref": "Practice Directions No. 74/Rules/DHC, 16.03.2021" },
+        { "text": "Printing is on one side of the paper.", "quote": "The printing / typing shall be on one side of the paper till further directions", "ref": "Practice Directions No. 74/Rules/DHC, 16.03.2021" }
+      ]
+    }
+  ],
+  "formatChecks": [
+    { "key": "dhc.size", "title": "E-file of at most 100 MB (High Court)", "check": "pdf_max_mb", "value": 100, "source": "dhc.efiling.rules", "quote": "maximum size of the e-file is fixed at 100 MB for the High Court", "ref": "e-Filing Rules, rule 3.4" },
+    { "key": "dhc.searchable", "title": "OCR-searchable text on every page", "check": "pdf_searchable", "source": "dhc.efiling.rules", "quote": "should be merged as a single OCR searchable PDF file", "ref": "e-Filing Rules, rules 6.2 and 8.1" },
+    { "key": "dhc.bookmarks", "title": "Bookmarked as per the Master Index", "check": "pdf_bookmarks", "source": "dhc.efiling.rules", "quote": "should be book-marked as per the Master Index", "ref": "e-Filing Rules, rule 8.1" },
+    { "key": "dhc.a4", "title": "A4 pages", "check": "pdf_page_size", "value": "A4", "source": "dhc.efiling.rules", "quote": "Paper size : A-4 (29.7 cm x 21 cm)", "ref": "e-Filing Rules, rule 6.1" },
+    { "key": "dhc.pdfa", "title": "PDF/A (preferred, not required)", "check": "pdf_a", "source": "dhc.efiling.rules", "quote": "PDF/A is the preferred format", "ref": "e-Filing Rules, rule 6.2" }
+  ],
+  "defects": [],
+  "proceedings": [
+    {
+      "key": "dhc.wp_civil",
+      "title": "Writ petition (civil)",
+      "court": "in.hc.delhi",
+      "caseType": "W.P.(C)",
+      "provisions": ["Article 226 of the Constitution"],
+      "requiredParts": ["Memo of parties", "Writ petition", "Affidavit", "Annexures", "Vakalatnama"],
+      "checklist": "filing.efiling_format",
+      "stages": ["Instruction", "Drafting", "Filed", "Defects cured", "Listed", "Notice issued", "Decided"],
+      "intakeQuestions": ["What action or order is challenged, and by which authority?", "Is there an alternative remedy, and was it used?", "Is interim relief needed?"],
+      "skills": ["SK-027"]
+    }
+  ]
+}
