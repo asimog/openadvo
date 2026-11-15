@@ -809,6 +809,7 @@ export class Agent {
       const chat = await old.catch(() => null);
       if (chat?.state.busy) throw new Error("CHAT_BUSY: wait for the agent's answer first");
       if (chat) {
+        await chat.helpers.stopAll().catch(() => 0);
         chat.questions.cancelAll();
         chat.unlisten();
         await closeSession(chat.session, "new");
@@ -2016,6 +2017,7 @@ export class Agent {
       try {
         const chat = await pending;
         if (chat.state.busy) continue;
+        await chat.helpers.stopAll().catch(() => 0);
         chat.questions.cancelAll();
         chat.unlisten();
         await closeSession(chat.session, "reload");
