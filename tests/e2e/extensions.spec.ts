@@ -1,10 +1,9 @@
 /**
  * The extension system in the window, after the native rebuild (docs/specs/native-harness-parts.md):
  * the placeholder is listed and turns off and on; its command shows a notice; its question is
- * answered in the chat (H-12); and Settings → Tool permissions saves a rule to the policy file.
+ * answered in the chat (H-12). Settings → Tool permissions is tested in native-policy.spec.ts.
  */
 import { test, expect, _electron as electron } from "@playwright/test";
-import { existsSync, readFileSync } from "node:fs";
 import { mkdtemp, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -38,36 +37,8 @@ async function notices(page: Awaited<ReturnType<typeof launch>>["page"], matterI
   return chat.messages.filter((x: any) => x.role === "notice").map((x: any) => x.text);
 }
 
-test("Settings lists the placeholder extension, which turns off and on, and saves a tool permission", async () => {
+test("H-12: the placeholder's command and its question work in the chat; Stop closes a waiting question; Settings lists the placeholder, which turns off and on", async () => {
   const { app, page, userData } = await launch();
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
-  await page.getByRole("button", { name: "Pi extensions", exact: true }).click();
-  const panel = page.getByTestId("pi-extensions");
-  await expect(panel.getByTestId("pi-extension-openadvo-placeholder")).toBeVisible();
-  const box = panel.getByTestId("pi-extension-openadvo-placeholder").getByRole("checkbox");
-  await expect(box).toBeChecked();
-  await box.click();
-  await expect(box).not.toBeChecked();
-  await box.click();
-  await expect(box).toBeChecked();
-  expect((await page.evaluate(() => (globalThis as any).openadvo.listExtensions())).map((x: any) => x.id)).toEqual(["openadvo-placeholder"]);
-
-  // Tool permissions: the policy file is in user data; a rule chosen in the window is saved there.
-  await page.getByRole("button", { name: "Tool permissions", exact: true }).click();
-  const policyFile = path.join(userData, "tool-policy.json");
-  expect(existsSync(policyFile)).toBe(true);
-  const perms = page.getByTestId("tool-permissions");
-  await expect(perms.getByTestId("tool-rule-web_search")).toBeVisible();
-  await perms.getByLabel("Rule for Web search").selectOption("ask");
-  await expect(perms).toContainText("Saved.");
-  expect(JSON.parse(readFileSync(policyFile, "utf8")).tools).toEqual({ web_search: "ask" });
-  await page.screenshot({ path: path.join(repo, "test-results", "tool-permissions.png") });
-  expect(await app.evaluate(() => process.env.PI_CODING_AGENT_DIR)).toBe(path.join(userData, "pi-agent"));
-  await app.close();
-});
-
-test("H-12: the placeholder's command and its question work in the chat; Stop closes a waiting question", async () => {
-  const { app, page } = await launch();
   const matterId = await newMatter(app, page, "Extension questions");
   const card = page.getByTestId("extension-question");
   const send = (text: string) => page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [matterId, text]);
@@ -109,5 +80,21 @@ test("H-12: the placeholder's command and its question work in the chat; Stop cl
   await expect(card).toHaveCount(0);
   await expect(page.getByText("Working…")).toHaveCount(0);
   expect((await notices(page, matterId)).filter((t) => t === "Placeholder: you answered yes.")).toHaveLength(1);
+
+  // Settings lists the placeholder extension, which turns off and on; Pi's agent folder is in user data.
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: "Pi extensions", exact: true }).click();
+  const panel_2 = page.getByTestId("pi-extensions");
+  await expect(panel_2.getByTestId("pi-extension-openadvo-placeholder")).toBeVisible();
+  const box = panel_2.getByTestId("pi-extension-openadvo-placeholder").getByRole("checkbox");
+  await expect(box).toBeChecked();
+  await box.click();
+  await expect(box).not.toBeChecked();
+  await box.click();
+  await expect(box).toBeChecked();
+  expect((await page.evaluate(() => (globalThis as any).openadvo.listExtensions())).map((x: any) => x.id)).toEqual(["openadvo-placeholder"]);
+
+  // Settings → Tool permissions is tested in native-policy.spec.ts.
+  expect(await app.evaluate(() => process.env.PI_CODING_AGENT_DIR)).toBe(path.join(userData, "pi-agent"));
   await app.close();
 });

@@ -181,7 +181,7 @@ test("the window: chat landing page, side navigation that hides, chat docked lef
   await app.close();
 });
 
-test("the renderer has no file or Node access; the bridge exposes only named functions", async () => {
+test("the renderer has no file or Node access; the bridge exposes only named functions; the agent session has our tools, no built-in Pi tool, and its id is recorded", async () => {
   const dirs = await makeDirs();
   const { app, page } = await launch(dirs);
   const probe = await page.evaluate(() => ({
@@ -239,12 +239,8 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
       "jurisdictionGet", "jurisdictionSet", "forumClauses", "timeline", "relatedSuggestions", "recordTemplates", "applyRecordTemplate",
     ].sort(),
   );
-  await app.close();
-});
 
-test("the agent session has our tools, no built-in Pi tool, and its id is recorded", async () => {
-  const dirs = await makeDirs();
-  const { app, page } = await launch(dirs);
+  // The agent session of a new matter.
   await createMatter(page, "Tool allowlist");
   const id = await matterId(app);
   const tools: string[] = await app.evaluate((_e, m) => (globalThis as any).__openadvoTest.agentToolNames(m), id);

@@ -81,7 +81,7 @@ test.afterAll(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 
-test("S10: the browser sits on the right, with tabs, a bookmark and a new-tab page", async () => {
+test("S10: the browser sits on the right, with tabs, a bookmark and a new-tab page; the agent drives a hidden page through the accessibility tree", async () => {
   const dirs = await makeDirs();
   const { app, page } = await launch(dirs);
   await createMatter(page, "Browser matter");
@@ -129,27 +129,34 @@ test("S10: the browser sits on the right, with tabs, a bookmark and a new-tab pa
   // A browser tab takes it back.
   await pane.getByTestId("browser-tab").first().click();
   await expect(pane.getByTestId("browser-bar")).toBeVisible();
+
+  // The agent drives a hidden browser page through the accessibility tree.
+  const id = await matterId(app);
+  const opened: string = await app.evaluate((_e, input) => (globalThis as any).__openadvoTest.callAgentTool(input.id, "browser_open", { url: input.url, visible: false }), { id, url: `${base}/one` });
+  expect(opened).toContain("hidden agent page");
+  const agentTab = (await browserState(app)).tabs.find((t) => t.agent)!;
+  expect(agentTab.id).toBeTruthy();
+  const snapshot: string = await app.evaluate((_e, input) => (globalThis as any).__openadvoTest.callAgentTool(input.id, "browser_snapshot", { tab_id: input.tabId }), { id, tabId: agentTab.id });
+  expect(snapshot).toContain("Welcome to page one");
+  const ref = /@(e\d+) link "Go to page two"/.exec(snapshot)?.[1];
+  if (ref) {
+    await app.evaluate((_e, input) => (globalThis as any).__openadvoTest.callAgentTool(input.id, "browser_click", { tab_id: input.tabId, ref: input.ref }), { id, tabId: agentTab.id, ref });
+    await expect.poll(async () => (await browserState(app)).tabs.find((t) => t.id === agentTab.id)?.url, { timeout: 15_000 }).toContain("/two");
+    const read: string = await app.evaluate((_e, input) => (globalThis as any).__openadvoTest.callAgentTool(input.id, "browser_read", { tab_id: input.tabId }), { id, tabId: agentTab.id });
+    expect(read).toContain("Welcome to page two");
+  }
+  const hand: string = await app.evaluate((_e, input) => (globalThis as any).__openadvoTest.callAgentTool(input.id, "browser_hand_to_advocate", { tab_id: input.tabId }), { id, tabId: agentTab.id });
+  expect(hand).toContain("visible tab");
   await app.close();
 });
 
-test("S10: Browser in the navigation opens the same tabs outside a matter", async () => {
+test("S10, A9: Browser in the navigation opens the browser outside a matter; the case list becomes matters with the CNR, court, parties, stage and next date", async () => {
   const dirs = await makeDirs();
   const { app, page } = await launch(dirs);
+  // Browser in the navigation opens the browser outside a matter.
   await page.getByTestId("nav-browser").click();
   const pane = page.getByTestId("browser-page");
   await expect(pane.getByTestId("browser-page-pane")).toBeVisible();
-  await expect(pane.getByTestId("browser-newtab")).toBeVisible();
-  await pane.locator('input[aria-label="Address"]').fill(`${base}/two`);
-  await pane.locator('input[aria-label="Address"]').press("Enter");
-  await waitForTitle(app, "/two", "Second page");
-  await app.close();
-});
-
-test("A9: the case list becomes matters with the CNR, court, parties, stage and next date", async () => {
-  const dirs = await makeDirs();
-  const { app, page } = await launch(dirs);
-  await page.getByTestId("titlebar-browser").click();
-  const pane = page.getByTestId("browser-page");
   await expect(pane.getByTestId("browser-newtab")).toBeVisible();
   await pane.locator('input[aria-label="Address"]').fill(`${base}/cases`);
   await pane.locator('input[aria-label="Address"]').press("Enter");
@@ -316,31 +323,6 @@ test("C2, H1, W4, R2: add a matter from a folder, a CNR and an email; Home shows
   await expect(page.getByTestId("home-dashboard")).toBeVisible();
   await expect(page.getByTestId("dash-matters")).toContainText("3");
   await expect(page.getByTestId("dash-updates")).toContainText("phase 9");
-  await app.close();
-});
-
-test("S10: the agent drives a browser page through the accessibility tree", async () => {
-  const dirs = await makeDirs();
-  const { app, page } = await launch(dirs);
-  await createMatter(page, "Agent browser");
-  const id = await matterId(app);
-  const opened: string = await app.evaluate((_e, input) => (globalThis as any).__openadvoTest.callAgentTool(input.id, "browser_open", { url: input.url, visible: false }), { id, url: `${base}/one` });
-  expect(opened).toContain("hidden agent page");
-  const state = await browserState(app);
-  const tab = state.tabs.find((t) => t.url.includes("/one"))!;
-  expect(tab.agent).toBe(true);
-  expect(tab.id).toBeTruthy();
-  const snapshot: string = await app.evaluate((_e, input) => (globalThis as any).__openadvoTest.callAgentTool(input.id, "browser_snapshot", { tab_id: input.tabId }), { id, tabId: tab.id });
-  expect(snapshot).toContain("Welcome to page one");
-  const ref = /@(e\d+) link "Go to page two"/.exec(snapshot)?.[1];
-  if (ref) {
-    await app.evaluate((_e, input) => (globalThis as any).__openadvoTest.callAgentTool(input.id, "browser_click", { tab_id: input.tabId, ref: input.ref }), { id, tabId: tab.id, ref });
-    await expect.poll(async () => (await browserState(app)).tabs.find((t) => t.id === tab.id)?.url, { timeout: 15_000 }).toContain("/two");
-    const read: string = await app.evaluate((_e, input) => (globalThis as any).__openadvoTest.callAgentTool(input.id, "browser_read", { tab_id: input.tabId }), { id, tabId: tab.id });
-    expect(read).toContain("Welcome to page two");
-  }
-  const hand: string = await app.evaluate((_e, input) => (globalThis as any).__openadvoTest.callAgentTool(input.id, "browser_hand_to_advocate", { tab_id: input.tabId }), { id, tabId: tab.id });
-  expect(hand).toContain("visible tab");
   await app.close();
 });
 

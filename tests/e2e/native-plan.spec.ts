@@ -30,7 +30,7 @@ async function newMatter(app: App, page: Page, title: string) {
   await page.getByLabel("Matter title").fill(title);
   await page.getByRole("button", { name: "Create matter" }).click();
   await expect(page.getByRole("heading", { level: 2, name: title })).toBeVisible();
-  return (await page.evaluate(async () => (await (globalThis as any).openadvo.listMatters()) as Array<{ id: string }>))[0].id;
+  return (await page.evaluate(async () => (await (globalThis as any).openadvo.listMatters()) as Array<{ id: string; title: string }>)).find((m) => m.title === title)!.id;
 }
 
 async function script(app: App, value: unknown) {
@@ -41,7 +41,7 @@ async function idle(page: Page, matterId: string) {
   await expect.poll(async () => (await page.evaluate((m) => (globalThis as any).openadvo.getChat(m), matterId)).busy, { timeout: 60000 }).toBe(false);
 }
 
-test("the plan panel shows statuses, dependencies and subtasks; it folds; Clear plan works", async () => {
+test("the plan panel shows statuses, dependencies and subtasks, folds and clears; the plan rules; the advocate adds an item; Settings sets the plan strength", async () => {
   const { app, page } = await launch();
   const matterId = await newMatter(app, page, "Plan panel");
   await script(app, {
@@ -86,12 +86,9 @@ test("the plan panel shows statuses, dependencies and subtasks; it folds; Clear 
   await panel.getByRole("button", { name: "Clear plan" }).click();
   await expect(page.getByTestId("plan-panel")).toHaveCount(0);
   await expect(page.getByTestId("status-line")).toHaveCount(0);
-  await app.close();
-});
 
-test("a dependency blocks a start, a subtask blocks done, and the advocate adds an item by typing", async () => {
-  const { app, page } = await launch();
-  const matterId = await newMatter(app, page, "Plan rules");
+  // A dependency blocks a start, a subtask blocks done, and the advocate adds an item by typing.
+  const rulesId = await newMatter(app, page, "Plan rules");
   await script(app, {
     agent: [
       {
@@ -111,10 +108,10 @@ test("a dependency blocks a start, a subtask blocks done, and the advocate adds 
       { text: "Set." },
     ],
   });
-  await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [matterId, "Plan."]);
-  await idle(page, matterId);
+  await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [rulesId, "Plan."]);
+  await idle(page, rulesId);
   const call = (name: string, params: Record<string, unknown>) =>
-    app.evaluate((_e, a) => (globalThis as any).__openadvoTest.callAgentTool(a.m, a.n, a.p), { m: matterId, n: name, p: params });
+    app.evaluate((_e, a) => (globalThis as any).__openadvoTest.callAgentTool(a.m, a.n, a.p), { m: rulesId, n: name, p: params });
   await expect(call("plan_update", { item: 2, status: "ongoing" })).rejects.toThrow(/waits for item 1 to be done/);
   await expect(call("plan_update", { item: 1, status: "done" })).rejects.toThrow(/open subtasks/);
   await call("plan_update", { item: 1, subtask: 1, subtask_done: true });
@@ -124,21 +121,18 @@ test("a dependency blocks a start, a subtask blocks done, and the advocate adds 
   await expect(page.getByTestId("plan-item-2")).toHaveAttribute("data-status", "ongoing");
 
   // The advocate types an item; it needs no model run.
-  await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [matterId, "add to the plan: Check Order XXII"]);
+  await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [rulesId, "add to the plan: Check Order XXII"]);
   await expect(page.getByTestId("plan-item-3")).toContainText("Check Order XXII");
   await expect(page.getByTestId("plan-item-3")).toContainText("added by the advocate");
-  await app.close();
-});
 
-test("Settings sets how strongly the agent is asked to keep a plan", async () => {
-  const { app, page } = await launch();
+  // Settings sets how strongly the agent is asked to keep a plan.
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("button", { name: "Plan", exact: true }).click();
-  const group = page.getByTestId("plan-strength");
-  await expect(group).toBeVisible();
-  await group.getByLabel("For most work: almost every task").check();
+  const group_2 = page.getByTestId("plan-strength");
+  await expect(group_2).toBeVisible();
+  await group_2.getByLabel("For most work: almost every task").check();
   expect(await page.evaluate(() => (globalThis as any).openadvo.getPlanStrength())).toBe("most");
-  await group.getByLabel("Only for long work: three or more steps").check();
+  await group_2.getByLabel("Only for long work: three or more steps").check();
   expect(await page.evaluate(() => (globalThis as any).openadvo.getPlanStrength())).toBe("long");
   await app.close();
 });

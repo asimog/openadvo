@@ -22,6 +22,7 @@ Write in Simplified Technical English (ASD-STE100): short sentences, one idea pe
 - Match evidence to the change. Verify the world, not the report: re-read the file or re-run the command. Report the commands you ran and their results, never "checks passed".
 - Session records, logs and reports go under `.agents/`. Record commands, results and evidence paths, not reasoning.
 - Do not copy secrets. Never copy credential files, `.env` files or installed agent data.
+- End-to-end tests run once, at the end of a phase. Between the specs and steps of a phase, run the type check and the unit tests only. See [docs/agent-guide.md](docs/agent-guide.md) section 8.4.
 - Automation never shows modal dialogs. Headless runs write errors to a log and exit non-zero.
 - Commit in small steps with clear messages. Push nothing unless the owner asks.
 

@@ -1,7 +1,8 @@
 /**
  * Native helpers in the window (docs/specs/native-harness-parts.md section 3): a foreground
  * helper's progress and result, background helpers with one Final Recap and "Use results",
- * Steer and Stop from the status line, Stop on the chat, and an interruption after a restart.
+ * Steer and Stop from the status line, and Stop on the chat. An interruption after a restart is a unit
+ * test (tests/unit/helpers.test.ts). Each test opens one application with one matter per case.
  * The scripted test model (src/main/test-model.ts) answers both queues.
  */
 import { test, expect, _electron as electron } from "@playwright/test";
@@ -31,8 +32,8 @@ async function newMatter(app: App, page: Awaited<ReturnType<typeof launch>>["pag
   await page.getByLabel("Matter title").fill(title);
   await page.getByRole("button", { name: "Create matter" }).click();
   await expect(page.getByRole("heading", { level: 2, name: title })).toBeVisible();
-  const all = await page.evaluate(async () => (await (globalThis as any).openadvo.listMatters()) as Array<{ id: string }>);
-  return all[0].id;
+  const all = await page.evaluate(async () => (await (globalThis as any).openadvo.listMatters()) as Array<{ id: string; title: string }>);
+  return all.find((m) => m.title === title)!.id;
 }
 
 async function script(app: App, value: unknown) {
@@ -48,7 +49,7 @@ async function seen(app: App): Promise<Array<{ queue: string; last: string; all:
   return app.evaluate(async () => (globalThis as any).__openadvoTest.modelSeen()) as never;
 }
 
-test("a foreground helper reports progress and returns its result to the agent", async () => {
+test("a foreground helper reports progress and returns its result to the agent; fork context gives it a frozen copy of the conversation", async () => {
   const { app, page } = await launch();
   const matterId = await newMatter(app, page, "Foreground helper");
   await script(app, {
@@ -72,10 +73,21 @@ test("a foreground helper reports progress and returns its result to the agent",
   await expect.poll(() => notices(page, matterId), { timeout: 60000 }).toEqual(expect.arrayContaining([expect.stringContaining("Helper Petition dates finished.")]));
   const requests = await seen(app);
   expect(requests.some((r) => r.queue === "agent" && r.last.includes("Page 3, line 7: the order was passed on 4 March 2024."))).toBe(true);
+
+  // Fork context gives the helper a frozen copy of the conversation.
+  const forkId = await newMatter(app, page, "Fork context");
+  await script(app, {
+    agent: [{ tools: [{ name: "start_helper", args: { type: "critic", task: "Test the date against the record.", name: "Date critic", fork_context: true } }] }, { text: "Checked." }],
+    helper: [{ text: "The date is consistent with the record." }],
+  });
+  await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [forkId, "The order is dated 4 March 2024."]);
+  await expect.poll(async () => (await page.evaluate((m) => (globalThis as any).openadvo.getChat(m), forkId)).busy, { timeout: 60000 }).toBe(false);
+  const forked = (await seen(app)).find((r) => r.queue === "helper" && r.all.includes("<parent-conversation>"));
+  expect(forked?.all).toContain("The order is dated 4 March 2024.");
   await app.close();
 });
 
-test("two background helpers end with one Final Recap, and Use results sends both results", async () => {
+test("two background helpers end with one Final Recap and Use results sends both; a background helper uses the parent's tools and its result goes with the next message", async () => {
   const { app, page } = await launch();
   const matterId = await newMatter(app, page, "Background helpers");
   await script(app, {
@@ -102,10 +114,30 @@ test("two background helpers end with one Final Recap, and Use results sends bot
   // Cost per helper is recorded with the matter: /cost lists both.
   await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [matterId, "/cost"]);
   await expect.poll(() => notices(page, matterId), { timeout: 30000 }).toEqual(expect.arrayContaining([expect.stringContaining("Helper Delay authority (legal-research)")]));
+
+  // After a background start_helper returns, the helper uses the parent's tools, and its result goes with the next message.
+  const toolUseId = await newMatter(app, page, "Background tool use");
+  await script(app, {
+    agent: [{ tools: [{ name: "start_helper", args: { type: "record-reader", task: "Count the sources of this matter.", background: true, name: "Source counter" } }] }, { text: "Started." }],
+    helper: [{ tools: [{ name: "list_sources", args: {} }] }, { text: "The matter has no sources." }],
+  });
+  await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [toolUseId, "Count the sources in the background."]);
+  await expect.poll(() => notices(page, toolUseId), { timeout: 60000 }).toEqual(expect.arrayContaining([expect.stringContaining("Helper Source counter finished.")]));
+  expect((await notices(page, toolUseId)).some((t) => t.includes("failed"))).toBe(false);
+  // The helper's own tool call is shown inside its card, not as the agent's call.
+  await expect(page.getByTestId("helper-card")).toContainText("list_sources");
+
+  // The result waits; the advocate's next message carries it, and no turn starts by itself.
+  await script(app, { agent: [{ text: "Used the source count." }] });
+  await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [toolUseId, "Now continue."]);
+  await expect.poll(async () => (await page.evaluate((m) => (globalThis as any).openadvo.getChat(m), toolUseId)).busy, { timeout: 60000 }).toBe(false);
+  await expect.poll(() => notices(page, toolUseId), { timeout: 30000 }).toEqual(expect.arrayContaining([expect.stringContaining("The results of 1 background helper go with this message.")]));
+  const toolUseRequests = await seen(app);
+  expect(toolUseRequests.some((r) => r.queue === "agent" && r.last.includes("The matter has no sources."))).toBe(true);
   await app.close();
 });
 
-test("Steer and Stop from the status line, and Stop on the chat stops every helper", async () => {
+test("Steer and Stop from the status line, Stop on the chat stops every helper, and Steer answers a helper's question", async () => {
   const { app, page } = await launch();
   const matterId = await newMatter(app, page, "Steer and stop");
   await script(app, {
@@ -134,29 +166,22 @@ test("Steer and Stop from the status line, and Stop on the chat stops every help
   await expect.poll(() => notices(page, matterId), { timeout: 30000 }).toEqual(expect.arrayContaining([expect.stringContaining("Helper Synopsis critic stopped by the advocate.")]));
   await app.evaluate(async () => (globalThis as any).__openadvoTest.releaseModel("hold-1"));
   await app.evaluate(async () => (globalThis as any).__openadvoTest.releaseModel("hold-2"));
-  await app.close();
-});
 
-test("after a background start_helper returns, the helper uses the parent's tools and its result goes with the next message", async () => {
-  const { app, page } = await launch();
-  const matterId = await newMatter(app, page, "Background tool use");
+  // A helper's question is answered with Steer, which resumes the same session.
+  const questionId = await newMatter(app, page, "Helper question");
   await script(app, {
-    agent: [{ tools: [{ name: "start_helper", args: { type: "record-reader", task: "Count the sources of this matter.", background: true, name: "Source counter" } }] }, { text: "Started." }],
-    helper: [{ tools: [{ name: "list_sources", args: {} }] }, { text: "The matter has no sources." }],
+    agent: [{ tools: [{ name: "start_helper", args: { type: "record-reader", task: "Read the order and report its date.", background: true, name: "Order reader" } }] }, { text: "Started." }],
+    helper: [{ tools: [{ name: "helper_ask", args: { question: "Which order do you mean?" } }] }, { text: "The order dated 4 March 2024." }],
   });
-  await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [matterId, "Count the sources in the background."]);
-  await expect.poll(() => notices(page, matterId), { timeout: 60000 }).toEqual(expect.arrayContaining([expect.stringContaining("Helper Source counter finished.")]));
-  expect((await notices(page, matterId)).some((t) => t.includes("failed"))).toBe(false);
-  // The helper's own tool call is shown inside its card, not as the agent's call.
-  await expect(page.getByTestId("helper-card")).toContainText("list_sources");
-
-  // The result waits; the advocate's next message carries it, and no turn starts by itself.
-  await script(app, { agent: [{ text: "Used the source count." }] });
-  await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [matterId, "Now continue."]);
-  await expect.poll(async () => (await page.evaluate((m) => (globalThis as any).openadvo.getChat(m), matterId)).busy, { timeout: 60000 }).toBe(false);
-  await expect.poll(() => notices(page, matterId), { timeout: 30000 }).toEqual(expect.arrayContaining([expect.stringContaining("The results of 1 background helper go with this message.")]));
-  const requests = await seen(app);
-  expect(requests.some((r) => r.queue === "agent" && r.last.includes("The matter has no sources."))).toBe(true);
+  await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [questionId, "Read the order."]);
+  await expect.poll(() => notices(page, questionId), { timeout: 30000 }).toEqual(expect.arrayContaining([expect.stringContaining("Helper Order reader asks: Which order do you mean?")]));
+  await line.getByRole("button", { name: "Helpers" }).click();
+  await page.getByRole("menuitem", { name: /Steer Order reader/ }).click();
+  await page.getByLabel("Instruction for Order reader").fill("The order dated 4 March 2024.");
+  await page.getByRole("button", { name: "Send to helper" }).click();
+  await expect.poll(() => notices(page, questionId), { timeout: 30000 }).toEqual(expect.arrayContaining([expect.stringContaining("Helper Order reader finished.")]));
+  const questionRequests = await seen(app);
+  expect(questionRequests.some((r) => r.queue === "helper" && r.all.includes("The order dated 4 March 2024."))).toBe(true);
   await app.close();
 });
 
@@ -179,62 +204,4 @@ test("a foreground helper that outlasts the wait becomes a background job, and i
   const after = await page.evaluate((m) => (globalThis as any).openadvo.getChat(m), matterId);
   expect((after.helpers as Array<{ waiting: boolean }>)[0].waiting).toBe(true);
   await app.close();
-});
-
-test("fork context gives the helper a frozen copy of the conversation", async () => {
-  const { app, page } = await launch();
-  const matterId = await newMatter(app, page, "Fork context");
-  await script(app, {
-    agent: [{ tools: [{ name: "start_helper", args: { type: "critic", task: "Test the date against the record.", name: "Date critic", fork_context: true } }] }, { text: "Checked." }],
-    helper: [{ text: "The date is consistent with the record." }],
-  });
-  await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [matterId, "The order is dated 4 March 2024."]);
-  await expect.poll(async () => (await page.evaluate((m) => (globalThis as any).openadvo.getChat(m), matterId)).busy, { timeout: 60000 }).toBe(false);
-  const requests = await seen(app);
-  const helperRequest = requests.find((r) => r.queue === "helper");
-  expect(helperRequest?.all).toContain("<parent-conversation>");
-  expect(helperRequest?.all).toContain("The order is dated 4 March 2024.");
-  await app.close();
-});
-
-test("a helper's question is answered with Steer, which resumes the same session", async () => {
-  const { app, page } = await launch();
-  const matterId = await newMatter(app, page, "Helper question");
-  await script(app, {
-    agent: [{ tools: [{ name: "start_helper", args: { type: "record-reader", task: "Read the order and report its date.", background: true, name: "Order reader" } }] }, { text: "Started." }],
-    helper: [{ tools: [{ name: "helper_ask", args: { question: "Which order do you mean?" } }] }, { text: "The order dated 4 March 2024." }],
-  });
-  await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [matterId, "Read the order."]);
-  await expect.poll(() => notices(page, matterId), { timeout: 30000 }).toEqual(expect.arrayContaining([expect.stringContaining("Helper Order reader asks: Which order do you mean?")]));
-  const line = page.getByTestId("status-line");
-  await line.getByRole("button", { name: "Helpers" }).click();
-  await page.getByRole("menuitem", { name: /Steer Order reader/ }).click();
-  await page.getByLabel("Instruction for Order reader").fill("The order dated 4 March 2024.");
-  await page.getByRole("button", { name: "Send to helper" }).click();
-  await expect.poll(() => notices(page, matterId), { timeout: 30000 }).toEqual(expect.arrayContaining([expect.stringContaining("Helper Order reader finished.")]));
-  const requests = await seen(app);
-  expect(requests.some((r) => r.queue === "helper" && r.all.includes("The order dated 4 March 2024."))).toBe(true);
-  await app.close();
-});
-
-test("after a restart, a helper that was running shows as interrupted", async () => {
-  const first = await launch();
-  const matterId = await newMatter(first.app, first.page, "Interrupted helper");
-  await script(first.app, {
-    agent: [{ tools: [{ name: "start_helper", args: { type: "record-reader", task: "Read the whole record.", background: true, name: "Record reader" } }] }, { text: "Started." }],
-    helper: [{ hold: "never" }],
-  });
-  await first.page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [matterId, "Read the record."]);
-  await expect.poll(() => notices(first.page, matterId), { timeout: 30000 }).toEqual(expect.arrayContaining([expect.stringContaining("Helper Record reader (record-reader) started in the background")]));
-  // Exit at once, as a crash or a power cut would: no orderly stop of the helper.
-  await first.app.evaluate(({ app }) => app.exit(0));
-  await first.app.close().catch(() => undefined);
-
-  const second = await electron.launch({ args: [repo], env: appEnv({ OPENADVO_HOME: first.home, OPENADVO_USER_DATA: first.userData, OPENADVO_TEST: "1" }) });
-  const page = await second.firstWindow();
-  await page.waitForLoadState("domcontentloaded");
-  const chat = await page.evaluate((m) => (globalThis as any).openadvo.getChat(m), matterId);
-  expect((chat.helpers as Array<{ state: string }>)[0].state).toBe("interrupted");
-  expect((chat.messages as Array<{ role: string; text: string }>).some((x) => x.role === "notice" && x.text.startsWith("Interrupted: Record reader."))).toBe(true);
-  await second.close();
 });

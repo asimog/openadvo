@@ -68,12 +68,12 @@ The agent uses the model credentials of the owner's Pi (`~/.pi/agent/auth.json`)
 | `npm start` | Runs the built application |
 | `npm run typecheck` | `tsc` over the Node and web projects (`tsconfig.node.json`, `tsconfig.web.json`) |
 | `npm run test:unit` | `node --test` over `tests/unit/**/*.test.ts` |
-| `npm run test:e2e` | Playwright against the built application (`playwright.config.ts`: one worker, 120 s per test) |
+| `npm run test:e2e` | Playwright against the built application (`playwright.config.ts`: four workers, tests run in parallel, 120 s per test) |
 | `npm test` | Unit tests, build, end-to-end tests |
 | `npm run session:start` | The start check of a work session (section 1); `-- --unit` adds the unit tests, `-- --quick` skips the type check |
 | `npm run dist` | The folder to install, in `release/<platform>-unpacked/` (`electron-builder.yml`) |
 
-Run long suites in the background and read their output when they finish. The full end-to-end suite takes about three minutes.
+Run long suites in the background and read their output when they finish. The full end-to-end suite takes about two minutes with four workers. Run it only at the end of a phase (section 8.4).
 
 ## 5. Environment variables
 
@@ -149,7 +149,7 @@ Key files:
 2. Add it to `api` in `src/preload/index.ts`: `name: (...) => ipcRenderer.invoke("area:verb", ...)`.
 3. Add `handle("area:verb", (...) => ...)` in `registerBridge()` in `src/main/index.ts`. Validate the arguments there.
 4. Use it in the renderer through `const api = window.openadvo`.
-5. Add the name to the exact list in the test "the renderer has no file or Node access; the bridge exposes only named functions" in `tests/e2e/app.spec.ts`. That test fails until you do.
+5. Add the name to the exact list in the first part of the test "the renderer has no file or Node access; the bridge exposes only named functions; …" in `tests/e2e/app.spec.ts`. That test fails until you do.
 
 ### 7.2 Add an agent tool
 
@@ -157,7 +157,7 @@ Key files:
 2. Add its name to `AGENT_TOOLS` and the definition to `customTools`. The start check refuses a session that lacks a listed tool.
 3. Describe it in `systemPrompt()`: what it reads, what it writes, what it may not do.
 4. Writes go through the host with `{ actor: "agent", sessionId }`.
-5. Add the name to the tool list in the test "the agent session has our tools, no built-in Pi tool, and its id is recorded" in `tests/e2e/app.spec.ts`.
+5. Add the name to the tool list in the second part of the test "the renderer has no file or Node access; …; the agent session has our tools, no built-in Pi tool, and its id is recorded" in `tests/e2e/app.spec.ts`.
 6. The permission policy allows every tool by default. Add a `deny` or `ask` rule in `writePermissionPolicy()` only if the tool needs one. An `ask` stops each call until the advocate answers in the chat (harness-hardening H-12).
 
 ### 7.3 Add a table or a column to `matter.db`
@@ -225,7 +225,8 @@ Use pi-ai's faux provider. The pattern is in `tests/unit/pi-extensions.test.ts`:
 
 ### 8.3 End-to-end tests
 
-- Playwright `_electron.launch({ args: [repo], env: appEnv({ OPENADVO_HOME, OPENADVO_USER_DATA, OPENADVO_TEST: "1" }) })`, with fresh temporary folders per test. See `launch()` in `tests/e2e/app.spec.ts`.
+- Playwright `_electron.launch({ args: [repo], env: appEnv({ OPENADVO_HOME, OPENADVO_USER_DATA, OPENADVO_TEST: "1" }) })`, with fresh temporary folders per test, so tests run in parallel. See `launch()` in `tests/e2e/app.spec.ts`.
+- One test per advocate flow. A test launches the application once and may open several matters in it. Do not add an end-to-end test that only repeats a unit test: a rule of a store, of the tool policy or of a helper is a unit test.
 - Run `npm run build` first. The tests run the built `out/`, not the source.
 - Read-only hooks in the main process (`app.evaluate(() => globalThis.__openadvoTest...)`):
   - `agentToolNames`, `agentSessionId`, `mattersRoot`, `ingestIdle`;
@@ -242,8 +243,10 @@ Use pi-ai's faux provider. The pattern is in `tests/unit/pi-extensions.test.ts`:
 |---|---|
 | Any code | `npm run typecheck` |
 | A library or the agent | `npm run test:unit`, or the one file with `node --test tests/unit/<file>.test.ts` |
-| A bridge function, a view, start-up | `npm run build`, then the affected `npx playwright test tests/e2e/<file>.spec.ts` |
-| Before you report a piece of work as finished | The full unit and end-to-end suites |
+| A bridge function, a view, start-up, during a phase | `npm run typecheck` and the unit tests. Write or change the end-to-end test, but do not run it yet |
+| The end of a phase | `npm run build`, then the full end-to-end suite, once |
+
+End-to-end tests run only at the end of a phase, not between the specs or steps of a phase. During a phase the check is the type check and the unit tests.
 
 Report the commands and their results: counts of tests passed, failed and skipped, and exit codes. Never write "tests pass" without the output behind it.
 

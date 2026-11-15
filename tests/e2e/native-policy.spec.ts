@@ -30,7 +30,7 @@ async function newMatter(app: App, page: Awaited<ReturnType<typeof launch>>["pag
   await page.getByLabel("Matter title").fill(title);
   await page.getByRole("button", { name: "Create matter" }).click();
   await expect(page.getByRole("heading", { level: 2, name: title })).toBeVisible();
-  return (await page.evaluate(async () => (await (globalThis as any).openadvo.listMatters()) as Array<{ id: string }>))[0].id;
+  return (await page.evaluate(async () => (await (globalThis as any).openadvo.listMatters()) as Array<{ id: string; title: string }>)).find((m) => m.title === title)!.id;
 }
 
 async function script(app: App, value: unknown) {
@@ -50,7 +50,7 @@ async function seen(app: App): Promise<Array<{ queue: string; last: string }>> {
   return app.evaluate(async () => (globalThis as any).__openadvoTest.modelSeen()) as never;
 }
 
-test("a deny is refused with a text line, and the tool is hidden from the next conversation", async () => {
+test("a deny is refused with a text line and the tool is hidden from the next conversation; an ask shows the card with the query, each choice works, one approval at a time", async () => {
   const { app, page, home } = await launch();
   const matterId = await newMatter(app, page, "Policy deny");
   await page.evaluate((p) => (globalThis as any).openadvo.setToolPolicy(p), { default: "allow", tools: { web_search: "deny" } });
@@ -75,76 +75,44 @@ test("a deny is refused with a text line, and the tool is hidden from the next c
   const names = await app.evaluate(async (_e, m) => (globalThis as any).__openadvoTest.agentToolNames(m), matterId);
   expect(names).not.toContain("web_search");
   await expect.poll(() => notices(page, matterId), { timeout: 30000 }).toEqual(expect.arrayContaining([expect.stringContaining("Refused by the tool policy, so hidden from the agent: web_search")]));
-  await app.close();
-});
 
-test("an ask shows the card with the query, and each choice works; one approval at a time", async () => {
-  const { app, page } = await launch();
-  const matterId = await newMatter(app, page, "Policy ask");
+  // An ask shows the card with the query, and each choice works; one approval at a time.
+  const askId = await newMatter(app, page, "Policy ask");
   await page.evaluate((p) => (globalThis as any).openadvo.setToolPolicy(p), { default: "allow", tools: { web_search: "ask" } });
-  const card = page.getByTestId("approval-card");
-  const send = (text: string) => page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [matterId, text]);
+  // The deny above hid web_search; a new conversation takes the new rule.
+  await page.evaluate((m) => (globalThis as any).openadvo.newConversation(m), askId);
+  const card2 = page.getByTestId("approval-card");
+  const send2 = (text: string) => page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [askId, text]);
 
   // Refuse: the card names the query.
   await script(app, { agent: [{ tools: [{ name: "web_search", args: { query: "the impugned order" } }] }, { text: "Refused." }] });
-  const refused = send("Search.");
-  await expect(card).toBeVisible({ timeout: 30000 });
-  await expect(card).toContainText("The agent wants to use Web search. Query: “the impugned order”.");
-  await card.getByRole("button", { name: "Refuse" }).click();
+  const refused = send2("Search.");
+  await expect(card2).toBeVisible({ timeout: 30000 });
+  await expect(card2).toContainText("The agent wants to use Web search. Query: “the impugned order”.");
+  await card2.getByRole("button", { name: "Refuse" }).click();
   await refused;
-  await idle(page, matterId);
-  await expect.poll(() => notices(page, matterId), { timeout: 30000 }).toEqual(expect.arrayContaining([expect.stringContaining("The advocate refused Web search.")]));
+  await idle(page, askId);
+  await expect.poll(() => notices(page, askId), { timeout: 30000 }).toEqual(expect.arrayContaining([expect.stringContaining("The advocate refused Web search.")]));
 
-  // Two calls in one message wait in a queue: one card, then the next after the first answer.
+  // Two calls in one message wait in a queue: one card2, then the next after the first answer.
   await page.evaluate((p) => (globalThis as any).openadvo.setToolPolicy(p), { default: "allow", tools: { list_sources: "ask" } });
   await script(app, {
     agent: [{ tools: [{ name: "list_sources", args: {} }, { name: "list_sources", args: {} }] }, { text: "Both listed." }],
   });
-  const queued = send("List the sources twice.");
-  await expect(card).toBeVisible({ timeout: 30000 });
-  await expect(card).toContainText("List sources");
-  await card.getByRole("button", { name: "Allow once" }).click();
-  await expect(card).toBeVisible({ timeout: 30000 });
-  await card.getByRole("button", { name: "Allow for this conversation" }).click();
+  const queued = send2("List the sources twice.");
+  await expect(card2).toBeVisible({ timeout: 30000 });
+  await expect(card2).toContainText("List sources");
+  await card2.getByRole("button", { name: "Allow once" }).click();
+  await expect(card2).toBeVisible({ timeout: 30000 });
+  await card2.getByRole("button", { name: "Allow for this conversation" }).click();
   await queued;
-  await idle(page, matterId);
+  await idle(page, askId);
 
-  // The conversation-wide answer holds: no third card.
+  // The conversation-wide answer holds: no third card2.
   await script(app, { agent: [{ tools: [{ name: "list_sources", args: {} }] }, { text: "Listed." }] });
-  await send("List once more.");
-  await idle(page, matterId);
-  await expect(card).toHaveCount(0);
-  await app.close();
-});
-
-test("the party rule asks when a web query names a party of the matter", async () => {
-  const { app, page } = await launch();
-  const matterId = await newMatter(app, page, "Party rule");
-  const contact = await page.evaluate(async () => (await (globalThis as any).openadvo.addContact({ name: "Acme Steel", kind: "opposing_party" })) as { id: string });
-  await page.evaluate(([m, c]) => (globalThis as any).openadvo.addParty(m, c, "opposing", "Acme Steel"), [matterId, contact.id]);
-  // A new conversation reads the parties of the matter.
-  await page.evaluate((m) => (globalThis as any).openadvo.newConversation(m), matterId);
-  const card = page.getByTestId("approval-card");
-  await script(app, { agent: [{ tools: [{ name: "web_search", args: { query: "Acme Steel v State latest order" } }] }, { text: "No search." }] });
-  await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [matterId, "Search the party."]);
-  await expect(card).toBeVisible({ timeout: 30000 });
-  await expect(card).toContainText("names Acme Steel, a party to this matter");
-  await card.getByRole("button", { name: "Refuse" }).click();
-  await idle(page, matterId);
-
-  // The party rule can be turned off in Settings: the same query then runs without a card.
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
-  await page.getByRole("button", { name: "Tool permissions", exact: true }).click();
-  const toggle = page.getByLabel("Ask when a web search or a web page names a party");
-  await expect(toggle).toBeChecked();
-  await toggle.click();
-  await expect(page.getByTestId("tool-permissions")).toContainText("Saved.");
-  await page.getByRole("button", { name: "Party rule", exact: true }).click();
-  await page.evaluate((m) => (globalThis as any).openadvo.newConversation(m), matterId);
-  await script(app, { agent: [{ tools: [{ name: "web_search", args: { query: "Acme Steel v State latest order" } }] }, { text: "No card." }] });
-  await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [matterId, "Search the party again."]);
-  await idle(page, matterId);
-  await expect(card).toHaveCount(0);
+  await send2("List once more.");
+  await idle(page, askId);
+  await expect(card2).toHaveCount(0);
   await app.close();
 });
 
@@ -165,7 +133,7 @@ test("an unanswered approval for a background helper refuses after the timeout",
   await app.close();
 });
 
-test("Settings changes a tool rule and the next conversation uses it", async () => {
+test("Settings changes a tool rule and the next conversation uses it; the party rule asks when a web query names a party, and Settings turns it off", async () => {
   const { app, page, userData } = await launch();
   const matterId = await newMatter(app, page, "Policy settings");
   await page.getByRole("button", { name: "Settings", exact: true }).click();
@@ -186,5 +154,33 @@ test("Settings changes a tool rule and the next conversation uses it", async () 
   await expect(card).toBeVisible({ timeout: 30000 });
   await card.getByRole("button", { name: "Refuse" }).click();
   await idle(page, matterId);
+
+  // The party rule asks when a web query names a party of the matter, and Settings turns it off.
+  const partyId = await newMatter(app, page, "Party rule");
+  const contact = await page.evaluate(async () => (await (globalThis as any).openadvo.addContact({ name: "Acme Steel", kind: "opposing_party" })) as { id: string });
+  await page.evaluate(([m, c]) => (globalThis as any).openadvo.addParty(m, c, "opposing", "Acme Steel"), [partyId, contact.id]);
+  // A new conversation reads the parties of the matter.
+  await page.evaluate((m) => (globalThis as any).openadvo.newConversation(m), partyId);
+  const card2 = page.getByTestId("approval-card");
+  await script(app, { agent: [{ tools: [{ name: "web_search", args: { query: "Acme Steel v State latest order" } }] }, { text: "No search." }] });
+  await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [partyId, "Search the party."]);
+  await expect(card2).toBeVisible({ timeout: 30000 });
+  await expect(card2).toContainText("names Acme Steel, a party to this matter");
+  await card2.getByRole("button", { name: "Refuse" }).click();
+  await idle(page, partyId);
+
+  // The party rule can be turned off in Settings: the same query then runs without a card2.
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: "Tool permissions", exact: true }).click();
+  const toggle = page.getByLabel("Ask when a web search or a web page names a party");
+  await expect(toggle).toBeChecked();
+  await toggle.click();
+  await expect(page.getByTestId("tool-permissions")).toContainText("Saved.");
+  await page.getByRole("button", { name: "Party rule", exact: true }).click();
+  await page.evaluate((m) => (globalThis as any).openadvo.newConversation(m), partyId);
+  await script(app, { agent: [{ tools: [{ name: "web_search", args: { query: "Acme Steel v State latest order" } }] }, { text: "No card2." }] });
+  await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [partyId, "Search the party again."]);
+  await idle(page, partyId);
+  await expect(card2).toHaveCount(0);
   await app.close();
 });

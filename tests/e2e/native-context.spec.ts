@@ -32,7 +32,7 @@ async function newMatter(app: App, page: Page, title: string) {
   await page.getByLabel("Matter title").fill(title);
   await page.getByRole("button", { name: "Create matter" }).click();
   await expect(page.getByRole("heading", { level: 2, name: title })).toBeVisible();
-  return (await page.evaluate(async () => (await (globalThis as any).openadvo.listMatters()) as Array<{ id: string }>))[0].id;
+  return (await page.evaluate(async () => (await (globalThis as any).openadvo.listMatters()) as Array<{ id: string; title: string }>)).find((m) => m.title === title)!.id;
 }
 
 async function script(app: App, value: unknown) {
@@ -52,7 +52,7 @@ async function seen(app: App): Promise<Array<{ queue: string; last: string; all:
   return app.evaluate(async () => (globalThis as any).__openadvoTest.modelSeen()) as never;
 }
 
-test("/context and /cost print text; each run adds a tokens-and-cost line; the CSV has the runs", async () => {
+test("/context and /cost print text; each run adds a tokens-and-cost line; the CSV has the runs; Compact now acts from the Context tab", async () => {
   const { app, page } = await launch();
   const matterId = await newMatter(app, page, "Context and cost");
   await script(app, { agent: [{ text: "Ready." }] });
@@ -87,6 +87,20 @@ test("/context and /cost print text; each run adds a tokens-and-cost line; the C
   expect(csv.startsWith('"Kind","Name","Id"')).toBe(true);
   expect(csv).toContain('"Run"');
   await expect(page.getByRole("button", { name: "Export cost CSV" })).toBeVisible();
+
+  // Compact now acts from the Context tab.
+  const compactId = await newMatter(app, page, "Compact now");
+  await script(app, { agent: [{ text: "First." }, { text: "Second." }] });
+  await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [compactId, "One."]);
+  await idle(page, compactId);
+  await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [compactId, "Two."]);
+  await idle(page, compactId);
+  const button_2 = page.getByTestId("context-tab");
+  await button_2.click();
+  const compact_2 = page.getByTestId("context-panel").getByRole("button", { name: "Compact now" });
+  await expect(compact_2).toBeVisible({ timeout: 30000 });
+  await compact_2.click();
+  await expect.poll(() => notices(page, compactId), { timeout: 30000 }).toEqual(expect.arrayContaining([expect.stringMatching(/compacted|Not compacted/i)]));
   await app.close();
 });
 
@@ -123,19 +137,3 @@ test("old tool results are summarised with refs, and recall_result returns the o
   await app.close();
 });
 
-test("Compact now acts from the pinned status line", async () => {
-  const { app, page } = await launch();
-  const matterId = await newMatter(app, page, "Compact now");
-  await script(app, { agent: [{ text: "First." }, { text: "Second." }] });
-  await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [matterId, "One."]);
-  await idle(page, matterId);
-  await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [matterId, "Two."]);
-  await idle(page, matterId);
-  const button = page.getByTestId("context-tab");
-  await button.click();
-  const compact = page.getByTestId("context-panel").getByRole("button", { name: "Compact now" });
-  await expect(compact).toBeVisible({ timeout: 30000 });
-  await compact.click();
-  await expect.poll(() => notices(page, matterId), { timeout: 30000 }).toEqual(expect.arrayContaining([expect.stringMatching(/compacted|Not compacted/i)]));
-  await app.close();
-});
