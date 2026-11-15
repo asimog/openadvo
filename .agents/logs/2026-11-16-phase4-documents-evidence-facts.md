@@ -36,9 +36,11 @@ The views are in `src/renderer/src/Phase4.tsx`. The new matter tabs are Facts, E
 | `npm run test:unit` | 220 tests: 217 passed, 0 failed, 3 skipped; exit 0 |
 | `npm run build` | "built in" three times |
 | `npx playwright test tests/e2e/phase4.spec.ts` | 1 passed, 0 failed |
-| `npx playwright test` | 58 tests: 56 passed, 2 skipped (the live-model tests), 0 failed; 4.4 min; exit 0 |
+| `npx playwright test` | 58 tests: 56 passed, 2 skipped (the live-model tests), 0 failed; 4.8 min; exit 0 |
 
-The full end-to-end run was on the build before the final `source_analysis` guard and the fact-link form. The unit tests and the Phase 4 test were run after those changes; the full run is repeated in the session's final check.
+The full end-to-end run was on the final build, after the `source_analysis` guard, the layout and mark rules, and the fact-link form. An earlier run had one flaky “New matter” timeout in `v5 D`; that test passed alone and in the final run.
+
+Pushed to `main`: `319b9b5` (the code) and `3b78703` (the documents and this record).
 
 ## Mismatches between documents and code, reported
 
