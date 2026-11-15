@@ -25,7 +25,61 @@ export interface ChatMessage {
   id: string;
   role: ChatRole;
   text: string;
+  /** A tool call, shown with ChatToolCalls. Set on a role "tool" message. */
+  tool?: ToolCallView;
+  /** A helper's lifecycle event, grouped into one card per helper. */
+  helper?: HelperEventView;
 }
+
+/** One tool call as the chat shows it (native-harness-parts section 2). */
+export interface ToolCallView {
+  name: string;
+  /** What the call acted on: the query, the URL, the source, the task. */
+  target?: string;
+  status: "running" | "done" | "error";
+  durationMs?: number;
+  /** The refusal or failure, in one line. */
+  error?: string;
+  /** Set when a helper made the call. */
+  helperId?: string;
+  helperName?: string;
+}
+
+/** One event in a helper's life, as the chat groups it. */
+export interface HelperEventView {
+  /** The helper id. Absent for a notice about several helpers. */
+  id?: string;
+  name?: string;
+  type?: string;
+  event: "started" | "progress" | "question" | "finished" | "failed" | "stopped" | "interrupted" | "recap";
+  /** The progress line or the question. */
+  detail?: string;
+}
+
+/** What the last run used, for the Context panel. */
+export interface RunSummary {
+  input: number;
+  output: number;
+  total: number;
+  cacheRead: number;
+  cacheWrite: number;
+  cacheHit: number | null;
+  cost: number;
+}
+
+/** The matter's totals, from its trace. */
+export interface CostSummary {
+  runs: number;
+  helpers: number;
+  input: number;
+  output: number;
+  total: number;
+  cacheRead: number;
+  cacheWrite: number;
+  cost: number;
+}
+/** CUSTOM event whose value is `{ lastRun, cost }` after a run. */
+export const COST_EVENT = "openadvo.cost";
 
 /**
  * Streamed from the main process while the agent works: AG-UI protocol events
@@ -102,6 +156,8 @@ export interface ContextMeter {
 export interface ToolPolicyView {
   policy: { default: "allow" | "ask" | "deny"; tools: Record<string, "allow" | "ask" | "deny"> };
   tools: Array<{ name: string; label: string }>;
+  /** The party-name rule for web_search and web_fetch. */
+  partyRule: boolean;
 }
 
 /** A helper as the window shows it (native-harness-parts section 3). */
@@ -114,6 +170,8 @@ export interface HelperView {
   state: "running" | "done" | "failed" | "stopped" | "interrupted";
   /** True when its result waits for "Use results" or the advocate's next message. */
   waiting: boolean;
+  /** The question it stopped to ask, until the parent answers it. */
+  question?: string;
   startedAt: string;
   endedAt?: string;
 }
@@ -173,6 +231,12 @@ export interface ChatState {
   context?: ContextMeter;
   /** The helpers of this conversation since it opened, newest last. */
   helpers?: HelperView[];
+  /** The Pi session behind this conversation. */
+  sessionId?: string;
+  /** The last run's tokens, cache and cost. */
+  lastRun?: RunSummary;
+  /** The matter's totals from its trace. */
+  cost?: CostSummary;
 }
 
 /** One Pi extension (decision 21). */
@@ -320,7 +384,7 @@ export interface OpenAdvoApi {
   closeFirmHandoff(id: string): Promise<FirmHandoff[]>;
   /** Settings → Tool permissions: the policy and the agent's tools. */
   getToolPolicy(): Promise<ToolPolicyView>;
-  setToolPolicy(policy: ToolPolicyView["policy"]): Promise<ToolPolicyView>;
+  setToolPolicy(policy: ToolPolicyView["policy"], partyRule?: boolean): Promise<ToolPolicyView>;
   /** The advocate stops or steers one helper, or sends the waiting background results to the agent. */
   stopHelper(conversationId: string, helperId: string): Promise<void>;
   steerHelper(conversationId: string, helperId: string, text: string): Promise<void>;

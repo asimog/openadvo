@@ -97,7 +97,7 @@ export function FirmChat(props: { onOpenMatter: (matterId: string, carry: Carry)
         Ask about the whole firm: what is pending, which hearings come next, which deadlines are near, which workflow fits. It reads each matter's stage, hearings, deadlines and open items, and your workflows. It does not read a matter's documents. It proposes; you decide. Not yet available to it: the Knowledge Library and advocate memory.
       </Text>
       {error ? <div className="notice">{error}</div> : null}
-      <StatusLine conversationId={FIRM_AGENT_ID} plan={plan} helpers={[]} meter={null} busy={busy} onCompact={async () => undefined} />
+      <StatusLine conversationId={FIRM_AGENT_ID} plan={plan} helpers={[]} busy={busy} />
       {plan ? <PlanPanel conversationId={FIRM_AGENT_ID} plan={plan} /> : null}
       {messages.length > 0 ? (
         <div className="firm-log" data-testid="firm-log">

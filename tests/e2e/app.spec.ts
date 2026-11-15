@@ -278,6 +278,10 @@ test("the agent session has our tools, no built-in Pi tool, and its id is record
     "plan_set",
     "plan_update",
     "start_helper",
+    "helper_output",
+    "stop_helper",
+    "steer_helper",
+    "recall_result",
   ].sort());
   const sessionId = await app.evaluate((_e, m) => (globalThis as any).__openadvoTest.agentSessionId(m), id);
   const events = await page.evaluate((m) => (globalThis as any).openadvo.listEvents(m), id);

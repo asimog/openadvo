@@ -16,17 +16,29 @@ import { Heading } from "@astryxdesign/core/Heading";
 import { Icon } from "@astryxdesign/core/Icon";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Spinner } from "@astryxdesign/core/Spinner";
+import { Tab, TabList } from "@astryxdesign/core/TabList";
 import { Text } from "@astryxdesign/core/Text";
 import { ArrowLeftIcon, ChatBubbleLeftRightIcon, PlusCircleIcon, MicrophoneIcon, PaperClipIcon, StopIcon } from "@heroicons/react/24/outline";
-import { CHAT_MESSAGE_EVENT, CONTEXT_EVENT, EXTENSION_QUESTIONS_EVENT, EXTENSION_STATUS_EVENT, HELPERS_EVENT, PLAN_EVENT } from "../../shared/api.ts";
+import { CHAT_MESSAGE_EVENT, CONTEXT_EVENT, COST_EVENT, EXTENSION_QUESTIONS_EVENT, EXTENSION_STATUS_EVENT, HELPERS_EVENT, PLAN_EVENT } from "../../shared/api.ts";
+import { ContextPanel, HelperActivity, HelperRecap, ToolCallGroup, UsageRing, chatBlocks, formatTokens } from "./ChatActivity.tsx";
 import { PlanPanel, StatusLine } from "./PlanCard.tsx";
 import { AgentChangesCard } from "./AgentChangesCard.tsx";
 import { ExtensionQuestionCard } from "./ExtensionQuestionCard.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { DropdownMenu } from "@astryxdesign/core/DropdownMenu";
-import type { AgentChanges, ChatEvent, ChatMessage as ChatRecord, ContextMeter, EffortLevel, HelperView, EffortState, ExtensionQuestion, ModelChoice, Plan, Workflow } from "../../shared/api.ts";
+import type { AgentChanges, ChatEvent, ChatMessage as ChatRecord, ContextMeter, CostSummary, EffortLevel, HelperView, EffortState, ExtensionQuestion, ModelChoice, Plan, RunSummary, Workflow } from "../../shared/api.ts";
 
 const api = window.openadvo;
+
+/** Save text as a file from the window (the bridge has no write access by design). */
+function saveTextFile(name: string, text: string, type = "text/csv"): void {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
 
 const EFFORT_LABEL: Record<EffortLevel, string> = {
   off: "No reasoning",
@@ -253,6 +265,10 @@ export function ChatDock(props: {
   const [plan, setPlan] = useState<Plan | null>(null);
   const [meter, setMeter] = useState<ContextMeter | null>(null);
   const [helpers, setHelpers] = useState<HelperView[]>([]);
+  const [lastRun, setLastRun] = useState<RunSummary | undefined>();
+  const [cost, setCost] = useState<CostSummary | undefined>();
+  const [sessionId, setSessionId] = useState<string | undefined>();
+  const [view, setView] = useState<"chat" | "context">("chat");
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<ChatComposerInputHandle>(null);
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
@@ -268,13 +284,25 @@ export function ChatDock(props: {
     setPlan(null);
     setMeter(null);
     setHelpers([]);
+    setLastRun(undefined);
+    setCost(undefined);
+    setSessionId(undefined);
+    setView("chat");
     void loadChanges();
     let live = true;
-    // H-3: the session may take a model after it opened (sign-in with Pi, or credentials changed).
-    const readModel = () => {
-      void api.getChat(props.matterId).then((s) => live && setModel(s.model), () => undefined);
+    // H-3 and the Context tab: read the state again after a run or a return to the window.
+    const refresh = () => {
+      void api.getChat(props.matterId).then((s) => {
+        if (!live) return;
+        setModel(s.model);
+        setMeter(s.context ?? null);
+        setHelpers(s.helpers ?? []);
+        setLastRun(s.lastRun);
+        setCost(s.cost);
+        setSessionId(s.sessionId);
+      }, () => undefined);
     };
-    window.addEventListener("focus", readModel);
+    window.addEventListener("focus", refresh);
     api.getChat(props.matterId).then(
       (s) => {
         if (!live) return;
@@ -286,6 +314,9 @@ export function ChatDock(props: {
         setPlan(s.plan ?? null);
         setMeter(s.context ?? null);
         setHelpers(s.helpers ?? []);
+        setLastRun(s.lastRun);
+        setCost(s.cost);
+        setSessionId(s.sessionId);
       },
       (e: Error) => live && setError(`The agent could not start: ${e.message}`),
     );
@@ -293,11 +324,13 @@ export function ChatDock(props: {
     const off = api.onChatEvent((ev: ChatEvent) => {
       if (ev.matterId !== props.matterId) return;
       const e = ev.event as unknown as { type: string } & Record<string, unknown>;
+      // A message arrives once and then changes in place (a tool call becomes complete).
+      const upsert = (message: ChatRecord) => setMessages((m) => (m.some((x) => x.id === message.id) ? m.map((x) => (x.id === message.id ? message : x)) : [...m, message]));
       const add = (message: ChatRecord) => setMessages((m) => (m.some((x) => x.id === message.id) ? m : [...m, message]));
       if (e.type === "RUN_STARTED") setBusy(true);
       else if (e.type === "RUN_FINISHED") {
         setBusy(false);
-        readModel();
+        refresh();
         // An AG-UI interrupt: the agent proposed changes the advocate must keep or undo.
         const outcome = e.outcome as { type?: string } | undefined;
         if (outcome?.type === "interrupt") {
@@ -307,22 +340,26 @@ export function ChatDock(props: {
       }
       else if (e.type === "RUN_ERROR") {
         setBusy(false);
-        readModel();
+        refresh();
         add({ id: `error-${String(e.timestamp)}`, role: "notice", text: String(e.message) });
       } else if (e.type === "TEXT_MESSAGE_START") add({ id: String(e.messageId), role: "agent", text: "" });
       else if (e.type === "TEXT_MESSAGE_CONTENT") setMessages((m) => m.map((x) => (x.id === e.messageId ? { ...x, text: x.text + String(e.delta) } : x)));
-      else if (e.type === "TOOL_CALL_START") add({ id: String(e.toolCallId), role: "tool", text: `Used tool: ${String(e.toolCallName)}` });
-      else if (e.type === "CUSTOM" && e.name === CHAT_MESSAGE_EVENT) add(e.value as ChatRecord);
+      else if (e.type === "CUSTOM" && e.name === CHAT_MESSAGE_EVENT) upsert(e.value as ChatRecord);
       else if (e.type === "CUSTOM" && e.name === EXTENSION_STATUS_EVENT) setExtStatus((e.value as Record<string, string[]>) ?? {});
       else if (e.type === "CUSTOM" && e.name === EXTENSION_QUESTIONS_EVENT) setQuestions((e.value as ExtensionQuestion[]) ?? []);
       else if (e.type === "CUSTOM" && e.name === PLAN_EVENT) setPlan((e.value as Plan | null) ?? null);
       else if (e.type === "CUSTOM" && e.name === CONTEXT_EVENT) setMeter(e.value as ContextMeter);
       else if (e.type === "CUSTOM" && e.name === HELPERS_EVENT) setHelpers((e.value as HelperView[]) ?? []);
+      else if (e.type === "CUSTOM" && e.name === COST_EVENT) {
+        const value = e.value as { lastRun?: RunSummary; cost?: CostSummary };
+        setLastRun(value.lastRun);
+        setCost(value.cost);
+      }
     });
     return () => {
       live = false;
       off();
-      window.removeEventListener("focus", readModel);
+      window.removeEventListener("focus", refresh);
     };
   }, [props.matterId]);
 
@@ -356,13 +393,26 @@ export function ChatDock(props: {
               const s = await api.newConversation(props.matterId);
               setMessages(s.messages);
               setModel(s.model);
+              setPlan(s.plan ?? null);
+              setMeter(s.context ?? null);
+              setHelpers(s.helpers ?? []);
+              setLastRun(s.lastRun);
+              setCost(s.cost);
+              setSessionId(s.sessionId);
+              setView("chat");
             }}
           />
-          {busy ? (
+          <Button
+            label="Export cost CSV"
+            size="sm"
+            variant="ghost"
+            clickAction={async () => saveTextFile(`Open Advocate cost ${props.title.replace(/[\\/:*?"<>|]+/g, " ").trim()}.csv`, await api.costCsv(props.matterId))}
+          />
+          {busy || helpers.some((h) => h.state === "running") ? (
             <span className="dock-busy">
-              <Spinner size="sm" />
-              <Text type="supporting">Working…</Text>
-              <Button label="Stop" size="sm" variant="ghost" clickAction={async () => { await api.stopChat(props.matterId); }} />
+              {busy ? <Spinner size="sm" /> : null}
+              {busy ? <Text type="supporting">Working…</Text> : <Text type="supporting">{helpers.filter((h) => h.state === "running").length} helper{helpers.filter((h) => h.state === "running").length === 1 ? "" : "s"} running</Text>}
+              <Button label="Stop" size="sm" variant="ghost" data-testid="stop-chat" clickAction={async () => { await api.stopChat(props.matterId); }} />
             </span>
           ) : null}
         </div>
@@ -374,10 +424,35 @@ export function ChatDock(props: {
             </span>
           </div>
         ) : null}
-        <StatusLine conversationId={props.matterId} plan={plan} helpers={helpers} meter={meter} busy={busy} onCompact={async () => setMeter(await api.compactChat(props.matterId))} />
-        {plan ? <PlanPanel conversationId={props.matterId} plan={plan} /> : null}
+        <TabList value={view} onChange={(v) => setView(v as "chat" | "context")} size="sm" hasDivider>
+          <Tab value="chat" label="Chat" data-testid="chat-tab" icon={<Icon icon={ChatBubbleLeftRightIcon} size="sm" />} />
+          <Tab
+            value="context"
+            label="Context"
+            data-testid="context-tab"
+            icon={<UsageRing percent={meter?.percent ?? null} />}
+            endContent={<Text type="supporting">{formatTokens(meter?.tokens ?? lastRun?.total ?? null)}</Text>}
+          />
+        </TabList>
+        {view === "chat" ? <StatusLine conversationId={props.matterId} plan={plan} helpers={helpers} busy={busy} /> : null}
+        {view === "chat" && plan ? <PlanPanel conversationId={props.matterId} plan={plan} /> : null}
         <div className="dock-slot" ref={props.slotRef} />
       </div>
+      {view === "context" ? (
+        <ContextPanel
+          conversationId={props.matterId}
+          title={props.title}
+          busy={busy}
+          sessionId={sessionId}
+          model={model}
+          messages={messages.length}
+          meter={meter}
+          lastRun={lastRun}
+          cost={cost}
+          helpers={helpers}
+          onCompact={async () => setMeter(await api.compactChat(props.matterId))}
+        />
+      ) : (
       <div className="dock-chat" data-testid="chat-log">
         {error ? <div className="notice dock-notice">{error}</div> : null}
         {Object.keys(extStatus).length > 0 ? (
@@ -450,9 +525,22 @@ export function ChatDock(props: {
             <>
           {messages.length > 0 ? (
             <ChatMessageList density="compact" isStreaming={busy}>
-              {messages.map((m) => (
-                <Message key={m.id} message={m} />
-              ))}
+              {chatBlocks(messages).map((block) => {
+                if (block.kind === "tools") return <ToolCallGroup key={block.key} calls={block.calls} />;
+                if (block.kind === "helper") {
+                  return (
+                    <HelperActivity
+                      key={block.key}
+                      conversationId={props.matterId}
+                      events={block.events}
+                      tools={block.tools}
+                      live={helpers.find((h) => h.id === block.id)}
+                    />
+                  );
+                }
+                if (block.message.helper?.event === "recap") return <HelperRecap key={block.message.id} message={block.message} />;
+                return <Message key={block.message.id} message={block.message} />;
+              })}
             </ChatMessageList>
           ) : null}
           {changes.map((group) => (
@@ -474,6 +562,7 @@ export function ChatDock(props: {
           ) : null}
         </ChatLayout>
       </div>
+      )}
     </div>
   );
 }

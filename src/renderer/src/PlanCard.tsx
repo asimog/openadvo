@@ -7,7 +7,7 @@ import { List, ListItem } from "@astryxdesign/core/List";
 import { ProgressBar } from "@astryxdesign/core/ProgressBar";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
-import type { ContextMeter, HelperView, Plan, PlanItem } from "../../shared/api.ts";
+import type { HelperView, Plan, PlanItem } from "../../shared/api.ts";
 
 const api = window.openadvo;
 
@@ -90,16 +90,12 @@ export function PlanPanel(props: { conversationId: string; plan: Plan }) {
   );
 }
 
-function k(n: number): string {
-  return n >= 1000 ? `${Math.round(n / 100) / 10}k` : String(n);
-}
-
 /**
  * The pinned status line (native-parts prompt, section 1): plan progress, running helpers and
- * context use, as text. Its controls are where the advocate acts: Compact now, and Stop or Steer
- * for a running helper.
+ * waiting results. The Context tab holds the context numbers and Compact now; this line stays
+ * for the work the advocate follows.
  */
-export function StatusLine(props: { conversationId: string; plan: Plan | null; helpers: HelperView[]; meter: ContextMeter | null; busy: boolean; onCompact: () => Promise<void> }) {
+export function StatusLine(props: { conversationId: string; plan: Plan | null; helpers: HelperView[]; busy: boolean }) {
   const [steering, setSteering] = useState<HelperView | null>(null);
   const [instruction, setInstruction] = useState("");
   const parts: string[] = [];
@@ -111,12 +107,9 @@ export function StatusLine(props: { conversationId: string; plan: Plan | null; h
   if (running.length) parts.push(`${running.length} helper${running.length === 1 ? "" : "s"} running`);
   const waiting = props.helpers.filter((h) => h.waiting).length;
   if (waiting) parts.push(`${waiting} result${waiting === 1 ? "" : "s"} waiting`);
-  const m = props.meter;
-  if (m && m.window) parts.push(m.tokens === null ? `Context ? of ${k(m.window)}` : `Context ${k(m.tokens)} of ${k(m.window)}${m.percent === null ? "" : ` (${Math.round(m.percent)}%)`}`);
   if (!parts.length) return null;
-  const cache = m && m.cacheRead + m.cacheWrite > 0 ? `Last run: ${k(m.cacheRead)} tokens read from the cache, ${k(m.cacheWrite)} written to it.` : undefined;
   return (
-    <div className="status-line" data-testid="status-line" title={cache}>
+    <div className="status-line" data-testid="status-line">
       <Text type="supporting">{parts.join(" · ")}</Text>
       {running.length ? (
         <DropdownMenu
@@ -129,7 +122,6 @@ export function StatusLine(props: { conversationId: string; plan: Plan | null; h
         />
       ) : null}
       {waiting ? <Button label="Use results" size="sm" variant="secondary" isDisabled={props.busy} clickAction={() => api.useHelperResults(props.conversationId)} /> : null}
-      {m && m.window ? <Button label="Compact now" size="sm" variant="ghost" isDisabled={props.busy} clickAction={props.onCompact} /> : null}
       {steering ? (
         <span className="steer-form">
           <input className="text-input" aria-label={`Instruction for ${steering.name}`} value={instruction} onChange={(e) => setInstruction(e.target.value)} />

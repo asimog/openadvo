@@ -109,7 +109,11 @@ Key files:
 |---|---|
 | `src/main/index.ts` | Start-up (`claimPiAgentDir`, stores, the agent, the extension manager), every `handle(...)` bridge handler, the test hooks |
 | `src/main/agent.ts` | One Pi session per matter, the application's agent tools (`AGENT_TOOLS`), the system prompt, the start check, `send`, `stop`, `reloadIdle` |
-| `src/main/pi-extensions.ts` | The resource loader, bundled and added extensions, the permission and helper-agent policies, the extension UI context |
+| `src/main/pi-extensions.ts` | The resource loader, bundled and added extensions, the extension UI context |
+| `src/main/tool-policy.ts` | The tool policy: rules, deny-hiding, the party rule, MCP rules, the approval queue and the review log |
+| `src/main/helpers.ts`, `src/main/helper-types.ts` | The helper runtime: foreground and background jobs, Steer, Stop, results, the Final Recap, the files |
+| `src/main/plan.ts`, `src/main/agent-context.ts` | The plan rules; the context strategy, the summaries with refs and the summary form |
+| `src/main/test-model.ts` | The scripted model for end-to-end tests (only under `OPENADVO_TEST=1`) |
 | `src/main/matters.ts` | The only caller of the matter store (decision 4) |
 | `src/lib/matter-store/` | `matter.db`: schema, writes, the hash-chained event record, refusals, Find |
 | `src/main/portal.ts` | The court-portal window, its origin list and the filing guards |
@@ -280,9 +284,10 @@ PY
 2. **A renderer build failure after two successes.** `npm run build` builds three bundles. Count the "built in" lines, or read the whole output.
 3. **Tool order.** Pi's active tool list is not in a fixed order. Compare sorted lists.
 4. **Extension tools in tool lists.** The session's tools include the tools of Pi's built-in MCP, codemode and tool-search extensions. Tests filter them with `EXTENSION_TOOL` in `tests/e2e/app.spec.ts`.
-5. **A refused tool.** The tool policy refuses a call in Pi's `tool_call` hook: the tool stays in the active list, and the model gets the refusal as an error result.
+5. **A refused tool.** The tool policy refuses a call in Pi's `tool_call` hook: the model gets the refusal as an error result. A tool with a deny rule is also hidden when the conversation opens, so a test of the refusal itself must set the rule after the conversation opened, or call the tool through `ctx.executeTool`.
+6. **The scripted model.** End-to-end tests set `OPENADVO_TEST=1` and call `__openadvoTest.setModelScript({ agent: [...], helper: [...] })`. Each queue gives one step per model request; `hold` waits for `releaseModel(name)`. `modelSeen()` returns the requests. The test timeouts `OPENADVO_TEST_HELPER_TIMEOUT_MS`, `OPENADVO_TEST_HELPER_WAIT_MS` and `OPENADVO_TEST_APPROVAL_TIMEOUT_MS` apply only under `OPENADVO_TEST=1`.
 6. **`getAgentDir()`.** Set `PI_CODING_AGENT_DIR` before loading extensions in a test. Otherwise their files land in the owner's `~/.pi/agent`.
-7. **npm from Node on Windows.** Start npm with `spawnSync("npm", args, { shell: true })`, as `scripts/vendor-pi-extensions.ts` does. Node prints a deprecation warning (DEP0190) for this; the arguments are fixed strings, so it is safe here.
+7. **npm from Node on Windows.** Start npm with `spawnSync("npm", args, { shell: true })`, as `src/main/pi-extensions.ts` does for an added package. Node prints a deprecation warning (DEP0190) for this; the arguments are fixed strings, so it is safe here.
 8. **Heredocs with apostrophes.** The shell can reject a long heredoc that contains `'`. Write the script to a file and run the file.
 9. **Merged ids.** When you merge features, map the merged id to its survivor in every document, not only in the catalogue.
 10. **Pi's stand-in model.** A session with no model holds a stand-in named `unknown/unknown`, so `session.model` is never empty. Use `sessionModel()` in `src/main/agent.ts`.

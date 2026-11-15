@@ -68,4 +68,4 @@ Your job: propose text for the paragraphs the task names. Use only confirmed rec
 ];
 
 /** The limits of native helpers (docs/specs/native-harness-parts.md section 3). */
-export const HELPER_LIMITS = { maxConcurrent: 4, maxTurns: 30, timeoutMs: 15 * 60_000, resultChars: 8000 };
+export const HELPER_LIMITS = { maxConcurrent: 4, maxTurns: 30, timeoutMs: 15 * 60_000, foregroundWaitMs: 5 * 60_000, resultChars: 8000 };

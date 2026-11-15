@@ -27,17 +27,17 @@ import { appendFile, mkdir, readFile, rename, stat, writeFile } from "node:fs/pr
 import path from "node:path";
 import type { AnchorRecord, PageRecord, SourceRecord, Notebook, NotebookEvent } from "../lib/matter-store/index.ts";
 import { EventType, type AGUIEvent } from "@ag-ui/core";
-import { CHAT_MESSAGE_EVENT, CONTEXT_EVENT, EXTENSION_QUESTIONS_EVENT, EXTENSION_STATUS_EVENT, FIRM_AGENT_ID, FIRM_HANDOFFS_EVENT, PLAN_EVENT, type ContextMeter, type FirmHandoff, type Plan } from "../shared/api.ts";
-import type { ChatEvent, ChatMessage, ChatState, EffortLevel, EffortState, ModelChoice } from "../shared/api.ts";
+import { CHAT_MESSAGE_EVENT, CONTEXT_EVENT, COST_EVENT, EXTENSION_QUESTIONS_EVENT, EXTENSION_STATUS_EVENT, FIRM_AGENT_ID, FIRM_HANDOFFS_EVENT, HELPERS_EVENT, PLAN_EVENT, type ContextMeter, type CostSummary, type FirmHandoff, type Plan, type RunSummary } from "../shared/api.ts";
+import type { ChatEvent, ChatMessage, ChatState, EffortLevel, EffortState, HelperEventView, ModelChoice } from "../shared/api.ts";
 
 type ThinkingLevel = EffortLevel;
 const EFFORT_LEVELS: readonly EffortLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 import { StringEnum, type Api, type Model } from "@earendil-works/pi-ai";
 import type { DraftCheck, DraftKind, ParagraphSource, RevisionRecord } from "../shared/records.ts";
 import { BUILTIN_TOOL_NAMES, ExtensionQuestions, extensionUi, type PiExtensions } from "./pi-extensions.ts";
-import { CONTEXT_STRATEGY, contextExtension, type AgentKind } from "./agent-context.ts";
-import { APPROVAL_OPTIONS, PolicyStore, policyExtension, type Approval } from "./tool-policy.ts";
-import { startHelperTool } from "./helpers.ts";
+import { CONTEXT_STRATEGY, ResultRefs, contextExtension, type AgentKind } from "./agent-context.ts";
+import { ALWAYS_DENIED, APPROVAL_OPTIONS, PolicyStore, policyExtension, ruleFor, type Approval } from "./tool-policy.ts";
+import { HelperManager, helperTools } from "./helpers.ts";
 import { addItem, planTools } from "./plan.ts";
 import { FIRM_READ_ONLY, FIRM_TOOLS, firmSystemPrompt, firmTools, type FirmHost } from "./firm-agent.ts";
 
@@ -124,6 +124,8 @@ export const AGENT_TOOLS = [
   "assess_authority",
   "record_treatment",
   "run_rehearsal",
+  // Native harness (section 4): the original behind a summary ref.
+  "recall_result",
 ] as const;
 
 /** At most this many pages per read_source_text call, so one result never crowds the model out. */
@@ -166,10 +168,14 @@ export interface AgentHost {
   chatDir(matterId: string): Promise<string>;
   /** V1-3: the matter's memory.md, or "". The agent reads it; it never writes it. */
   readMemory(matterId: string): Promise<string>;
+  /** The parties of the open matter, for the party rule of the tool policy. */
+  parties?(matterId: string): Promise<string[]>;
+  /** The party rule is on unless the advocate turned it off (Settings → Tool permissions). */
+  partyRule?(): boolean;
   /** V5-21: the matter's token budget and the tokens already used. */
   policy(matterId: string): Promise<{ budgetTokens: number | null; usedTokens: number }>;
   /** V5-21: one run's usage, recorded as an event of the matter. */
-  recordUsage(matterId: string, usage: { model: string; input: number; output: number; totalTokens: number; cost: number }, sessionId: string): Promise<void>;
+  recordUsage(matterId: string, usage: { model: string; input: number; output: number; cacheRead?: number; cacheWrite?: number; totalTokens: number; cost: number }, sessionId: string): Promise<void>;
   /** V4: the Studio tools, one dispatcher. Returns text for the model; errors are returned as text. */
   studio(matterId: string, tool: string, params: Record<string, unknown>, sessionId: string): Promise<string>;
   /** V2-8: a candidate note for memory.md. Returns its id. */
@@ -405,8 +411,122 @@ function sessionModel(session: AgentSession): Model<Api> | undefined {
   return m && !(m.provider === "unknown" && m.id === "unknown") ? m : undefined;
 }
 
-function resourceLoader(prompt: string): ResourceLoader {
-  return {
+/** Cache hit percentage: cache reads divided by input plus cache reads plus cache writes. */
+export function cacheHit(input: number, read: number, write: number): number | null {
+  const total = input + read + write;
+  return total > 0 ? Math.round((read / total) * 1000) / 10 : null;
+}
+
+export function money(cost: number): string {
+  if (!Number.isFinite(cost) || cost <= 0) return "$0";
+  return cost >= 0.01 ? `$${cost.toFixed(4)}` : `$${cost.toPrecision(3)}`;
+}
+
+/** The lines of one conversation's trace.jsonl, newest last. */
+export async function readTrace(chatDir: string): Promise<Array<Record<string, unknown>>> {
+  try {
+    const text = await readFile(path.join(chatDir, TRACE_FILE), "utf8");
+    return text
+      .split("\n")
+      .filter((l) => l.trim())
+      .map((l) => {
+        try {
+          return JSON.parse(l) as Record<string, unknown>;
+        } catch {
+          return { type: "unreadable" };
+        }
+      });
+  } catch {
+    return [];
+  }
+}
+
+const n = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+
+/** The runs and helpers of a trace as CSV text (section 6). */
+export function costCsvText(lines: ReadonlyArray<Record<string, unknown>>): string {
+  const rows = ['"Kind","Name","Id","At","Input","Output","Total","CacheRead","CacheWrite","CacheHitPercent","Cost"'];
+  for (const l of lines) {
+    if (l.type === "run_end") {
+      rows.push(['"Run"', '""', `"${String(l.run ?? "")}"`, `"${String(l.at ?? "")}"`, n(l.input), n(l.output), n(l.tokens), n(l.cacheRead), n(l.cacheWrite), l.cacheHit === null ? "" : n(l.cacheHit), n(l.cost)].join(","));
+    } else if (l.type === "helper_end") {
+      rows.push(['"Helper"', `"${String(l.name ?? "").replace(/"/g, '""')}"`, `"${String(l.helper ?? "")}"`, `"${String(l.at ?? "")}"`, n(l.input), n(l.output), n(l.tokens), n(l.cacheRead), n(l.cacheWrite), l.cacheHit === null ? "" : n(l.cacheHit), n(l.cost)].join(","));
+    }
+  }
+  return `${rows.join("\n")}\n`;
+}
+
+/** The text table of `/cost` (section 6). */
+export function costReportText(lines: ReadonlyArray<Record<string, unknown>>): string {
+  const rows = lines.filter((l) => l.type === "run_end" || l.type === "helper_end");
+  if (!rows.length) return "No runs or helpers are recorded for this matter yet.";
+  const table = rows.map((l) => {
+    const helper = l.type === "helper_end";
+    const name = helper ? `Helper ${String(l.name ?? l.helper ?? "?")}${l.helperType ? ` (${String(l.helperType)})` : ""}` : `Run ${String(l.run ?? "?").slice(0, 8)}`;
+    const hit = l.cacheHit;
+    return `${name}: ${n(l.tokens).toLocaleString("en-IN")} tokens (${n(l.input).toLocaleString("en-IN")} in, ${n(l.output).toLocaleString("en-IN")} out), cache ${n(l.cacheRead).toLocaleString("en-IN")} read / ${n(l.cacheWrite).toLocaleString("en-IN")} written${hit === null ? "" : ` (${n(hit)}% hit)`}, ${money(n(l.cost))}.`;
+  });
+  const totalTokens = rows.reduce((sum, l) => sum + n(l.tokens), 0);
+  const totalCost = rows.reduce((sum, l) => sum + n(l.cost), 0);
+  const cacheRead = rows.reduce((sum, l) => sum + n(l.cacheRead), 0);
+  return [
+    "Runs and helpers (costs are the provider's own; the CSV export is on the matter page).",
+    ...table,
+    `Total: ${totalTokens.toLocaleString("en-IN")} tokens, ${cacheRead.toLocaleString("en-IN")} tokens read from the cache, ${money(totalCost)}.`,
+  ].join("\n");
+}
+
+/** The matter's totals from a trace (native-harness-parts section 6). */
+export function costSummaryFromTrace(lines: ReadonlyArray<Record<string, unknown>>): CostSummary {
+  const c: CostSummary = { runs: 0, helpers: 0, input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0, cost: 0 };
+  for (const l of lines) {
+    if (l.type !== "run_end" && l.type !== "helper_end") continue;
+    if (l.type === "run_end") c.runs++;
+    else c.helpers++;
+    c.input += n(l.input);
+    c.output += n(l.output);
+    c.total += n(l.tokens);
+    c.cacheRead += n(l.cacheRead);
+    c.cacheWrite += n(l.cacheWrite);
+    c.cost += n(l.cost);
+  }
+  return c;
+}
+
+export function emptyCost(): CostSummary {
+  return { runs: 0, helpers: 0, input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0, cost: 0 };
+}
+
+/** What a tool call acted on, for ChatToolCalls: the query, URL, source or task, in one line. */
+export function toolTarget(name: string, args: unknown): string | undefined {
+  const o = (args && typeof args === "object" ? args : {}) as Record<string, unknown>;
+  const text = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+  const named =
+    name === "start_helper"
+      ? text(o.task)
+      : name === "web_search"
+        ? text(o.query)
+        : name === "web_fetch"
+          ? text(o.url)
+          : name === "read_source_text"
+            ? [text(o.source), o.from_page ? `p. ${String(o.from_page)}` : ""].filter(Boolean).join(", ")
+            : name === "propose_correction"
+              ? [text(o.draftId), text(o.anchor)].filter(Boolean).join(", ")
+              : name === "plan_set"
+                ? text(o.title)
+                : undefined;
+  const any = named ?? text(o.source) ?? text(o.query) ?? text(o.url) ?? text(o.citation) ?? text(o.title) ?? text(o.text) ?? text(o.field) ?? text(o.helper) ?? text(o.ref);
+  if (!any) return undefined;
+  return any.length > 120 ? `${any.slice(0, 117).trimEnd()}…` : any;
+}
+
+/** A duration as ChatToolCalls shows it: "340ms" or "1.2s". */
+export function toolDuration(ms: number | undefined): string | undefined {
+  if (ms === undefined || !Number.isFinite(ms)) return undefined;
+  return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}s`;
+}
+
+function resourceLoader(prompt: string): ResourceLoader {  return {
     getExtensions: () => ({ extensions: [], errors: [], runtime: createExtensionRuntime() }),
     getSkills: () => ({ skills: [], diagnostics: [] }),
     getPrompts: () => ({ prompts: [], diagnostics: [] }),
@@ -442,8 +562,14 @@ interface MatterChat {
   stopped?: boolean;
   /** Helper agents stopped with the run (Stop, defect B1-2). */
   helpersStopped: number;
-  /** Helpers running now in this conversation (native-harness-parts section 3). */
-  slots: { running: number };
+  /** The helpers of this conversation (native-harness-parts section 3). */
+  helpers: HelperManager;
+  /** The system prompt of the session, for the /context breakdown. */
+  prompt: string;
+  /** The originals behind the refs of summarised tool results (recall_result). */
+  refs: ResultRefs;
+  /** True when the next model request may summarise old tool results, once. */
+  summaryPending: { summarise: boolean };
   /** H-12: the open questions of the session's Pi extensions. */
   questions: ExtensionQuestions;
   /** H-25: the run in progress, seen by the one listener of the session. */
@@ -726,6 +852,7 @@ export class Agent {
       const chat = await old.catch(() => null);
       if (chat?.state.busy) throw new Error("CHAT_BUSY: wait for the agent's answer first");
       if (chat) {
+        await chat.helpers.stopAll().catch(() => 0);
         chat.questions.cancelAll();
         chat.unlisten();
         await closeSession(chat.session, "new");
@@ -1224,12 +1351,14 @@ export class Agent {
   }
 
   /**
-   * A helper's session: in memory, the conversation's model, the type's prompt and tools, no
-   * extensions (its calls run through the parent's hooks), Pi's default compaction.
+   * A helper's session: the conversation's model, the type's prompt and tools, no extensions
+   * (its calls run through the parent's hooks), Pi's default compaction, and its own session file
+   * under `chat/helpers/` (native-harness-parts section 3).
    */
-  private async helperSession(parent: AgentSession | undefined, input: { prompt: string; tools: ToolDefinition[]; thinkingLevel: ThinkingLevel }): Promise<AgentSession> {
+  private async helperSession(parent: AgentSession | undefined, input: { prompt: string; tools: ToolDefinition[]; thinkingLevel: ThinkingLevel; sessionDir: string }): Promise<AgentSession> {
     const settingsManager = SettingsManager.inMemory();
     settingsManager.applyOverrides({ compaction: { enabled: true } });
+    await mkdir(input.sessionDir, { recursive: true });
     const { session } = await createAgentSession({
       cwd: this.options.agentDir,
       agentDir: this.options.agentDir,
@@ -1238,7 +1367,7 @@ export class Agent {
       thinkingLevel: input.thinkingLevel,
       resourceLoader: resourceLoader(input.prompt),
       settingsManager,
-      sessionManager: SessionManager.inMemory(this.options.agentDir),
+      sessionManager: SessionManager.create(this.options.agentDir, input.sessionDir),
       noTools: "builtin",
       excludeTools: [...BUILTIN_TOOL_NAMES],
       customTools: input.tools as never,
@@ -1261,6 +1390,109 @@ export class Agent {
     chat.state.plan = null;
     await writeFile(path.join(chat.chatDir, PLAN_FILE), "null");
     this.emit(id, { type: EventType.CUSTOM, name: PLAN_EVENT, value: null });
+  }
+
+  /** Human-only (decision 5): the advocate stops one helper. */
+  async stopHelper(id: string, helperId: string): Promise<void> {
+    const chat = await this.chat(id);
+    await chat.helpers.stop(helperId);
+  }
+
+  /** Human-only (decision 5): the advocate steers one helper, or answers its question. */
+  async steerHelper(id: string, helperId: string, text: string): Promise<void> {
+    const chat = await this.chat(id);
+    await chat.helpers.steer(helperId, text);
+  }
+
+  /**
+   * Human-only (decision 5): "Use results" sends the waiting background results to the agent.
+   * This is the advocate's action, so it starts one run; a finished helper never does.
+   */
+  async useHelperResults(id: string): Promise<void> {
+    const chat = await this.chat(id);
+    const { session, state } = chat;
+    if (state.busy) throw new Error("CHAT_BUSY: wait for the agent's answer first");
+    const results = chat.helpers.takeResults();
+    if (!results.count) return;
+    const push = (message: ChatMessage) => this.push(id, chat, message);
+    push({ id: randomUUID(), role: "notice", text: `The results of ${results.count} background helper${results.count === 1 ? "" : "s"} go to the agent.` });
+    state.busy = true;
+    try {
+      await this.ensureModel(id, chat);
+    } catch (e) {
+      return this.releaseRun(id, chat, `The agent cannot use the model: ${(e as Error).message}`);
+    }
+    if (!sessionModel(session)) return this.releaseRun(id, chat, "The agent cannot answer: no model is available. Sign in to a model provider with Pi first.");
+    chat.stopped = false;
+    const run = this.beginRun(id, chat);
+    try {
+      await session.prompt(results.text);
+      await session.waitForIdle();
+    } catch (e) {
+      const failure = `The agent stopped with an error: ${(e as Error).message}`;
+      if (chat.run === run) run.failure ??= failure;
+      else console.error(failure);
+    }
+    if (chat.run === run) await this.finishRun(id, chat);
+    return run.done;
+  }
+
+  private async releaseRun(id: string, chat: MatterChat, text: string): Promise<void> {
+    chat.state.busy = false;
+    this.push(id, chat, { id: randomUUID(), role: "notice", text });
+    await saveMessages(chat.chatDir, chat.state.messages).catch(() => undefined);
+  }
+
+  /** `/context`: a text breakdown of the context, with estimates said plainly (section 5). */
+  async contextReport(matterId: string): Promise<string> {
+    const chat = await this.chat(matterId);
+    const { session } = chat;
+    const usage = session.getContextUsage();
+    const model = sessionModel(session);
+    const window = usage?.contextWindow ?? model?.contextWindow ?? 0;
+    const used = usage?.tokens ?? null;
+    const buffer = model?.maxTokens ?? 8192;
+    const promptTokens = Math.ceil(chat.prompt.length / 4);
+    const defs = session.getActiveToolNames().map((name) => {
+      const def = session.getToolDefinition(name);
+      return { name, tokens: Math.ceil(JSON.stringify({ d: def?.description ?? "", p: def?.parameters ?? {} }).length / 4) };
+    });
+    const toolTokens = defs.reduce((n, d) => n + d.tokens, 0);
+    // The live transcript as Pi holds it; a custom entry may be a compaction summary.
+    const messages = session.messages as unknown as Array<{ role?: string; toolName?: string; content?: unknown }>;
+    const perMessage = messages.map((m, i) => {
+      const text = typeof m.content === "string" ? m.content : JSON.stringify(m.content ?? "");
+      const summary = /summary of the earlier part|previous-summary|compaction/i.test(text);
+      return { i: i + 1, role: m.role ?? "unknown", tool: m.toolName, tokens: Math.ceil((text.length + 16) / 4), summary };
+    });
+    const messageTokens = perMessage.reduce((n, m) => n + m.tokens, 0);
+    const free = used === null ? null : Math.max(0, window - used);
+    const lines = [
+      "Context (these are estimates; the provider's own totals can differ).",
+      window ? `Window: ${window.toLocaleString("en-IN")} tokens.` : "Window: unknown (no model is selected).",
+      used === null ? "Used: unknown right after a compaction." : `Used: about ${used.toLocaleString("en-IN")} tokens${window ? ` (${Math.round((used / window) * 100)}%)` : ""}.`,
+      `System prompt: about ${promptTokens.toLocaleString("en-IN")} tokens.`,
+      `Tool definitions: about ${toolTokens.toLocaleString("en-IN")} tokens (${defs.length} tools).`,
+      ...defs.map((d) => `  ${d.name}: about ${d.tokens.toLocaleString("en-IN")}`),
+      `Messages: about ${messageTokens.toLocaleString("en-IN")} tokens (${perMessage.length} entries).`,
+      ...perMessage.slice(-20).map((m) => `  ${m.i}. ${m.role}${m.tool ? ` (${m.tool})` : ""}${m.summary ? " (summary)" : ""}: about ${m.tokens.toLocaleString("en-IN")}`),
+      perMessage.length > 20 ? `  … ${perMessage.length - 20} earlier entries.` : "",
+      free === null ? "" : `Free: about ${free.toLocaleString("en-IN")} tokens, of which about ${buffer.toLocaleString("en-IN")} are reserved for the answer.`,
+      "Old tool results are summarised once at the end of a run; each summary has a ref, and recall_result returns the original.",
+    ].filter(Boolean);
+    return lines.join("\n");
+  }
+
+  /** `/cost`: runs and helpers with tokens, cache and cost, as a text table (section 6). */
+  async costReport(matterId: string): Promise<string> {
+    const dir = await this.host.chatDir(matterId);
+    return costReportText(await readTrace(dir));
+  }
+
+  /** The matter's runs and helpers as CSV text, from the matter's page (section 6). */
+  async costCsv(matterId: string): Promise<string> {
+    const dir = await this.host.chatDir(matterId);
+    return costCsvText(await readTrace(dir));
   }
 
   /** Compact now: Pi's compaction, with the kind's summary form (agent-framework section 7.1). */
@@ -1303,8 +1535,16 @@ export class Agent {
   ): Promise<MatterChat> {
     const host = this.host;
     const { chatDir, sessionDir } = spec;
-    const slots = { running: 0 };
     const sessionRef: { s?: AgentSession } = {};
+    const chatRef: { state?: ChatState } = {};
+    /** A text line of the application in the chat, before or after the state exists. */
+    const notice = (line: string, helper?: HelperEventView): void => {
+      const st = chatRef.state;
+      if (!st) return;
+      const message: ChatMessage = { id: randomUUID(), role: "notice", text: line, ...(helper ? { helper } : {}) };
+      st.messages.push(message);
+      this.emit(matterId, { type: EventType.CUSTOM, name: CHAT_MESSAGE_EVENT, value: message });
+    };
     // The plan (native-harness-parts section 4): kept in the state, the file and the window.
     const stateRef: { state?: ChatState } = {};
     const plan = planTools({
@@ -1319,8 +1559,79 @@ export class Agent {
       },
     });
     // Native helpers (native-harness-parts section 3): only a Matter Agent starts them.
+    const helpers = new HelperManager({
+      chatDir,
+      model: () => {
+        const m = sessionRef.s ? sessionModel(sessionRef.s) : undefined;
+        return m ? keyOf(m) : "unknown";
+      },
+      createSession: (input) => this.helperSession(sessionRef.s, { ...input, sessionDir: path.join(chatDir, "helpers") }),
+      parentContext: () => (stateRef.state?.messages ?? []).slice(-80).map((m) => `${m.role}: ${m.text}`).join("\n").slice(-30_000),
+      text: (line, event) => notice(line, event),
+      tool: (event) => {
+        const st = chatRef.state;
+        if (!st) return;
+        const message: ChatMessage = {
+          id: event.id,
+          role: "tool",
+          text: `Used tool: ${event.name}`,
+          tool: {
+            name: event.name,
+            target: event.target,
+            status: event.status,
+            durationMs: event.durationMs,
+            error: event.error,
+            helperId: event.helper.id,
+            helperName: event.helper.name,
+          },
+        };
+        const at = st.messages.findIndex((m) => m.id === event.id);
+        if (at >= 0) st.messages[at] = message;
+        else st.messages.push(message);
+        this.emit(matterId, { type: EventType.CUSTOM, name: CHAT_MESSAGE_EVENT, value: message });
+      },
+      changed: (views) => {
+        if (stateRef.state) stateRef.state.helpers = views;
+        this.emit(matterId, { type: EventType.CUSTOM, name: HELPERS_EVENT, value: views });
+      },
+      usage: async (usage, sessionId, helper) => {
+        await host.recordUsage(matterId, usage, sessionId);
+        const text = JSON.stringify({
+          at: new Date().toISOString(),
+          session: sessionId,
+          type: "helper_end",
+          helper: helper.id,
+          name: helper.name,
+          helperType: helper.type,
+          input: usage.input,
+          output: usage.output,
+          tokens: usage.totalTokens,
+          cacheRead: usage.cacheRead,
+          cacheWrite: usage.cacheWrite,
+          cacheHit: cacheHit(usage.input, usage.cacheRead, usage.cacheWrite),
+          cost: usage.cost,
+        }) + "\n";
+        await appendFile(path.join(chatDir, TRACE_FILE), text).catch(() => undefined);
+        // The helper's cost joins the matter's totals in the Context panel.
+        const st = stateRef.state;
+        if (st) {
+          const before = st.cost ?? emptyCost();
+          st.cost = {
+            runs: before.runs,
+            helpers: before.helpers + 1,
+            input: before.input + usage.input,
+            output: before.output + usage.output,
+            total: before.total + usage.totalTokens,
+            cacheRead: before.cacheRead + usage.cacheRead,
+            cacheWrite: before.cacheWrite + usage.cacheWrite,
+            cost: before.cost + usage.cost,
+          };
+          this.emit(matterId, { type: EventType.CUSTOM, name: COST_EVENT, value: { lastRun: st.lastRun, cost: st.cost } });
+        }
+      },
+    });
     // harden: Stop ends the call at once, even when the helper's model call does not end.
-    const helperTools = spec.kind === "matter" ? [harden(startHelperTool({ slots, createSession: (input) => this.helperSession(sessionRef.s, input) }, { type: null }) as never)] : [];
+    const helperSessionTools = spec.kind === "matter" ? helperTools(helpers).map((t) => harden(t)) : [];
     // The tool policy asks through the session's question queue, made below.
     const questionsRef: { q?: ExtensionQuestions } = {};
     const labels = new Map(spec.tools.map((t) => [t.name, (t as { label?: string }).label ?? t.name]));
@@ -1328,6 +1639,13 @@ export class Agent {
       store: this.policyStore(),
       conversation: matterId,
       label: (name) => labels.get(name) ?? name.replace(/_/g, " "),
+      parties: async () => (spec.kind === "matter" ? ((await host.parties?.(matterId)) ?? []) : []),
+      partyRule: () => host.partyRule?.() ?? true,
+      trace: (line) => {
+        const text = JSON.stringify({ at: new Date().toISOString(), session: sessionRef.s?.sessionId ?? null, type: "policy", ...line }) + "\n";
+        void appendFile(path.join(chatDir, TRACE_FILE), text).catch(() => undefined);
+      },
+      notice: (line) => notice(line),
       ask: async (title, signal) => {
         const q = questionsRef.q;
         if (!q) return "refuse";
@@ -1343,19 +1661,42 @@ export class Agent {
     const settingsManager = ext ? ext.settings() : SettingsManager.inMemory();
     // H-2: compaction on, with the kind's strategy (docs/specs/agent-framework.md section 7).
     settingsManager.applyOverrides({ compaction: { enabled: true, keepRecentTokens: CONTEXT_STRATEGY[spec.kind].keepRecentTokens } });
+    // Context (native-harness-parts section 4): summaries with refs, at the end of a run.
+    const refs = new ResultRefs();
+    const summaryPending = { summarise: false };
+    const promptText = `${spec.prompt}\n${planGuidance(host.planStrength?.() ?? "long")}`;
+    const context = contextExtension(spec.kind, {
+      refs,
+      pending: summaryPending,
+      notice: (line) => notice(line),
+    });
+    // recall_result: a summary carries a ref; the tool returns the original text (section 4).
+    const recall = spec.kind === "matter"
+      ? defineTool({
+          name: "recall_result",
+          label: "Recall a tool result",
+          description: "Return the original text behind a summary ref (t1, t2, …). Summaries replace old tool results in your context; the original is kept in the session.",
+          parameters: Type.Object({ ref: Type.String({ description: "The ref at the start of a summary, for example t2." }) }),
+          execute: async (_id, p) => {
+            const text = refs.get(p.ref);
+            if (text === undefined) throw new Error(`No summarised result has the ref ${p.ref}.`);
+            return { content: [{ type: "text", text }], details: {} };
+          },
+        })
+      : null;
     const { session } = await createAgentSession({
       cwd: this.options.agentDir,
       agentDir: this.options.agentDir,
       modelRuntime: runtime,
       model,
       thinkingLevel: this.effort(),
-      resourceLoader: ext ? await ext.loader({ systemPrompt: `${spec.prompt}\n${planGuidance(host.planStrength?.() ?? "long")}`, extraFactories: [policy, contextExtension(spec.kind), ...(this.options.inlineExtensions ?? [])] }) : resourceLoader(spec.prompt),
+      resourceLoader: ext ? await ext.loader({ systemPrompt: promptText, extraFactories: [policy, context, ...(this.options.inlineExtensions ?? [])] }) : resourceLoader(promptText),
       settingsManager,
       sessionManager: fresh ? SessionManager.create(this.options.agentDir, sessionDir) : SessionManager.continueRecent(this.options.agentDir, sessionDir),
       // Decision 2: Pi's built-in file and shell tools are off; our tools and extension tools are on.
       noTools: "builtin",
       excludeTools: [...BUILTIN_TOOL_NAMES],
-      customTools: [...spec.tools.map(harden), ...plan.map(harden), ...helperTools] as never,
+      customTools: [...spec.tools.map(harden), ...plan.map(harden), ...helperSessionTools, ...(recall ? [harden(recall)] : [])] as never,
     });
     sessionRef.s = session;
     const active = session.getActiveToolNames();
@@ -1364,7 +1705,10 @@ export class Agent {
       session.dispose();
       throw new Error(`agent tool policy violated: ${JSON.stringify(active)}`);
     }
-    const chatRef: { state?: ChatState } = {};
+    // Hide the denied tools before the run, so the model never tries one (native-harness-parts 2.1).
+    const stored = this.policyStore().read();
+    const refused = active.filter((t) => !(ALWAYS_DENIED as readonly string[]).includes(t) && ruleFor(stored, t) === "deny");
+    if (refused.length) session.setActiveToolsByName(active.filter((t) => !refused.includes(t)));
     // H-12: questions from extensions wait in the chat for the advocate.
     const questions = new ExtensionQuestions((open) => {
       if (chatRef.state) chatRef.state.questions = open;
@@ -1391,7 +1735,14 @@ export class Agent {
     const started = sessionModel(session);
     const modelName = started ? keyOf(started) : null;
     await host.recordSession(matterId, session.sessionId, modelName);
-    const state: ChatState = { messages: fresh ? [] : await loadMessages(chatDir), busy: false, model: modelName, plan: await loadPlan(chatDir) };
+    const state: ChatState = {
+      messages: fresh ? [] : await loadMessages(chatDir),
+      busy: false,
+      model: modelName,
+      plan: await loadPlan(chatDir),
+      sessionId: session.sessionId,
+      cost: costSummaryFromTrace(await readTrace(chatDir)),
+    };
     chatRef.state = state;
     stateRef.state = state;
     const NO_MODEL = "No model is available. Sign in to a model provider with Pi first.";
@@ -1402,8 +1753,19 @@ export class Agent {
         text: NO_MODEL,
       });
     }
-    const chat: MatterChat = { session, state, proposals: [], questions, helpersStopped: 0, run: null, unlisten: () => undefined, chatDir, slots };
+    if (refused.length) {
+      state.messages.push({
+        id: randomUUID(),
+        role: "notice",
+        text: `Refused by the tool policy, so hidden from the agent: ${refused.join(", ")}.`,
+      });
+    }
+    const chat: MatterChat = { session, state, proposals: [], questions, helpersStopped: 0, run: null, unlisten: () => undefined, chatDir, helpers, prompt: promptText, refs, summaryPending };
     chat.unlisten = this.listen(matterId, chat);
+    if (spec.kind === "matter") {
+      state.helpers = helpers.views();
+      await helpers.restore().catch(() => 0);
+    }
     return chat;
   }
 
@@ -1435,6 +1797,7 @@ export class Agent {
     const chat = await this.chat(matterId);
     const { state } = chat;
     state.questions = chat.questions.list();
+    state.helpers = chat.helpers.views();
     // H-3: a model the advocate signed in to after the session opened is used at once.
     if (!state.busy) await this.ensureModel(matterId, chat).catch(() => undefined);
     return { ...state, messages: [...state.messages] };
@@ -1459,6 +1822,14 @@ export class Agent {
       } catch (e) {
         push({ id: randomUUID(), role: "notice", text: `Not added to the plan: ${(e as Error).message}` });
       }
+      await saveMessages(chat.chatDir, state.messages).catch(() => undefined);
+      return;
+    }
+    // Typed commands (native-harness-parts sections 5 and 6): text, no model run.
+    const report = /^\/(context|cost)\s*$/i.exec(clean);
+    if (report) {
+      const text = report[1].toLowerCase() === "context" ? await this.contextReport(matterId) : await this.costReport(matterId);
+      push({ id: randomUUID(), role: "notice", text });
       await saveMessages(chat.chatDir, state.messages).catch(() => undefined);
       return;
     }
@@ -1504,11 +1875,21 @@ export class Agent {
       return release(`The matter's budget of ${pol.budgetTokens} tokens is used (${pol.usedTokens}). Raise the budget to continue.`);
     }
     chat.stopped = false;
+    // Background results never start a turn by themselves: they go with the advocate's next
+    // message (or "Use results"). A command ("/context", "/cost") does not take them.
+    let prompt = clean;
+    if (!clean.startsWith("/")) {
+      const results = chat.helpers.takeResults();
+      if (results.count) {
+        prompt = `${results.text}\n\n<advocate-message>\n${clean}\n</advocate-message>`;
+        push({ id: randomUUID(), role: "notice", text: `The results of ${results.count} background helper${results.count === 1 ? "" : "s"} go with this message.` });
+      }
+    }
     // The run starts now, so the window shows the work at once, also for an extension command
     // that waits on a question. Pi's agent_start joins this run; agent_settled ends it (H-25).
     const run = this.beginRun(matterId, chat);
     try {
-      await session.prompt(clean);
+      await session.prompt(prompt);
       await session.waitForIdle();
     } catch (e) {
       const failure = `The agent stopped with an error: ${(e as Error).message}`;
@@ -1593,7 +1974,45 @@ export class Agent {
       this.emit(matterId, { type: EventType.RUN_FINISHED, threadId, runId: run.id, outcome: { type: "success" } });
     }
     this.setMeter(matterId, chat, run.cache);
-    this.trace(chat, { type: "run_end", run: run.id, stopped, failed: failure !== null, tokens: run.usage.totalTokens, cacheRead: run.cache.read, cacheWrite: run.cache.write, helpersStopped: chat.helpersStopped });
+    // The Context panel's numbers: the last run, and the matter's totals.
+    const lastRun: RunSummary = {
+      input: run.usage.input,
+      output: run.usage.output,
+      total: run.usage.totalTokens,
+      cacheRead: run.cache.read,
+      cacheWrite: run.cache.write,
+      cacheHit: cacheHit(run.usage.input, run.cache.read, run.cache.write),
+      cost: run.usage.cost,
+    };
+    state.lastRun = lastRun;
+    const before = state.cost ?? emptyCost();
+    state.cost = {
+      runs: before.runs + 1,
+      helpers: before.helpers,
+      input: before.input + lastRun.input,
+      output: before.output + lastRun.output,
+      total: before.total + lastRun.total,
+      cacheRead: before.cacheRead + lastRun.cacheRead,
+      cacheWrite: before.cacheWrite + lastRun.cacheWrite,
+      cost: before.cost + lastRun.cost,
+    };
+    // Summarise the run's old tool results once, at its end (native-harness-parts section 4).
+    chat.summaryPending.summarise = true;
+    this.trace(chat, {
+      type: "run_end",
+      run: run.id,
+      stopped,
+      failed: failure !== null,
+      input: run.usage.input,
+      output: run.usage.output,
+      tokens: run.usage.totalTokens,
+      cacheRead: run.cache.read,
+      cacheWrite: run.cache.write,
+      cacheHit: lastRun.cacheHit,
+      cost: run.usage.cost,
+      helpersStopped: chat.helpersStopped,
+    });
+    this.emit(matterId, { type: EventType.CUSTOM, name: COST_EVENT, value: { lastRun, cost: state.cost } });
     chat.stopped = false;
     chat.helpersStopped = 0;
     run.finish();
@@ -1648,12 +2067,28 @@ export class Agent {
       } else if (event.type === "tool_execution_start") {
         this.endText(matterId, run);
         started.set(event.toolCallId, Date.now());
-        state.messages.push({ id: event.toolCallId, role: "tool", text: `Used tool: ${event.toolName}` });
+        // A nested call belongs to the helper that made it (the start_helper call carries it).
+        // The helper wrapper already reports its calls in the helper's card; skip them here.
+        const helper = event.parentToolCallId ? chat.helpers.forCall(event.parentToolCallId) : undefined;
+        if (!helper) {
+          const message: ChatMessage = {
+            id: event.toolCallId,
+            role: "tool",
+            text: `Used tool: ${event.toolName}`,
+            tool: {
+              name: event.toolName,
+              target: toolTarget(event.toolName, event.args),
+              status: "running",
+            },
+          };
+          state.messages.push(message);
+          this.emit(matterId, { type: EventType.CUSTOM, name: CHAT_MESSAGE_EVENT, value: message });
+        }
         this.emit(matterId, { type: EventType.TOOL_CALL_START, toolCallId: event.toolCallId, toolCallName: event.toolName });
       } else if (event.type === "tool_execution_end") {
         this.emit(matterId, { type: EventType.TOOL_CALL_END, toolCallId: event.toolCallId });
-        if (event.isError) this.push(matterId, chat, { id: randomUUID(), role: "tool", text: `Tool failed: ${event.toolName}` });
         const content = (event.result as { content?: Array<{ type: string; text?: string }> } | undefined)?.content ?? [];
+        const contentText = content.map((c) => c.text ?? "").join("\n").trim();
         const used = (event.result as { usage?: { input?: number; output?: number; totalTokens?: number; cost?: { total?: number } } } | undefined)?.usage;
         if (used) {
           run.usage.input += used.input ?? 0;
@@ -1663,6 +2098,17 @@ export class Agent {
         }
         const t0 = started.get(event.toolCallId);
         started.delete(event.toolCallId);
+        // The same row becomes complete or failed, with its duration.
+        const message = state.messages.find((m) => m.id === event.toolCallId && m.tool);
+        if (message?.tool) {
+          message.tool = {
+            ...message.tool,
+            status: event.isError ? "error" : "done",
+            durationMs: event.durationMs ?? (t0 === undefined ? undefined : Date.now() - t0),
+            ...(event.isError ? { error: (contentText || "The tool failed.").slice(0, 300) } : {}),
+          };
+          this.emit(matterId, { type: EventType.CUSTOM, name: CHAT_MESSAGE_EVENT, value: message });
+        }
         this.trace(chat, {
           type: "tool",
           run: run.id,
@@ -1685,9 +2131,12 @@ export class Agent {
     const pending = this.chats.get(matterId);
     if (!pending) return false;
     const chat = await pending;
-    if (!chat.state.busy) return false;
+    if (!chat.state.busy) return (await chat.helpers.stopAll()) > 0;
+    // Claim the stop before awaiting, so the run's end always says the advocate stopped it.
     chat.stopped = true;
-    chat.helpersStopped = chat.slots.running;
+    // Stop on the chat stops every helper of the conversation, also a background job.
+    chat.helpersStopped = chat.helpers.views().filter((h) => h.state === "running").length;
+    await chat.helpers.stopAll();
     // H-12: a question that waits (an extension's, or an approval card) ends; an approval refuses.
     chat.questions.cancelAll();
     await chat.session.abort();
@@ -1701,6 +2150,7 @@ export class Agent {
       try {
         const chat = await pending;
         if (chat.state.busy) continue;
+        await chat.helpers.stopAll().catch(() => 0);
         chat.questions.cancelAll();
         chat.unlisten();
         await closeSession(chat.session, "reload");
@@ -1717,6 +2167,7 @@ export class Agent {
     for (const chat of this.chats.values()) {
       try {
         const c = await chat;
+        await c.helpers.stopAll().catch(() => 0);
         c.questions.cancelAll();
         c.unlisten();
         await closeSession(c.session, "quit");

@@ -27,8 +27,8 @@ export interface ModelScript {
 
 const queues: { agent: ScriptStep[]; helper: ScriptStep[] } = { agent: [], helper: [] };
 const holds = new Map<string, { promise: Promise<void>; release: () => void }>();
-/** What each request saw, for assertions: the queue and the last message as text. */
-export const seen: Array<{ queue: string; last: string }> = [];
+/** What each request saw, for assertions: the queue, the last message, and the whole request. */
+export const seen: Array<{ queue: string; last: string; all: string }> = [];
 
 function hold(name: string) {
   let h = holds.get(name);
@@ -59,7 +59,7 @@ export function installTestModel(runtime: ModelRuntime): void {
     const last = JSON.stringify(context.messages.at(-1) ?? "");
     if (/Summarise this conversation|Summarise this tool result/.test(last)) return fauxAssistantMessage("Summary of the earlier part (test model).");
     const queue = all.includes("You are a helper agent of Open Advocate") ? "helper" : "agent";
-    seen.push({ queue, last: last.slice(0, 4000) });
+    seen.push({ queue, last: last.slice(0, 4000), all: all.slice(0, 120_000) });
     const next = queues[queue].shift();
     if (!next) return fauxAssistantMessage(`(test model: no scripted ${queue} reply)`);
     if (next.hold) await hold(next.hold).promise;

@@ -6,6 +6,8 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type Reac
 import { Badge } from "@astryxdesign/core/Badge";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
+import { Layout, LayoutContent, LayoutFooter, LayoutHeader, LayoutPanel, VStack } from "@astryxdesign/core/Layout";
+import { List, ListItem } from "@astryxdesign/core/List";
 import { Text } from "@astryxdesign/core/Text";
 import type { AppInfo, Appearance, InboxItem, PiExtensionInfo, ProgressStage, ToolPolicyView } from "../../shared/api.ts";
 import { DateAnchorForm, DisputeDecision } from "./V5.tsx";
@@ -158,6 +160,7 @@ export const APPEARANCE_EVENT = "openadvo:appearance";
 export function SettingsPage(props: { mailbox: ReactNode; research?: ReactNode; contacts?: ReactNode; diagnostics?: ReactNode }) {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [mode, setMode] = useState<Appearance>("system");
+  const [active, setActive] = useState("appearance");
   useEffect(() => {
     void api.getAppInfo().then(setInfo);
     void api.getAppearance().then(setMode);
@@ -167,78 +170,129 @@ export function SettingsPage(props: { mailbox: ReactNode; research?: ReactNode; 
     window.dispatchEvent(new CustomEvent(APPEARANCE_EVENT, { detail: m }));
     await api.setAppearance(m);
   };
+  const sections = [
+    { id: "appearance", label: "Appearance" },
+    { id: "extensions", label: "Pi extensions" },
+    { id: "permissions", label: "Tool permissions" },
+    { id: "plan", label: "Plan" },
+    { id: "mailbox", label: "Mailbox" },
+    { id: "research", label: "Research sources" },
+    { id: "contacts", label: "Contacts" },
+    { id: "diagnostics", label: "Diagnostics" },
+    { id: "filing-key", label: "Filing manifest key" },
+    { id: "folders", label: "Folders" },
+    { id: "versions", label: "Versions" },
+    { id: "shortcuts", label: "Keyboard shortcuts" },
+  ];
+  const go = (id: string) => {
+    setActive(id);
+    document.getElementById(`settings-${id}`)?.scrollIntoView({ block: "start" });
+  };
   return (
-    <div className="work-scroll settings" data-testid="settings">
-      <Heading level={2}>Settings</Heading>
-      <section className="work-section" aria-label="Appearance">
-        <Heading level={3}>Appearance</Heading>
-        <div className="row-actions" role="radiogroup" aria-label="Appearance">
-          {(["system", "light", "dark"] as const).map((m) => (
-            <label key={m} className="radio">
-              <input type="radio" name="appearance" checked={mode === m} onChange={() => void choose(m)} /> {m === "system" ? "Follow the system" : m === "light" ? "Light" : "Dark"}
-            </label>
-          ))}
-        </div>
-      </section>
-      <section className="work-section" aria-label="Pi extensions">
-        <Heading level={3}>Pi extensions</Heading>
-        <Text type="supporting">Extensions add tools and commands to the agent. An extension runs code on this computer, so add only one whose source you have reviewed. Pi's built-in file and shell tools stay off, and the tool permissions below decide every tool call. A change applies when a conversation next opens.</Text>
-        <PiExtensionsSettings />
-      </section>
-      <section className="work-section" aria-label="Tool permissions">
-        <Heading level={3}>Tool permissions</Heading>
-        <Text type="supporting">For each tool of the agent: Allow, Ask (the agent waits for your approval in the chat), or Refuse. Pi's built-in file and shell tools, and any call that names a credential file, are always refused. A change applies to the next tool call.</Text>
-        <ToolPermissionsSettings />
-      </section>
-      <section className="work-section" aria-label="Mailbox">
-        <Heading level={3}>Authorised mailbox</Heading>
-        {props.mailbox}
-      </section>
-      <section className="work-section" aria-label="Research sources">
-        <Heading level={3}>Research sources</Heading>
-        <Text type="supporting">Queries to these sources leave this computer and are recorded in the matter's research log. Turn off a source you do not want used.</Text>
-        {props.research}
-      </section>
-      <section className="work-section" aria-label="Contacts">
-        <Heading level={3}>Contacts</Heading>
-        <Text type="supporting">The firm's clients, opposing parties and advocates. A matter's parties link to them.</Text>
-        {props.contacts}
-      </section>
-      <section className="work-section" aria-label="Diagnostics">
-        <Heading level={3}>Diagnostics</Heading>
-        {props.diagnostics}
-      </section>
-      <section className="work-section" aria-label="Filing manifest key">
-        <Heading level={3}>Filing manifest key</Heading>
-        <Text type="supporting">Every filing manifest is signed with this application's Ed25519 key. The private key is kept encrypted by the operating system and never leaves this computer.</Text>
-        <Text>Fingerprint: <span className="mono" data-testid="signing-fingerprint">{info?.signingKey ?? "not available: the operating system's secret store is not available, so manifests are not signed"}</span></Text>
-      </section>
-      <section className="work-section" aria-label="Folders">
-        <Heading level={3}>Folders</Heading>
-        <dl className="facts">
-          <dt>Matters</dt><dd className="mono">{info?.folders.matters}</dd>
-          <dt>Settings and keys</dt><dd className="mono">{info?.folders.userData}</dd>
-        </dl>
-      </section>
-      <section className="work-section" aria-label="Versions">
-        <Heading level={3}>Versions</Heading>
-        <dl className="facts" data-testid="versions">
-          <dt>Open Advocate</dt><dd>{info?.app}</dd>
-          <dt>Electron</dt><dd>{info?.electron} (Chromium {info?.chrome}, Node {info?.node})</dd>
-          <dt>Euro-Office</dt><dd>{info?.euroOffice}</dd>
-          <dt>Citation validator</dt><dd>{info?.validator}</dd>
-        </dl>
-      </section>
-      <section className="work-section" aria-label="Keyboard shortcuts">
-        <Heading level={3}>Keyboard shortcuts</Heading>
-        <dl className="facts">
-          <dt><kbd>Ctrl</kbd> + <kbd>K</kbd></dt><dd>Command bar: matters, tabs, actions and source lines</dd>
-          <dt><kbd>j</kbd> / <kbd>k</kbd></dt><dd>Review tab: next and previous item</dd>
-          <dt><kbd>Enter</kbd></dt><dd>Review tab: open the item</dd>
-          <dt><kbd>Escape</kbd></dt><dd>Close the command bar, the Inspector or a dialog</dd>
-        </dl>
-      </section>
-    </div>
+    <Layout
+      height="fill"
+      header={
+        <LayoutHeader hasDivider>
+          <VStack gap={1}>
+            <Heading level={2}>Settings</Heading>
+            <Text type="supporting">The window, the agent and this computer. Every change applies as you make it.</Text>
+          </VStack>
+        </LayoutHeader>
+      }
+      start={
+        <LayoutPanel role="navigation" label="Settings sections" width={210} hasDivider>
+          <List density="compact">
+            {sections.map((s) => (
+              <ListItem key={s.id} label={s.label} isSelected={active === s.id} onClick={() => go(s.id)} />
+            ))}
+          </List>
+        </LayoutPanel>
+      }
+      content={
+        <LayoutContent padding={4} data-testid="settings">
+          <VStack gap={4}>
+            <section className="work-section" id="settings-appearance" aria-label="Appearance">
+              <Heading level={3}>Appearance</Heading>
+              <div className="row-actions" role="radiogroup" aria-label="Appearance">
+                {(["system", "light", "dark"] as const).map((m) => (
+                  <label key={m} className="radio">
+                    <input type="radio" name="appearance" checked={mode === m} onChange={() => void choose(m)} /> {m === "system" ? "Follow the system" : m === "light" ? "Light" : "Dark"}
+                  </label>
+                ))}
+              </div>
+            </section>
+            <section className="work-section" id="settings-extensions" aria-label="Pi extensions">
+              <Heading level={3}>Pi extensions</Heading>
+              <Text type="supporting">Extensions add tools and commands to the agent. An extension runs code on this computer, so add only one whose source you have reviewed. Pi's built-in file and shell tools stay off, and the tool permissions below decide every tool call. A change applies when a conversation next opens.</Text>
+              <PiExtensionsSettings />
+            </section>
+            <section className="work-section" id="settings-permissions" aria-label="Tool permissions">
+              <Heading level={3}>Tool permissions</Heading>
+              <Text type="supporting">For each tool of the agent: Allow, Ask (the agent waits for your approval in the chat), or Refuse. Pi's built-in file and shell tools, and any call that names a credential file, are always refused. A change applies to the next tool call.</Text>
+              <ToolPermissionsSettings />
+            </section>
+            <section className="work-section" id="settings-plan" aria-label="Plan">
+              <Heading level={3}>Plan</Heading>
+              <Text type="supporting">How strongly the agent is asked to keep a plan. A plan is the checklist above the chat; the advocate can add an item by typing "add to the plan: …".</Text>
+              <PlanStrengthSettings />
+            </section>
+            <section className="work-section" id="settings-mailbox" aria-label="Mailbox">
+              <Heading level={3}>Authorised mailbox</Heading>
+              {props.mailbox}
+            </section>
+            <section className="work-section" id="settings-research" aria-label="Research sources">
+              <Heading level={3}>Research sources</Heading>
+              <Text type="supporting">Queries to these sources leave this computer and are recorded in the matter's research log. Turn off a source you do not want used.</Text>
+              {props.research}
+            </section>
+            <section className="work-section" id="settings-contacts" aria-label="Contacts">
+              <Heading level={3}>Contacts</Heading>
+              <Text type="supporting">The firm's clients, opposing parties and advocates. A matter's parties link to them.</Text>
+              {props.contacts}
+            </section>
+            <section className="work-section" id="settings-diagnostics" aria-label="Diagnostics">
+              <Heading level={3}>Diagnostics</Heading>
+              {props.diagnostics}
+            </section>
+            <section className="work-section" id="settings-filing-key" aria-label="Filing manifest key">
+              <Heading level={3}>Filing manifest key</Heading>
+              <Text type="supporting">Every filing manifest is signed with this application's Ed25519 key. The private key is kept encrypted by the operating system and never leaves this computer.</Text>
+              <Text>Fingerprint: <span className="mono" data-testid="signing-fingerprint">{info?.signingKey ?? "not available: the operating system's secret store is not available, so manifests are not signed"}</span></Text>
+            </section>
+            <section className="work-section" id="settings-folders" aria-label="Folders">
+              <Heading level={3}>Folders</Heading>
+              <dl className="facts">
+                <dt>Matters</dt><dd className="mono">{info?.folders.matters}</dd>
+                <dt>Settings and keys</dt><dd className="mono">{info?.folders.userData}</dd>
+              </dl>
+            </section>
+            <section className="work-section" id="settings-versions" aria-label="Versions">
+              <Heading level={3}>Versions</Heading>
+              <dl className="facts" data-testid="versions">
+                <dt>Open Advocate</dt><dd>{info?.app}</dd>
+                <dt>Electron</dt><dd>{info?.electron} (Chromium {info?.chrome}, Node {info?.node})</dd>
+                <dt>Euro-Office</dt><dd>{info?.euroOffice}</dd>
+                <dt>Citation validator</dt><dd>{info?.validator}</dd>
+              </dl>
+            </section>
+            <section className="work-section" id="settings-shortcuts" aria-label="Keyboard shortcuts">
+              <Heading level={3}>Keyboard shortcuts</Heading>
+              <dl className="facts">
+                <dt><kbd>Ctrl</kbd> + <kbd>K</kbd></dt><dd>Command bar: matters, tabs, actions and source lines</dd>
+                <dt><kbd>j</kbd> / <kbd>k</kbd></dt><dd>Review tab: next and previous item</dd>
+                <dt><kbd>Enter</kbd></dt><dd>Review tab: open the item</dd>
+                <dt><kbd>Escape</kbd></dt><dd>Close the command bar, the Inspector or a dialog</dd>
+              </dl>
+            </section>
+          </VStack>
+        </LayoutContent>
+      }
+      footer={
+        <LayoutFooter hasDivider>
+          <Text type="supporting">Changes are saved as you make them.</Text>
+        </LayoutFooter>
+      }
+    />
   );
 }
 
@@ -343,9 +397,9 @@ export function ToolPermissionsSettings() {
     void api.getToolPolicy().then(setData, (e: Error) => setMessage(e.message));
   }, []);
   if (!data) return message ? <Text>{message}</Text> : null;
-  const save = async (policy: ToolPolicyView["policy"]) => {
+  const save = async (policy: ToolPolicyView["policy"], partyRule = data.partyRule) => {
     try {
-      setData(await api.setToolPolicy(policy));
+      setData(await api.setToolPolicy(policy, partyRule));
       setMessage("Saved.");
     } catch (e) {
       setMessage(`Not saved: ${(e as Error).message}`);
@@ -359,6 +413,15 @@ export function ToolPermissionsSettings() {
         <select aria-label="Rule for every other tool" value={data.policy.default} onChange={(e) => void save({ ...data.policy, default: e.target.value as "allow" })}>
           {RULES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
+      </label>
+      <label className="row-actions">
+        <input
+          type="checkbox"
+          aria-label="Ask when a web search or a web page names a party"
+          checked={data.partyRule}
+          onChange={(e) => void save(data.policy, e.target.checked)}
+        />
+        <Text>Ask when a web search or a web page names a party of this matter</Text>
       </label>
       <ul className="plain-list">
         {data.tools.map((t) => (
@@ -381,6 +444,40 @@ export function ToolPermissionsSettings() {
         ))}
       </ul>
       {message ? <Text>{message}</Text> : null}
+    </div>
+  );
+}
+
+/** Settings: how strongly the agent is asked to keep a plan (native-harness-parts section 4). */
+export function PlanStrengthSettings() {
+  const [value, setValue] = useState<"long" | "most" | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  useEffect(() => {
+    void api.getPlanStrength().then(setValue, (e: Error) => setMessage(e.message));
+  }, []);
+  const choose = async (v: "long" | "most") => {
+    setValue(v);
+    try {
+      setValue(await api.setPlanStrength(v));
+      setMessage("Saved. It applies when a conversation next opens.");
+    } catch (e) {
+      setMessage(`Not saved: ${(e as Error).message}`);
+    }
+  };
+  if (!value) return message ? <Text>{message}</Text> : null;
+  return (
+    <div className="row-actions" role="radiogroup" aria-label="Plan strength" data-testid="plan-strength">
+      {(
+        [
+          ["long", "Only for long work: three or more steps"],
+          ["most", "For most work: almost every task"],
+        ] as const
+      ).map(([v, label]) => (
+        <label key={v} className="radio">
+          <input type="radio" name="plan-strength" checked={value === v} onChange={() => void choose(v)} /> {label}
+        </label>
+      ))}
+      {message ? <Text type="supporting">{message}</Text> : null}
     </div>
   );
 }

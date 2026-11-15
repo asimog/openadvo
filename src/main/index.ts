@@ -302,9 +302,25 @@ function registerBridge(): void {
   // Native harness parts: the plan (clear is human-only) and Compact now.
   handle("chat:clear-plan", (id: string) => agent.clearPlan(String(id ?? "")));
   handle("chat:compact", (id: string) => agent.compact(String(id ?? "")));
+  // The matter's cost as CSV text; the window saves it from the matter page.
+  handle("cost:csv", (matterId: string) => agent.costCsv(String(matterId ?? "")));
+  // Helpers (native-harness-parts section 3): Stop, Steer and "Use results" are the advocate's.
+  handle("helpers:stop", (id: string, helperId: string) => agent.stopHelper(String(id ?? ""), String(helperId ?? "")));
+  handle("helpers:steer", (id: string, helperId: string, text: string) => agent.steerHelper(String(id ?? ""), String(helperId ?? ""), String(text ?? "")));
+  handle("helpers:use-results", (id: string) => agent.useHelperResults(String(id ?? "")));
+  // Settings: how strongly the agent is asked to keep a plan (native-harness-parts section 4).
+  handle("plan:strength:get", () => (readSettings().planStrength === "most" ? "most" : "long"));
+  handle("plan:strength:set", (value: unknown) => {
+    const v = value === "most" ? "most" : "long";
+    writeSetting("planStrength", v);
+    return v;
+  });
   // Settings → Tool permissions (native-harness-parts section 2). The file is checked on write.
-  handle("tool-policy:get", () => ({ policy: agent.policyStore().read(), tools: policyTools() }));
-  handle("tool-policy:set", (policy: unknown) => ({ policy: agent.policyStore().write(cleanPolicy(policy)), tools: policyTools() }));
+  handle("tool-policy:get", () => ({ policy: agent.policyStore().read(), tools: policyTools(), partyRule: readSettings().partyRule !== false }));
+  handle("tool-policy:set", (policy: unknown, partyRule: unknown) => {
+    if (typeof partyRule === "boolean") writeSetting("partyRule", partyRule);
+    return { policy: agent.policyStore().write(cleanPolicy(policy)), tools: policyTools(), partyRule: readSettings().partyRule !== false };
+  });
   handle("chat:answer-question", (matterId: string, questionId: unknown, answer: unknown) => {
     if (typeof questionId !== "string" || !questionId) throw new Error("BAD_REQUEST: a question id is required");
     if (answer !== null && typeof answer !== "string" && typeof answer !== "boolean") throw new Error("BAD_REQUEST: the answer is a string, true or false, or null");
@@ -840,10 +856,23 @@ function toolPolicy(): PolicyStore {
   return store;
 }
 
-/** The agent's tools, for Settings → Tool permissions: the matter tools, the firm tools, the plan and helpers. */
+/** The agent's tools, for Settings → Tool permissions: the matter tools, the firm tools, the plan, helpers and MCP. */
 function policyTools(): Array<{ name: string; label: string }> {
-  const names = [...new Set<string>([...AGENT_TOOLS, ...FIRM_TOOLS, ...PLAN_TOOLS, "start_helper"])].sort();
-  return names.map((name) => ({ name, label: name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " ") }));
+  const base = [...AGENT_TOOLS, ...FIRM_TOOLS, ...PLAN_TOOLS, "start_helper", "helper_output", "stop_helper", "steer_helper", "mcp__*"];
+  const mcpServers = (() => {
+    try {
+      const cfg = JSON.parse(readFileSync(path.join(piAgentDir(), "mcp.json"), "utf8")) as { mcpServers?: Record<string, unknown> };
+      return Object.keys(cfg.mcpServers ?? {});
+    } catch {
+      return [];
+    }
+  })();
+  const mcpRows = mcpServers.map((s) => `mcp__${s}__*`);
+  const names = [...new Set<string>([...base, ...mcpRows, ...Object.keys(agent.policyStore().read().tools).filter((n) => n.startsWith("mcp__"))])].sort();
+  return names.map((name) => ({
+    name,
+    label: name.startsWith("mcp__") ? `MCP: ${name === "mcp__*" ? "every server, every tool" : name.replace(/^mcp__/, "").replace(/__\*$/, "") + " (every tool)"}` : name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " "),
+  }));
 }
 
 /** O10: the Firm Agent's folder in user data: its Pi session, messages, handoffs, trace and usage. */
@@ -975,6 +1004,16 @@ app.whenReady().then(() => {
         const p = store.policy();
         return { ...p, usedTokens: store.usage().tokens };
       },
+      // The party rule: a web query or URL that names a party of the open matter asks first.
+      parties: async (id) => {
+        if (id === FIRM_AGENT_ID) return [];
+        const all = contacts.list();
+        return (await matters.store(id))
+          .parties()
+          .flatMap((p) => [p.nameInRecord, all.find((c) => c.id === p.contactId)?.name ?? ""])
+          .filter((s) => s.trim().length > 0);
+      },
+      partyRule: () => readSettings().partyRule !== false,
       recordUsage: async (id, usage, sessionId) => {
         // O10: the Firm Agent's usage is kept in its own folder; no matter pays for it.
         if (id === FIRM_AGENT_ID) {
