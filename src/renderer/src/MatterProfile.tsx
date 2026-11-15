@@ -146,10 +146,12 @@ export function RelatedMatters(props: { matterId: string; matters: MatterSummary
   const [relation, setRelation] = useState<MatterRelation>("appeal_from");
   const [note, setNote] = useState("");
   const [extend, setExtend] = useState({ title: "", relation: "appeal_from" as MatterRelation, proceeding: "" });
+  const [suggestions, setSuggestions] = useState<Awaited<ReturnType<typeof api.relatedSuggestions>>>([]);
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {
     try {
       setRows(await api.listRelatedMatters(props.matterId));
+      setSuggestions(await api.relatedSuggestions().catch(() => []));
     } catch (e) {
       setError(errorText(e));
     }
@@ -189,11 +191,35 @@ export function RelatedMatters(props: { matterId: string; matters: MatterSummary
     }
   };
   const others = props.matters.filter((m) => m.id !== props.matterId);
+  const detected = suggestions.filter((s) => s.a === props.matterId || s.b === props.matterId).map((s) => ({ other: s.a === props.matterId ? s.b : s.a, reason: s.reason, basis: s.basis }));
+  const linkDetected = async (other: string, basis: string, reason: string) => {
+    const relation: MatterRelation = basis === "parties" ? "common_parties" : basis === "fir" ? "fir_behind" : "connected";
+    try {
+      setRows(await api.addRelatedMatter(props.matterId, other, relation, reason));
+      setSuggestions((list) => list.filter((s) => !((s.a === props.matterId && s.b === other) || (s.b === props.matterId && s.a === other))));
+      props.onChange();
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
   return (
     <section className="work-section" aria-label="Related matters" data-testid="related-matters">
       <Heading level={3}>Related matters</Heading>
       <Text type="supporting">An appeal from this matter, a revision, a review, a connected case, the FIR behind a bail matter, a common party or common evidence. Each link is shown on both matters.</Text>
       {error ? <div className="notice" role="alert">{error}</div> : null}
+      {detected.length ? (
+        <div className="notice" data-testid="related-suggestions">
+          <Text weight="semibold">Detected links</Text>
+          <ul className="plain-list">
+            {detected.map((d) => (
+              <li key={`${d.other}:${d.basis}`}>
+                <Text>{props.matters.find((m) => m.id === d.other)?.title ?? d.other}</Text> <Text type="supporting">{d.reason}</Text>{" "}
+                <Button label="Link" size="sm" clickAction={() => linkDetected(d.other, d.basis, d.reason)} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <ul className="plain-list">
         {rows.map((r) => (
           <li key={`${r.fromId ?? "this"}:${r.toId}:${r.relation}`}>

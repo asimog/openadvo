@@ -16,6 +16,7 @@ import { STUDIO_SCHEMA, StudioStore } from "./studio.ts";
 import { NOTEBOOK2_SCHEMA, addCorrection, dateAnchor, decideDispute, insertDispute, listCorrections, listDisputes, type EventCorrection, type OcrDispute } from "./notebook2.ts";
 import { AUTHORITY2_SCHEMA } from "./authority2.ts";
 import { PRACTICE_SCHEMA, addHearing, addParty, addRelatedMatter, addReminder, hearings, markImpactChecked, matterProfile, parties, policy, relatedMatters, reminders, removeRelatedMatter, setMatterProfile, setPolicy, setReminderStatus, type Hearing, type Party, type Policy, type Reminder } from "./practice.ts";
+import { EVIDENCE_SCHEMA, EvidenceStore } from "./evidence.ts";
 import type { MatterProfile, MatterRelation, RelatedMatter } from "../../shared/work.ts";
 import { FILING_CHECKS_SCHEMA, checkStates, defects as listDefects, setCheck, setTarget, target as filingTarget } from "./filing-checks.ts";
 import type { CheckState, DefectRow, FilingTarget } from "../../shared/intel.ts";
@@ -354,6 +355,35 @@ ALTER TABLE capture_browser RENAME TO capture;`);
     db.exec(NOTEBOOK2_SCHEMA);
     db.exec(AUTHORITY2_SCHEMA);
     db.exec(PRACTICE_SCHEMA);
+    db.exec(EVIDENCE_SCHEMA);
+    // Phase 4: the document part kinds grew with layout (header, footer, footnote, table, paragraph).
+    const dp = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'document_part'").get() as { sql?: string } | undefined;
+    if (dp?.sql && !dp.sql.includes("'header'")) {
+      db.exec("PRAGMA foreign_keys = OFF;");
+      db.exec("BEGIN");
+      try {
+        db.exec(`CREATE TABLE document_part_layout (
+  id TEXT PRIMARY KEY,
+  source_id TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('title', 'parties', 'facts', 'grounds', 'prayer', 'allegation', 'admission', 'denial', 'witness', 'exhibit', 'direction', 'annexure', 'header', 'footer', 'footnote', 'table', 'paragraph', 'other')),
+  text TEXT NOT NULL,
+  anchor_id TEXT NOT NULL,
+  page INTEGER NOT NULL,
+  line INTEGER NOT NULL,
+  ref TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL
+) STRICT;
+INSERT INTO document_part_layout SELECT id, source_id, kind, text, anchor_id, page, line, ref, created_at FROM document_part;
+DROP TABLE document_part;
+ALTER TABLE document_part_layout RENAME TO document_part;`);
+        db.exec("COMMIT");
+      } catch (e) {
+        db.exec("ROLLBACK");
+        throw e;
+      } finally {
+        db.exec("PRAGMA foreign_keys = ON;");
+      }
+    }
     // C8: counsel for each party.
     const party = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'party'").get() as { sql?: string } | undefined;
     if (party?.sql && !party.sql.includes("counsel")) db.exec("ALTER TABLE party ADD COLUMN counsel TEXT NOT NULL DEFAULT '';");
@@ -447,6 +477,13 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
 
   private workStore: WorkStore | null = null;
   private studioStore: StudioStore | null = null;
+  private evidenceStore: EvidenceStore | null = null;
+
+  /** Phase 4: facts, evidence, structure, relations, the graph, memory, marks, operations and jurisdiction. */
+  get evidence(): EvidenceStore {
+    this.evidenceStore ??= new EvidenceStore(this, this.db);
+    return this.evidenceStore;
+  }
 
   /** V4: the Research and Argument Studio. */
   get studio(): StudioStore {
@@ -982,6 +1019,7 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
       if (page.kind === "none") {
         this.openReviewItem("page_without_text", sourceId, page.page, `Page ${page.page} of ${source.name} has no text layer, and OCR found no text.`);
       }
+      if (page.marks) for (const m of page.marks) this.evidence.addMark({ sourceId, page: page.page, ...m });
       this.db.exec("COMMIT");
     } catch (e) {
       this.db.exec("ROLLBACK");

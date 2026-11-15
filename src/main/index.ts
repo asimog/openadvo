@@ -58,6 +58,10 @@ import { BROWSER_STATE_EVENT, type BrowserBounds, type BrowserCapture, type Case
 import { Library } from "./library.ts";
 import { proposeClassification } from "../lib/classification/index.ts";
 import { MatterProposals } from "./matter-proposals.ts";
+import { analyzeMatter } from "./evidence.ts";
+import { extractPages, markDocument, mergeDocuments, reorderDocument, splitDocument } from "./document-ops.ts";
+import { buildTimeline, detectContradictions, detectRelatedMatters, templatesFor } from "../lib/evidence/index.ts";
+import type { JurisdictionReport } from "../shared/evidence.ts";
 
 // Tests and the proof run may point the application at separate folders.
 if (process.env.OPENADVO_USER_DATA) app.setPath("userData", path.resolve(process.env.OPENADVO_USER_DATA));
@@ -716,6 +720,178 @@ function registerBridge(): void {
   handle("proposals:dismiss", (id: string) => {
     proposals.setStatus(String(id), "dismissed");
     return proposals.list();
+  });
+  // Phase 4: facts, evidence, structure, relations, the graph and timelines.
+  handle("evidence:facts", async (matterId: string, filter?: Record<string, string>) => (await matters.store(String(matterId))).evidence.facts(filter ?? {}));
+  handle("evidence:addFact", async (matterId: string, input: Record<string, unknown>) =>
+    (await matters.store(String(matterId))).evidence.addFact(
+      {
+        text: String(input?.text ?? ""),
+        type: String(input?.type ?? "fact"),
+        sourceId: input?.sourceId ? String(input.sourceId) : null,
+        anchorId: input?.anchorId ? String(input.anchorId) : null,
+        page: input?.page == null ? null : Number(input.page),
+        line: input?.line == null ? null : Number(input.line),
+        eventId: input?.eventId ? String(input.eventId) : null,
+        date: String(input?.date ?? ""),
+        amount: String(input?.amount ?? ""),
+        parties: Array.isArray(input?.parties) ? (input.parties as unknown[]).map(String) : [],
+        relief: String(input?.relief ?? ""),
+        method: "advocate",
+      },
+      { actor: "advocate" },
+    ),
+  );
+  handle("evidence:decideFact", async (matterId: string, id: string, status: string) => {
+    if (status !== "confirmed" && status !== "disputed" && status !== "rejected") throw new Error("BAD_STATUS: confirmed, disputed or rejected");
+    return (await matters.store(String(matterId))).evidence.decideFact(String(id), status, { actor: "advocate" });
+  });
+  handle("evidence:supersedeFact", async (matterId: string, id: string, input: Record<string, unknown>) =>
+    (await matters.store(String(matterId))).evidence.supersedeFact(
+      String(id),
+      {
+        text: String(input?.text ?? ""),
+        type: input?.type ? String(input.type) : undefined,
+        date: input?.date ? String(input.date) : undefined,
+        amount: input?.amount ? String(input.amount) : undefined,
+        parties: Array.isArray(input?.parties) ? (input.parties as unknown[]).map(String) : undefined,
+        relief: input?.relief ? String(input.relief) : undefined,
+      },
+      { actor: "advocate" },
+    ),
+  );
+  handle("evidence:linkFact", async (matterId: string, id: string, input: Record<string, unknown>) =>
+    (await matters.store(String(matterId))).evidence.linkFact(
+      String(id),
+      {
+        issueIds: Array.isArray(input?.issueIds) ? (input.issueIds as unknown[]).map(String) : undefined,
+        argumentIds: Array.isArray(input?.argumentIds) ? (input.argumentIds as unknown[]).map(String) : undefined,
+        relief: input?.relief !== undefined ? String(input.relief) : undefined,
+      },
+      { actor: "advocate" },
+    ),
+  );
+  handle("evidence:contradictions", async (matterId: string) => {
+    const store = await matters.store(String(matterId));
+    const nb = await matters.notebook(String(matterId));
+    return detectContradictions(store.evidence.facts(), nb.events.map((e) => ({ id: e.id, dateStart: e.dateStart, description: e.description, sourceId: e.sourceId, page: e.page, line: e.line })));
+  });
+  handle("evidence:list", async (matterId: string, filter?: Record<string, string>) => (await matters.store(String(matterId))).evidence.evidenceList(filter ?? {}));
+  handle("evidence:add", async (matterId: string, input: Record<string, unknown>) =>
+    (await matters.store(String(matterId))).evidence.addEvidence(
+      {
+        sourceId: String(input?.sourceId ?? ""),
+        exhibitNumber: String(input?.exhibitNumber ?? ""),
+        witness: String(input?.witness ?? ""),
+        statement: String(input?.statement ?? ""),
+        givenBy: String(input?.givenBy ?? ""),
+        givenAt: String(input?.givenAt ?? ""),
+        electronic: input?.electronic === true,
+        device: String(input?.device ?? ""),
+        admissibility: String(input?.admissibility ?? ""),
+        notes: String(input?.notes ?? ""),
+      },
+      { actor: "advocate" },
+    ),
+  );
+  handle("evidence:update", async (matterId: string, id: string, input: Record<string, unknown>) =>
+    (await matters.store(String(matterId))).evidence.updateEvidence(
+      String(id),
+      {
+        ...(input?.exhibitNumber !== undefined ? { exhibitNumber: String(input.exhibitNumber) } : {}),
+        ...(input?.witness !== undefined ? { witness: String(input.witness) } : {}),
+        ...(input?.statement !== undefined ? { statement: String(input.statement) } : {}),
+        ...(input?.givenBy !== undefined ? { givenBy: String(input.givenBy) } : {}),
+        ...(input?.givenAt !== undefined ? { givenAt: String(input.givenAt) } : {}),
+        ...(input?.electronic !== undefined ? { electronic: input.electronic === true } : {}),
+        ...(input?.device !== undefined ? { device: String(input.device) } : {}),
+        ...(input?.authenticity !== undefined ? { authenticity: String(input.authenticity) as never } : {}),
+        ...(input?.admissibility !== undefined ? { admissibility: String(input.admissibility) } : {}),
+        ...(input?.notes !== undefined ? { notes: String(input.notes) } : {}),
+        ...(input?.status !== undefined ? { status: String(input.status) as never } : {}),
+      },
+      { actor: "advocate" },
+    ),
+  );
+  handle("evidence:parts", async (matterId: string, sourceId?: string) => (await matters.store(String(matterId))).evidence.parts(sourceId ? String(sourceId) : undefined));
+  handle("evidence:relations", async (matterId: string) => (await matters.store(String(matterId))).evidence.relations());
+  handle("evidence:decideRelation", async (matterId: string, reviewItemId: string, decision: string) => {
+    if (decision !== "same" && decision !== "different") throw new Error("BAD_DECISION: same or different");
+    return (await matters.store(String(matterId))).evidence.decideRelation(String(reviewItemId), decision, { actor: "advocate" });
+  });
+  handle("evidence:edges", async (matterId: string, filter?: Record<string, string>) => (await matters.store(String(matterId))).evidence.edges(filter ?? {}));
+  handle("evidence:timeline", async (matterId: string) => {
+    const store = await matters.store(String(matterId));
+    const nb = await matters.notebook(String(matterId));
+    return buildTimeline(nb.events, store.evidence.facts());
+  });
+  handle("matter-memory:list", async (matterId: string, filter?: Record<string, string>) => (await matters.store(String(matterId))).evidence.memory(filter ?? {}));
+  handle("matter-memory:propose", async (matterId: string, input: Record<string, unknown>) =>
+    (await matters.store(String(matterId))).evidence.proposeMemory(
+      {
+        type: String(input?.type ?? "fact_from_document"),
+        subject: String(input?.subject ?? ""),
+        relation: String(input?.relation ?? "is"),
+        object: String(input?.object ?? ""),
+        sourceId: input?.sourceId ? String(input.sourceId) : null,
+        anchorId: input?.anchorId ? String(input.anchorId) : null,
+        validFrom: input?.validFrom ? String(input.validFrom) : null,
+        validUntil: input?.validUntil ? String(input.validUntil) : null,
+        confidence: input?.confidence == null ? null : Number(input.confidence),
+        supersedes: input?.supersedes ? String(input.supersedes) : null,
+      },
+      { actor: "advocate" },
+    ),
+  );
+  handle("matter-memory:decide", async (matterId: string, id: string, status: string) => (await matters.store(String(matterId))).evidence.decideMemory(String(id), status as never, { actor: "advocate" }));
+  handle("evidence:marks", async (matterId: string, sourceId?: string) => (await matters.store(String(matterId))).evidence.marks(sourceId ? String(sourceId) : undefined));
+  handle("docops:list", async (matterId: string) => (await matters.store(String(matterId))).evidence.operations());
+  handle("docops:run", async (matterId: string, input: Record<string, unknown>) => {
+    const kind = String(input?.kind ?? "");
+    if (kind === "extract") return extractPages(matters, String(matterId), String(input?.sourceId ?? ""), Array.isArray(input?.pages) ? (input.pages as unknown[]).map(Number) : []);
+    if (kind === "split") return splitDocument(matters, String(matterId), String(input?.sourceId ?? ""), Array.isArray(input?.ranges) ? (input.ranges as unknown[]).map((r) => (Array.isArray(r) ? r.map(Number) : [])) : []);
+    if (kind === "merge") return mergeDocuments(matters, String(matterId), Array.isArray(input?.sourceIds) ? (input.sourceIds as unknown[]).map(String) : []);
+    if (kind === "reorder") return reorderDocument(matters, String(matterId), String(input?.sourceId ?? ""), Array.isArray(input?.order) ? (input.order as unknown[]).map(Number) : []);
+    if (kind === "annotate" || kind === "highlight" || kind === "redact") {
+      const area = (input?.area ?? {}) as Record<string, unknown>;
+      return markDocument(matters, String(matterId), String(input?.sourceId ?? ""), { page: Number(area.page), x: Number(area.x), y: Number(area.y), w: Number(area.w), h: Number(area.h) }, kind);
+    }
+    throw new Error("BAD_OPERATION: extract, split, merge, reorder, annotate, highlight or redact");
+  });
+  handle("jurisdiction:get", async (matterId: string) => (await matters.store(String(matterId))).evidence.jurisdiction());
+  handle("jurisdiction:set", async (matterId: string, report: JurisdictionReport) => (await matters.store(String(matterId))).evidence.setJurisdiction(report, { actor: "advocate" }));
+  handle("jurisdiction:clauses", async (matterId: string) => (await matters.store(String(matterId))).evidence.forumClauses());
+  handle("matters:relatedSuggestions", async () => {
+    const all = await matters.list();
+    const out: Array<{ a: string; b: string; reason: string; basis: string }> = [];
+    const fingerprints: Array<{ id: string; title: string; cnr: string; fir: string; parties: string[]; impugnedOrder: string }> = [];
+    for (const m of all.filter((x) => !x.archived)) {
+      const store = await matters.store(m.id);
+      const profile = store.profile();
+      const details = store.work.details();
+      const nb = await matters.notebook(m.id);
+      const impugned = details.impugnedEventId ? nb.events.find((e) => e.id === details.impugnedEventId)?.description ?? "" : "";
+      const fir = [m.title, ...store.listSources().map((s) => s.name)].join(" ").match(/\b(?:FIR|F\.I\.R\.?)\s*(?:No\.?)?\s*[A-Z0-9/-]{2,}/i)?.[0] ?? "";
+      fingerprints.push({
+        id: m.id,
+        title: m.title,
+        cnr: profile.cnr || details.cnr,
+        fir,
+        parties: [...store.parties().map((p) => p.nameInRecord), details.petitioner, details.respondent].filter(Boolean),
+        impugnedOrder: impugned,
+      });
+    }
+    for (const r of detectRelatedMatters(fingerprints)) out.push(r);
+    return out;
+  });
+  handle("records:templates", async (proceeding: string) => templatesFor(String(proceeding ?? "")));
+  handle("records:applyTemplate", async (matterId: string, key: string) => {
+    const store = await matters.store(String(matterId));
+    const proceeding = store.profile().proceeding || store.profile().caseType;
+    const t = templatesFor(proceeding).find((x) => x.key === String(key));
+    if (!t) throw new Error(`TEMPLATE_NOT_FOUND: ${String(key)}`);
+    for (const q of t.columns) store.work.addRecordColumn(q, { actor: "advocate" });
+    return { columns: t.columns.length };
   });
   handle("mail:importEml", async (matterId: string) => {
     if (!window) return { messages: 0, attachments: [] };
@@ -1378,6 +1554,62 @@ app.whenReady().then(() => {
         });
         return `Proposed the matter "${p.title}" (${p.id}). The advocate decides on Home; you cannot create it.`;
       },
+      evidence: async (matterId, tool, params, sessionId) => {
+        const store = await matters.store(matterId);
+        const sourceOf = (v: unknown) => {
+          const q = String(v ?? "").trim();
+          return store.listSources().find((s) => s.id === q || s.name === q) ?? null;
+        };
+        if (tool === "list_facts") {
+          const facts = store.evidence.facts({ status: params.status ? String(params.status) : undefined, type: params.type ? String(params.type) : undefined, q: params.q ? String(params.q) : undefined });
+          return facts.length
+            ? facts.map((f) => `- ${f.id} [${f.status}/${f.type}] ${f.date || "no date"}${f.amount ? ` ₹${f.amount}` : ""}: ${f.text}${f.sourceName ? ` (${f.sourceName}, p. ${f.page}, l. ${f.line})` : ""}`).join("\n")
+            : "No fact is recorded yet.";
+        }
+        if (tool === "propose_fact") {
+          const source = sourceOf(params.source);
+          const f = store.evidence.addFact({ text: String(params.text ?? ""), type: String(params.type ?? "fact"), sourceId: source?.id ?? null, anchorId: source ? (store.sourceLines(source.id).find((l) => l.page === Number(params.page) && l.line === Number(params.line))?.id ?? null) : null, page: params.page == null ? null : Number(params.page), line: params.line == null ? null : Number(params.line), date: String(params.date ?? ""), amount: String(params.amount ?? ""), parties: Array.isArray(params.parties) ? params.parties.map(String) : [], relief: String(params.relief ?? ""), method: "agent" }, { actor: "agent", sessionId });
+          return `Recorded candidate fact ${f.id}. The advocate decides.`;
+        }
+        if (tool === "list_evidence") {
+          const rows = store.evidence.evidenceList({ q: params.q ? String(params.q) : undefined });
+          return rows.length ? rows.map((e) => `- ${e.id} ${e.exhibitNumber || "(no exhibit)"} [${e.authenticity}/${e.status}] ${e.sourceName}: ${e.statement || e.notes || "no statement"}${e.witness ? `; witness ${e.witness}` : ""}`).join("\n") : "No evidence is recorded yet.";
+        }
+        if (tool === "propose_evidence") {
+          const source = sourceOf(params.source);
+          if (!source) throw new MatterStoreError("SOURCE_NOT_FOUND", String(params.source ?? ""));
+          const e = store.evidence.addEvidence({ sourceId: source.id, exhibitNumber: String(params.exhibit_number ?? ""), witness: String(params.witness ?? ""), statement: String(params.statement ?? ""), givenBy: String(params.given_by ?? ""), givenAt: String(params.given_at ?? ""), electronic: params.electronic === true, device: String(params.device ?? "") }, { actor: "agent", sessionId });
+          return `Recorded candidate evidence ${e.id}. The advocate decides authenticity and admissibility.`;
+        }
+        if (tool === "list_matter_memory") {
+          const rows = store.evidence.memory({ status: params.status ? String(params.status) : undefined, type: params.type ? String(params.type) : undefined, q: params.q ? String(params.q) : undefined });
+          return rows.length ? rows.map((m) => `- ${m.memoryId} [${m.status}/${m.type}] ${m.subject} ${m.relation} ${m.object}${m.supersedes ? " (supersedes an earlier record)" : ""}`).join("\n") : "No typed matter memory yet.";
+        }
+        if (tool === "propose_matter_memory") {
+          const source = sourceOf(params.source);
+          const m = store.evidence.proposeMemory({ type: String(params.type ?? "fact_from_document"), subject: String(params.subject ?? ""), relation: String(params.relation ?? "is"), object: String(params.object ?? ""), sourceId: source?.id ?? null, validFrom: params.valid_from ? String(params.valid_from) : null, validUntil: params.valid_until ? String(params.valid_until) : null, confidence: params.confidence == null ? null : Number(params.confidence), supersedes: params.supersedes ? String(params.supersedes) : null }, { actor: "agent", sessionId });
+          return `Proposed matter memory ${m.memoryId}. The advocate decides.`;
+        }
+        if (tool === "get_jurisdiction") {
+          const r = store.evidence.jurisdiction();
+          return r ? JSON.stringify(r, null, 2) : "No jurisdiction report yet. It is built after the record is read.";
+        }
+        if (tool === "get_timeline") {
+          const nb = await matters.notebook(matterId);
+          const rows = buildTimeline(nb.events, store.evidence.facts());
+          return rows.length ? rows.map((e) => `- ${e.date || "no date"} [${e.kind}] ${e.text}${e.sourceName ? ` (${e.sourceName}, p. ${e.page}, l. ${e.line})` : ""}`).join("\n") : "No timeline entry yet.";
+        }
+        if (tool === "list_document_parts") {
+          const rows = store.evidence.parts(params.source_id ? String(params.source_id) : undefined);
+          return rows.length ? rows.map((p) => `- ${p.sourceName}, p. ${p.page}, l. ${p.line} [${p.kind}] ${p.text}`).join("\n") : "No document structure is read yet.";
+        }
+        if (tool === "get_contradictions") {
+          const nb = await matters.notebook(matterId);
+          const rows = detectContradictions(store.evidence.facts(), nb.events.map((e) => ({ id: e.id, dateStart: e.dateStart, description: e.description, sourceId: e.sourceId, page: e.page, line: e.line })));
+          return rows.length ? rows.map((c) => `- ${c.kind}: ${c.values.map((v) => `${v.value} (${v.text.slice(0, 120)})`).join(" / ")}`).join("\n") : "No contradiction is found.";
+        }
+        throw new MatterStoreError("UNKNOWN_TOOL", tool);
+      },
       firm: {
         matters: () => docket(matters, progress),
         openItems: async (id) => (await progress.inbox(id)).map((i) => ({ kind: i.kind, title: i.title, blocks: i.blocks, tab: i.tab })),
@@ -1388,7 +1620,7 @@ app.whenReady().then(() => {
     },
     { agentDir: piAgentDir(), piHome: ownerPiHome ?? getAgentDir(), model: process.env.OPENADVO_MODEL || undefined, extensions: piExtensions(), policy: toolPolicy() },
   );
-  ingest = new Ingest(matters, (matterId) => window?.webContents.send("ingest:update", matterId));
+  ingest = new Ingest(matters, (matterId) => window?.webContents.send("ingest:update", matterId), (matterId) => analyzeMatter(matters, matterId, courtIntel));
   browser = new Browser({
     window: () => window,
     userData: app.getPath("userData"),

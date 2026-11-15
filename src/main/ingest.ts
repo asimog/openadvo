@@ -13,12 +13,14 @@ import { orderImpact } from "./practice.ts";
 export class Ingest {
   private matters: Matters;
   private notify: (matterId: string) => void;
+  private analyze: ((matterId: string) => Promise<unknown>) | null;
   private chain: Promise<void> = Promise.resolve();
   private pending = new Set<string>();
 
-  constructor(matters: Matters, notify: (matterId: string) => void) {
+  constructor(matters: Matters, notify: (matterId: string) => void, analyze?: (matterId: string) => Promise<unknown>) {
     this.matters = matters;
     this.notify = notify;
+    this.analyze = analyze ?? null;
   }
 
   /** Queue every source of the matter that needs a job. Safe to call often. */
@@ -50,7 +52,14 @@ export class Ingest {
         });
         // V5-19: a new order or judgment after an approval asks the advocate to re-check the approved drafts.
         await orderImpact(this.matters, matterId).catch((e) => console.error(`orderImpact: ${(e as Error).message}`));
-        if (added > 0 || changed) this.notify(matterId);
+        // Phase 4: facts, structure, relations, contradictions, the graph and the jurisdiction report.
+        const analyzed = this.analyze
+          ? await this.analyze(matterId).catch((e) => {
+              console.error(`analysis: ${(e as Error).message}`);
+              return null;
+            })
+          : null;
+        if (added > 0 || changed || analyzed) this.notify(matterId);
         return;
       }
       if (!(await this.matters.startJob(matterId, source.id))) {

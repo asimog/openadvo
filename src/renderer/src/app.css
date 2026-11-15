@@ -422,3 +422,16 @@ kbd { font-family: ui-monospace, monospace; font-size: 12px; border: 1px solid v
 .intake-row > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .intake-cnr { align-items: flex-end; }
 .intake-cnr > div { flex: 1; }
+
+/* Phase 4: facts, evidence, structure, jurisdiction and memory. */
+.phase4-row { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid var(--color-border); border-radius: 8px; }
+.phase4-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 320px; }
+.phase4-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.phase4-form { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.phase4-form input, .phase4-form select, .phase4-edit input, .timeline-split input { font: inherit; padding: 4px 6px; border: 1px solid var(--color-border); border-radius: 6px; background: transparent; color: inherit; }
+.phase4-form select[multiple] { min-height: 70px; }
+.phase4-edit { flex: 1 0 100%; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding-top: 6px; border-top: 1px solid var(--color-border); }
+.phase4-edit input { flex: 1 1 300px; }
+.phase4-structure { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.timeline-split { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.timeline-split > div { display: flex; flex-direction: column; gap: 4px; padding: 8px; border: 1px solid var(--color-border); border-radius: 8px; }

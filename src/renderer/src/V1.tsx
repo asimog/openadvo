@@ -113,11 +113,19 @@ export function MemoryEditor(props: { matterId: string }) {
 export function RecordTableView(props: { matterId: string; sources: SourceRecord[]; version: number }) {
   const [t, setT] = useState<RecordTable | null>(null);
   const [question, setQuestion] = useState("");
+  const [templates, setTemplates] = useState<Awaited<ReturnType<typeof api.recordTemplates>>>([]);
+  const [templateKey, setTemplateKey] = useState("");
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => setT(await api.getRecordTable(props.matterId)), [props.matterId]);
   useEffect(() => {
     void load();
   }, [load, props.version]);
+  useEffect(() => {
+    void (async () => {
+      const p = await api.getMatterProfile(props.matterId);
+      setTemplates(await api.recordTemplates(p.proceeding || p.caseType));
+    })().catch(() => setTemplates([]));
+  }, [props.matterId]);
   const run = async (fn: () => Promise<unknown>) => {
     try {
       setError(null);
@@ -151,6 +159,16 @@ export function RecordTableView(props: { matterId: string; sources: SourceRecord
           }
         />
         <Button label="Ask the agent to fill the table" size="sm" variant="ghost" isDisabled={t.columns.length === 0} clickAction={() => api.sendChat(props.matterId, "Fill the record table: read list_record_table, then fill each empty cell with fill_record_cell, quoting the exact words of one line. Leave a cell empty when the source does not answer.")} />
+      </div>
+      <div className="row-actions" data-testid="record-templates">
+        <label className="field">
+          <span>A template for this proceeding</span>
+          <select aria-label="Record table template" value={templateKey} onChange={(e) => setTemplateKey(e.target.value)}>
+            <option value="">Choose a template</option>
+            {templates.map((x) => <option key={x.key} value={x.key}>{x.title}</option>)}
+          </select>
+        </label>
+        <Button label="Add the template columns" size="sm" isDisabled={!templateKey} clickAction={() => run(async () => { await api.applyRecordTemplate(props.matterId, templateKey); setTemplateKey(""); })} />
       </div>
       {error ? <div className="notice" role="alert">{error}</div> : null}
       {t.columns.length === 0 ? (

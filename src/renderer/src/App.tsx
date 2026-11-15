@@ -31,6 +31,7 @@ import { Onboarding } from "./Onboarding.tsx";
 import { ProfilePage } from "./Profile.tsx";
 import { HomeDashboard } from "./Dashboard.tsx";
 import { MatterOverview, MatterProfileForm, RelatedMatters } from "./MatterProfile.tsx";
+import { EvidencePanel, FactsPanel, JurisdictionPanel, MemoryPanel, StructurePanel } from "./Phase4.tsx";
 import { GlobeAltIcon } from "@heroicons/react/24/outline";
 import type {
   AddFileResult,
@@ -405,6 +406,10 @@ export function App() {
     setFocus(link);
     setSourceId(link.sourceId);
   };
+  const openLink = useCallback((link: SourceLink) => {
+    setFocus(link);
+    setSourceId(link.sourceId);
+  }, []);
 
   const draftOpen = matter && openDraft && openRevision;
   const openItem = draftOpen ? openDraft.title : matter && source ? source.name : null;
@@ -695,6 +700,11 @@ export function App() {
                             onChanged={() => void refreshMatter(matter.id)}
                           />
                         }
+                        factsPanel={<FactsPanel matterId={matter.id} version={version} onOpenSource={openLink} onChanged={() => void refreshMatter(matter.id)} />}
+                        evidencePanel={<EvidencePanel matterId={matter.id} sources={sources} version={version} onChanged={() => void refreshMatter(matter.id)} onOpenSource={openLink} />}
+                        structurePanel={<StructurePanel matterId={matter.id} version={version} onOpenSource={openLink} />}
+                        jurisdictionPanel={<JurisdictionPanel matterId={matter.id} version={version} onOpenSource={openLink} />}
+                        memoryPanel={<MemoryPanel matterId={matter.id} version={version} onChanged={() => void refreshMatter(matter.id)} />}
                         overview={
                           <div>
                             <MatterOverview

@@ -155,6 +155,12 @@ export function NotebookView(props: {
   reviewCount: number;
   /** V5-6. */
   entitiesPanel?: ReactNode;
+  /** Phase 4. */
+  factsPanel?: ReactNode;
+  evidencePanel?: ReactNode;
+  structurePanel?: ReactNode;
+  jurisdictionPanel?: ReactNode;
+  memoryPanel?: ReactNode;
   onChange: (nb: Notebook) => void;
   onOpen: (l: SourceLink) => void;
 }) {
@@ -184,13 +190,18 @@ export function NotebookView(props: {
         <Tab value="procedural" label="Procedural history" />
         <Tab value="matrix" label="Factual Matrix" />
         <Tab value="chronology" label="Chronology" />
+        <Tab value="facts" label="Facts" />
+        <Tab value="evidence" label="Evidence" />
+        <Tab value="structure" label="Structure" />
+        <Tab value="jurisdiction" label="Jurisdiction" />
+        <Tab value="memory" label="Memory" />
         <Tab value="entities" label="Entities" />
         <Tab value="records" label="Record table" />
         <Tab value="research" label="Studio" />
         <Tab value="filing" label="Filing" />
       </TabList>
       <div className="notebook-body">
-        {tab !== "matter" && tab !== "research" && tab !== "filing" && tab !== "records" && tab !== "review" && tab !== "entities" && nb ? <Conflicts matterId={props.matterId} nb={nb} onChange={props.onChange} onOpen={props.onOpen} /> : null}
+        {["procedural", "matrix", "chronology", "facts"].includes(tab) && nb ? <Conflicts matterId={props.matterId} nb={nb} onChange={props.onChange} onOpen={props.onOpen} /> : null}
         {tab === "matter" ? props.overview : null}
         {tab === "sources" ? props.sourcesPanel : null}
         {tab === "research" ? props.researchPanel : null}
@@ -212,6 +223,11 @@ export function NotebookView(props: {
             <EventsTable label="Chronology" events={chronology} full={false} matterId={props.matterId} onChange={props.onChange} onOpen={props.onOpen} />
           </>
         ) : null}
+        {tab === "facts" ? props.factsPanel : null}
+        {tab === "evidence" ? props.evidencePanel : null}
+        {tab === "structure" ? props.structurePanel : null}
+        {tab === "jurisdiction" ? props.jurisdictionPanel : null}
+        {tab === "memory" ? props.memoryPanel : null}
       </div>
     </div>
   );

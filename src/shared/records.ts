@@ -120,6 +120,8 @@ export interface PageInput {
   ocr?: { engine: string; version: string; confidence: number };
   /** V5-8: the second engine's reading and the lines where the two disagree on a critical token. */
   second?: { engine: string; version: string; confidence: number; text: string; disagreements: Array<{ line: number; readingA: string; readingB: string; tokensA: string[]; tokensB: string[] }> };
+  /** H4: signature, stamp and seal marks, candidates for the advocate. */
+  marks?: Array<{ kind: "signature" | "stamp" | "seal" | "handwriting"; x: number; y: number; w: number; h: number; confidence: number; note: string }>;
 }
 
 export type EventStatus = "candidate" | "confirmed" | "rejected";

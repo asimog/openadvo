@@ -9,6 +9,7 @@ import { pathToFileURL } from "node:url";
 
 import { MEDIA, docxParagraphs, paginate, textLines } from "./formats.ts";
 import { PPOCR_ENGINE, compareReadings, ppocrAvailable, readPage, type Disagreement } from "./ppocr.ts";
+import { detectMarks, type MarkInput } from "./marks.ts";
 
 const nodeRequire = createRequire(import.meta.url);
 
@@ -36,6 +37,8 @@ export interface PageText {
   ocr?: { engine: string; version: string; confidence: number };
   /** V5-8: the second engine's reading and the disagreements, when the second engine is installed. */
   second?: { engine: string; version: string; confidence: number; text: string; disagreements: Disagreement[] };
+  /** H4: signature, stamp and seal marks, candidates for the advocate. */
+  marks?: MarkInput[];
 }
 
 /** A page with fewer printable characters than this is treated as having no text layer. */
@@ -217,6 +220,7 @@ export async function processPdf(bytes: Uint8Array, onPage?: (page: PageText) =>
         page.lines = ocr.lines;
         page.ocr = { engine: OCR_ENGINE, version: ocrVersion(), confidence: ocr.confidence };
         page.second = await secondReading(png, page.height, 2.5, ocr.lines);
+        page.marks = await detectMarks(png, page.height, 2.5).catch(() => []);
       }
     }
     await onPage?.(page);
@@ -247,6 +251,7 @@ export async function processImage(bytes: Uint8Array, onPage?: (page: PageText) 
     ...(found ? { ocr: { engine: OCR_ENGINE, version: ocrVersion(), confidence: ocr.confidence } } : {}),
   };
   if (found) page.second = await secondReading(Buffer.from(bytes), img.height, 1, ocr.lines);
+  if (found) page.marks = await detectMarks(Buffer.from(bytes), img.height, 1).catch(() => []);
   await onPage?.(page);
   return [page];
 }

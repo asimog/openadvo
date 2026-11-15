@@ -110,6 +110,7 @@ export class Progress {
     const cells = store.work.recordTable().cells.filter((c) => c.status === "candidate");
     if (cells.length) items.push({ id: "cells", kind: "record_cells", blocks: false, title: "Record table", detail: `${cells.length} answer(s) to confirm or clear`, tab: "records" });
     for (const m of store.work.listMemoryProposals().filter((x) => x.status === "open")) items.push({ id: `memory:${m.id}`, kind: "memory_proposal", blocks: false, title: "Memory proposal", detail: m.text, tab: "matter" });
+    for (const m of store.evidence.memory({ status: "proposed" })) items.push({ id: `matter-memory:${m.memoryId}`, kind: "matter_memory", blocks: false, title: "Matter memory proposed", detail: `${m.subject} ${m.relation} ${m.object}`, tab: "memory" });
     return [...items.filter((x) => x.blocks), ...items.filter((x) => !x.blocks)];
   }
 }

@@ -19,6 +19,8 @@ import type { ContextCandidate, ContextPackageRecord, JobRow, ReportCard, RoleSu
 import type { AdvocateProfile, IntelSource, Freshness, LibraryImportResult, LibraryItem, LibraryStatus, MemoryRecord, PreferenceRecord, StoreChains } from "./stores.ts";
 import type { BrowserBookmark, BrowserBounds, BrowserShortcut, BrowserState, BrowserVisit, CaseListProposal, CaseListResult } from "./browser.ts";
 export type * from "./browser.ts";
+import type { Contradiction, DocumentOperation, DocumentPart, EvidenceRecord, FactRecord, ForumClause, JurisdictionReport, MatterEdge, PageMark, RecordTemplate, RelatedProposal, SourceRelation, TimelineEntry } from "./evidence.ts";
+export type * from "./evidence.ts";
 export type * from "./skills.ts";
 export type * from "./stores.ts";
 export type * from "./intel.ts";
@@ -391,6 +393,40 @@ export interface OpenAdvoApi {
   proposalsList(): Promise<MatterProposal[]>;
   proposalCreate(id: string): Promise<MatterSummary>;
   proposalDismiss(id: string): Promise<MatterProposal[]>;
+  // Phase 4: documents, evidence and facts.
+  evidenceFacts(matterId: string, filter?: { status?: string; type?: string; sourceId?: string; q?: string }): Promise<FactRecord[]>;
+  evidenceAddFact(matterId: string, input: { text: string; type: string; sourceId?: string | null; anchorId?: string | null; page?: number | null; line?: number | null; eventId?: string | null; date?: string; amount?: string; parties?: string[]; relief?: string }): Promise<FactRecord>;
+  /** Human-only. */
+  evidenceDecideFact(matterId: string, id: string, status: "confirmed" | "disputed" | "rejected"): Promise<FactRecord>;
+  /** Human-only. */
+  evidenceSupersedeFact(matterId: string, id: string, input: { text: string; type?: string; date?: string; amount?: string; parties?: string[]; relief?: string }): Promise<FactRecord>;
+  /** Human-only. */
+  evidenceLinkFact(matterId: string, id: string, input: { issueIds?: string[]; argumentIds?: string[]; relief?: string }): Promise<FactRecord>;
+  evidenceContradictions(matterId: string): Promise<Contradiction[]>;
+  evidenceList(matterId: string, filter?: { sourceId?: string; q?: string }): Promise<EvidenceRecord[]>;
+  evidenceAdd(matterId: string, input: { sourceId: string; exhibitNumber?: string; witness?: string; statement?: string; givenBy?: string; givenAt?: string; electronic?: boolean; device?: string; admissibility?: string; notes?: string }): Promise<EvidenceRecord>;
+  /** Human-only. */
+  evidenceUpdate(matterId: string, id: string, input: { exhibitNumber?: string; witness?: string; statement?: string; givenBy?: string; givenAt?: string; electronic?: boolean; device?: string; authenticity?: EvidenceRecord["authenticity"]; admissibility?: string; notes?: string; status?: EvidenceRecord["status"] }): Promise<EvidenceRecord>;
+  evidenceParts(matterId: string, sourceId?: string): Promise<DocumentPart[]>;
+  evidenceRelations(matterId: string): Promise<SourceRelation[]>;
+  /** Human-only. */
+  evidenceDecideRelation(matterId: string, reviewItemId: string, decision: "same" | "different"): Promise<SourceRelation[]>;
+  evidenceEdges(matterId: string, filter?: { fromKind?: string; fromId?: string; toKind?: string; toId?: string }): Promise<MatterEdge[]>;
+  matterMemory(matterId: string, filter?: { status?: string; type?: string; q?: string }): Promise<MemoryRecord[]>;
+  matterMemoryPropose(matterId: string, input: { type: string; subject: string; relation: string; object: string; sourceId?: string | null; anchorId?: string | null; validFrom?: string | null; validUntil?: string | null; confidence?: number | null; supersedes?: string | null }): Promise<MemoryRecord>;
+  /** Human-only. */
+  matterMemoryDecide(matterId: string, id: string, status: string): Promise<MemoryRecord>;
+  evidenceMarks(matterId: string, sourceId?: string): Promise<PageMark[]>;
+  documentOperations(matterId: string): Promise<DocumentOperation[]>;
+  documentOperation(matterId: string, input: { kind: "extract" | "split" | "merge" | "reorder" | "annotate" | "highlight" | "redact"; sourceId?: string; sourceIds?: string[]; pages?: number[]; ranges?: number[][]; order?: number[]; area?: { page: number; x: number; y: number; w: number; h: number } }): Promise<{ operation: DocumentOperation; sources: Array<{ id: string; name: string }> }>;
+  jurisdictionGet(matterId: string): Promise<JurisdictionReport | null>;
+  /** Human-only. */
+  jurisdictionSet(matterId: string, report: JurisdictionReport): Promise<JurisdictionReport>;
+  forumClauses(matterId: string): Promise<ForumClause[]>;
+  timeline(matterId: string): Promise<TimelineEntry[]>;
+  relatedSuggestions(): Promise<RelatedProposal[]>;
+  recordTemplates(proceeding: string): Promise<RecordTemplate[]>;
+  applyRecordTemplate(matterId: string, key: string): Promise<{ columns: number }>;
   closeView(url: string): Promise<void>;
   listJobs(matterId: string): Promise<IngestJob[]>;
   getSourcePages(matterId: string, sourceId: string): Promise<PageRecord[]>;

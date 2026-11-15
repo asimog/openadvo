@@ -232,6 +232,11 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
       "pickFolder", "intakeFolder", "intakeCnr", "intakeEmail", "getMatterProfile", "setMatterProfile", "proposeClassification", "applyClassification",
       "listRelatedMatters", "addRelatedMatter", "removeRelatedMatter", "extendMatter",
       "proposalsList", "proposalCreate", "proposalDismiss",
+      // Phase 4: documents, evidence and facts (docs/specs/documents-evidence-facts.md).
+      "evidenceFacts", "evidenceAddFact", "evidenceDecideFact", "evidenceSupersedeFact", "evidenceLinkFact", "evidenceContradictions",
+      "evidenceList", "evidenceAdd", "evidenceUpdate", "evidenceParts", "evidenceRelations", "evidenceDecideRelation", "evidenceEdges",
+      "matterMemory", "matterMemoryPropose", "matterMemoryDecide", "evidenceMarks", "documentOperations", "documentOperation",
+      "jurisdictionGet", "jurisdictionSet", "forumClauses", "timeline", "relatedSuggestions", "recordTemplates", "applyRecordTemplate",
     ].sort(),
   );
   await app.close();
@@ -315,6 +320,17 @@ test("the agent session has our tools, no built-in Pi tool, and its id is record
     "browser_close",
     // Phase 3 (C2): a proposed matter for the advocate to create.
     "propose_matter",
+    // Phase 4 (H6, H7, H8, F1, F4, D1): facts, evidence, structure, memory, jurisdiction and timelines.
+    "list_facts",
+    "propose_fact",
+    "list_evidence",
+    "propose_evidence",
+    "list_matter_memory",
+    "propose_matter_memory",
+    "get_jurisdiction",
+    "get_timeline",
+    "list_document_parts",
+    "get_contradictions",
   ].sort());
   const sessionId = await app.evaluate((_e, m) => (globalThis as any).__openadvoTest.agentSessionId(m), id);
   const events = await page.evaluate((m) => (globalThis as any).openadvo.listEvents(m), id);
