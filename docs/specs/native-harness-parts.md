@@ -2,6 +2,8 @@
 
 Status: built 2026-11-15 (owner's instruction: "make the extensions we have added already native and keep their usable parts … they become first class parts … remove any overlapping redundancies … keep a harmless minimal extension as a placeholder to test the extension system"). It replaces part B3 and H-42 of the successor prompt. The agent kinds are in [agent-framework.md](agent-framework.md). The code is in `src/main/tool-policy.ts`, `helpers.ts`, `helper-types.ts`, `plan.ts`, `agent-context.ts` and `agent.ts`.
 
+The owner's UI instruction of the same day is newer than the phase prompt and governs the window: the tool calls and the helpers' work are Astryx chat components; no cost line follows each message; the context numbers sit in an OpenCode-style Context tab; Settings has a section sidebar.
+
 ## 1. What changes
 
 The seven npm packages bundled under decision 21 leave the application. Their usable parts are now parts of Open Advocate's own code, under its decisions, its window and its tests. What another part already did is dropped. The extension system stays: the advocate can still add Pi extensions (H-9, H-10), and one small placeholder extension ships to test it.
@@ -44,6 +46,7 @@ The seven npm packages bundled under decision 21 leave the application. Their us
 - **Restart.** `helpers.json` in the chat folder and the partial output in `helpers/<id>.txt`. On reopen, a helper that was running shows as interrupted, with a text line; it never restarts.
 - **Cost.** Each helper's tokens, cache reads and writes and cost go to `host.recordUsage` with the matter, and to a `helper_end` line in `trace.jsonl`.
 - **Names.** The name comes from the task (or `name`), never from the type.
+- **Window.** Each helper is one card in the chat (`ChatSystemMessage` with a muted `Card`): its name, type and status; its progress lines and question; its own tool calls (`ChatToolCalls`); and Stop and Steer for the advocate. The agent's tool calls are `ChatToolCalls` groups; a call becomes complete or failed in place with its duration.
 
 ## 4. Plan
 
@@ -54,20 +57,20 @@ The seven npm packages bundled under decision 21 leave the application. Their us
 - **Setting:** Settings → Plan asks for a plan only for long work, or for most work. The line goes into the system prompt at the next conversation.
 - **Window:** the plan panel above the chat log (Astryx `Collapsible`, `ProgressBar`, `List`, `StatusDot`, `Badge`): each item with its status, dependencies and subtasks, the count done, the helper or draft tags. It folds to the pinned status line, which keeps "Plan 2/5".
 
-## 5. Context meter and the pinned status line
+## 5. Context meter and the Context tab
 
-- After each run, the chat state carries `context`: Pi's `getContextUsage()` numbers and the run's cache reads and writes. A CUSTOM event `CONTEXT_EVENT` tells the window.
-- One pinned status line at the top of the chat: plan progress, running helpers, waiting results and "Context 31k of 200k (16%)". It is text; its controls are Compact now and the helper menu.
-- `/context`, typed in the chat, prints a text breakdown: the window, the tokens used, the system prompt, the tool definitions (and the tokens of each), the messages (and the last 20 entries with any summary marked), the free space and the output buffer. It says plainly that these are estimates.
+- After each run, the chat state carries `context`: Pi's `getContextUsage()` numbers and the run's cache reads and writes. A CUSTOM event `CONTEXT_EVENT` tells the window. `lastRun` and `cost` carry the run's input, output, cache and cost and the matter's totals.
+- The pinned status line shows plan progress, running helpers and waiting results. It is text; its controls are the helper menu and Use results.
+- The **Context tab** (owner's instruction, 2026-11-15: "the opencode kind of model … keep all the details there") is one panel in the chat, beside the Chat tab, with a usage ring and the token count on its tab. It lists: Session, Session id, Messages, Provider, Model, Context limit, Total tokens in context, Usage, Input tokens, Output tokens, Cache read, Cache written, Cache hit, Cost (last run), Runs and Helpers in the matter, Total tokens and Total cost in the matter, and the helpers now. It holds Compact now.
+- `/context`, typed in the chat, still prints a text breakdown on request: the window, the tokens used, the system prompt, the tool definitions (and each tool's tokens), the messages (the last 20 entries, with any summary marked), the free space and the output buffer. It says plainly that these are estimates.
 - "Compact now" calls Pi's `session.compact()` with the kind's summary form (agent-framework section 7.1). It is off while the agent works. A refusal is a text line, never silence.
 
 ## 6. Cache and cost
 
 - Each `run_end` line in `trace.jsonl` carries input, output, total tokens, cache reads, cache writes, the hit percentage (cache reads divided by input plus reads plus writes) and the cost. Each `helper_end` line carries the same for one helper.
-- After each run, one text line: tokens in and out, cache reads and writes with the hit percentage, and the cost.
+- The Context tab shows the last run's input, output, cache and cost, and the matter's totals. No line is printed in the chat after each run (owner's instruction, 2026-11-15: "this shouldn't be visible after each message").
 - `/cost`, typed in the chat, prints a text table of runs and helpers with tokens, cache and cost, and the total.
 - "Export cost CSV" on the matter page saves the same rows as CSV.
-- The context meter's tooltip shows the last run's cache numbers.
 
 ## 7. Tool-result summaries
 
@@ -87,9 +90,9 @@ Each file runs under a minute with the scripted model (`OPENADVO_TEST=1`).
 | Check | Test |
 |---|---|
 | Policy: deny with a text line and a trace line; the tool is hidden from the next conversation; an ask shows the card with the query; each choice; one approval at a time; the party rule on and off; the timeout for a background helper; Settings saves a rule; MCP rows | `tests/e2e/native-policy.spec.ts`, `tests/unit/tool-policy.test.ts` |
-| Helpers: a foreground helper's progress and result; a background helper uses the parent's tools after the call returned; two background helpers and one Final Recap; Use results; Steer and Stop from the status line; Stop on the chat; the wait limit; an interruption after a restart; cost per helper | `tests/e2e/native-helpers.spec.ts`, `tests/unit/helpers.test.ts` |
+| Helpers: a foreground helper's progress and result; a background helper uses the parent's tools after the call returned; the helper card shows its type, progress and own tool calls; two background helpers and one Final Recap; Use results; Steer and Stop from the status line and the card; Stop on the chat; the wait limit; an interruption after a restart; cost per helper | `tests/e2e/native-helpers.spec.ts`, `tests/unit/helpers.test.ts` |
 | Plan: the panel, statuses, dependencies, subtasks, tags; the fold; Clear plan; the rules; an item added by typing; the strength setting; a restart | `tests/e2e/native-plan.spec.ts`, `tests/unit/plan.test.ts` |
-| Context: `/context`, `/cost`, the run's cost line, a summary with a ref recalled by `recall_result`, Compact now, the CSV | `tests/e2e/native-context.spec.ts`, `tests/unit/agent-context.test.ts`, `tests/unit/agent-runs.test.ts` |
+| Context: the Context tab with every number; `/context`; `/cost`; no per-run line; a summary with a ref recalled by `recall_result`; Compact now in the tab; the CSV | `tests/e2e/native-context.spec.ts`, `tests/unit/agent-context.test.ts`, `tests/unit/agent-runs.test.ts` |
 | The placeholder loads; `/placeholder` and `/placeholder ask` work; it turns off and on | `tests/e2e/extensions.spec.ts`, `tests/unit/pi-extensions.test.ts` |
 | No bundled package is left: no package name in the code, scripts or tests | `tests/unit/pi-extensions.test.ts` |
 

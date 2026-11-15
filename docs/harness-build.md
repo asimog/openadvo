@@ -37,9 +37,9 @@ The specification is [specs/native-harness-parts.md](specs/native-harness-parts.
 | Part | Code | Where the advocate sees it |
 |---|---|---|
 | Tool policy (decision 23): allow, ask or deny per tool; deny hides a tool; built-in tools and credential paths always denied; party-name and MCP rules; review log; trace lines | `src/main/tool-policy.ts`; the hook `openadvo-policy` in every session | Settings → Tool permissions; an approval card with the query, URL or field |
-| Helpers: four types, foreground and background jobs, fork context, progress, questions, Steer, Stop, paged output, waiting results, Final Recap, restart record, cost | `src/main/helpers.ts`, `src/main/helper-types.ts`; the tools `start_helper`, `helper_output`, `stop_helper`, `steer_helper` | Text lines in the chat; the status line's Helpers menu; Use results |
+| Helpers: four types, foreground and background jobs, fork context, progress, questions, Steer, Stop, paged output, waiting results, Final Recap, restart record, cost | `src/main/helpers.ts`, `src/main/helper-types.ts`; the tools `start_helper`, `helper_output`, `stop_helper`, `steer_helper`; `HelperActivity` in `src/renderer/src/ChatActivity.tsx` | One card per helper in the chat, with its own tool calls; the status line's Helpers menu; Use results |
 | Plan: the agent's task list for long work, with dependencies, subtasks and tags | `src/main/plan.ts`; the tools `plan_set`, `plan_update` | The plan panel above the chat; its fold to the status line; Clear plan; Settings → Plan |
-| Context meter, cache and cost, Compact now | `Agent.setMeter`, `Agent.compact`, `contextReport`, `costReport`, `costCsv` in `src/main/agent.ts` | The pinned status line; `/context`; `/cost`; the run's cost line; "Export cost CSV" |
+| Context meter, cache and cost, Compact now | `Agent.setMeter`, `Agent.compact`, `contextReport`, `costReport`, `costCsv`, `costSummaryFromTrace` in `src/main/agent.ts`; `ContextPanel` in `src/renderer/src/ChatActivity.tsx` | The Context tab (OpenCode style); `/context`; `/cost`; "Export cost CSV" |
 | Context strategy per agent kind: tool-result clearing, summaries with refs, `recall_result`, and the summary form | `src/main/agent-context.ts` | A text line when results are summarised |
 
 **Policy file.** `<userData>/tool-policy.json`, written with defaults on first start: `{ "default": "allow", "tools": {} }`. The review log is `<userData>/logs/tool-policy.jsonl`: every deny and every ask with its answer, never the arguments. Pi's built-in tools and a call whose arguments name `auth.json`, `.env`, `.ssh/`, `manifest-signing.key` or `models.json` are refused whatever the file says. A deny also hides the tool when a conversation opens. An MCP tool has the rule `mcp__<server>__*` (or `mcp__*`); Settings lists one row for each server in `<userData>/pi-agent/mcp.json` and one for every MCP tool.
@@ -58,7 +58,7 @@ The specification is [specs/native-harness-parts.md](specs/native-harness-parts.
 | Plans and tasks | The plan (`plan_set`, `plan_update`); the planner (O1) builds on it. |
 | Delegation | Native helpers (`start_helper`), foreground or background. Skill runs and the planner are not helpers. |
 | Codemode and MCP | Pi's built-in extensions; codemode turns on by itself when an MCP server with codemode exposure connects. Helper types do not include `codemode` or MCP tools. MCP calls follow the policy's MCP rules. |
-| What a run did | The run trace `chat/trace.jsonl`, the pinned status line, `/context` and `/cost`. |
+| What a run did | The run trace `chat/trace.jsonl`, the Context tab, `/context` and `/cost`. |
 
 ### 1.5 The extension interface in the window
 
@@ -79,6 +79,7 @@ Extensions bind with `mode: "rpc"` and the application's UI context (`extensionU
 | `src/main/tool-policy.ts`, `helpers.ts`, `helper-types.ts`, `plan.ts`, `agent-context.ts`, `firm-agent.ts` | The native harness parts |
 | `src/main/pi-extensions.ts` | Loader, package manager, the extension UI context |
 | `src/main/index.ts` | `claimPiAgentDir`, the managers, the bridge functions |
+| `src/renderer/src/ChatActivity.tsx` | Tool-call groups, the helper card, the Context tab and its usage ring |
 | `extensions/placeholder/` | The placeholder extension |
 | `<userData>/tool-policy.json`, `<userData>/logs/tool-policy.jsonl` | The tool policy and its review log |
 | `<userData>/pi-agent/` | `settings.json`, `npm/` and `git/` (added packages), and the added extensions' own files |
