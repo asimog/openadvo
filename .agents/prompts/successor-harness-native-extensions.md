@@ -103,6 +103,14 @@ A1, A3 and A4 are done, and part of A2 is done. Read `.agents/logs/2026-11-15-su
 - Still open: A2 for Pi's subagent example and the npm packages; the repo-map and agent-guide rows for `C:\dev\pireference`; the terms row in `decisions.md` section 4.
 - Part B order: B1 (1, 2, 4, and Studio failures reported as success) → A4 fixes → B3 spike → adapters → H-14. Each B3 adapter is its own phase (L5). Done means the owner runs a real brief (L3).
 
+**Update (2026-11-15, later).** Read `.agents/logs/2026-11-15-harness-lessons-and-knowledge-layers.md`. Part A is complete:
+- A2 is done for Pi's example and the npm packages. Recommendation: keep pi-subagent-manager; it is the only one where the app's tools and guard reach a helper.
+- The repo-map row, the agent-guide rule for `C:\dev\pireference`, and the terms row in `decisions.md` section 4 are written.
+- New for coding agents: `npm run session:start` at the start of every session; the handoff template `.agents/templates/session-handoff.md` and the clean-state list (`docs/agent-guide.md` section 13) at the end.
+- New part B items B-I1 (matter brief at session start), B-I2 (run trace `chat/trace.jsonl`), B-I3 (matter handoff note), B-I4 (bounded long tool results; replaces the A4 truncation fix), B-I5 (spawn limit and deadline). B-I2 goes with the one listener per session (B3 part 2, H-25).
+- The eight knowledge layers are mapped onto the frozen stores (report section 4). Q-8 (firm knowledgebase) is open; compiled pages are parked.
+- Part B still waits for the owner.
+
 ## 6. Part B: build only after the owner says so
 
 ### B1. Defects to fix (found by reading the code; not run with a live model)

@@ -66,3 +66,4 @@ Some code modules and comments use names from before the current plan. This tabl
 | Step, round, `V1-…` to `V5-…` in comments | Work done before this plan; see the code itself |
 | Spec paths under `docs/archive/` in comments | Superseded documents kept for history; they govern nothing |
 | `ulos` | The citation validator, built in its own repository |
+| `subagent` (Pi's and pi-subagent-manager's word; `writeSubagentPolicy`) | Helper agent. A skill run is a different thing ([architecture.md](architecture.md) section 7). |
