@@ -39,10 +39,15 @@ export function PlanPanel(props: { conversationId: string; plan: Plan }) {
         onOpenChange={setOpen}
         trigger={
           <span className="plan-trigger">
-            <Text weight="semibold">{plan.title}</Text> <Text type="supporting">{done} of {total} done</Text>
+            <Text weight="semibold">{plan.title}</Text> <Text type="supporting">{done} of {total} done{plan.approval === "pending" ? " · waits for your approval" : plan.approval === "approved" ? " · approved" : ""}</Text>
           </span>
         }
       >
+        {plan.approval === "pending" ? (
+          <div className="notice" data-testid="plan-pending">
+            This plan runs skills. Nothing in it runs until you approve it.
+          </div>
+        ) : null}
         <ProgressBar label={`Plan progress: ${done} of ${total} done`} value={done} max={Math.max(total, 1)} />
         <List density="compact">
           {plan.items.map((i) => {
@@ -73,6 +78,7 @@ export function PlanPanel(props: { conversationId: string; plan: Plan }) {
                 endContent={
                   <span className="plan-tags">
                     <Text type="supporting">{blocked ? "Waiting" : STATUS[i.status].label}</Text>
+                    {i.skill ? <Badge label={i.skill} /> : null}
                     {i.tags.map((t) => (
                       <Badge key={t} label={t} />
                     ))}
@@ -83,6 +89,7 @@ export function PlanPanel(props: { conversationId: string; plan: Plan }) {
           })}
         </List>
         <div className="question-options">
+          {plan.approval === "pending" ? <Button label="Approve plan" size="sm" variant="primary" clickAction={() => api.approvePlan(props.conversationId)} /> : null}
           <Button label="Clear plan" size="sm" variant="ghost" clickAction={() => api.clearPlan(props.conversationId)} />
         </div>
       </Collapsible>

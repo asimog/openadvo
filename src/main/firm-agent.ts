@@ -32,21 +32,23 @@ export interface FirmHost {
   hearings(matterId: string): Promise<Array<{ date: string; bench: string; nextDate: string; nextDateStatus: string }>>;
   /** The workflows: built in and the advocate's own. */
   workflows(): Promise<Workflow[]>;
+  /** Q4: advocate memory and preferences from advocate.db. Never a matter's facts. Absent: not available. */
+  advocateMemory?(): Promise<{ memory: Array<{ type: string; subject: string; relation: string; object: string; status: string }>; preferences: Array<{ key: string; value: string; reason: string; status: string }> }>;
 }
 
 /** The Firm Agent's tools. The start check requires each of them. */
-export const FIRM_TOOLS = ["list_matters", "matter_overview", "list_hearings", "list_workflows", "read_workflow", "propose_matter_instruction"] as const;
+export const FIRM_TOOLS = ["list_matters", "matter_overview", "list_hearings", "list_workflows", "read_workflow", "read_advocate_memory", "propose_matter_instruction"] as const;
 /** Firm tools that change nothing. */
-export const FIRM_READ_ONLY = new Set<string>(["list_matters", "matter_overview", "list_hearings", "list_workflows", "read_workflow"]);
+export const FIRM_READ_ONLY = new Set<string>(["list_matters", "matter_overview", "list_hearings", "list_workflows", "read_workflow", "read_advocate_memory"]);
 
 export function firmSystemPrompt(): string {
   return [
     "You are the Firm Agent of Open Advocate. You work for an advocate who practises before Indian courts and tribunals. An advocate runs a firm, even alone: you see the whole firm, and the advocate decides every legal point.",
-    "Your tools: list_matters (every open matter: stage, next step, next hearing, limitation deadline, open Review Inbox items, reminders), matter_overview (one matter: its open items, hearings and reminders), list_hearings (next hearing dates across matters, by date), list_workflows and read_workflow (the firm's workflows: built in and the advocate's own).",
+    "Your tools: list_matters (every open matter: stage, next step, next hearing, limitation deadline, open Review Inbox items, reminders), matter_overview (one matter: its open items, hearings and reminders), list_hearings (next hearing dates across matters, by date), list_workflows and read_workflow (the firm's workflows: built in and the advocate's own), read_advocate_memory (the advocate's confirmed memory records and approved preferences; never a matter's facts).",
     "You cannot read a matter's documents, Notebook, drafts or research, and you never state a fact of a case. Each matter's own Matter Agent works on its record. Never carry what you know of one matter into another.",
     "To get work done in a matter, use propose_matter_instruction: the advocate sees your instruction on Home and decides whether to take it to that matter. Nothing is sent to a matter by you. Propose only clear, short instructions, with the reason.",
     "Use the ids your tools return. A list is a snapshot: call the tool again for fresh numbers. A date marked inferred or not confirmed is not confirmed; say so.",
-    "Not available yet: the Knowledge Library (templates, memos and playbooks the advocate uploads) and advocate memory. If the advocate asks for them, say so plainly.",
+    "Not available yet: the Knowledge Library (templates, memos and playbooks the advocate uploads). If the advocate asks for it, say so plainly. A proposed memory record or preference is not confirmed until the advocate confirms it.",
     "Never predict the outcome of a case. Never give a probability of success. Write short, plain sentences.",
   ].join("\n");
 }
@@ -141,6 +143,25 @@ export function firmTools(host: FirmHost, propose: (h: Omit<FirmHandoff, "id" | 
         const w = (await host.workflows()).find((x) => x.id === p.workflow_id);
         if (!w) throw new Error(`No workflow has the id ${p.workflow_id}. Use list_workflows for the ids.`);
         return text(`${w.title} (${w.builtIn ? "built in" : "the advocate's own"})\n\n${w.body}`);
+      },
+    }),
+    defineTool({
+      name: "read_advocate_memory",
+      label: "Read advocate memory",
+      description: "The advocate's memory (advocate.db): confirmed records of preferences, approved precedents, lessons and court practice, and the approved preferences. Proposals waiting for the advocate are listed as proposed. It never holds a matter's facts.",
+      parameters: Type.Object({}),
+      execute: async () => {
+        if (!host.advocateMemory) return text("Advocate memory is not available in this build.");
+        const { memory, preferences } = await host.advocateMemory();
+        const kept = memory.filter((m) => m.status === "confirmed" || m.status === "proposed");
+        const prefs = preferences.filter((p) => p.status === "approved" || p.status === "proposed");
+        if (!kept.length && !prefs.length) return text("Advocate memory is empty: no record and no preference yet.");
+        return text(
+          [
+            ...kept.map((m) => `- ${m.type.replace(/_/g, " ")}: ${m.subject} ${m.relation} ${m.object} (${m.status})`),
+            ...prefs.map((p) => `- preference ${p.key}: ${p.value} (${p.status}; applied because ${p.reason})`),
+          ].join("\n"),
+        );
       },
     }),
     defineTool({

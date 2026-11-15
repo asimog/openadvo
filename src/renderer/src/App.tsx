@@ -24,6 +24,7 @@ import { ResearchSourceSettings, StudioView } from "./Studio.tsx";
 import { ContactsSettings, DiagnosticsSettings, Docket, PracticeSection } from "./Practice.tsx";
 import { DateAnchorForm, DisputeDecision, EntitiesView, FilesAndJobs, Inspector, RecordIntegrity, inspect } from "./V5.tsx";
 import { EventTable, SourceDetail, SourcesPanel } from "./Sources.tsx";
+import { CalendarPage, CourtIntelPage, FirmInbox, MattersPage, NotBuilt, ProfilePage, SkillsPage, StoreChainsView, type Page } from "./Pages.tsx";
 import type {
   AddFileResult,
   DraftRecord,
@@ -154,6 +155,17 @@ export function App() {
   const [inboxCount, setInboxCount] = useState(0);
   // V3-4 and V3-3.
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Q5: the page of the left navigation while no matter is open.
+  const [page, setPage] = useState<Page>("home");
+  const [inboxBlocking, setInboxBlocking] = useState(0);
+  const [advocateName, setAdvocateName] = useState<string | null>(null);
+  const refreshAdvocate = useCallback(() => {
+    void api.getAdvocateProfile().then((p) => setAdvocateName(p.name), () => setAdvocateName(null));
+    void api.inboxAll().then((items) => setInboxBlocking(items.filter((i) => i.blocks).length), () => setInboxBlocking(0));
+  }, []);
+  useEffect(() => {
+    refreshAdvocate();
+  }, [refreshAdvocate]);
   const [commandOpen, setCommandOpen] = useState(false);
   const [nb, setNb] = useState<Notebook | null>(null);
   const [drafts, setDrafts] = useState<DraftRecord[]>([]);
@@ -226,6 +238,8 @@ export function App() {
 
   const goHome = () => {
     setSettingsOpen(false);
+    setPage("home");
+    refreshAdvocate();
     setMatterId(null);
     setNotice(null);
     closeDocument();
@@ -311,7 +325,18 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matters, matterId]);
   const searchLines = useMemo(() => {
-    if (!matterId) return null;
+    // G5: with no matter open, the command bar searches every open matter and the judgment index.
+    if (!matterId)
+      return async (q: string): Promise<Command[]> =>
+        (await api.searchAll(q)).slice(0, 20).map((h) => ({
+          id: `s:${h.matterId}:${h.kind}:${h.ref}`,
+          group: (h.matterId ? "Matters" : "Go to") as Command["group"],
+          label: h.snippet.replace(/[[\]]/g, "") || h.label,
+          hint: `${h.matterTitle} · ${h.kind}: ${h.label}`,
+          run: () => {
+            if (h.matterId) void openMatter(h.matterId);
+          },
+        }));
     const id = matterId;
     return async (q: string): Promise<Command[]> => {
       // V5-4: Find in the matter: source lines open the source; any other record opens the Inspector.
@@ -417,6 +442,14 @@ export function App() {
             onCollapsedChange={setNavByHand}
             onHome={goHome} onNewMatter={() => askNewMatter(null)} onOpenMatter={(id) => void openMatter(id)}
             settingsOpen={settingsOpen}
+            page={page}
+            onPage={(p) => {
+              goHome();
+              setPage(p);
+            }}
+            onSearch={() => setCommandOpen(true)}
+            inboxBlocking={inboxBlocking}
+            advocateName={advocateName}
             onSettings={() => {
               goHome();
               setSettingsOpen(true);
@@ -425,7 +458,31 @@ export function App() {
         }
       >
         {settingsOpen ? (
-          <SettingsPage mailbox={<MailboxAccount />} research={<ResearchSourceSettings />} contacts={<ContactsSettings />} diagnostics={<DiagnosticsSettings />} />
+          <SettingsPage mailbox={<MailboxAccount />} research={<ResearchSourceSettings />} contacts={<ContactsSettings />} diagnostics={<><DiagnosticsSettings /><StoreChainsView /></>} />
+        ) : !matter && page === "inbox" ? (
+          <FirmInbox
+            onOpenMatter={(id, t) => {
+              void openMatter(id).then(() => setTab(t === "matter" ? "review" : t));
+            }}
+            onProfile={() => setPage("profile")}
+            onCount={setInboxBlocking}
+          />
+        ) : !matter && page === "matters" ? (
+          <MattersPage matters={matters.filter((m) => !m.archived)} onOpen={(id) => void openMatter(id)} onNew={() => askNewMatter(null)} />
+        ) : !matter && page === "calendar" ? (
+          <CalendarPage onOpen={(id) => void openMatter(id)} />
+        ) : !matter && page === "research" ? (
+          <NotBuilt title="Research" phase={5} what="Research across every matter (research runs, the legal corpus beyond the Supreme Court, retrieval)" testId="research-page" />
+        ) : !matter && page === "knowledge" ? (
+          <NotBuilt title="Knowledge" phase={3} what="The Knowledge Library (templates, approved positions, playbooks)" testId="knowledge-page" />
+        ) : !matter && page === "court" ? (
+          <CourtIntelPage />
+        ) : !matter && page === "browser" ? (
+          <NotBuilt title="Browser" phase={3} what="The built-in browser for court portals and research services" testId="browser-page" />
+        ) : !matter && page === "skills" ? (
+          <SkillsPage />
+        ) : !matter && page === "profile" ? (
+          <ProfilePage onChanged={refreshAdvocate} />
         ) : !matter ? (
           <Landing
             matters={matters.filter((m) => !m.archived)}

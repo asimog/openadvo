@@ -5,7 +5,7 @@ Owner's instructions, 2026-11-15. This file owns how the agent harness is built:
 - the extensions;
 - the native harness parts: the tool policy, the helpers, the plan and the context meter;
 - the extension interface in the window;
-- the planned builds HB-1 (side questions) and HB-2 (browser).
+- HB-1 (side questions, built) and the planned HB-2 (browser).
 
 The defect list and the status of each Pi feature are in [harness-hardening.md](harness-hardening.md). The decisions are 22 to 25 in [decisions.md](decisions.md).
 
@@ -53,7 +53,7 @@ The specification is [specs/native-harness-parts.md](specs/native-harness-parts.
 | Job | Owner |
 |---|---|
 | Which tools may run | The tool policy (section 1.3). Helper calls pass the same hook. |
-| Which skill and which tools a task gets | The skill registry and the tool scope per skill (N1 to N3, Q2, H-5). |
+| Which skill and which tools a task gets | The skill registry and the tool scope per skill (N1 to N3, Q2, H-5): `src/main/skills.ts`, `src/lib/skills/`, `src/main/skill-runner.ts`. |
 | Context size | Pi's compaction with the strategy per agent kind; summaries of old tool results with refs; Compact now. |
 | Plans and tasks | The plan (`plan_set`, `plan_update`); the planner (O1) builds on it. |
 | Delegation | Native helpers (`start_helper`), foreground or background. Skill runs and the planner are not helpers. |
@@ -84,7 +84,7 @@ Extensions bind with `mode: "rpc"` and the application's UI context (`extensionU
 | `<userData>/tool-policy.json`, `<userData>/logs/tool-policy.jsonl` | The tool policy and its review log |
 | `<userData>/pi-agent/` | `settings.json`, `npm/` and `git/` (added packages), and the added extensions' own files |
 
-## 2. HB-1: side questions (planned; feature O9, phase 1)
+## 2. HB-1: side questions (built; feature O9, phase 1)
 
 The replacement for pi-btw, built in the window.
 
@@ -95,6 +95,7 @@ The replacement for pi-btw, built in the window.
 - **Panel.** The side thread shows beside the chat, with follow-up questions inside it.
 - **Bring into chat.** Puts the answer, or a selected part, into the main composer as a quote. The advocate sends it or not.
 - **Discard** ends the thread. Threads last for the window session. Keeping them under `<matter>/chat/side/` is an owner choice.
+- **As built:** `src/main/side-questions.ts` and `SidePanel` in `src/renderer/src/Harness.tsx`. The tools are the reading tools of `SIDE_TOOLS`; the web tools are not among them. A call the tool policy would ask about is refused, because a side thread never asks.
 - **Tests:**
   - a unit test with the faux model: the side session has no writing tool, and the main session's messages do not change;
   - an end-to-end test: open a side question, bring it into the chat.

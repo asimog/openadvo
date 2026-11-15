@@ -18,7 +18,9 @@ import { Selector } from "@astryxdesign/core/Selector";
 import { Spinner } from "@astryxdesign/core/Spinner";
 import { Tab, TabList } from "@astryxdesign/core/TabList";
 import { Text } from "@astryxdesign/core/Text";
-import { ArrowLeftIcon, ChatBubbleLeftRightIcon, PlusCircleIcon, MicrophoneIcon, PaperClipIcon, StopIcon } from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, ChatBubbleLeftRightIcon, PlusCircleIcon, MicrophoneIcon, PaperClipIcon, StopIcon, QueueListIcon, ChatBubbleOvalLeftEllipsisIcon } from "@heroicons/react/24/outline";
+import { JobsPanel, ReportCardView, SidePanel } from "./Harness.tsx";
+import type { ChatComposerTrigger } from "@astryxdesign/core/Chat";
 import { CHAT_MESSAGE_EVENT, CONTEXT_EVENT, COST_EVENT, EXTENSION_QUESTIONS_EVENT, EXTENSION_STATUS_EVENT, HELPERS_EVENT, PLAN_EVENT } from "../../shared/api.ts";
 import { ContextPanel, HelperActivity, HelperRecap, ToolCallGroup, UsageRing, chatBlocks, formatTokens } from "./ChatActivity.tsx";
 import { PlanPanel, StatusLine } from "./PlanCard.tsx";
@@ -120,8 +122,10 @@ export function ModelPicker(props: { isDisabled: boolean }) {
   );
 }
 
-export function Message(props: { message: ChatRecord }) {
+export function Message(props: { message: ChatRecord; matterId?: string }) {
   const m = props.message;
+  // N2: a skill run's report card.
+  if (m.skillRun && props.matterId) return <ReportCardView matterId={props.matterId} card={m.skillRun} />;
   if (m.role === "advocate") {
     return (
       <ChatMessage sender="user">
@@ -268,7 +272,19 @@ export function ChatDock(props: {
   const [lastRun, setLastRun] = useState<RunSummary | undefined>();
   const [cost, setCost] = useState<CostSummary | undefined>();
   const [sessionId, setSessionId] = useState<string | undefined>();
-  const [view, setView] = useState<"chat" | "context">("chat");
+  const [view, setView] = useState<"chat" | "context" | "jobs">("chat");
+  // O9: the side panel, opened with a first question ("Side question" or /btw).
+  const [side, setSide] = useState<{ id: number; text: string } | null>(null);
+  const [sideOpen, setSideOpen] = useState(false);
+  const [jobsVersion, setJobsVersion] = useState(0);
+  // N3: "/" lists the skills and the typed commands; "@" adds a record of this matter.
+  const [skills, setSkills] = useState<Array<{ id: string; label: string }>>([]);
+  useEffect(() => {
+    void api.listSkills().then(
+      (r) => setSkills(r.skills.filter((x) => !x.error && !x.shadowed).map((x) => ({ id: x.id, label: `${x.id} ${x.title}` }))),
+      () => setSkills([]),
+    );
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<ChatComposerInputHandle>(null);
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
@@ -288,6 +304,8 @@ export function ChatDock(props: {
     setCost(undefined);
     setSessionId(undefined);
     setView("chat");
+    setSide(null);
+    setSideOpen(false);
     void loadChanges();
     let live = true;
     // H-3 and the Context tab: read the state again after a run or a return to the window.
@@ -330,6 +348,7 @@ export function ChatDock(props: {
       if (e.type === "RUN_STARTED") setBusy(true);
       else if (e.type === "RUN_FINISHED") {
         setBusy(false);
+        setJobsVersion((v) => v + 1);
         refresh();
         // An AG-UI interrupt: the agent proposed changes the advocate must keep or undo.
         const outcome = e.outcome as { type?: string } | undefined;
@@ -374,8 +393,35 @@ export function ChatDock(props: {
 
   const send = (text: string) => {
     if (!text.trim()) return;
+    // O9: "/btw <question>" opens the side panel; it never goes to the main conversation.
+    const btw = /^\/btw\b\s*([\s\S]*)$/i.exec(text.trim());
+    if (btw) {
+      setSideOpen(true);
+      if (btw[1].trim()) setSide((s) => ({ id: (s?.id ?? 0) + 1, text: btw[1].trim() }));
+      return;
+    }
     void api.sendChat(props.matterId, text);
   };
+  const triggers: ChatComposerTrigger[] = [
+    {
+      character: "/",
+      searchSource: (() => {
+        const all = () => [...skills, { id: "btw", label: "btw Side question (read only)" }, { id: "context", label: "context What the agent receives" }, { id: "cost", label: "cost Tokens and cost" }];
+        return { search: (q: string) => all().filter((x) => x.label.toLowerCase().includes(q.toLowerCase())), bootstrap: () => all() };
+      })(),
+      onSelect: (item) => `/${item.id} `,
+      emptySearchText: "No skill or command matches.",
+    },
+    {
+      character: "@",
+      searchSource: (() => {
+        const find = async (q: string) => (await api.contextCandidates(props.matterId, q)).map((c) => ({ id: `${c.kind}:${c.id}`, label: `${c.kind}: ${c.label}` }));
+        return { search: find, bootstrap: () => find("") };
+      })(),
+      onSelect: (item) => `@[${item.id} ${item.label.replace(/^[a-z]+: /, "").replace(/[\[\]]/g, "").slice(0, 60)}] `,
+      emptySearchText: "No record of this matter matches.",
+    },
+  ];
 
   return (
     <div className="dock" aria-label="Chat" data-testid="chat-dock">
@@ -424,7 +470,7 @@ export function ChatDock(props: {
             </span>
           </div>
         ) : null}
-        <TabList value={view} onChange={(v) => setView(v as "chat" | "context")} size="sm" hasDivider>
+        <TabList value={view} onChange={(v) => setView(v as "chat" | "context" | "jobs")} size="sm" hasDivider>
           <Tab value="chat" label="Chat" data-testid="chat-tab" icon={<Icon icon={ChatBubbleLeftRightIcon} size="sm" />} />
           <Tab
             value="context"
@@ -433,12 +479,15 @@ export function ChatDock(props: {
             icon={<UsageRing percent={meter?.percent ?? null} />}
             endContent={<Text type="supporting">{formatTokens(meter?.tokens ?? lastRun?.total ?? null)}</Text>}
           />
+          <Tab value="jobs" label="Jobs" data-testid="jobs-tab" icon={<Icon icon={QueueListIcon} size="sm" />} />
         </TabList>
         {view === "chat" ? <StatusLine conversationId={props.matterId} plan={plan} helpers={helpers} busy={busy} /> : null}
         {view === "chat" && plan ? <PlanPanel conversationId={props.matterId} plan={plan} /> : null}
         <div className="dock-slot" ref={props.slotRef} />
       </div>
-      {view === "context" ? (
+      {view === "jobs" ? (
+        <JobsPanel matterId={props.matterId} version={jobsVersion} />
+      ) : view === "context" ? (
         <ContextPanel
           conversationId={props.matterId}
           title={props.title}
@@ -455,6 +504,21 @@ export function ChatDock(props: {
       ) : (
       <div className="dock-chat" data-testid="chat-log">
         {error ? <div className="notice dock-notice">{error}</div> : null}
+        {sideOpen ? (
+          <SidePanel
+            matterId={props.matterId}
+            view={props.openItem ?? "the matter's tabs"}
+            first={side}
+            onBring={(t) => {
+              inputRef.current?.focus();
+              inputRef.current?.insertText(t);
+            }}
+            onClose={() => {
+              setSideOpen(false);
+              setSide(null);
+            }}
+          />
+        ) : null}
         {Object.keys(extStatus).length > 0 ? (
           <div className="dock-ext-status mono" data-testid="extension-status" aria-label="Extension status">
             {Object.entries(extStatus).map(([key, lines]) => (
@@ -487,6 +551,7 @@ export function ChatDock(props: {
               input={
                 <ChatComposerInput
                   handleRef={inputRef}
+                  triggers={triggers}
                   label="Message to the agent"
                   placeholder="For example: list the sources"
                   onFiles={(files) => void props.onAddPaths(api.pathsForFiles(files))}
@@ -508,6 +573,15 @@ export function ChatDock(props: {
                       inputRef.current?.focus();
                       inputRef.current?.insertText(t);
                     }}
+                  />
+                  <Button
+                    label="Side question"
+                    size="sm"
+                    variant="ghost"
+                    isIconOnly
+                    data-testid="side-question"
+                    icon={<Icon icon={ChatBubbleOvalLeftEllipsisIcon} size="sm" />}
+                    onClick={() => setSideOpen(true)}
                   />
                   <DropdownMenu
                     button={{ label: "Workflows", variant: "ghost", size: "sm", children: "Workflows", isDisabled: busy }}
@@ -539,7 +613,7 @@ export function ChatDock(props: {
                   );
                 }
                 if (block.message.helper?.event === "recap") return <HelperRecap key={block.message.id} message={block.message} />;
-                return <Message key={block.message.id} message={block.message} />;
+                return <Message key={block.message.id} message={block.message} matterId={props.matterId} />;
               })}
             </ChatMessageList>
           ) : null}

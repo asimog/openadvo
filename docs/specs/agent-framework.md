@@ -19,7 +19,7 @@ This spec owns the kinds of agent, what each may read, write and start, how a ru
 | **Firm Agent** | One per advocate (a solo practitioner is a firm) | One Pi session in user data, not in a matter | Every matter's summary (stage, next date, open Review Inbox items, last handoff note); the Knowledge Library (templates, memos, workflows, playbooks the advocate uploads); advocate memory; the calendar | Advocate-memory proposals; instructions handed to a Matter Agent (shown to the advocate first) | Helpers of the firm types (section 4). It never reads one matter's facts into another matter's work (architecture section 6). |
 | **Matter Agent** | One per matter | The matter's chat session (current code) | That matter's records, drafts and research; public law; the matter memory | Candidates, tracked changes and memory proposals in that matter | Helpers of the matter types (section 4) |
 | **Helper** | Started by a Matter Agent | An in-memory Pi session, in process, for one `start_helper` call | What its type allows, through the parent's tools | What its type allows, through the parent's tools, recorded with its own actor id (section 5) | Only the `legal-research` type, and only `record-reader` helpers |
-| **Skill run** (planned, N2) | One per skill run | A session the harness starts | The skill's declared context | The skill's output schema | Nothing. It is not a helper. |
+| **Skill run** (N2, [harness-and-stores.md](harness-and-stores.md) section 4) | One per skill run | A session the harness starts | The skill's declared context | The skill's output schema | Nothing. It is not a helper. |
 
 "Godmode" means the Firm Agent sees the whole firm. It does not mean more rights: it proposes, and the advocate decides.
 
@@ -28,10 +28,10 @@ Status: all three are built. The Firm Agent is built as section 2.1 says.
 ### 2.1 The Firm Agent as built
 
 - **Session.** The same `Agent` class, under the conversation id `FIRM_AGENT_ID` (`firm:agent`; a colon cannot be in a matter folder's name). Its folder is `<userData>/firm-agent/`: the Pi session, `messages.json`, `trace.jsonl`, `handoffs.json` and `usage.jsonl`. No matter store records its usage, and no matter budget applies to it.
-- **Tools** (`src/main/firm-agent.ts`), all read-only except the last: `list_matters` (the docket: stage, next step, next hearing, limitation, open items, reminders), `matter_overview` (one matter's open items by kind and title, hearings, reminders; no item text), `list_hearings`, `list_workflows`, `read_workflow`, and `propose_matter_instruction`. A wrong id is an error. It has no matter tool and no built-in tool; the start check requires the six.
+- **Tools** (`src/main/firm-agent.ts`), all read-only except the last: `list_matters` (the docket: stage, next step, next hearing, limitation, open items, reminders), `matter_overview` (one matter's open items by kind and title, hearings, reminders; no item text), `list_hearings`, `list_workflows`, `read_workflow`, `read_advocate_memory` (confirmed and proposed records of `advocate.db`, and the preferences), and `propose_matter_instruction`. A wrong id is an error. It has no matter tool and no built-in tool; the start check requires the seven.
 - **Handoff.** `propose_matter_instruction` stores the instruction in the Firm Agent's conversation only. On Home, the advocate presses "Open in the matter" (the instruction goes into that matter's composer, unsent) or "Dismiss". Both are the human-only bridge function `closeFirmHandoff` (decision 5).
 - **Window.** The Firm Agent panel on Home, below the new-matter composer: its conversation, Stop, a new conversation, the handoff cards and extension questions. It says what it cannot read and what is not available yet.
-- **Not available to it yet:** the Knowledge Library and advocate memory (`advocate.db`, feature Q4). Its prompt tells it to say so.
+- **Not available to it yet:** the Knowledge Library (feature M1, phase 3). Its prompt tells it to say so.
 
 ## 3. What a helper is
 
@@ -86,7 +86,7 @@ Pi's compaction is on for every kind. What differs is when it starts, what the s
 | Firm Agent | Firm summary: matters by id with stage, next date and open items | Clear all but the last 3 results when the context passes 30 % of the window | `keepRecentTokens` 12,000. Summary: open items per matter id, the advocate's instructions, decisions, next steps | Firm lists go stale fast and are cheap to fetch again |
 | Matter Agent | The matter's title and the system prompt; the matter memory on demand | Clear all but the last 6 results, and only results over 2,000 characters, when the context passes 50 % of the window. `read_matter_memory` is never cleared | `keepRecentTokens` 30,000. Summary in the matter form (section 7.1) | Legal work needs exact anchors and the advocate's words; recall comes before brevity |
 | Helper | The task brief only | None (helpers load no extension) | Pi's default | A helper's work is short; its result is capped |
-| Skill run (planned) | The context package (I1) | Per skill | Per skill | Owned by the skill |
+| Skill run | The context package (I1) | None | Pi's default | A run is short and its output is checked |
 
 ### 7.1 The matter summary form
 
@@ -121,5 +121,5 @@ Done (lesson L3): the owner runs a real brief in which the Matter Agent starts a
 ## 9. Not in this piece of work
 
 - Helper threads in the Jobs view with Steer and Stop (O7, B3 adapter).
-- Skill runs (N2) and the planner (O1).
+- Skill runs (N2) and the planner (O1): built in phase 1 ([harness-and-stores.md](harness-and-stores.md)).
 - Codemode and tool search turned on per skill.

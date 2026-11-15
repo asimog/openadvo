@@ -114,6 +114,11 @@ Key files:
 | `src/main/helpers.ts`, `src/main/helper-types.ts` | The helper runtime: foreground and background jobs, Steer, Stop, results, the Final Recap, the files |
 | `src/main/plan.ts`, `src/main/agent-context.ts` | The plan rules; the context strategy, the summaries with refs and the summary form |
 | `src/main/test-model.ts` | The scripted model for end-to-end tests (only under `OPENADVO_TEST=1`) |
+| `src/main/skills.ts`, `src/lib/skills/` | The skill registry: discovery of `SKILL.md` files, their checks, the roles and the evaluator gate (N1, O2, O4) |
+| `src/main/skill-runner.ts`, `src/main/context-assembly.ts`, `src/lib/context-package/` | A skill run, retrieval and the context package (N2, I1) |
+| `src/main/side-questions.ts` | Side questions (O9) |
+| `src/main/harness-bridge.ts` | The bridge functions of phase 1 |
+| `src/lib/advocate-store/`, `src/lib/intel-store/`, `src/lib/store-chain/` | `advocate.db`, `intel.db` and their hash chain (Q4) |
 | `src/main/matters.ts` | The only caller of the matter store (decision 4) |
 | `src/lib/matter-store/` | `matter.db`: schema, writes, the hash-chained event record, refusals, Find |
 | `src/main/portal.ts` | The court-portal window, its origin list and the filing guards |
@@ -168,7 +173,13 @@ Key files:
 - The placeholder (`extensions/placeholder`) registers no tool on purpose. Keep it free of tools, reads and writes; it tests the extension system only.
 - A tool the agent should not call without approval gets an `ask` rule in the tool policy, not a question inside the tool.
 
-### 7.6 Add a vendored part
+### 7.6 Add a skill
+
+1. Add a folder under `skills/` with `SKILL.md`. The frontmatter fields are in [specs/harness-and-stores.md](specs/harness-and-stores.md) section 2.
+2. Name only tools of the skill's role ([../src/lib/skills/roles.ts](../src/lib/skills/roles.ts)). The registry refuses a human-only action, a portal or filing tool, or a tool the agent does not have.
+3. Check that it loads: the test "the built-in skills load with no error" in `tests/unit/skills.test.ts` lists the built-in ids. Add the new id there.
+
+### 7.7 Add a vendored part
 
 Follow `scripts/vendor-*.ts`:
 - pin the version;
@@ -285,7 +296,7 @@ PY
 3. **Tool order.** Pi's active tool list is not in a fixed order. Compare sorted lists.
 4. **Extension tools in tool lists.** The session's tools include the tools of Pi's built-in MCP, codemode and tool-search extensions. Tests filter them with `EXTENSION_TOOL` in `tests/e2e/app.spec.ts`.
 5. **A refused tool.** The tool policy refuses a call in Pi's `tool_call` hook: the model gets the refusal as an error result. A tool with a deny rule is also hidden when the conversation opens, so a test of the refusal itself must set the rule after the conversation opened, or call the tool through `ctx.executeTool`.
-6. **The scripted model.** End-to-end tests set `OPENADVO_TEST=1` and call `__openadvoTest.setModelScript({ agent: [...], helper: [...] })`. Each queue gives one step per model request; `hold` waits for `releaseModel(name)`. `modelSeen()` returns the requests. The test timeouts `OPENADVO_TEST_HELPER_TIMEOUT_MS`, `OPENADVO_TEST_HELPER_WAIT_MS` and `OPENADVO_TEST_APPROVAL_TIMEOUT_MS` apply only under `OPENADVO_TEST=1`.
+6. **The scripted model.** End-to-end tests set `OPENADVO_TEST=1` and call `__openadvoTest.setModelScript({ agent: [...], helper: [...], skill: [...], side: [...] })`. A request goes to the queue whose marker is in its prompt (helper, skill run, side question; else agent). Each queue gives one step per model request; `hold` waits for `releaseModel(name)`. `modelSeen()` returns the requests. The test timeouts `OPENADVO_TEST_HELPER_TIMEOUT_MS`, `OPENADVO_TEST_HELPER_WAIT_MS` and `OPENADVO_TEST_APPROVAL_TIMEOUT_MS` apply only under `OPENADVO_TEST=1`.
 6. **`getAgentDir()`.** Set `PI_CODING_AGENT_DIR` before loading extensions in a test. Otherwise their files land in the owner's `~/.pi/agent`.
 7. **npm from Node on Windows.** Start npm with `spawnSync("npm", args, { shell: true })`, as `src/main/pi-extensions.ts` does for an added package. Node prints a deprecation warning (DEP0190) for this; the arguments are fixed strings, so it is safe here.
 8. **Heredocs with apostrophes.** The shell can reject a long heredoc that contains `'`. Write the script to a file and run the file.

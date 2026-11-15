@@ -5,4 +5,5 @@ One spec per module, written when its work starts, at the depth the module needs
 | Spec | Features |
 |---|---|
 | [agent-framework.md](agent-framework.md) | O3, O6, O7, O10; H-25, H-33 to H-43 |
+| [harness-and-stores.md](harness-and-stores.md) | Phase 1: G5, I1, N1 to N3, O1 to O4, O6 to O10, Q2, Q4, Q5, R1, Y4, Y5 |
 

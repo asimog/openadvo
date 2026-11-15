@@ -34,6 +34,13 @@ async function fixture() {
     openItems: async (id) => (id === "m-a" ? [{ kind: "date_conflict", title: "Date conflict", blocks: true, tab: "chronology" }] : []),
     hearings: async (id) => (id === "m-a" ? [{ date: "2026-11-01", bench: "Court 3", nextDate: "2026-12-01", nextDateStatus: "confirmed" }] : []),
     workflows: async () => [{ id: "w1", title: "Bail checklist", body: "Check the custody period, then...", builtIn: false }],
+    advocateMemory: async () => ({
+      memory: [
+        { type: "preference", subject: "citation format", relation: "is", object: "SCC first", status: "confirmed" },
+        { type: "lesson", subject: "old lesson", relation: "is", object: "gone", status: "rejected" },
+      ],
+      preferences: [{ key: "paragraph_length", value: "short", reason: "the advocate asked", status: "approved" }],
+    }),
   };
   const known: Partial<AgentHost> = {
     matterTitle: async (id) => (id === FIRM_AGENT_ID ? "Firm" : "?"),
@@ -177,6 +184,21 @@ test("O10: the firm's workflows are readable", async () => {
     await f.agent.send(FIRM_AGENT_ID, "show the bail checklist");
     assert.match(a.v, /Bail checklist/);
     assert.match(a.v, /custody period/);
+  } finally {
+    await f.agent.disposeAll();
+  }
+});
+
+test("Q4 and O10: the Firm Agent reads advocate memory: confirmed records and approved preferences, never a rejected one", async () => {
+  const f = await fixture();
+  try {
+    await f.agent.getChat(FIRM_AGENT_ID);
+    const a = { v: "" };
+    f.core.setResponses([fauxAssistantMessage([fauxToolCall("read_advocate_memory", {})], { stopReason: "toolUse" }), f.lastResult(a)]);
+    await f.agent.send(FIRM_AGENT_ID, "what do you know of my preferences?");
+    assert.match(a.v, /citation format is SCC first \(confirmed\)/);
+    assert.match(a.v, /preference paragraph_length: short \(approved; applied because the advocate asked\)/);
+    assert.doesNotMatch(a.v, /old lesson/);
   } finally {
     await f.agent.disposeAll();
   }

@@ -12,7 +12,7 @@ Status words: **built** (in the code and tested), **open** (planned, not built),
 | H-2 | The conversation grew without limit: compaction was off. | Compaction is on (Pi's default) for every session. | built |
 | H-3 | The first model choice was kept until restart, so "no model" stayed until restart. With no model, Pi's agent holds a stand-in model named `unknown/unknown`, so the "no model" check never matched. | "No model" is never cached. A change in the size or time of `auth.json` or `models.json` makes Pi read them again and the model is chosen again. An open session with no model, or with a model whose provider lost its credentials, takes the current model before its next run, with a notice in the chat. The stand-in model counts as no model. | built |
 | H-4 | The system prompt said "Your tools are read only" and then listed write and filing tools. | The prompt now says that the writing tools make only proposals, records or filing steps. | built |
-| H-5 | Every session has every tool, including the portal and filing tools. | A tool scope per skill run (features N2, Q2). The chat session keeps the filing tools behind the two confirmations. | open |
+| H-5 | Every session has every tool, including the portal and filing tools. | A tool scope per skill run (features N2, Q2): a run gets only its skill's tools, through the tool policy; no skill may have a portal or filing tool. The chat session keeps the filing tools behind the two confirmations. | built |
 | H-6 | Pi's install telemetry is at its default (on). Pi's docs say it sends provider attribution headers. | A setting in the window that shows the value and lets the advocate change it. Fact only; no recommendation. | open |
 | H-7 | A code comment said the agent never uses `~/.pi`. Credentials and models do come from `~/.pi/agent` (decision 16). | Comment corrected in `src/main/agent.ts`. | built |
 | H-8 | `decisions.md` said five built-in workflows. The code has six. | Corrected in [decisions.md](decisions.md). | built |
@@ -26,9 +26,9 @@ Status words: **built** (in the code and tested), **open** (planned, not built),
 | H-11 | Extension UI: `notify`, `setStatus`, text `setWidget`, `custom` | A notice in the conversation; status lines above the chat log; a terminal screen rendered once as text. | built |
 | H-12 | Extension UI: `select`, `confirm`, `input`, `editor` | Each question is an AG-UI interrupt object, sent in the CUSTOM event `EXTENSION_QUESTIONS_EVENT`, because the run waits in the middle for the answer. A card in the chat takes the answer (`answerExtensionQuestion`). Dismiss, Stop, a new conversation, the extension's abort signal or its timeout give the default answer; a notice says when time ran out. The tool policy's `ask` rule uses the same queue, as an approval card. Sessions are closed with `session_shutdown`, so extensions close their sockets. | built |
 | H-13 | Extension commands (`/name`) | Typed in the chat, they run through `session.prompt`, with or without a model. | built |
-| H-14 | Command list in the composer | `/` lists extension commands, Pi skills and prompt templates (with feature N3). | open |
+| H-14 | Command list in the composer | `/` lists Open Advocate's skills and the typed commands (`/btw`, `/context`, `/cost`) (feature N3). Pi extension commands, Pi skills and prompt templates are not listed yet. | skills built; extension commands open |
 | H-15 | Command actions: new session, fork, tree navigation, switch session | Bind `commandContextActions` through `AgentSessionRuntime`, so an extension command can fork or start a conversation. | open |
-| H-16 | Pi skills (`SKILL.md`) | Discovered from the application's Pi folder. Open Advocate's own skills (decision 14) are built as Pi skills plus a tool scope per skill (H-5). | discovery built; app skills open |
+| H-16 | Pi skills (`SKILL.md`) | Discovered from the application's Pi folder. Open Advocate's own skills (decision 14) are Pi skill files with Open Advocate's fields, read with Pi's frontmatter parser, plus a tool scope per skill (H-5). | built |
 | H-17 | Prompt templates | Discovered from the application's Pi folder. The built-in workflows move to prompt templates. | discovery built; move open |
 | H-18 | Context files (`AGENTS.md`) | Discovered from the application's Pi folder. A per-matter context file (matter memory) is added to the prompt. | discovery built; matter file open |
 | H-19 | MCP, codemode, tool search | Loaded in every session. Rules per MCP server and per MCP tool in the policy; one Settings row per server in `mcp.json` and one for every MCP tool. A full server manager view is open. | loaded and policy built; manager view open |
@@ -42,7 +42,7 @@ Status words: **built** (in the code and tested), **open** (planned, not built),
 | H-27 | Pi themes | Not used: themes style Pi's terminal interface. Extensions get Pi's dark theme for text they render. | not applicable |
 | H-28 | Pi's built-in tools: `read`, `bash`, `edit`, `write`, `grep`, `find`, `ls` | Off in every session and every helper agent (section 3). Turning them on would reverse decision 2 and let a tool write outside the matter store (decision 4). | owner |
 | H-29 | `pi-durable`, `chord` | Not installed. pi-durable's README calls it experimental, with an API that changes without notice. | owner |
-| H-30 | Side questions | [harness-build.md](harness-build.md) HB-1; feature O9. | open |
+| H-30 | Side questions | [harness-build.md](harness-build.md) HB-1; feature O9. | built |
 | H-31 | Browser for the advocate and the agent | [harness-build.md](harness-build.md) HB-2; features S10 to S12. | open |
 | H-32 | Fixes on Pi `main` not yet released (abort mid-batch, "Connection closed" retries, tool schemas) | Upgrade the pinned version when Pi releases them, and run the tests of section 4. | open |
 
@@ -68,6 +68,8 @@ The extension policy, the bundled extensions, the permission policy and the help
 | `tests/e2e/native-plan.spec.ts` | The panel, statuses, dependencies, subtasks, tags; the fold; Clear plan; the rules; an item added by typing; the strength setting; a restart. | `npx playwright test tests/e2e/native-plan.spec.ts` |
 | `tests/e2e/native-context.spec.ts` | `/context`, `/cost`, the run's cost line; a summary with a ref recalled by `recall_result`; Compact now; the CSV. | `npx playwright test tests/e2e/native-context.spec.ts` |
 | `tests/e2e/app.spec.ts` | The bridge functions; the session has every application tool, no built-in tool, and the bundled extension tools. | `npx playwright test tests/e2e/app.spec.ts` |
+| `tests/unit/skill-runner.test.ts`, `tests/unit/side-questions.test.ts` | Skill runs with a faux model: the scoped tools (H-5), the gate, approval points, refusals, parallel runs, resume; a side thread with reading tools only. | `node --test tests/unit/skill-runner.test.ts tests/unit/side-questions.test.ts` |
+| `tests/e2e/phase1.spec.ts` | The phase 1 exit path in the window, the navigation and the Review Inbox ([specs/harness-and-stores.md](specs/harness-and-stores.md) section 7). | `npx playwright test tests/e2e/phase1.spec.ts` |
 
 Still needed: live model runs of the helpers, the approvals, the plan, the summaries and the Firm Agent, and the owner's exit (lesson L3).
 

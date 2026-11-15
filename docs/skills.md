@@ -4,7 +4,7 @@ Accepted by the owner on 2026-11-15. This file owns the skill format, the skills
 
 ## 1. Skill format
 
-Each skill is one versioned file in the skills registry (features N1 and N1). Built-in skills live in the repository. The advocate's own skills live in user data.
+Each skill is one versioned file in the skills registry (feature N1). The file format as built is in [specs/harness-and-stores.md](specs/harness-and-stores.md) section 2. Built-in skills live in the repository. The advocate's own skills live in user data.
 
 | Field | Holds |
 |---|---|

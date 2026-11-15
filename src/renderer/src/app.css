@@ -280,3 +280,19 @@ kbd { font-family: ui-monospace, monospace; font-size: 12px; border: 1px solid v
 /* Decision 22: status lines of Pi extensions, above the chat log. */
 .dock-ext-status { font-size: 12px; padding: 4px 12px; border-bottom: 1px solid var(--color-border, rgba(127,127,127,0.25)); opacity: 0.85; white-space: pre-wrap; overflow-wrap: anywhere; }
 .ext-pre { margin: 0; font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; white-space: pre-wrap; text-align: left; }
+
+/* Phase 1: report cards (N2), packages and jobs (I1, O7), the side panel (O9), the pages (Q5, R1). */
+.report-card { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; padding: 10px; border: 1px solid var(--color-border); border-radius: 8px; }
+.report-card[data-state="needs_review"], .report-card[data-state="failed"] { border-left: 3px solid var(--color-border-strong, var(--color-border)); }
+.report-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.report-facts { margin: 4px 0; font-size: 13px; }
+.report-check { white-space: nowrap; }
+.report-check[data-result="failed"] { font-weight: 600; }
+.package-view { display: flex; flex-direction: column; gap: 4px; padding: 6px 0; }
+.dock-jobs { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; }
+.jobs-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.side-panel { flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px; margin: 8px; padding: 10px; border: 1px solid var(--color-border); border-radius: 8px; min-height: 220px; max-height: 50vh; overflow-y: auto; background: var(--color-background-muted); }
+.side-head { display: flex; flex-direction: column; gap: 2px; }
+.side-log { display: flex; flex-direction: column; gap: 6px; }
+.side-msg[data-role="question"] { align-self: flex-end; }
+.page { max-width: 900px; }

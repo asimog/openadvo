@@ -42,7 +42,7 @@ test("O10: the Firm Agent on Home reads the firm and hands an instruction to a m
   await expect(panel).toContainText("It does not read a matter's documents");
 
   const tools: string[] = await app.evaluate((_e, id) => (globalThis as any).__openadvoTest.agentToolNames(id), FIRM);
-  for (const t of ["list_matters", "matter_overview", "list_hearings", "list_workflows", "read_workflow", "propose_matter_instruction"]) expect(tools).toContain(t);
+  for (const t of ["list_matters", "matter_overview", "list_hearings", "list_workflows", "read_workflow", "read_advocate_memory", "propose_matter_instruction"]) expect(tools).toContain(t);
   for (const t of ["read_source_text", "list_events", "read_draft", "submit_filing", "read", "bash"]) expect(tools).not.toContain(t);
 
   const list: string = await app.evaluate((_e, id) => (globalThis as any).__openadvoTest.callAgentTool(id, "list_matters", {}), FIRM);

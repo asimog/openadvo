@@ -23,9 +23,13 @@ export interface ScriptStep {
 export interface ModelScript {
   agent?: ScriptStep[];
   helper?: ScriptStep[];
+  /** Phase 1: the requests of skill runs (N2) and side questions (O9). */
+  skill?: ScriptStep[];
+  side?: ScriptStep[];
 }
 
-const queues: { agent: ScriptStep[]; helper: ScriptStep[] } = { agent: [], helper: [] };
+type Queue = "agent" | "helper" | "skill" | "side";
+const queues: Record<Queue, ScriptStep[]> = { agent: [], helper: [], skill: [], side: [] };
 const holds = new Map<string, { promise: Promise<void>; release: () => void }>();
 /** What each request saw, for assertions: the queue, the last message, and the whole request. */
 export const seen: Array<{ queue: string; last: string; all: string }> = [];
@@ -44,6 +48,8 @@ function hold(name: string) {
 export function setModelScript(script: ModelScript): void {
   queues.agent = [...(script.agent ?? [])];
   queues.helper = [...(script.helper ?? [])];
+  queues.skill = [...(script.skill ?? [])];
+  queues.side = [...(script.side ?? [])];
   seen.length = 0;
 }
 
@@ -58,7 +64,8 @@ export function installTestModel(runtime: ModelRuntime): void {
     const all = JSON.stringify(context.messages);
     const last = JSON.stringify(context.messages.at(-1) ?? "");
     if (/Summarise this conversation|Summarise this tool result/.test(last)) return fauxAssistantMessage("Summary of the earlier part (test model).");
-    const queue = all.includes("You are a helper agent of Open Advocate") ? "helper" : "agent";
+    // The markers of src/main/skill-runner.ts and src/main/side-questions.ts.
+    const queue: Queue = all.includes("You are a helper agent of Open Advocate") ? "helper" : all.includes("You are a skill run of Open Advocate") ? "skill" : all.includes("You answer a side question in Open Advocate") ? "side" : "agent";
     seen.push({ queue, last: last.slice(0, 4000), all: all.slice(0, 120_000) });
     const next = queues[queue].shift();
     if (!next) return fauxAssistantMessage(`(test model: no scripted ${queue} reply)`);

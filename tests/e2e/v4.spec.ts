@@ -97,7 +97,7 @@ test("v4: index, search, read and save from the sources; the argument loop; deci
     await page.getByRole("button", { name: "Index Supreme Court years" }).click();
     await expect(page.getByTestId("index-panel").locator("summary")).toContainText("Supreme Court 2023–2023 (1 years, 1 judgments)");
     await page.getByLabel("Research query").fill("eldeco");
-    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await page.getByTestId("studio-sources").getByRole("button", { name: "Search", exact: true }).click();
     await expect(page.getByTestId("research-hits")).toContainText("2023 INSC 1043");
     await page.getByTestId("research-hits").getByRole("button", { name: "Read" }).click();
     await expect(page.getByTestId("reader-lines")).toContainText("Long custody without trial is a ground for bail.");
@@ -111,7 +111,7 @@ test("v4: index, search, read and save from the sources; the argument loop; deci
     // ---- India Code: search and save a provision ----
     await page.getByLabel("Source").selectOption("indiacode");
     await page.getByLabel("Research query").fill("section 483 BNSS");
-    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await page.getByTestId("studio-sources").getByRole("button", { name: "Search", exact: true }).click();
     await expect(page.getByTestId("research-notice")).toContainText("current text");
     await page.getByTestId("research-hits").getByRole("button", { name: "Save provision" }).click();
     await expect(page.getByTestId("studio-sources")).toContainText("Saved: The Bharatiya Nagarik Suraksha Sanhita, 2023, section 483.");
@@ -119,10 +119,10 @@ test("v4: index, search, read and save from the sources; the argument loop; deci
     // ---- The web: discovery only; a switched-off source says so ----
     await page.getByLabel("Source").selectOption("web");
     await page.getByLabel("Research query").fill("bail long custody");
-    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await page.getByTestId("studio-sources").getByRole("button", { name: "Search", exact: true }).click();
     await expect(page.getByTestId("research-notice")).toContainText("discovery only");
     await call("setResearchSettings", { aws: true, indiaCode: true, web: false });
-    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await page.getByTestId("studio-sources").getByRole("button", { name: "Search", exact: true }).click();
     await expect(page.getByTestId("research-error")).toContainText("SOURCE_OFF");
     await call("setResearchSettings", { aws: true, indiaCode: true, web: true });
 

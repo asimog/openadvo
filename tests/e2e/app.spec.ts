@@ -216,6 +216,9 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
       "quickCheckCitations", "benchTrends", "assessAuthority", "addTreatment", "runRehearsal", "decideChallenge",
       "listRevisions", "compareRevisions", "openInWord", "importFromWord", "filingResult", "reconcileFiling",
       "listHearings", "addHearing", "listReminders", "addReminder", "doneReminder", "getPolicy", "setPolicy", "stopChat", "answerExtensionQuestion", "closeFirmHandoff", "clearPlan", "compactChat", "getToolPolicy", "setToolPolicy", "stopHelper", "steerHelper", "useHelperResults", "getPlanStrength", "setPlanStrength", "costCsv", "listContacts", "addContact", "removeContact", "listParties", "addParty", "getDocket", "generateQuestions", "previewDiagnostics", "writeDiagnostics", "onReminderDue",
+      // Phase 1: harness and stores (docs/specs/harness-and-stores.md).
+      "listSkills", "listSkillRuns", "getContextPackage", "listRunJobs", "resumeSkillRun", "approvePlan", "askSide", "discardSide", "listSide", "contextCandidates", "inboxAll", "searchAll",
+      "getAdvocateProfile", "setAdvocateProfile", "listAdvocateMemory", "decideAdvocateMemory", "listPreferences", "decidePreference", "listIntelSources", "storeChains",
     ].sort(),
   );
   await app.close();
@@ -282,6 +285,8 @@ test("the agent session has our tools, no built-in Pi tool, and its id is record
     "stop_helper",
     "steer_helper",
     "recall_result",
+    // Phase 1 (N2): skill runs.
+    "run_skill",
   ].sort());
   const sessionId = await app.evaluate((_e, m) => (globalThis as any).__openadvoTest.agentSessionId(m), id);
   const events = await page.evaluate((m) => (globalThis as any).openadvo.listEvents(m), id);

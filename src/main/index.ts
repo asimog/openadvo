@@ -1043,6 +1043,7 @@ app.whenReady().then(() => {
         openItems: async (id) => (await progress.inbox(id)).map((i) => ({ kind: i.kind, title: i.title, blocks: i.blocks, tab: i.tab })),
         hearings: async (id) => (await matters.store(id)).hearings().map((h) => ({ date: h.date, bench: h.bench, nextDate: h.nextDate, nextDateStatus: h.nextDateStatus })),
         workflows: async () => allWorkflows(customWorkflows()),
+        advocateMemory: async () => ({ memory: advocateStore.memory(), preferences: advocateStore.preferences() }),
       },
     },
     { agentDir: piAgentDir(), piHome: ownerPiHome ?? getAgentDir(), model: process.env.OPENADVO_MODEL || undefined, extensions: piExtensions(), policy: toolPolicy() },
