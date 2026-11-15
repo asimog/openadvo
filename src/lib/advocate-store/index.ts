@@ -9,7 +9,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { CHAIN_SCHEMA, StoreError, appendChained, checkChain, humanOnly, inTransaction, type ChainCheck } from "../store-chain/index.ts";
-import { ADVOCATE_SCOPE_TYPES, MEMORY_STATUSES, MEMORY_TYPES, type AdvocateProfile, type MemoryRecord, type MemoryStatus, type MemoryType, type PreferenceRecord } from "../../shared/stores.ts";
+import { ADVOCATE_SCOPE_TYPES, LIBRARY_KINDS, LIBRARY_STATUSES, MEMORY_STATUSES, MEMORY_TYPES, type AdvocateProfile, type LibraryItem, type LibraryKind, type LibraryStatus, type MemoryRecord, type MemoryStatus, type MemoryType, type PreferenceRecord } from "../../shared/stores.ts";
 import type { WriteContext } from "../../shared/records.ts";
 
 export const ADVOCATE_DB = "advocate.db";
@@ -48,6 +48,26 @@ CREATE TABLE IF NOT EXISTS memory (
   proposed_by TEXT NOT NULL
 ) STRICT;
 CREATE TRIGGER IF NOT EXISTS memory_no_delete BEFORE DELETE ON memory BEGIN SELECT RAISE(ABORT, 'memory records change status, never vanish'); END;
+CREATE TABLE IF NOT EXISTS library_item (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN (${LIBRARY_KINDS.map((k) => `'${k}'`).join(", ")})),
+  status TEXT NOT NULL CHECK (status IN (${LIBRARY_STATUSES.map((s) => `'${s}'`).join(", ")})),
+  author TEXT NOT NULL DEFAULT '',
+  item_date TEXT NOT NULL DEFAULT '',
+  matter_id TEXT,
+  court TEXT NOT NULL DEFAULT '',
+  scope TEXT NOT NULL DEFAULT '',
+  source_name TEXT NOT NULL,
+  sha256 TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  notes TEXT NOT NULL DEFAULT '',
+  tags TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+) STRICT;
+CREATE UNIQUE INDEX IF NOT EXISTS library_item_sha ON library_item(sha256);
+CREATE TRIGGER IF NOT EXISTS library_item_no_delete BEFORE DELETE ON library_item BEGIN SELECT RAISE(ABORT, 'library items are marked, never deleted'); END;
 `;
 
 function memoryRow(r: Record<string, unknown>): MemoryRecord {
@@ -80,6 +100,27 @@ function preferenceRow(r: Record<string, unknown>): PreferenceRecord {
     proposedBy: String(r.proposed_by),
     createdAt: String(r.created_at),
     decidedAt: r.decided_at == null ? null : String(r.decided_at),
+  };
+}
+
+function libraryRow(r: Record<string, unknown>): LibraryItem {
+  return {
+    id: String(r.id),
+    title: String(r.title),
+    kind: r.kind as LibraryKind,
+    status: r.status as LibraryStatus,
+    author: String(r.author),
+    itemDate: String(r.item_date),
+    matterId: r.matter_id == null ? null : String(r.matter_id),
+    court: String(r.court),
+    scope: String(r.scope),
+    sourceName: String(r.source_name),
+    sha256: String(r.sha256),
+    size: Number(r.size),
+    notes: String(r.notes),
+    tags: JSON.parse(String(r.tags ?? "[]")) as string[],
+    createdAt: String(r.created_at),
+    updatedAt: String(r.updated_at),
   };
 }
 
@@ -213,5 +254,98 @@ export class AdvocateStore {
       appendChained(this.db, ctx, "memory.decided", id, { status });
     });
     return this.memory().find((m) => m.memoryId === id)!;
+  }
+
+  // ---- M1: the Knowledge Library ----
+
+  library(filter: { q?: string; kind?: string; status?: string; limit?: number } = {}): LibraryItem[] {
+    const where: string[] = [];
+    const args: string[] = [];
+    if (filter.kind) {
+      where.push("kind = ?");
+      args.push(filter.kind);
+    }
+    if (filter.status) {
+      where.push("status = ?");
+      args.push(filter.status);
+    }
+    const q = filter.q?.trim().toLowerCase();
+    if (q) {
+      where.push("(lower(title) LIKE ? OR lower(source_name) LIKE ? OR lower(notes) LIKE ? OR lower(tags) LIKE ? OR lower(court) LIKE ? OR lower(scope) LIKE ?)");
+      for (let i = 0; i < 6; i++) args.push(`%${q}%`);
+    }
+    const limit = Math.min(Math.max(Number(filter.limit) || 500, 1), 2000);
+    const sql = `SELECT * FROM library_item${where.length ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY created_at DESC LIMIT ${limit}`;
+    return (this.db.prepare(sql).all(...args) as Array<Record<string, unknown>>).map(libraryRow);
+  }
+
+  libraryBySha(sha256: string): LibraryItem | undefined {
+    const row = this.db.prepare("SELECT * FROM library_item WHERE sha256 = ?").get(sha256) as Record<string, unknown> | undefined;
+    return row ? libraryRow(row) : undefined;
+  }
+
+  /** Human-only: one imported file enters the library. The file itself is written by the main process. */
+  addLibraryItem(input: { title: string; kind: string; status?: string; author?: string; itemDate?: string; matterId?: string | null; court?: string; scope?: string; sourceName: string; sha256: string; size: number; notes?: string; tags?: string[] }, ctx: WriteContext): LibraryItem {
+    humanOnly(ctx, "adds a library item");
+    if (!(LIBRARY_KINDS as readonly string[]).includes(input.kind)) throw new StoreError("BAD_KIND", `unknown library kind ${input.kind}`);
+    const status = input.status ?? "unreviewed";
+    if (!(LIBRARY_STATUSES as readonly string[]).includes(status)) throw new StoreError("BAD_STATUS", `unknown library status ${status}`);
+    const title = input.title.trim().slice(0, 300);
+    const sourceName = input.sourceName.trim().slice(0, 300);
+    if (!title || !sourceName) throw new StoreError("BAD_ITEM", "a library item needs a title and a source name");
+    if (!/^[0-9a-f]{64}$/.test(input.sha256)) throw new StoreError("BAD_SHA", "a library item needs the file's SHA-256");
+    if (!Number.isFinite(input.size) || input.size < 0) throw new StoreError("BAD_SIZE", "the file size is not valid");
+    const existing = this.libraryBySha(input.sha256);
+    if (existing) throw new StoreError("DUPLICATE", `the same bytes are already in the library as ${existing.title}`);
+    const id = randomUUID();
+    const at = new Date().toISOString();
+    const tags = (input.tags ?? []).map((t) => t.trim().slice(0, 60)).filter(Boolean).slice(0, 30);
+    inTransaction(this.db, () => {
+      this.db
+        .prepare("INSERT INTO library_item (id, title, kind, status, author, item_date, matter_id, court, scope, source_name, sha256, size, notes, tags, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .run(id, title, input.kind, status, (input.author ?? "").trim().slice(0, 200), /^\d{4}-\d{2}-\d{2}$/.test(input.itemDate ?? "") ? input.itemDate! : "", input.matterId ?? null, (input.court ?? "").trim().slice(0, 300), (input.scope ?? "").trim().slice(0, 500), sourceName, input.sha256, Math.round(input.size), (input.notes ?? "").trim().slice(0, 5000), JSON.stringify(tags), at, at);
+      appendChained(this.db, ctx, "library.added", id, { title, kind: input.kind, sha256: input.sha256, scope: input.scope ?? "" });
+    });
+    return this.library().find((x) => x.id === id)!;
+  }
+
+  /** Human-only: correct the metadata or the precedent status. The file bytes never change. */
+  updateLibraryItem(id: string, input: { title?: string; kind?: string; status?: string; author?: string; itemDate?: string; matterId?: string | null; court?: string; scope?: string; notes?: string; tags?: string[] }, ctx: WriteContext): LibraryItem {
+    humanOnly(ctx, "corrects a library item");
+    const row = this.db.prepare("SELECT * FROM library_item WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+    if (!row) throw new StoreError("NOT_FOUND", `no library item ${id}`);
+    const current = libraryRow(row);
+    const kind = input.kind ?? current.kind;
+    if (!(LIBRARY_KINDS as readonly string[]).includes(kind)) throw new StoreError("BAD_KIND", `unknown library kind ${kind}`);
+    const status = input.status ?? current.status;
+    if (!(LIBRARY_STATUSES as readonly string[]).includes(status)) throw new StoreError("BAD_STATUS", `unknown library status ${status}`);
+    const tags = (input.tags ?? current.tags).map((t) => t.trim().slice(0, 60)).filter(Boolean).slice(0, 30);
+    const at = new Date().toISOString();
+    inTransaction(this.db, () => {
+      this.db
+        .prepare("UPDATE library_item SET title = ?, kind = ?, status = ?, author = ?, item_date = ?, matter_id = ?, court = ?, scope = ?, notes = ?, tags = ?, updated_at = ? WHERE id = ?")
+        .run(
+          (input.title ?? current.title).trim().slice(0, 300) || current.title,
+          kind,
+          status,
+          (input.author ?? current.author).trim().slice(0, 200),
+          /^\d{4}-\d{2}-\d{2}$/.test(input.itemDate ?? current.itemDate) ? (input.itemDate ?? current.itemDate) : current.itemDate,
+          input.matterId !== undefined ? input.matterId : current.matterId,
+          (input.court ?? current.court).trim().slice(0, 300),
+          (input.scope ?? current.scope).trim().slice(0, 500),
+          (input.notes ?? current.notes).trim().slice(0, 5000),
+          JSON.stringify(tags),
+          at,
+          id,
+        );
+      appendChained(this.db, ctx, "library.updated", id, { status, kind });
+    });
+    return this.library().find((x) => x.id === id)!;
+  }
+
+  setLibraryStatus(id: string, status: string, ctx: WriteContext): LibraryItem {
+    humanOnly(ctx, "changes a library item's status");
+    if (!(LIBRARY_STATUSES as readonly string[]).includes(status)) throw new StoreError("BAD_STATUS", `unknown library status ${status}`);
+    return this.updateLibraryItem(id, { status }, ctx);
   }
 }

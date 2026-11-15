@@ -4,6 +4,7 @@
  */
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { ChatEvent, OpenAdvoApi } from "../shared/api.ts";
+import { BROWSER_STATE_EVENT, type BrowserShortcut } from "../shared/browser.ts";
 
 const api: OpenAdvoApi = {
   listMatters: () => ipcRenderer.invoke("matters:list"),
@@ -49,6 +50,21 @@ const api: OpenAdvoApi = {
   getEffort: () => ipcRenderer.invoke("effort:get"),
   setEffort: (level) => ipcRenderer.invoke("effort:set", level),
   openSourceView: (matterId, sourceId) => ipcRenderer.invoke("view:openSource", matterId, sourceId),
+  pickFolder: () => ipcRenderer.invoke("dialog:pickFolder"),
+  intakeFolder: () => ipcRenderer.invoke("intake:folder"),
+  intakeCnr: (cnr, court) => ipcRenderer.invoke("intake:cnr", cnr, court),
+  intakeEmail: () => ipcRenderer.invoke("intake:email"),
+  getMatterProfile: (matterId) => ipcRenderer.invoke("matter:profile", matterId),
+  setMatterProfile: (matterId, input) => ipcRenderer.invoke("matter:setProfile", matterId, input),
+  proposeClassification: (matterId) => ipcRenderer.invoke("matter:classification", matterId),
+  applyClassification: (matterId, proposal) => ipcRenderer.invoke("matter:applyClassification", matterId, proposal),
+  listRelatedMatters: (matterId) => ipcRenderer.invoke("matter:related", matterId),
+  addRelatedMatter: (matterId, toId, relation, note) => ipcRenderer.invoke("matter:addRelated", matterId, toId, relation, note),
+  removeRelatedMatter: (matterId, toId, relation) => ipcRenderer.invoke("matter:removeRelated", matterId, toId, relation),
+  extendMatter: (matterId, input) => ipcRenderer.invoke("matter:extend", matterId, input),
+  proposalsList: () => ipcRenderer.invoke("proposals:list"),
+  proposalCreate: (id) => ipcRenderer.invoke("proposals:create", id),
+  proposalDismiss: (id) => ipcRenderer.invoke("proposals:dismiss", id),
   closeView: (url) => ipcRenderer.invoke("view:close", new URL(url).searchParams.get("doc") ?? ""),
   listJobs: (matterId) => ipcRenderer.invoke("ingest:jobs", matterId),
   getSourcePages: (matterId, sourceId) => ipcRenderer.invoke("sources:pages", matterId, sourceId),
@@ -94,6 +110,40 @@ const api: OpenAdvoApi = {
   voiceStatus: () => ipcRenderer.invoke("voice:status"),
   transcribe: (samples) => ipcRenderer.invoke("voice:transcribe", samples),
   openPortal: (matterId) => ipcRenderer.invoke("capture:openPortal", matterId),
+  browserState: () => ipcRenderer.invoke("browser:state"),
+  browserOpen: (url) => ipcRenderer.invoke("browser:open", url),
+  browserClose: (tabId) => ipcRenderer.invoke("browser:close", tabId),
+  browserActivate: (tabId) => ipcRenderer.invoke("browser:activate", tabId),
+  browserNavigate: (tabId, url) => ipcRenderer.invoke("browser:navigate", tabId, url),
+  browserBack: (tabId) => ipcRenderer.invoke("browser:back", tabId),
+  browserForward: (tabId) => ipcRenderer.invoke("browser:forward", tabId),
+  browserReload: (tabId) => ipcRenderer.invoke("browser:reload", tabId),
+  browserStop: (tabId) => ipcRenderer.invoke("browser:stop", tabId),
+  browserSetBounds: (bounds) => ipcRenderer.invoke("browser:setBounds", bounds),
+  browserSetVisible: (visible) => ipcRenderer.invoke("browser:setVisible", visible),
+  browserSetMatter: (matterId) => ipcRenderer.invoke("browser:setMatter", matterId),
+  browserBookmarks: () => ipcRenderer.invoke("browser:bookmarks"),
+  browserToggleBookmark: (tabId) => ipcRenderer.invoke("browser:toggleBookmark", tabId),
+  browserRemoveBookmark: (id) => ipcRenderer.invoke("browser:removeBookmark", id),
+  browserOpenBookmark: (id) => ipcRenderer.invoke("browser:openBookmark", id),
+  browserHistory: () => ipcRenderer.invoke("browser:history"),
+  browserClearHistory: () => ipcRenderer.invoke("browser:clearHistory"),
+  browserProposeCaseList: () => ipcRenderer.invoke("browser:proposeCaseList"),
+  browserCreateMatters: (cases) => ipcRenderer.invoke("browser:createMatters", cases),
+  onBrowserState: (listener) => {
+    const handler = (_event: unknown, state: Parameters<typeof listener>[0]) => listener(state);
+    ipcRenderer.on(BROWSER_STATE_EVENT, handler);
+    return () => {
+      ipcRenderer.removeListener(BROWSER_STATE_EVENT, handler);
+    };
+  },
+  onBrowserShortcut: (listener) => {
+    const handler = (_event: unknown, shortcut: BrowserShortcut["type"]) => listener(shortcut);
+    ipcRenderer.on("browser:shortcut", handler);
+    return () => {
+      ipcRenderer.removeListener("browser:shortcut", handler);
+    };
+  },
   importEmail: (matterId) => ipcRenderer.invoke("mail:importEml", matterId),
   getMailAccount: () => ipcRenderer.invoke("mail:getAccount"),
   setMailAccount: (account, password) => ipcRenderer.invoke("mail:setAccount", account, password),
@@ -134,10 +184,20 @@ const api: OpenAdvoApi = {
   searchAll: (query) => ipcRenderer.invoke("search:all", query),
   getAdvocateProfile: () => ipcRenderer.invoke("advocate:profile"),
   setAdvocateProfile: (key, value) => ipcRenderer.invoke("advocate:set-profile", key, value),
+  setAdvocateEnrolment: (number, year) => ipcRenderer.invoke("advocate:set-enrolment", number, year),
+  advocateEnrolmentState: () => ipcRenderer.invoke("advocate:enrolment-state"),
+  clearAdvocateEnrolment: () => ipcRenderer.invoke("advocate:clear-enrolment"),
   listAdvocateMemory: () => ipcRenderer.invoke("advocate:memory"),
   decideAdvocateMemory: (id, status) => ipcRenderer.invoke("advocate:decide-memory", id, status),
   listPreferences: () => ipcRenderer.invoke("advocate:preferences"),
   decidePreference: (id, decision) => ipcRenderer.invoke("advocate:decide-preference", id, decision),
+  libraryList: (filter) => ipcRenderer.invoke("library:list", filter),
+  libraryImportFiles: () => ipcRenderer.invoke("library:importFiles"),
+  libraryImportFolder: () => ipcRenderer.invoke("library:importFolder"),
+  libraryUpdate: (id, input) => ipcRenderer.invoke("library:update", id, input),
+  librarySetStatus: (id, status) => ipcRenderer.invoke("library:setStatus", id, status),
+  libraryOpen: (id) => ipcRenderer.invoke("library:open", id),
+  libraryReveal: (id) => ipcRenderer.invoke("library:reveal", id),
   listIntelSources: () => ipcRenderer.invoke("intel:sources"),
   storeChains: () => ipcRenderer.invoke("stores:chains"),
   searchCourts: (query) => ipcRenderer.invoke("intel:directory", query),
@@ -173,7 +233,7 @@ const api: OpenAdvoApi = {
   addContact: (c) => ipcRenderer.invoke("contacts:add", c),
   removeContact: (id) => ipcRenderer.invoke("contacts:remove", id),
   listParties: (matterId) => ipcRenderer.invoke("parties:list", matterId),
-  addParty: (matterId, contactId, role, nameInRecord) => ipcRenderer.invoke("parties:add", matterId, contactId, role, nameInRecord),
+  addParty: (matterId, contactId, role, nameInRecord, counsel) => ipcRenderer.invoke("parties:add", matterId, contactId, role, nameInRecord, counsel),
   getDocket: () => ipcRenderer.invoke("docket:list"),
   generateQuestions: (matterId) => ipcRenderer.invoke("questions:generate", matterId),
   previewDiagnostics: () => ipcRenderer.invoke("diag:preview"),

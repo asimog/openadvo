@@ -5,6 +5,7 @@
  */
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
+import type { MatterProfile, MatterRelation, RelatedMatter } from "../../shared/work.ts";
 
 export const PRACTICE_SCHEMA = `
 CREATE TABLE IF NOT EXISTS hearing (
@@ -30,11 +31,36 @@ CREATE TABLE IF NOT EXISTS matter_policy (
   budget_tokens INTEGER,
   updated_at TEXT NOT NULL
 ) STRICT;
+CREATE TABLE IF NOT EXISTS matter_profile (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  court TEXT NOT NULL DEFAULT '',
+  bench TEXT NOT NULL DEFAULT '',
+  practice_area TEXT NOT NULL DEFAULT '',
+  case_type TEXT NOT NULL DEFAULT '',
+  proceeding TEXT NOT NULL DEFAULT '',
+  side TEXT NOT NULL DEFAULT '',
+  case_number TEXT NOT NULL DEFAULT '',
+  cnr TEXT NOT NULL DEFAULT '',
+  filing_date TEXT NOT NULL DEFAULT '',
+  institution_date TEXT NOT NULL DEFAULT '',
+  governing_date TEXT NOT NULL DEFAULT '',
+  stage TEXT NOT NULL DEFAULT '',
+  relief TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL
+) STRICT;
+CREATE TABLE IF NOT EXISTS related_matter (
+  to_id TEXT NOT NULL,
+  relation TEXT NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (to_id, relation)
+) STRICT;
 CREATE TABLE IF NOT EXISTS party (
   id TEXT PRIMARY KEY,
   contact_id TEXT NOT NULL,
   role TEXT NOT NULL,
   name_in_record TEXT NOT NULL,
+  counsel TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL
 ) STRICT;
 CREATE TABLE IF NOT EXISTS impact_check (
@@ -72,6 +98,8 @@ export interface Party {
   contactId: string;
   role: string;
   nameInRecord: string;
+  /** C8: counsel for this party, as the record gives it. */
+  counsel: string;
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -132,13 +160,87 @@ export function setPolicy(db: DatabaseSync, p: Policy): Policy {
 }
 
 export function parties(db: DatabaseSync): Party[] {
-  return (db.prepare("SELECT * FROM party ORDER BY created_at, rowid").all() as Array<Record<string, unknown>>).map((r) => ({ id: String(r.id), contactId: String(r.contact_id), role: String(r.role), nameInRecord: String(r.name_in_record) }));
+  return (db.prepare("SELECT * FROM party ORDER BY created_at, rowid").all() as Array<Record<string, unknown>>).map((r) => ({ id: String(r.id), contactId: String(r.contact_id), role: String(r.role), nameInRecord: String(r.name_in_record), counsel: String(r.counsel ?? "") }));
 }
 
-export function addParty(db: DatabaseSync, contactId: string, role: string, nameInRecord: string): Party {
+export function addParty(db: DatabaseSync, contactId: string, role: string, nameInRecord: string, counsel = ""): Party {
   const id = randomUUID();
-  db.prepare("INSERT INTO party VALUES (?, ?, ?, ?, ?)").run(id, contactId, role.slice(0, 60), nameInRecord.slice(0, 300), new Date().toISOString());
+  db.prepare("INSERT INTO party (id, contact_id, role, name_in_record, counsel, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(id, contactId, role.slice(0, 60), nameInRecord.slice(0, 300), counsel.slice(0, 300), new Date().toISOString());
   return parties(db).find((x) => x.id === id)!;
+}
+
+/** C1: the one row of the matter profile. Empty fields are valid; nothing is guessed. */
+export function matterProfile(db: DatabaseSync): MatterProfile {
+  const r = db.prepare("SELECT * FROM matter_profile WHERE id = 1").get() as Record<string, unknown> | undefined;
+  return {
+    court: String(r?.court ?? ""),
+    bench: String(r?.bench ?? ""),
+    practiceArea: String(r?.practice_area ?? ""),
+    caseType: String(r?.case_type ?? ""),
+    proceeding: String(r?.proceeding ?? ""),
+    side: String(r?.side ?? ""),
+    caseNumber: String(r?.case_number ?? ""),
+    cnr: String(r?.cnr ?? ""),
+    filingDate: String(r?.filing_date ?? ""),
+    institutionDate: String(r?.institution_date ?? ""),
+    governingDate: String(r?.governing_date ?? ""),
+    stage: String(r?.stage ?? ""),
+    relief: String(r?.relief ?? ""),
+    updatedAt: r?.updated_at == null ? null : String(r.updated_at),
+  };
+}
+
+export function setMatterProfile(db: DatabaseSync, input: Partial<Omit<MatterProfile, "updatedAt">>): MatterProfile {
+  const current = matterProfile(db);
+  const next = { ...current, ...input };
+  const date = (v: string | undefined) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v ?? "")) return "";
+    const d = new Date(`${v}T00:00:00Z`);
+    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v ? v! : "";
+  };
+  db.prepare(
+    `INSERT INTO matter_profile (id, court, bench, practice_area, case_type, proceeding, side, case_number, cnr, filing_date, institution_date, governing_date, stage, relief, updated_at)
+     VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET court = excluded.court, bench = excluded.bench, practice_area = excluded.practice_area, case_type = excluded.case_type,
+       proceeding = excluded.proceeding, side = excluded.side, case_number = excluded.case_number, cnr = excluded.cnr,
+       filing_date = excluded.filing_date, institution_date = excluded.institution_date, governing_date = excluded.governing_date,
+       stage = excluded.stage, relief = excluded.relief, updated_at = excluded.updated_at`,
+  ).run(
+    next.court.slice(0, 300),
+    next.bench.slice(0, 300),
+    next.practiceArea.slice(0, 120),
+    next.caseType.slice(0, 200),
+    next.proceeding.slice(0, 120),
+    next.side.slice(0, 60),
+    next.caseNumber.slice(0, 200),
+    next.cnr.slice(0, 40),
+    date(next.filingDate),
+    date(next.institutionDate),
+    date(next.governingDate),
+    next.stage.slice(0, 200),
+    next.relief.slice(0, 3000),
+    new Date().toISOString(),
+  );
+  return matterProfile(db);
+}
+
+/** C6: one edge, stored in this matter. The main process writes the mirror row. */
+export function relatedMatters(db: DatabaseSync): RelatedMatter[] {
+  return (db.prepare("SELECT * FROM related_matter ORDER BY created_at, rowid").all() as Array<Record<string, unknown>>).map((r) => ({
+    toId: String(r.to_id),
+    relation: r.relation as MatterRelation,
+    note: String(r.note),
+    createdAt: String(r.created_at),
+  }));
+}
+
+export function addRelatedMatter(db: DatabaseSync, toId: string, relation: MatterRelation, note: string): RelatedMatter {
+  db.prepare("INSERT OR REPLACE INTO related_matter (to_id, relation, note, created_at) VALUES (?, ?, ?, ?)").run(toId, relation, note.slice(0, 1000), new Date().toISOString());
+  return relatedMatters(db).find((x) => x.toId === toId && x.relation === relation)!;
+}
+
+export function removeRelatedMatter(db: DatabaseSync, toId: string, relation: string): void {
+  db.prepare("DELETE FROM related_matter WHERE to_id = ? AND relation = ?").run(toId, relation);
 }
 
 /** V5-19: true the first time a source is checked for impact; false after. */

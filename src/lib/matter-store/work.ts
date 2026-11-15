@@ -171,7 +171,7 @@ CREATE TABLE IF NOT EXISTS filing_confirmation (
 CREATE TABLE IF NOT EXISTS capture (
   id TEXT PRIMARY KEY,
   source_id TEXT NOT NULL REFERENCES source(id),
-  method TEXT NOT NULL CHECK (method IN ('portal_browser', 'email', 'filing_receipt')),
+  method TEXT NOT NULL CHECK (method IN ('portal_browser', 'browser', 'email', 'filing_receipt')),
   url TEXT NOT NULL,
   detail TEXT NOT NULL,
   captured_at TEXT NOT NULL

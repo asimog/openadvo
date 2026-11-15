@@ -24,7 +24,14 @@ import { ResearchSourceSettings, StudioView } from "./Studio.tsx";
 import { ContactsSettings, DiagnosticsSettings, Docket, PracticeSection } from "./Practice.tsx";
 import { DateAnchorForm, DisputeDecision, EntitiesView, FilesAndJobs, Inspector, RecordIntegrity, inspect } from "./V5.tsx";
 import { EventTable, SourceDetail, SourcesPanel } from "./Sources.tsx";
-import { CalendarPage, CourtIntelPage, FirmInbox, MattersPage, NotBuilt, ProfilePage, SkillsPage, StoreChainsView, type Page } from "./Pages.tsx";
+import { CalendarPage, CourtIntelPage, FirmInbox, MattersPage, NotBuilt, SkillsPage, StoreChainsView, type Page } from "./Pages.tsx";
+import { BrowserWorkspace, RightPane, type RightPaneHandle } from "./RightPane.tsx";
+import { LibraryPage } from "./Library.tsx";
+import { Onboarding } from "./Onboarding.tsx";
+import { ProfilePage } from "./Profile.tsx";
+import { HomeDashboard } from "./Dashboard.tsx";
+import { MatterOverview, MatterProfileForm, RelatedMatters } from "./MatterProfile.tsx";
+import { GlobeAltIcon } from "@heroicons/react/24/outline";
 import type {
   AddFileResult,
   DraftRecord,
@@ -186,6 +193,9 @@ export function App() {
   const [dockCarry, setDockCarry] = useState<{ id: number; text: string } | null>(null);
   /** The instruction and files that wait for the advocate to create the matter. */
   const pendingCarry = useRef<Carry | null>(null);
+  /** S10: the right pane's browser tabs sit beside the Matter tab. */
+  const rightPane = useRef<RightPaneHandle>(null);
+  const [browserActive, setBrowserActive] = useState(false);
 
   const refreshMatters = useCallback(async () => setMatters(await api.listMatters()), []);
   useEffect(() => {
@@ -217,6 +227,8 @@ export function App() {
 
   const openMatter = useCallback(
     async (id: string) => {
+      // The list holds every matter, including one just created or extended.
+      await refreshMatters();
       setMatterId(id);
       setSettingsOpen(false);
       setNotice(null);
@@ -233,7 +245,7 @@ export function App() {
       const bad = checked.filter((s) => s.status !== "ok");
       if (bad.length) setNotice(`${bad.length} source file(s) are missing or changed: ${bad.map((s) => `${s.name} (${s.status})`).join(", ")}.`);
     },
-    [closeDocument],
+    [closeDocument, refreshMatters],
   );
 
   const goHome = () => {
@@ -399,7 +411,7 @@ export function App() {
 
   // A source or a draft gets the width of the window: the navigation folds to its icon rail
   // while one is open, and unfolds when it closes. A fold the advocate made stays.
-  const documentOpen = openItem !== null;
+  const documentOpen = openItem !== null || browserActive;
   useEffect(() => {
     if (documentOpen) {
       setNavCollapsed((collapsed) => {
@@ -411,6 +423,27 @@ export function App() {
       setNavCollapsed(false);
     }
   }, [documentOpen]);
+
+  // S10: Ctrl+Alt+B (Cmd+Ctrl+B on macOS) opens the browser or focuses its last tab.
+  useEffect(() => {
+    const on = (e: globalThis.KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        if (matterId) rightPane.current?.openBrowser();
+        else {
+          goHome();
+          setPage("browser");
+        }
+      }
+    };
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matterId]);
+
+  useEffect(() => {
+    if (!matterId && page !== "browser") setBrowserActive(false);
+  }, [matterId, page]);
 
   const setNavByHand = (collapsed: boolean) => {
     navFoldedForDocument.current = false;
@@ -432,6 +465,23 @@ export function App() {
             <Icon icon={ScaleIcon} size="sm" color="secondary" />
             <span className="titlebar-name">Open Advocate</span>
             {matter ? <span className="titlebar-matter">{matter.title}</span> : null}
+            <button
+              type="button"
+              className="titlebar-browser"
+              aria-label="Browser"
+              title="Browser (Ctrl+Alt+B)"
+              data-testid="titlebar-browser"
+              onClick={() => {
+                if (matterId) rightPane.current?.openBrowser();
+                else {
+                  goHome();
+                  setPage("browser");
+                }
+              }}
+            >
+              <GlobeAltIcon width={15} height={15} aria-hidden="true" />
+              <span>Browser</span>
+            </button>
           </header>
         }
         sideNav={
@@ -448,6 +498,8 @@ export function App() {
               setPage(p);
             }}
             onSearch={() => setCommandOpen(true)}
+            onOnboarding={() => { goHome(); setPage("onboarding"); }}
+            showSetup={!advocateName}
             inboxBlocking={inboxBlocking}
             advocateName={advocateName}
             onSettings={() => {
@@ -468,21 +520,34 @@ export function App() {
             onCount={setInboxBlocking}
           />
         ) : !matter && page === "matters" ? (
-          <MattersPage matters={matters.filter((m) => !m.archived)} onOpen={(id) => void openMatter(id)} onNew={() => askNewMatter(null)} />
+          <MattersPage matters={matters.filter((m) => !m.archived)} onOpen={(id) => { void refreshMatters(); void openMatter(id); }} onNew={() => askNewMatter(null)} />
         ) : !matter && page === "calendar" ? (
           <CalendarPage onOpen={(id) => void openMatter(id)} />
         ) : !matter && page === "research" ? (
           <NotBuilt title="Research" phase={5} what="Research across every matter (research runs, the legal corpus beyond the Supreme Court, retrieval)" testId="research-page" />
         ) : !matter && page === "knowledge" ? (
-          <NotBuilt title="Knowledge" phase={3} what="The Knowledge Library (templates, approved positions, playbooks)" testId="knowledge-page" />
+          <LibraryPage />
         ) : !matter && page === "court" ? (
           <CourtIntelPage />
         ) : !matter && page === "browser" ? (
-          <NotBuilt title="Browser" phase={3} what="The built-in browser for court portals and research services" testId="browser-page" />
+          <div className="matter" data-testid="browser-page">
+            <BrowserWorkspace onMattersChanged={refreshMatters} />
+          </div>
+        ) : !matter && page === "onboarding" ? (
+          <Onboarding
+            onDone={() => {
+              refreshAdvocate();
+              setPage("profile");
+            }}
+            onOpenBrowser={() => {
+              goHome();
+              setPage("browser");
+            }}
+          />
         ) : !matter && page === "skills" ? (
           <SkillsPage />
         ) : !matter && page === "profile" ? (
-          <ProfilePage onChanged={refreshAdvocate} />
+          <ProfilePage onChanged={refreshAdvocate} onOnboarding={() => { goHome(); setPage("onboarding"); }} />
         ) : !matter ? (
           <Landing
             matters={matters.filter((m) => !m.archived)}
@@ -490,6 +555,21 @@ export function App() {
             onNewMatter={askNewMatter}
             footer={
               <>
+                {!advocateName ? (
+                  <section className="work-section" aria-label="Set up your practice" data-testid="setup-card">
+                    <Heading level={3}>Set up your practice</Heading>
+                    <Text type="supporting">Five short steps: you, your courts, your work, your past work and your existing matters. The Practice Profile builds itself. Every step can be skipped.</Text>
+                    <div className="row-actions">
+                      <Button label="Set up your practice" size="sm" onClick={() => setPage("onboarding")} />
+                    </div>
+                  </section>
+                ) : null}
+                <HomeDashboard
+                  matters={matters.filter((m) => !m.archived)}
+                  onOpenMatter={(id) => void openMatter(id)}
+                  onInbox={() => { goHome(); setPage("inbox"); }}
+                  onCalendar={() => { goHome(); setPage("calendar"); }}
+                />
                 <FirmChat onOpenMatter={(id, carry) => void openWithCarry(id, carry, false)} />
                 <Docket onOpen={(id) => void openMatter(id)} />
                 <ArchivedMatters matters={matters} onChanged={refreshMatters} />
@@ -531,7 +611,14 @@ export function App() {
               </Panel>
               <Separator className="separator" />
               <Panel id="view" minSize="30%">
-                <div className="work" aria-label="View" data-testid="work-view">
+                <RightPane
+                  ref={rightPane}
+                  matterId={matter.id}
+                  workKey={openItem ?? ""}
+                  onBrowserActive={setBrowserActive}
+                  onMattersChanged={refreshMatters}
+                  work={
+                    <div className="work" aria-label="View" data-testid="work-view">
                   {draftOpen ? (
                     <DraftView
                       matterId={matter.id}
@@ -610,7 +697,18 @@ export function App() {
                         }
                         overview={
                           <div>
+                            <MatterOverview
+                              matterId={matter.id}
+                              matter={matter}
+                              version={version}
+                              sourceCount={sources.length}
+                              openItems={inboxCount}
+                              onTab={setTab}
+                              onOpenRelated={(id) => void openMatter(id)}
+                            />
                             <MatterProgress matterId={matter.id} version={version + inboxCount} onTab={setTab} />
+                            <MatterProfileForm matterId={matter.id} version={version} onChange={() => void refreshMatter(matter.id)} />
+                            <RelatedMatters matterId={matter.id} matters={matters.filter((m) => !m.archived)} version={version} onOpen={(id) => void openMatter(id)} onChange={() => void refreshMatter(matter.id)} />
                             <MatterAdmin matter={matter} onChanged={refreshMatters} onArchived={goHome} />
                             <MatterDetailsForm matterId={matter.id} nb={nb} version={version} />
                             <MemoryEditor matterId={matter.id} />
@@ -643,7 +741,9 @@ export function App() {
                       />
                     </div>
                   )}
-                </div>
+                    </div>
+                  }
+                />
               </Panel>
             </Group>
           </div>

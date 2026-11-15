@@ -306,3 +306,119 @@ kbd { font-family: ui-monospace, monospace; font-size: 12px; border: 1px solid v
 .pack-items > li { display: flex; gap: 8px; align-items: flex-start; }
 .pack-item-text { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .pack-editor { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--color-border); border-radius: 8px; }
+
+/* Phase 3 (S10): the right pane and the built-in browser. */
+.titlebar-browser { -webkit-app-region: no-drag; margin-left: auto; display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 8px; border: 1px solid var(--color-border); border-radius: 6px; background: transparent; color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
+.titlebar-browser:hover { background: var(--color-background-muted); }
+.right-pane { height: 100%; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--color-background-body); }
+.browser-strip { flex: 0 0 auto; display: flex; align-items: stretch; gap: 2px; height: 36px; padding: 4px 4px 0; border-bottom: 1px solid var(--color-border); background: var(--color-background-muted); overflow-x: auto; overflow-y: hidden; }
+.browser-tab { flex: 0 1 210px; min-width: 84px; display: flex; align-items: center; gap: 6px; padding: 0 6px 0 8px; border: 1px solid transparent; border-bottom: none; border-radius: 7px 7px 0 0; color: var(--color-text-secondary); cursor: default; user-select: none; font-size: 12px; }
+.browser-tab:hover { background: color-mix(in srgb, var(--color-background-body) 65%, transparent); }
+.browser-tab[data-active="true"] { background: var(--color-background-body); border-color: var(--color-border); color: var(--color-text-primary); }
+.browser-tab-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.browser-tab-close { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; opacity: 0.65; }
+.browser-tab-close:hover { opacity: 1; background: var(--color-background-muted); }
+.browser-newtab-button, .browser-icon { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
+.browser-newtab-button:hover, .browser-icon:hover:not(:disabled) { background: var(--color-background-muted); }
+.browser-icon:disabled { opacity: 0.35; cursor: default; }
+.browser-strip-end { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; padding-right: 4px; }
+.browser-agent-dot { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: var(--color-text-accent, #3b82c4); }
+.browser-agent-label { flex: 0 0 auto; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.6; }
+.browser-bar { flex: 0 0 auto; display: flex; align-items: center; gap: 3px; padding: 4px 8px; border-bottom: 1px solid var(--color-border); }
+.browser-address { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 9px; border: 1px solid var(--color-border); border-radius: 7px; background: var(--color-background-muted); color: var(--color-text-secondary); }
+.browser-address:focus-within { border-color: var(--color-text-accent, #3b82c4); background: var(--color-background-body); }
+.browser-address input { flex: 1 1 auto; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; color: var(--color-text-primary); font: inherit; font-size: 13px; }
+.browser-star-on { color: var(--color-text-accent, #3b82c4); }
+.browser-button { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 9px; border: 1px solid var(--color-border); border-radius: 6px; background: transparent; color: inherit; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.browser-button:hover:not(:disabled) { background: var(--color-background-muted); }
+.browser-button:disabled { opacity: 0.45; cursor: default; }
+.browser-import { flex: 0 0 auto; }
+.browser-bookmarks { flex: 0 0 auto; display: flex; align-items: center; gap: 3px; height: 30px; padding: 0 8px; border-bottom: 1px solid var(--color-border); overflow-x: auto; overflow-y: hidden; font-size: 12px; }
+.browser-bookmark { display: inline-flex; align-items: center; flex: 0 0 auto; border-radius: 5px; }
+.browser-bookmark-open { display: inline-flex; align-items: center; gap: 5px; max-width: 220px; height: 24px; padding: 0 7px; border: 0; border-radius: 5px 0 0 5px; background: transparent; color: inherit; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.browser-bookmark-open:hover { background: var(--color-background-muted); }
+.browser-bookmark-remove { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 24px; padding: 0; border: 0; border-radius: 0 5px 5px 0; background: transparent; color: inherit; opacity: 0.4; cursor: pointer; }
+.browser-bookmark-remove:hover { opacity: 1; background: var(--color-background-muted); }
+.browser-muted { color: var(--color-text-secondary); font-size: 12px; }
+.browser-content { flex: 1 1 auto; min-height: 0; position: relative; overflow: hidden; background: var(--color-background-body); }
+.browser-newtab-scroll { height: 100%; overflow: auto; }
+.browser-newtab { max-width: 760px; margin: 0 auto; padding: 34px 24px 60px; display: flex; flex-direction: column; gap: 26px; }
+.browser-newtab-head { display: flex; align-items: center; gap: 14px; }
+.browser-newtab-head h3 { margin: 0 0 2px; font-size: 20px; }
+.browser-newtab-head p { margin: 0; }
+.browser-newtab h4 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-secondary); }
+.browser-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.browser-tile { display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 8px 10px; border: 1px solid var(--color-border); border-radius: 8px; background: transparent; color: inherit; font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.browser-tile:hover { background: var(--color-background-muted); }
+.browser-tile span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.browser-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.browser-link { border: 0; background: transparent; color: var(--color-text-accent, #3b82c4); font: inherit; font-size: 12px; cursor: pointer; padding: 0; }
+.browser-recent { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.browser-recent-row { width: 100%; display: flex; justify-content: space-between; gap: 16px; padding: 6px 8px; border: 0; border-radius: 6px; background: transparent; color: inherit; font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.browser-recent-row:hover { background: var(--color-background-muted); }
+.browser-recent-row > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.browser-empty, .browser-error { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; text-align: center; color: var(--color-text-secondary); }
+.browser-empty h3, .browser-error h3 { margin: 0; color: var(--color-text-primary); }
+.browser-empty p, .browser-error p { margin: 0; max-width: 460px; }
+.browser-notice { margin: 8px 10px 0; }
+.browser-caselist { height: 100%; overflow: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; }
+.browser-caselist h3 { margin: 0 0 4px; }
+.browser-caselist p { margin: 0; }
+.browser-case-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.browser-case { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--color-border); border-radius: 8px; cursor: pointer; }
+.browser-case:hover { background: var(--color-background-muted); }
+.browser-case-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.browser-case-title { font-weight: 600; }
+.browser-actions { display: flex; gap: 8px; }
+.browser-basis { border-top: 1px solid var(--color-border); padding-top: 8px; }
+.browser-basis summary { cursor: pointer; font-size: 12px; color: var(--color-text-secondary); }
+.browser-basis pre { white-space: pre-wrap; word-break: break-word; font-size: 11px; max-height: 260px; overflow: auto; background: var(--color-background-muted); padding: 8px; border-radius: 6px; }
+
+/* Phase 3 (M1): the Knowledge Library. */
+.library-list { gap: 6px; }
+.library-item { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid var(--color-border); border-radius: 8px; }
+.library-item-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 340px; }
+.library-item-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.library-item-actions { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.library-item-actions select { font: inherit; padding: 3px 6px; border: 1px solid var(--color-border); border-radius: 6px; background: transparent; color: inherit; }
+.library-editor { flex: 1 0 100%; display: flex; flex-direction: column; gap: 8px; padding: 10px; border-top: 1px solid var(--color-border); margin-top: 4px; }
+.library-editor textarea { width: 100%; font: inherit; padding: 4px 6px; border: 1px solid var(--color-border); border-radius: 6px; background: transparent; color: inherit; }
+
+/* Phase 3 (A1 to A6): setup and the Practice Profile. */
+.onboarding { max-width: 900px; }
+.onboarding-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.onboarding-steps { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 8px 0 14px; }
+.onboarding-steps button { font: inherit; font-size: 12px; padding: 4px 9px; border: 1px solid var(--color-border); border-radius: 14px; background: transparent; color: inherit; cursor: pointer; }
+.onboarding-steps li[data-current="true"] button { border-color: var(--color-text-accent, #3b82c4); font-weight: 600; }
+.onboarding-steps li[data-done="true"] button { background: var(--color-background-muted); }
+.onboarding-card { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--color-border); border-radius: 10px; }
+.onboarding-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.onboarding-row > * { flex: 1 1 220px; }
+.onboarding-card select { font: inherit; padding: 4px 6px; border: 1px solid var(--color-border); border-radius: 6px; background: transparent; color: inherit; }
+.profile-map { display: flex; flex-direction: column; gap: 10px; }
+.profile-map-section { padding: 10px 12px; border: 1px solid var(--color-border); border-radius: 8px; }
+.profile-map-section h3 { margin: 0 0 4px; }
+.profile-map-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
+
+/* Phase 3 (R2): the Home dashboard. */
+.dashboard { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 1000px; }
+.dashboard-head h2 { margin: 0; }
+.dash-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+.dash-card { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: 9px; }
+.dash-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dash-card-head h3 { margin: 0; font-size: 14px; }
+.dash-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.dash-list li { display: flex; flex-direction: column; gap: 1px; }
+
+/* Phase 3 (C1 to C10): the matter profile and overview. */
+.overview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.overview-grid > div { display: flex; flex-direction: column; gap: 1px; }
+.related-extend summary { cursor: pointer; font-weight: 600; margin: 6px 0; }
+.matter-profile textarea, .matter-overview textarea { font: inherit; padding: 4px 6px; border: 1px solid var(--color-border); border-radius: 6px; background: transparent; color: inherit; }
+
+/* Phase 3 (C2, W4): add an existing matter. */
+.intake { display: flex; flex-direction: column; gap: 12px; padding-top: 8px; }
+.intake-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--color-border); }
+.intake-row > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.intake-cnr { align-items: flex-end; }
+.intake-cnr > div { flex: 1; }

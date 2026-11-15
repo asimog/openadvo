@@ -15,7 +15,8 @@ import { WORK_SCHEMA, WorkStore } from "./work.ts";
 import { STUDIO_SCHEMA, StudioStore } from "./studio.ts";
 import { NOTEBOOK2_SCHEMA, addCorrection, dateAnchor, decideDispute, insertDispute, listCorrections, listDisputes, type EventCorrection, type OcrDispute } from "./notebook2.ts";
 import { AUTHORITY2_SCHEMA } from "./authority2.ts";
-import { PRACTICE_SCHEMA, addHearing, addParty, addReminder, hearings, markImpactChecked, parties, policy, reminders, setPolicy, setReminderStatus, type Hearing, type Party, type Policy, type Reminder } from "./practice.ts";
+import { PRACTICE_SCHEMA, addHearing, addParty, addRelatedMatter, addReminder, hearings, markImpactChecked, matterProfile, parties, policy, relatedMatters, reminders, removeRelatedMatter, setMatterProfile, setPolicy, setReminderStatus, type Hearing, type Party, type Policy, type Reminder } from "./practice.ts";
+import type { MatterProfile, MatterRelation, RelatedMatter } from "../../shared/work.ts";
 import { FILING_CHECKS_SCHEMA, checkStates, defects as listDefects, setCheck, setTarget, target as filingTarget } from "./filing-checks.ts";
 import type { CheckState, DefectRow, FilingTarget } from "../../shared/intel.ts";
 import { SKILL_RUN_SCHEMA, insertPackage, listRuns, packageById, packageByHash, runById } from "./skill-runs.ts";
@@ -323,11 +324,39 @@ export class MatterStore {
     db.exec("PRAGMA foreign_keys = ON;");
     db.exec(SCHEMA);
     db.exec(WORK_SCHEMA);
+    // Phase 3: a download in the built-in browser is a capture of its own, beside the court portal.
+    const cap = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'capture'").get() as { sql?: string } | undefined;
+    if (cap?.sql && !cap.sql.includes("'browser'")) {
+      db.exec("PRAGMA foreign_keys = OFF;");
+      db.exec("BEGIN");
+      try {
+        db.exec(`CREATE TABLE capture_browser (
+  id TEXT PRIMARY KEY,
+  source_id TEXT NOT NULL REFERENCES source(id),
+  method TEXT NOT NULL CHECK (method IN ('portal_browser', 'browser', 'email', 'filing_receipt')),
+  url TEXT NOT NULL,
+  detail TEXT NOT NULL,
+  captured_at TEXT NOT NULL
+) STRICT;
+INSERT INTO capture_browser SELECT id, source_id, method, url, detail, captured_at FROM capture;
+DROP TABLE capture;
+ALTER TABLE capture_browser RENAME TO capture;`);
+        db.exec("COMMIT");
+      } catch (e) {
+        db.exec("ROLLBACK");
+        throw e;
+      } finally {
+        db.exec("PRAGMA foreign_keys = ON;");
+      }
+    }
     db.exec(STUDIO_SCHEMA);
     db.exec(AUDIT_SCHEMA);
     db.exec(NOTEBOOK2_SCHEMA);
     db.exec(AUTHORITY2_SCHEMA);
     db.exec(PRACTICE_SCHEMA);
+    // C8: counsel for each party.
+    const party = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'party'").get() as { sql?: string } | undefined;
+    if (party?.sql && !party.sql.includes("counsel")) db.exec("ALTER TABLE party ADD COLUMN counsel TEXT NOT NULL DEFAULT '';");
     db.exec(SKILL_RUN_SCHEMA);
     db.exec(FILING_CHECKS_SCHEMA);
     // V5-1: the event chain. Events written before v5 have no hash and start the record.
@@ -668,11 +697,42 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
     return parties(this.db);
   }
 
-  addParty(contactId: string, role: string, nameInRecord: string, ctx: WriteContext): Party {
+  addParty(contactId: string, role: string, nameInRecord: string, ctx: WriteContext, counsel = ""): Party {
     this.human(ctx, "links a party");
-    const p = addParty(this.db, contactId, role, nameInRecord);
-    this.appendEvent(ctx, "party.linked", p.id, { contactId, role });
+    const p = addParty(this.db, contactId, role, nameInRecord, counsel);
+    this.appendEvent(ctx, "party.linked", p.id, { contactId, role, counsel });
     return p;
+  }
+
+  /** C1: the universal matter fields. */
+  profile(): MatterProfile {
+    return matterProfile(this.db);
+  }
+
+  setProfile(input: Partial<Omit<MatterProfile, "updatedAt">>, ctx: WriteContext): MatterProfile {
+    this.human(ctx, "records the matter profile");
+    const next = setMatterProfile(this.db, input);
+    this.appendEvent(ctx, "matter.profile_set", null, { ...next });
+    return next;
+  }
+
+  /** C6: the related matters, as stored in this matter. */
+  related(): RelatedMatter[] {
+    return relatedMatters(this.db);
+  }
+
+  addRelated(toId: string, relation: MatterRelation, note: string, ctx: WriteContext): RelatedMatter {
+    this.human(ctx, "links a related matter");
+    if (toId === this.matter().id) throw new MatterStoreError("RELATED_SELF", "a matter cannot be related to itself");
+    const r = addRelatedMatter(this.db, toId, relation, note);
+    this.appendEvent(ctx, "matter.related", toId, { relation, note });
+    return r;
+  }
+
+  removeRelated(toId: string, relation: string, ctx: WriteContext): void {
+    this.human(ctx, "removes a related matter");
+    removeRelatedMatter(this.db, toId, relation);
+    this.appendEvent(ctx, "matter.related_removed", toId, { relation });
   }
 
   markImpactChecked(sourceId: string): boolean {

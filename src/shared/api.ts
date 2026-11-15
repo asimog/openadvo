@@ -4,7 +4,7 @@
  */
 import type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft, DraftCheck, DraftDefect, AgentChanges } from "./records.ts";
 export type { AgentChanges, AgentChange } from "./records.ts";
-import type { InboxItem, ProgressStage, DuplicatePair, MemoryProposal, RecordColumn, RecordTable, Workflow, ManifestCheck, AdverseReview, AnnexureRecord, Attestation, AuthorityRecord, CitationCheck, FilingSetRecord, FilingState, IssueRecord, LimitationRecord, MatterDetails, ResearchState } from "./work.ts";
+import type { InboxItem, ProgressStage, DuplicatePair, MemoryProposal, RecordColumn, RecordTable, Workflow, ManifestCheck, AdverseReview, AnnexureRecord, Attestation, AuthorityRecord, CitationCheck, FilingSetRecord, FilingState, IssueRecord, LimitationRecord, MatterDetails, MatterProfile, MatterProposal, MatterRelation, RelatedMatter, ResearchState } from "./work.ts";
 export type * from "./work.ts";
 export type * from "./studio.ts";
 export type * from "./audit.ts";
@@ -16,12 +16,15 @@ import type { Assessment, Challenge, QuickCheck, Treatment, ArgumentRun, Argumen
 
 import type { AGUIEvent } from "@ag-ui/core";
 import type { ContextCandidate, ContextPackageRecord, JobRow, ReportCard, RoleSummary, SideThread, SkillRunRecord, SkillSummary } from "./skills.ts";
-import type { AdvocateProfile, IntelSource, Freshness, MemoryRecord, PreferenceRecord, StoreChains } from "./stores.ts";
+import type { AdvocateProfile, IntelSource, Freshness, LibraryImportResult, LibraryItem, LibraryStatus, MemoryRecord, PreferenceRecord, StoreChains } from "./stores.ts";
+import type { BrowserBookmark, BrowserBounds, BrowserShortcut, BrowserState, BrowserVisit, CaseListProposal, CaseListResult } from "./browser.ts";
+export type * from "./browser.ts";
 export type * from "./skills.ts";
 export type * from "./stores.ts";
 export type * from "./intel.ts";
 import type { AdapterSummary, BenchRow, DefectRow, FormatCheckResult, MatterChecklist, PackList, AdapterProceeding } from "./intel.ts";
 import type { DirectoryCourt } from "../lib/court-directory/index.ts";
+import type { ClassificationProposal } from "../lib/classification/index.ts";
 export type { DirectoryCourt };
 
 export type { AGUIEvent };
@@ -367,6 +370,27 @@ export interface OpenAdvoApi {
   setEffort(level: EffortLevel): Promise<EffortState>;
   /** Open a source read only in the Euro-Office PDF editor. Returns the URL for a sandboxed frame. */
   openSourceView(matterId: string, sourceId: string): Promise<string>;
+  /** C2, W4: create a matter from a folder, a CNR or an email. Human-only. */
+  pickFolder(): Promise<string | null>;
+  intakeFolder(): Promise<{ matter: MatterSummary; added: number; refused: number } | null>;
+  intakeCnr(cnr: string, court: string): Promise<MatterSummary>;
+  intakeEmail(): Promise<{ matter: MatterSummary; messages: number; attachments: number } | null>;
+  /** C1: the universal matter fields. */
+  getMatterProfile(matterId: string): Promise<MatterProfile>;
+  setMatterProfile(matterId: string, input: Partial<Omit<MatterProfile, "updatedAt">>): Promise<MatterProfile>;
+  /** C3: a classification proposal; applying it is the advocate's decision. */
+  proposeClassification(matterId: string): Promise<ClassificationProposal>;
+  applyClassification(matterId: string, proposal: ClassificationProposal): Promise<{ profile: MatterProfile; details: MatterDetails }>;
+  /** C6: related matters, both the edges this matter records and the edges others record to it. */
+  listRelatedMatters(matterId: string): Promise<RelatedMatter[]>;
+  addRelatedMatter(matterId: string, toId: string, relation: MatterRelation, note: string): Promise<RelatedMatter[]>;
+  removeRelatedMatter(matterId: string, toId: string, relation: string): Promise<RelatedMatter[]>;
+  /** C10: a later stage or related proceeding, as a new linked matter. */
+  extendMatter(matterId: string, input: { title: string; relation: MatterRelation; court?: string; proceeding?: string }): Promise<MatterSummary>;
+  /** C2: a matter the agent proposed in the chat. Only the advocate creates it. */
+  proposalsList(): Promise<MatterProposal[]>;
+  proposalCreate(id: string): Promise<MatterSummary>;
+  proposalDismiss(id: string): Promise<MatterProposal[]>;
   closeView(url: string): Promise<void>;
   listJobs(matterId: string): Promise<IngestJob[]>;
   getSourcePages(matterId: string, sourceId: string): Promise<PageRecord[]>;
@@ -442,6 +466,10 @@ export interface OpenAdvoApi {
   getAdvocateProfile(): Promise<AdvocateProfile>;
   /** Q4, human-only: set one profile field; an empty value removes it. */
   setAdvocateProfile(key: string, value: string): Promise<AdvocateProfile>;
+  /** A2: the enrolment number is encrypted with the operating system's secret store. */
+  setAdvocateEnrolment(number: string, year: string): Promise<{ stored: boolean; last4: string | null }>;
+  advocateEnrolmentState(): Promise<{ stored: boolean; last4: string | null }>;
+  clearAdvocateEnrolment(): Promise<{ stored: boolean; last4: string | null }>;
   /** Q4: advocate memory records. */
   listAdvocateMemory(): Promise<MemoryRecord[]>;
   /** Q4, human-only: decide one advocate memory record. */
@@ -450,6 +478,15 @@ export interface OpenAdvoApi {
   listPreferences(): Promise<PreferenceRecord[]>;
   /** Q4, human-only: approve or reject a proposed preference. */
   decidePreference(id: string, decision: "approved" | "rejected"): Promise<PreferenceRecord>;
+  /** M1: the Knowledge Library. */
+  libraryList(filter?: { q?: string; kind?: string; status?: string }): Promise<LibraryItem[]>;
+  libraryImportFiles(): Promise<LibraryImportResult>;
+  libraryImportFolder(): Promise<LibraryImportResult>;
+  libraryUpdate(id: string, input: { title?: string; kind?: string; status?: string; author?: string; itemDate?: string; matterId?: string | null; court?: string; scope?: string; notes?: string; tags?: string[] }): Promise<LibraryItem>;
+  librarySetStatus(id: string, status: LibraryStatus): Promise<LibraryItem>;
+  /** Open the stored file in its own application. Returns the error, or "". */
+  libraryOpen(id: string): Promise<string>;
+  libraryReveal(id: string): Promise<void>;
   /** Q4: the sources of intel.db with their freshness. */
   listIntelSources(): Promise<Array<IntelSource & { freshness: Freshness }>>;
   /** Q4: the hash chains of advocate.db and intel.db. */
@@ -500,8 +537,8 @@ export interface OpenAdvoApi {
   listContacts(): Promise<Contact[]>;
   addContact(c: { name: string; kind: string; email?: string; phone?: string; notes?: string }): Promise<Contact>;
   removeContact(id: string): Promise<Contact[]>;
-  listParties(matterId: string): Promise<Array<{ id: string; contactId: string; role: string; nameInRecord: string; contact: Contact | null }>>;
-  addParty(matterId: string, contactId: string, role: string, nameInRecord: string): Promise<unknown>;
+  listParties(matterId: string): Promise<Array<{ id: string; contactId: string; role: string; nameInRecord: string; counsel: string; contact: Contact | null }>>;
+  addParty(matterId: string, contactId: string, role: string, nameInRecord: string, counsel?: string): Promise<unknown>;
   getDocket(): Promise<Array<{ matterId: string; title: string; stage: string; next: string; nextHearing: { date: string; status: string } | null; limitation: string | null; openItems: number; reminders: Array<{ id: string; text: string; dueAt: string; status: string }> }>>;
   generateQuestions(matterId: string): Promise<{ file: string; questions: number }>;
   previewDiagnostics(): Promise<Array<{ name: string; description: string; bytes: number }>>;
@@ -622,6 +659,33 @@ export interface OpenAdvoApi {
   transcribe(samples: Float32Array): Promise<string>;
   /** Step 9. */
   openPortal(matterId: string): Promise<string>;
+  // Phase 3 (S10): the built-in browser in the right pane.
+  browserState(): Promise<BrowserState>;
+  browserOpen(url?: string): Promise<string>;
+  browserClose(tabId: string): Promise<BrowserState>;
+  browserActivate(tabId: string): Promise<BrowserState>;
+  browserNavigate(tabId: string, url: string): Promise<string>;
+  browserBack(tabId: string): Promise<void>;
+  browserForward(tabId: string): Promise<void>;
+  browserReload(tabId: string): Promise<void>;
+  browserStop(tabId: string): Promise<void>;
+  browserSetBounds(bounds: BrowserBounds): Promise<void>;
+  browserSetVisible(visible: boolean): Promise<void>;
+  /** The matter a browser download becomes a source of, or null. */
+  browserSetMatter(matterId: string | null): Promise<void>;
+  browserBookmarks(): Promise<BrowserBookmark[]>;
+  /** Human-only: the star. Returns the new bookmark, or null when it removed one. */
+  browserToggleBookmark(tabId: string): Promise<BrowserBookmark | null>;
+  browserRemoveBookmark(id: string): Promise<BrowserBookmark[]>;
+  browserOpenBookmark(id: string): Promise<string>;
+  browserHistory(): Promise<BrowserVisit[]>;
+  browserClearHistory(): Promise<BrowserVisit[]>;
+  /** A9: read the open portal's case list and propose one matter per case. */
+  browserProposeCaseList(): Promise<CaseListResult>;
+  /** A9, human-only: create the ticked proposals as matters. */
+  browserCreateMatters(cases: CaseListProposal[]): Promise<{ created: number; matterIds: string[]; refused: string[] }>;
+  onBrowserState(listener: (state: BrowserState) => void): () => void;
+  onBrowserShortcut(listener: (shortcut: BrowserShortcut["type"]) => void): () => void;
   importEmail(matterId: string): Promise<{ messages: number; attachments: Array<{ message: string; name: string; outcome: string }> }>;
   getMailAccount(): Promise<{ host: string; port: number; secure: boolean; user: string; hasPassword: boolean } | null>;
   setMailAccount(account: { host: string; port: number; secure: boolean; user: string }, password: string): Promise<{ host: string; port: number; secure: boolean; user: string; hasPassword: boolean }>;

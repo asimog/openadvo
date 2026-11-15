@@ -62,6 +62,43 @@ export interface AdvocateProfile {
   fields: Record<string, string>;
 }
 
+/** M1: the Knowledge Library's kinds and precedent status. */
+export const LIBRARY_KINDS = ["judgment", "statute", "pleading", "template", "submission", "memorandum", "note", "checklist", "proposition", "court_rule", "other"] as const;
+export type LibraryKind = (typeof LIBRARY_KINDS)[number];
+
+export const LIBRARY_STATUSES = ["unreviewed", "drafted", "reviewed", "approved", "filed", "superseded", "rejected", "withdrawn"] as const;
+export type LibraryStatus = (typeof LIBRARY_STATUSES)[number];
+
+export interface LibraryItem {
+  id: string;
+  title: string;
+  kind: LibraryKind;
+  status: LibraryStatus;
+  author: string;
+  /** YYYY-MM-DD, or "". */
+  itemDate: string;
+  matterId: string | null;
+  court: string;
+  /** The folder it came from, relative to the imported folder. */
+  scope: string;
+  sourceName: string;
+  sha256: string;
+  size: number;
+  notes: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+  /** The stored file's path, set by the main process for the view. */
+  path?: string;
+}
+
+export interface LibraryImportResult {
+  added: number;
+  duplicates: number;
+  refused: string[];
+  items: LibraryItem[];
+}
+
 export const ACCESS_METHODS = ["official_feed", "advocate_session", "manual_upload"] as const;
 export type AccessMethod = (typeof ACCESS_METHODS)[number];
 

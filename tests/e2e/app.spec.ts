@@ -222,6 +222,16 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
       // Phase 2: local legal intelligence and filing readiness (docs/specs/court-adapters.md).
       "searchCourts", "appealRoute", "getCourtProfile", "setCourtProfile", "courtOverview", "listAdapters", "forkAdapter", "addAdapter", "buildList", "getList", "editList", "uploadSource", "addBench",
       "setFilingTarget", "getChecklist", "checkItem", "formatChecks", "listDefects", "importDefects", "setDefect",
+      // Phase 3: the built-in browser (docs/specs/advocate-matters-browser.md).
+      "browserState", "browserOpen", "browserClose", "browserActivate", "browserNavigate", "browserBack", "browserForward", "browserReload", "browserStop",
+      "browserSetBounds", "browserSetVisible", "browserSetMatter", "browserBookmarks", "browserToggleBookmark", "browserRemoveBookmark", "browserOpenBookmark",
+      "browserHistory", "browserClearHistory", "browserProposeCaseList", "browserCreateMatters", "onBrowserState", "onBrowserShortcut",
+      // Phase 3: onboarding, the profile, the library and the universal matter.
+      "setAdvocateEnrolment", "advocateEnrolmentState", "clearAdvocateEnrolment",
+      "libraryList", "libraryImportFiles", "libraryImportFolder", "libraryUpdate", "librarySetStatus", "libraryOpen", "libraryReveal",
+      "pickFolder", "intakeFolder", "intakeCnr", "intakeEmail", "getMatterProfile", "setMatterProfile", "proposeClassification", "applyClassification",
+      "listRelatedMatters", "addRelatedMatter", "removeRelatedMatter", "extendMatter",
+      "proposalsList", "proposalCreate", "proposalDismiss",
     ].sort(),
   );
   await app.close();
@@ -290,6 +300,21 @@ test("the agent session has our tools, no built-in Pi tool, and its id is record
     "recall_result",
     // Phase 1 (N2): skill runs.
     "run_skill",
+    // Phase 3 (S10): the built-in browser.
+    "browser_tabs",
+    "browser_open",
+    "browser_navigate",
+    "browser_snapshot",
+    "browser_read",
+    "browser_click",
+    "browser_fill",
+    "browser_screenshot",
+    "browser_wait",
+    "browser_download_to_matter",
+    "browser_hand_to_advocate",
+    "browser_close",
+    // Phase 3 (C2): a proposed matter for the advocate to create.
+    "propose_matter",
   ].sort());
   const sessionId = await app.evaluate((_e, m) => (globalThis as any).__openadvoTest.agentSessionId(m), id);
   const events = await page.evaluate((m) => (globalThis as any).openadvo.listEvents(m), id);

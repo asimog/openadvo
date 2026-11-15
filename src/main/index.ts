@@ -4,6 +4,7 @@
 import { Menu, Notification, app, BrowserWindow, crashReporter, dialog, ipcMain, safeStorage, shell, type IpcMainInvokeEvent } from "electron";
 import path from "node:path";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, unlinkSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { Matters } from "./matters.ts";
 import { AGENT_TOOLS, Agent, findSource } from "./agent.ts";
@@ -44,14 +45,19 @@ import { registerIntelBridge } from "./intel-bridge.ts";
 import { CourtIntel } from "./court-intel.ts";
 import { AdvocateStore } from "../lib/advocate-store/index.ts";
 import { IntelStore } from "../lib/intel-store/index.ts";
+import { MatterStoreError } from "../lib/matter-store/index.ts";
 import { searchCitationIndex, ulosPaths, type UlosPaths } from "../lib/ulos/index.ts";
 import { transcribe, voiceAvailable } from "../lib/voice/index.ts";
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
 import type { AgentWorkHost } from "./agent.ts";
 import { FIRM_AGENT_ID, type ChatEvent } from "../shared/api.ts";
 import { appendFile, mkdir } from "node:fs/promises";
 import type { DraftKind } from "../shared/records.ts";
+import { Browser } from "./browser.ts";
+import { BROWSER_STATE_EVENT, type BrowserBounds, type BrowserCapture, type CaseListProposal } from "../shared/browser.ts";
+import { Library } from "./library.ts";
+import { proposeClassification } from "../lib/classification/index.ts";
+import { MatterProposals } from "./matter-proposals.ts";
 
 // Tests and the proof run may point the application at separate folders.
 if (process.env.OPENADVO_USER_DATA) app.setPath("userData", path.resolve(process.env.OPENADVO_USER_DATA));
@@ -86,6 +92,12 @@ let intelStore: IntelStore;
 let skillRegistry: SkillRegistry;
 /** Phase 2: the court adapter framework. */
 let courtIntel: CourtIntel;
+/** Phase 3: the built-in browser (S10). */
+let browser: Browser;
+/** Phase 3: the Knowledge Library (M1). */
+let library: Library;
+/** C2: the matters the agent proposed in the chat. */
+let proposals: MatterProposals;
 
 /** Steps 6 to 10 notify the window that a matter changed (a capture, a proposal). */
 function matterChanged(matterId: string): void {
@@ -95,6 +107,47 @@ function matterChanged(matterId: string): void {
 /** The IMAP account: host, port and user in settings; the password encrypted with safeStorage (decision 9). */
 function mailSecretFile(): string {
   return path.join(app.getPath("userData"), "mail-secret.bin");
+}
+
+/** A2: the enrolment number, encrypted with the operating system's secret store. */
+function enrolmentFile(): string {
+  return path.join(app.getPath("userData"), "enrolment.bin");
+}
+
+function enrolmentState(): { stored: boolean; last4: string | null } {
+  try {
+    if (!existsSync(enrolmentFile()) || !safeStorage.isEncryptionAvailable()) return { stored: false, last4: null };
+    const number = safeStorage.decryptString(readFileSync(enrolmentFile()));
+    return { stored: true, last4: number.replace(/\s+/g, "").slice(-4) || null };
+  } catch {
+    return { stored: false, last4: null };
+  }
+}
+
+/** C2 and A9: one matter from the fields the advocate confirmed, with its parties and next date. */
+async function createMatterFromFields(input: { title: string; cnr?: string; court?: string; petitioner?: string; respondent?: string; stage?: string; nextDate?: string; sourceUrl?: string }): Promise<Awaited<ReturnType<Matters["create"]>>> {
+  const title = String(input.title ?? "").trim().slice(0, 240);
+  if (!title) throw new Error("TITLE_REQUIRED: a matter needs a title");
+  const m = await matters.create(title);
+  const petitioner = String(input.petitioner ?? "").trim();
+  const respondent = String(input.respondent ?? "").trim();
+  const court = String(input.court ?? "").trim();
+  const cnr = String(input.cnr ?? "").trim();
+  await filing.setDetails(m.id, { petitioner, respondent, cnr, court });
+  const store = await matters.store(m.id);
+  store.setProfile({ cnr, court, stage: String(input.stage ?? "").trim() }, { actor: "advocate" });
+  if (petitioner) {
+    const contact = contacts.add({ name: petitioner, kind: "client" });
+    store.addParty(contact.id, "petitioner", petitioner, { actor: "advocate" });
+  }
+  if (respondent) {
+    const contact = contacts.add({ name: respondent, kind: "opposing_party" });
+    store.addParty(contact.id, "respondent", respondent, { actor: "advocate" });
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(input.nextDate ?? ""))) {
+    store.addHearing({ date: String(input.nextDate), bench: "", directions: `Next date read from ${String(input.sourceUrl || "the case list")}.`, nextDate: String(input.nextDate), nextDateStatus: "inferred", notes: String(input.stage ?? "") }, { actor: "advocate" });
+  }
+  return m;
 }
 
 function mattersRoot(): string {
@@ -345,9 +398,9 @@ function registerBridge(): void {
     const all = contacts.list();
     return (await matters.store(matterId)).parties().map((p) => ({ ...p, contact: all.find((c) => c.id === p.contactId) ?? null }));
   });
-  handle("parties:add", async (matterId: string, contactId: string, role: string, nameInRecord: string) => {
+  handle("parties:add", async (matterId: string, contactId: string, role: string, nameInRecord: string, counsel?: string) => {
     if (!contacts.list().some((c) => c.id === contactId)) throw new Error("CONTACT_NOT_FOUND");
-    return (await matters.store(matterId)).addParty(String(contactId), String(role ?? "party"), String(nameInRecord ?? ""), { actor: "advocate" });
+    return (await matters.store(matterId)).addParty(String(contactId), String(role ?? "party"), String(nameInRecord ?? ""), { actor: "advocate" }, String(counsel ?? ""));
   });
   handle("docket:list", () => docket(matters, progress));
   handle("questions:generate", async (matterId: string) => {
@@ -607,6 +660,63 @@ function registerBridge(): void {
 
   // Step 9: court record capture and client email.
   handle("capture:openPortal", (matterId: string) => portal.open(matterId));
+  // Phase 3 (S10): the built-in browser. The pane owns the layout; the main process owns the tabs.
+  handle("browser:state", () => browser.state());
+  handle("browser:open", (url?: string, options?: { agent?: boolean; activate?: boolean }) => browser.open(url ? String(url) : undefined, { agent: options?.agent === true, activate: options?.activate !== false }));
+  handle("browser:close", (id: string) => browser.close(String(id)));
+  handle("browser:activate", (id: string) => browser.activate(String(id)));
+  handle("browser:navigate", (id: string, url: string) => browser.navigate(String(id), String(url)));
+  handle("browser:back", (id: string) => browser.back(String(id)));
+  handle("browser:forward", (id: string) => browser.forward(String(id)));
+  handle("browser:reload", (id: string) => browser.reload(String(id)));
+  handle("browser:stop", (id: string) => browser.stop(String(id)));
+  handle("browser:setBounds", (bounds: BrowserBounds) => browser.setBounds(bounds));
+  handle("browser:setVisible", (visible: boolean) => browser.setVisible(visible === true));
+  handle("browser:setMatter", (matterId: string | null) => browser.setMatter(matterId ? String(matterId) : null));
+  handle("browser:bookmarks", () => browser.listBookmarks());
+  handle("browser:toggleBookmark", (id: string) => browser.toggleBookmark(String(id)));
+  handle("browser:removeBookmark", (id: string) => browser.removeBookmark(String(id)));
+  handle("browser:openBookmark", (id: string) => browser.openBookmark(String(id)));
+  handle("browser:history", () => browser.historyList());
+  handle("browser:clearHistory", () => browser.clearHistory());
+  handle("browser:proposeCaseList", async () => browser.proposeCaseList((await agent.completer())?.complete ?? null));
+  handle("browser:createMatters", async (cases: CaseListProposal[]) => {
+    if (!Array.isArray(cases)) throw new Error("BAD_CASES: a list of proposals is needed");
+    const out: { created: number; matterIds: string[]; refused: string[] } = { created: 0, matterIds: [], refused: [] };
+    for (const c of cases.slice(0, 100)) {
+      try {
+        const m = await createMatterFromFields({
+          title: String(c?.title ?? ""),
+          petitioner: String(c?.petitioner ?? ""),
+          respondent: String(c?.respondent ?? ""),
+          cnr: String(c?.cnr ?? ""),
+          court: String(c?.court ?? ""),
+          stage: String(c?.stage ?? ""),
+          nextDate: String(c?.nextDate ?? ""),
+          sourceUrl: String(c?.sourceUrl ?? ""),
+        });
+        out.matterIds.push(m.id);
+      } catch (e) {
+        out.refused.push(`${String((c as { title?: unknown })?.title ?? "a case")}: ${(e as Error).message}`);
+      }
+    }
+    out.created = out.matterIds.length;
+    return out;
+  });
+  // C2: the agent's proposal waits for the advocate.
+  handle("proposals:list", () => proposals.list());
+  handle("proposals:create", async (id: string) => {
+    const p = proposals.get(String(id));
+    if (!p) throw new Error(`NOT_FOUND: no matter proposal ${String(id)}`);
+    if (p.status !== "open") throw new Error(`NOT_OPEN: the proposal is ${p.status}`);
+    const m = await createMatterFromFields({ title: p.title, cnr: p.cnr, court: p.court, petitioner: p.petitioner, respondent: p.respondent, stage: p.stage, nextDate: p.nextDate, sourceUrl: `a chat proposal (${p.reason})` });
+    proposals.setStatus(p.id, "created");
+    return m;
+  });
+  handle("proposals:dismiss", (id: string) => {
+    proposals.setStatus(String(id), "dismissed");
+    return proposals.list();
+  });
   handle("mail:importEml", async (matterId: string) => {
     if (!window) return { messages: 0, attachments: [] };
     const r = await dialog.showOpenDialog(window, { title: "Import saved email messages", properties: ["openFile", "multiSelections"], filters: [{ name: "Email message", extensions: ["eml"] }] });
@@ -649,6 +759,169 @@ function registerBridge(): void {
       filters: [{ name: "Documents", extensions: ["pdf", "docx", "txt", "png", "jpg", "jpeg"] }],
     });
     return result.canceled ? [] : result.filePaths;
+  });
+  handle("dialog:pickFolder", async () => {
+    if (!window) return null;
+    const result = await dialog.showOpenDialog(window, { title: "Choose the folder of the matter", properties: ["openDirectory"] });
+    return result.canceled ? null : result.filePaths[0] ?? null;
+  });
+  // C2, W4: create a matter from a folder, a CNR or an email. The advocate confirms the title.
+  handle("intake:folder", async () => {
+    if (!window) return null;
+    const picked = await dialog.showOpenDialog(window, { title: "Choose the folder of the matter", properties: ["openDirectory"] });
+    const folder = picked.canceled ? null : picked.filePaths[0];
+    if (!folder) return null;
+    const m = await matters.create(path.basename(folder));
+    const results = await matters.addFolder(m.id, folder);
+    ingest.enqueue(m.id);
+    return { matter: m, added: results.filter((r) => r.outcome === "added").length, refused: results.filter((r) => r.outcome === "refused").length };
+  });
+  handle("intake:cnr", async (cnr: string, court: string) => {
+    const clean = String(cnr ?? "").trim().toUpperCase();
+    if (!clean) throw new Error("CNR_REQUIRED: a CNR is needed");
+    if (clean.length > 40) throw new Error("BAD_CNR: the CNR is too long");
+    const title = String(court ?? "").trim() ? `${String(court).trim()} — CNR ${clean}` : `CNR ${clean}`;
+    const m = await matters.create(title);
+    const store = await matters.store(m.id);
+    store.setProfile({ cnr: clean, court: String(court ?? "").trim() }, { actor: "advocate" });
+    await filing.setDetails(m.id, { cnr: clean, court: String(court ?? "").trim() });
+    return m;
+  });
+  handle("intake:email", async () => {
+    if (!window) return null;
+    const picked = await dialog.showOpenDialog(window, { title: "Choose a saved email message", properties: ["openFile", "multiSelections"], filters: [{ name: "Email message", extensions: ["eml"] }] });
+    if (picked.canceled || picked.filePaths.length === 0) return null;
+    const m = await matters.create(path.basename(picked.filePaths[0], path.extname(picked.filePaths[0])));
+    const out = await mail.importEmlFiles(m.id, picked.filePaths);
+    ingest.enqueue(m.id);
+    return { matter: m, messages: out.messages, attachments: out.attachments.length };
+  });
+  // C1, C3, C6, C10: the universal matter.
+  handle("matter:profile", async (matterId: string) => (await matters.store(String(matterId))).profile());
+  handle("matter:setProfile", async (matterId: string, input: Record<string, unknown>) =>
+    (await matters.store(String(matterId))).setProfile(
+      {
+        ...(input?.court !== undefined ? { court: String(input.court) } : {}),
+        ...(input?.bench !== undefined ? { bench: String(input.bench) } : {}),
+        ...(input?.practiceArea !== undefined ? { practiceArea: String(input.practiceArea) } : {}),
+        ...(input?.caseType !== undefined ? { caseType: String(input.caseType) } : {}),
+        ...(input?.proceeding !== undefined ? { proceeding: String(input.proceeding) } : {}),
+        ...(input?.side !== undefined ? { side: String(input.side) } : {}),
+        ...(input?.caseNumber !== undefined ? { caseNumber: String(input.caseNumber) } : {}),
+        ...(input?.cnr !== undefined ? { cnr: String(input.cnr) } : {}),
+        ...(input?.filingDate !== undefined ? { filingDate: String(input.filingDate) } : {}),
+        ...(input?.institutionDate !== undefined ? { institutionDate: String(input.institutionDate) } : {}),
+        ...(input?.governingDate !== undefined ? { governingDate: String(input.governingDate) } : {}),
+        ...(input?.stage !== undefined ? { stage: String(input.stage) } : {}),
+        ...(input?.relief !== undefined ? { relief: String(input.relief) } : {}),
+      },
+      { actor: "advocate" },
+    ),
+  );
+  handle("matter:classification", async (matterId: string) => {
+    const store = await matters.store(String(matterId));
+    const profile = store.profile();
+    const partyRows = store.parties().map((p) => ({ role: p.role, nameInRecord: p.nameInRecord }));
+    const details = store.work.details();
+    if (details.petitioner.trim()) partyRows.push({ role: "petitioner", nameInRecord: details.petitioner });
+    if (details.respondent.trim()) partyRows.push({ role: "respondent", nameInRecord: details.respondent });
+    return proposeClassification({ title: store.matter().title, profile: { ...profile, court: profile.court || details.court, cnr: profile.cnr || details.cnr }, parties: partyRows, sourceNames: store.listSources().map((s) => s.name) });
+  });
+  handle("matter:applyClassification", async (matterId: string, proposal: Record<string, unknown>) => {
+    const store = await matters.store(String(matterId));
+    const profile = store.setProfile(
+      {
+        practiceArea: String(proposal?.practiceArea ?? ""),
+        caseType: String(proposal?.caseType ?? ""),
+        court: String(proposal?.court ?? ""),
+        proceeding: String(proposal?.proceeding ?? ""),
+        stage: String(proposal?.stage ?? ""),
+      },
+      { actor: "advocate" },
+    );
+    const details = await filing.setDetails(String(matterId), { court: profile.court });
+    return { profile, details };
+  });
+  handle("matter:related", (matterId: string) => matters.relatedFor(String(matterId)));
+  handle("matter:addRelated", async (matterId: string, toId: string, relation: string, note: string) => {
+    const store = await matters.store(String(matterId));
+    if (!(await matters.list()).some((m) => m.id === String(toId))) throw new Error("MATTER_NOT_FOUND: the related matter is not on this computer");
+    store.addRelated(String(toId), String(relation) as never, String(note ?? ""), { actor: "advocate" });
+    return matters.relatedFor(String(matterId));
+  });
+  handle("matter:removeRelated", async (matterId: string, toId: string, relation: string) => {
+    (await matters.store(String(matterId))).removeRelated(String(toId), String(relation), { actor: "advocate" });
+    return matters.relatedFor(String(matterId));
+  });
+  handle("matter:extend", async (matterId: string, input: { title: string; relation: string; court?: string; proceeding?: string }) => {
+    const old = await matters.store(String(matterId));
+    const title = String(input?.title ?? "").trim();
+    if (!title) throw new Error("TITLE_REQUIRED: the new matter needs a title");
+    const m = await matters.create(title);
+    const next = await matters.store(m.id);
+    next.setProfile({ court: String(input?.court ?? old.profile().court), proceeding: String(input?.proceeding ?? old.profile().proceeding) }, { actor: "advocate" });
+    for (const p of old.parties()) next.addParty(p.contactId, p.role, p.nameInRecord, { actor: "advocate" }, p.counsel);
+    next.addRelated(String(matterId), String(input?.relation ?? "connected") as never, `Extended from ${old.matter().title}.`, { actor: "advocate" });
+    return m;
+  });
+  handle("advocate:set-enrolment", (number: string, year: string) => {
+    const clean = String(number ?? "").replace(/\s+/g, "");
+    if (!clean) throw new Error("ENROLMENT_REQUIRED: the enrolment number is empty");
+    if (!safeStorage.isEncryptionAvailable()) throw new Error("SECRET_STORE_UNAVAILABLE: the operating system's secret store is not available");
+    mkdirSync(path.dirname(enrolmentFile()), { recursive: true });
+    writeFileSync(enrolmentFile(), safeStorage.encryptString(clean));
+    advocateStore.setProfileField("enrolment_stored", "yes", { actor: "advocate" });
+    advocateStore.setProfileField("enrolment_year", String(year ?? ""), { actor: "advocate" });
+    return enrolmentState();
+  });
+  handle("advocate:enrolment-state", () => enrolmentState());
+  handle("advocate:clear-enrolment", () => {
+    try {
+      unlinkSync(enrolmentFile());
+    } catch {
+      // Already absent.
+    }
+    advocateStore.setProfileField("enrolment_stored", "", { actor: "advocate" });
+    return enrolmentState();
+  });
+  handle("library:list", (filter?: { q?: string; kind?: string; status?: string }) =>
+    library.list(filter).map((item) => ({ ...item, path: library.fileFor(item.id)?.path })),
+  );
+  handle("library:importFiles", async () => {
+    if (!window) return { added: 0, duplicates: 0, refused: ["the window is not open"], items: [] };
+    const r = await dialog.showOpenDialog(window, { title: "Import files into the Knowledge Library", properties: ["openFile", "multiSelections"], filters: [{ name: "Documents", extensions: ["pdf", "docx", "doc", "odt", "txt", "md", "csv", "xlsx", "pptx", "html", "htm", "eml", "msg", "zip"] }] });
+    if (r.canceled) return { added: 0, duplicates: 0, refused: [], items: [] };
+    return library.importFiles(r.filePaths);
+  });
+  handle("library:importFolder", async () => {
+    if (!window) return { added: 0, duplicates: 0, refused: ["the window is not open"], items: [] };
+    const r = await dialog.showOpenDialog(window, { title: "Import a folder into the Knowledge Library", properties: ["openDirectory"] });
+    if (r.canceled || !r.filePaths[0]) return { added: 0, duplicates: 0, refused: [], items: [] };
+    return library.importFolder(r.filePaths[0]);
+  });
+  handle("library:update", (id: string, input: Record<string, unknown>) =>
+    advocateStore.updateLibraryItem(String(id), {
+      ...(input?.title !== undefined ? { title: String(input.title) } : {}),
+      ...(input?.kind !== undefined ? { kind: String(input.kind) } : {}),
+      ...(input?.status !== undefined ? { status: String(input.status) } : {}),
+      ...(input?.author !== undefined ? { author: String(input.author) } : {}),
+      ...(input?.itemDate !== undefined ? { itemDate: String(input.itemDate) } : {}),
+      ...(input?.matterId !== undefined ? { matterId: input.matterId ? String(input.matterId) : null } : {}),
+      ...(input?.court !== undefined ? { court: String(input.court) } : {}),
+      ...(input?.scope !== undefined ? { scope: String(input.scope) } : {}),
+      ...(input?.notes !== undefined ? { notes: String(input.notes) } : {}),
+      ...(Array.isArray(input?.tags) ? { tags: (input.tags as unknown[]).map(String) } : {}),
+    }, { actor: "advocate" }),
+  );
+  handle("library:setStatus", (id: string, status: string) => advocateStore.setLibraryStatus(String(id), String(status), { actor: "advocate" }));
+  handle("library:open", async (id: string) => {
+    const f = library.fileFor(String(id));
+    if (!f) throw new Error(`NOT_FOUND: no library item ${String(id)}`);
+    return shell.openPath(f.path);
+  });
+  handle("library:reveal", (id: string) => {
+    const f = library.fileFor(String(id));
+    if (f) shell.showItemInFolder(f.path);
   });
   handle("chat:get", (matterId: string) => agent.getChat(matterId));
   handle("models:list", () => agent.listModels());
@@ -843,6 +1116,10 @@ function exposeTestHooks(): void {
     },
     portalContentsUrl: () => (portal.isOpen() ? "open" : "closed"),
     portalEval: (code: string) => portal.evaluateForTest(code),
+    // Phase 3 (S10): the browser's state and visible text, for the tests.
+    browserState: () => browser.state(),
+    browserRead: (tabId?: string) => browser.read(tabId),
+    browserBookmarks: () => browser.listBookmarks(),
   };
 }
 
@@ -975,6 +1252,8 @@ app.whenReady().then(() => {
   recordTables = new RecordTables(matters);
   advocateStore = AdvocateStore.open(app.getPath("userData"));
   intelStore = IntelStore.open(app.getPath("userData"));
+  library = new Library(advocateStore, path.join(app.getPath("userData"), "library"));
+  proposals = new MatterProposals(path.join(app.getPath("userData"), "matter-proposals.json"));
   courtIntel = new CourtIntel({
     intel: intelStore,
     advocate: advocateStore,
@@ -1053,6 +1332,52 @@ app.whenReady().then(() => {
         rules: (id) => courtIntel.rulesContext(id),
         forumRefusal: (id, courts) => courtIntel.forumRefusal(id, courts),
       },
+      browser: {
+        open: async ({ url, visible }) => {
+          const id = browser.open(url, { agent: true, activate: visible === true });
+          await browser.wait(id, { timeoutMs: 15_000 }).catch(() => undefined);
+          const tab = browser.state().tabs.find((t) => t.id === id);
+          return `Opened ${tab?.url ?? url} in tab ${id}${visible ? " (visible to the advocate)" : " (hidden agent page)"}.`;
+        },
+        tabs: async () => {
+          const s = browser.state();
+          return s.tabs.length === 0
+            ? "No browser tab is open."
+            : s.tabs.map((t) => `- ${t.id}${t.id === s.activeTabId ? " (active)" : ""}${t.agent ? " (agent)" : ""}: ${t.title || "New tab"} — ${t.url}${t.loading ? " (loading)" : ""}${t.error ? ` (error: ${t.error})` : ""}`).join("\n");
+        },
+        navigate: async ({ tabId, url }) => {
+          const id = tabId ?? browser.state().activeTabId;
+          if (!id) throw new MatterStoreError("BROWSER_TAB_MISSING", "open a browser tab first");
+          await browser.navigate(id, url);
+          return `Now at ${browser.state().tabs.find((t) => t.id === id)?.url ?? url}.`;
+        },
+        snapshot: (tabId) => browser.snapshot(tabId),
+        read: (tabId, selector) => browser.read(tabId, selector),
+        click: (tabId, input) => browser.click(tabId, input),
+        fill: (tabId, input) => browser.fill(tabId, input),
+        screenshot: (tabId, matterId, fullPage) => browser.screenshot(tabId, matterId, fullPage),
+        wait: (tabId, input) => browser.wait(tabId, input),
+        downloadToMatter: (tabId, matterId, url) => browser.downloadToMatter(tabId, matterId, url),
+        handToAdvocate: async (tabId) => browser.handToAdvocate(tabId),
+        close: async (tabId) => {
+          browser.close(tabId);
+          return `Closed ${tabId}.`;
+        },
+      },
+      proposeMatter: async (matterId, input) => {
+        const sourceMatterTitle = await matters.title(matterId);
+        const p = proposals.add({ ...input, sourceMatterId: matterId, sourceMatterTitle });
+        emitChat({
+          matterId,
+          event: {
+            type: "CUSTOM",
+            name: "openadvo.chat_message",
+            value: { id: randomUUID(), role: "notice", text: `A matter is proposed: ${p.title}. Open Home to create it or dismiss it.` },
+            timestamp: Date.now(),
+          } as never,
+        });
+        return `Proposed the matter "${p.title}" (${p.id}). The advocate decides on Home; you cannot create it.`;
+      },
       firm: {
         matters: () => docket(matters, progress),
         openItems: async (id) => (await progress.inbox(id)).map((i) => ({ kind: i.kind, title: i.title, blocks: i.blocks, tab: i.tab })),
@@ -1064,6 +1389,26 @@ app.whenReady().then(() => {
     { agentDir: piAgentDir(), piHome: ownerPiHome ?? getAgentDir(), model: process.env.OPENADVO_MODEL || undefined, extensions: piExtensions(), policy: toolPolicy() },
   );
   ingest = new Ingest(matters, (matterId) => window?.webContents.send("ingest:update", matterId));
+  browser = new Browser({
+    window: () => window,
+    userData: app.getPath("userData"),
+    matters,
+    onCapture: (capture: BrowserCapture) => {
+      ingest.enqueue(capture.matterId);
+      matterChanged(capture.matterId);
+      emitChat({
+        matterId: capture.matterId,
+        event: {
+          type: "CUSTOM",
+          name: "openadvo.chat_message",
+          value: { id: randomUUID(), role: "notice", text: `Downloaded in the browser: ${capture.name} (${capture.outcome}).` },
+          timestamp: Date.now(),
+        } as never,
+      });
+    },
+    onState: (state) => window?.webContents.send(BROWSER_STATE_EVENT, state),
+    onShortcut: (shortcut) => window?.webContents.send("browser:shortcut", shortcut),
+  });
   registerBridge();
   registerIntelBridge(handle, { intel: courtIntel, matters });
   registerHarnessBridge(handle, { matters, agent, progress, skills: skillRegistry, advocate: advocateStore, intel: intelStore, corpus: () => hub?.corpus ?? null });

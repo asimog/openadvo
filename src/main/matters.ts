@@ -74,6 +74,46 @@ export class Matters {
     return results;
   }
 
+  /** C2, W4: every file under a folder, not hidden, into the matter. */
+  async addFolder(matterId: string, folder: string, ctx: WriteContext = { actor: "advocate" }): Promise<AddFileResult[]> {
+    const files: string[] = [];
+    const walk = async (dir: string, depth: number): Promise<void> => {
+      if (depth > 10 || files.length >= 1000) return;
+      let entries;
+      try {
+        entries = await readdir(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const entry of entries) {
+        if (entry.name.startsWith(".")) continue;
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) await walk(full, depth + 1);
+        else if (entry.isFile()) files.push(full);
+        if (files.length >= 1000) break;
+      }
+    };
+    await walk(folder, 0);
+    return this.addFiles(matterId, files, ctx);
+  }
+
+  /** C6: the edges in this matter and the edges other matters record to it, with their titles. */
+  async relatedFor(matterId: string): Promise<Array<{ toId: string; relation: string; note: string; createdAt: string; title: string; incoming?: boolean; fromId?: string }>> {
+    const all = await this.list();
+    const titles = new Map(all.map((m) => [m.id, m.title]));
+    const out: Array<{ toId: string; relation: string; note: string; createdAt: string; title: string; incoming?: boolean; fromId?: string }> = [];
+    const own = await this.store(matterId);
+    for (const r of own.related()) out.push({ ...r, title: titles.get(r.toId) ?? r.toId });
+    for (const m of all) {
+      if (m.id === matterId) continue;
+      const other = await this.store(m.id);
+      for (const r of other.related()) {
+        if (r.toId === matterId) out.push({ toId: m.id, fromId: m.id, relation: r.relation, note: r.note, createdAt: r.createdAt, title: titles.get(m.id) ?? m.title, incoming: true });
+      }
+    }
+    return out;
+  }
+
   async listSources(matterId: string): Promise<SourceRecord[]> {
     return (await this.store(matterId)).listSources();
   }

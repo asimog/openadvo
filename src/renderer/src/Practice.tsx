@@ -26,7 +26,7 @@ export function PracticeSection(props: { matterId: string; version: number }) {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [h, setH] = useState({ date: "", bench: "", directions: "", nextDate: "", nextDateStatus: "confirmed" as "confirmed" | "inferred" });
   const [r, setR] = useState({ text: "", dueAt: "" });
-  const [party, setParty] = useState({ contactId: "", role: "petitioner", nameInRecord: "" });
+  const [party, setParty] = useState({ contactId: "", role: "petitioner", nameInRecord: "", counsel: "" });
   const [budget, setBudget] = useState("");
   const [note, setNote] = useState<string | null>(null);
   const load = useCallback(async () => {
@@ -97,7 +97,7 @@ export function PracticeSection(props: { matterId: string; version: number }) {
         <Heading level={3}>Parties</Heading>
         <ul className="plain-list">
           {parties.map((p) => (
-            <li key={p.id}><Text weight="semibold">{p.contact?.name ?? "(contact removed)"}</Text> <Text>as {p.role}</Text>{p.nameInRecord ? <Text type="supporting"> (in the record: {p.nameInRecord})</Text> : null}</li>
+            <li key={p.id}><Text weight="semibold">{p.contact?.name ?? "(contact removed)"}</Text> <Text>as {p.role}</Text>{p.nameInRecord ? <Text type="supporting"> (in the record: {p.nameInRecord})</Text> : null}{p.counsel ? <Text type="supporting">, counsel {p.counsel}</Text> : null}</li>
           ))}
         </ul>
         <div className="row-actions practice-form">
@@ -109,7 +109,8 @@ export function PracticeSection(props: { matterId: string; version: number }) {
             {["petitioner", "respondent", "client", "opposing counsel", "other"].map((x) => <option key={x} value={x}>{x}</option>)}
           </select>
           <input aria-label="Name as in the record" placeholder="Name as it appears in the record" value={party.nameInRecord} onChange={(e) => setParty({ ...party, nameInRecord: e.target.value })} />
-          <Button label="Link party" size="sm" isDisabled={!party.contactId} clickAction={() => act(() => api.addParty(props.matterId, party.contactId, party.role, party.nameInRecord))} />
+          <input aria-label="Counsel" placeholder="Counsel for this party" value={party.counsel} onChange={(e) => setParty({ ...party, counsel: e.target.value })} />
+          <Button label="Link party" size="sm" isDisabled={!party.contactId} clickAction={() => act(() => api.addParty(props.matterId, party.contactId, party.role, party.nameInRecord, party.counsel))} />
         </div>
         {contacts.length === 0 ? <Text type="supporting">No contacts yet. Add them in Settings.</Text> : null}
       </section>

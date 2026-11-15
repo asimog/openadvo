@@ -41,6 +41,9 @@ export function AppNav(props: {
   page: Page;
   onPage: (page: Page) => void;
   onSearch: () => void;
+  /** A1 to A5: the setup flow, shown until the advocate has a name. */
+  onOnboarding: () => void;
+  showSetup: boolean;
   /** R1: the items that block the work, across matters. */
   inboxBlocking: number;
   advocateName: string | null;
@@ -54,6 +57,7 @@ export function AppNav(props: {
       <SideNavSection title="Start" isHeaderHidden>
         <SideNavItem label="New matter" icon={PlusIcon} onClick={props.onNewMatter} />
         <SideNavItem label="Search" icon={MagnifyingGlassIcon} onClick={props.onSearch} data-testid="nav-search" />
+        {props.showSetup ? <SideNavItem label="Set up your practice" icon={SparklesIcon} isSelected={at("onboarding")} onClick={props.onOnboarding} data-testid="nav-onboarding" /> : null}
       </SideNavSection>
       <Divider />
       <SideNavSection title="Menu" isHeaderHidden>

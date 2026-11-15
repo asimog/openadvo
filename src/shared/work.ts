@@ -19,6 +19,73 @@ export interface MatterDetails {
   updatedAt: string | null;
 }
 
+/** C1: the universal matter fields. The advocate records them; the agent only proposes. */
+export interface MatterProfile {
+  court: string;
+  bench: string;
+  /** C3: the practice area and the case type the advocate confirms. */
+  practiceArea: string;
+  caseType: string;
+  /** The proceeding type: a bail application, a suit, a writ, an appeal, an execution or an arbitration petition. */
+  proceeding: string;
+  /** Petitioner, respondent, applicant, accused, appellant or a neutral word. */
+  side: string;
+  caseNumber: string;
+  cnr: string;
+  /** YYYY-MM-DD, or "". */
+  filingDate: string;
+  institutionDate: string;
+  governingDate: string;
+  stage: string;
+  relief: string;
+  updatedAt: string | null;
+}
+
+export const MATTER_RELATIONS = [
+  "appeal_from",
+  "revision_of",
+  "review_of",
+  "cross_petition",
+  "counterclaim",
+  "transfer_petition",
+  "connected",
+  "fir_behind",
+  "arbitration",
+  "common_parties",
+  "common_evidence",
+] as const;
+export type MatterRelation = (typeof MATTER_RELATIONS)[number];
+
+export interface RelatedMatter {
+  toId: string;
+  relation: MatterRelation;
+  note: string;
+  createdAt: string;
+  /** The other matter's title, set by the main process for the view. */
+  title?: string;
+  /** True when the other matter records the edge to this one. */
+  incoming?: boolean;
+  /** The matter that holds the edge, for an incoming row. */
+  fromId?: string;
+}
+
+/** C2: a matter the agent proposes in the chat; only the advocate creates it. */
+export interface MatterProposal {
+  id: string;
+  title: string;
+  cnr: string;
+  court: string;
+  petitioner: string;
+  respondent: string;
+  stage: string;
+  nextDate: string;
+  reason: string;
+  sourceMatterId: string;
+  sourceMatterTitle: string;
+  status: "open" | "created" | "dismissed";
+  createdAt: string;
+}
+
 /** V2-3: two sources with nearly the same text. Nothing is merged. */
 export interface DuplicatePair {
   sourceA: string;
@@ -177,7 +244,7 @@ export interface FilingSetRecord {
 export interface CaptureRecord {
   id: string;
   sourceId: string;
-  method: "portal_browser" | "email" | "filing_receipt";
+  method: "portal_browser" | "browser" | "email" | "filing_receipt";
   url: string;
   detail: Record<string, unknown>;
   capturedAt: string;

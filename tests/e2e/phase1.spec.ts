@@ -132,7 +132,9 @@ test("navigation, the Review Inbox across matters, Workflows & Skills, the profi
   await page.getByTestId("nav-research").click();
   await expect(page.getByTestId("research-page").getByTestId("not-built")).toContainText("phase 5");
   await page.getByTestId("nav-browser").click();
-  await expect(page.getByTestId("browser-page").getByTestId("not-built")).toContainText("phase 3");
+  await expect(page.getByTestId("browser-page").getByTestId("browser-page-pane")).toBeVisible();
+  await page.getByTestId("nav-knowledge").click();
+  await expect(page.getByTestId("library-page")).toBeVisible();
   await page.getByTestId("nav-court").click();
   await expect(page.getByTestId("court-page").getByTestId("not-built")).toContainText("phase 9");
 

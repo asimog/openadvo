@@ -14,10 +14,11 @@ import { TextInput } from "@astryxdesign/core/TextInput";
 import type { AdvocateProfile, Freshness, InboxItem, IntelSource, MatterSummary, MemoryRecord, PreferenceRecord, RoleSummary, SkillSummary, StoreChains } from "../../shared/api.ts";
 import { Docket } from "./Practice.tsx";
 import { CourtIntelligence, CourtProfileEditor } from "./Intel.tsx";
+import { IntakeDialog } from "./Intake.tsx";
 
 const api = window.openadvo;
 
-export type Page = "home" | "inbox" | "matters" | "calendar" | "research" | "knowledge" | "court" | "browser" | "skills" | "profile";
+export type Page = "home" | "inbox" | "matters" | "calendar" | "research" | "knowledge" | "court" | "browser" | "skills" | "profile" | "onboarding";
 
 type FirmItem = InboxItem & { matterId: string | null; matterTitle: string };
 
@@ -108,10 +109,12 @@ export function FirmInbox(props: { onOpenMatter: (matterId: string, tab: string)
 }
 
 export function MattersPage(props: { matters: MatterSummary[]; onOpen: (id: string) => void; onNew: () => void }) {
+  const [intakeOpen, setIntakeOpen] = useState(false);
   return (
     <PageFrame title="Matters" testId="matters-page" intro="Every matter that is not archived.">
       <div className="question-options">
         <Button label="New matter" size="sm" onClick={props.onNew} />
+        <Button label="Add an existing matter" size="sm" variant="ghost" onClick={() => setIntakeOpen(true)} data-testid="add-existing-matter" />
       </div>
       {props.matters.length === 0 ? <Text>No matters yet.</Text> : null}
       <List density="compact">
@@ -119,6 +122,7 @@ export function MattersPage(props: { matters: MatterSummary[]; onOpen: (id: stri
           <ListItem key={m.id} label={m.title} description={`Created ${m.createdAt.slice(0, 10)}`} endContent={<Button label="Open" size="sm" variant="ghost" onClick={() => props.onOpen(m.id)} />} />
         ))}
       </List>
+      <IntakeDialog isOpen={intakeOpen} onOpenChange={setIntakeOpen} onCreated={(m) => props.onOpen(m.id)} />
     </PageFrame>
   );
 }
