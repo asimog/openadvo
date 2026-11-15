@@ -23,7 +23,15 @@ This spec owns the kinds of agent, what each may read, write and start, how a ru
 
 "Godmode" means the Firm Agent sees the whole firm. It does not mean more rights: it proposes, and the advocate decides.
 
-Status: the Matter Agent and the helpers are built. The Firm Agent is specified here and built as its own piece of work (lesson L5), with its chat on Home; until then nothing in the window offers it (lesson L2).
+Status: all three are built. The Firm Agent is built as section 2.1 says.
+
+### 2.1 The Firm Agent as built
+
+- **Session.** The same `Agent` class, under the conversation id `FIRM_AGENT_ID` (`firm:agent`; a colon cannot be in a matter folder's name). Its folder is `<userData>/firm-agent/`: the Pi session, `messages.json`, `trace.jsonl`, `handoffs.json` and `usage.jsonl`. No matter store records its usage, and no matter budget applies to it.
+- **Tools** (`src/main/firm-agent.ts`), all read-only except the last: `list_matters` (the docket: stage, next step, next hearing, limitation, open items, reminders), `matter_overview` (one matter's open items by kind and title, hearings, reminders; no item text), `list_hearings`, `list_workflows`, `read_workflow`, and `propose_matter_instruction`. A wrong id is an error. It has no matter tool and no built-in tool; the start check requires the six.
+- **Handoff.** `propose_matter_instruction` stores the instruction in the Firm Agent's conversation only. On Home, the advocate presses "Open in the matter" (the instruction goes into that matter's composer, unsent) or "Dismiss". Both are the human-only bridge function `closeFirmHandoff` (decision 5).
+- **Window.** The Firm Agent panel on Home, below the new-matter composer: its conversation, Stop, a new conversation, the handoff cards and extension questions. It says what it cannot read and what is not available yet.
+- **Not available to it yet:** the Knowledge Library and advocate memory (`advocate.db`, feature Q4). Its prompt tells it to say so.
 
 ## 3. What a helper is
 
@@ -105,12 +113,13 @@ A summary never states a fact that is not in the records it names (architecture 
 | A long result is cut with a hint; reading tools are read-only; writers are sequential | `tests/unit/agent-runs.test.ts` |
 | The helper types and limits are written; the coding types have no tools | `tests/unit/pi-extensions.test.ts` |
 | The matter compaction keeps the six parts; clearing keeps the recent results | `tests/unit/agent-context.test.ts` |
+| The Firm Agent: firm tools only, its context strategy, the firm summary without documents, a wrong id is an error, handoffs stored and closed, workflows readable | `tests/unit/firm-agent.test.ts` |
+| The Firm Agent on Home: its tools, a handoff card, "Open in the matter" puts the instruction in the composer unsent | `tests/e2e/firm.spec.ts` |
 
 Done (lesson L3): the owner runs a real brief in which the Matter Agent starts a `legal-research` helper, the helper's result arrives as its own run, and Stop ends both.
 
 ## 9. Not in this piece of work
 
-- The Firm Agent's session, tools and Home chat (O10).
 - Helper threads in the Jobs view with Steer and Stop (O7, B3 adapter).
 - Skill runs (N2) and the planner (O1).
 - Codemode and tool search turned on per skill.

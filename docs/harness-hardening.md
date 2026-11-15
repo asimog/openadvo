@@ -91,4 +91,4 @@ From the part B work of 2026-11-15 ([../.agents/logs/2026-11-15-part-b-agent-fra
 | H-40 | The run trace: what each run did, for the Jobs view and tests. | `chat/trace.jsonl`, one line per run start, tool call, compaction and run end; no arguments or results. | built |
 | H-41 | Helper types for coding work (`coder`, `architect` and others) with every application tool. | Four Open Advocate types with their own allowlists and limits; the coding types get no tools. | built |
 | H-42 | The bundled extensions as native parts: the caller-identity spike, then one adapter per bundled extension, a completeness test and the fallback. | As in the successor prompt, part B3. | open |
-| H-43 | The Firm Agent (feature O10). | [specs/agent-framework.md](specs/agent-framework.md) section 2. | open |
+| H-43 | The Firm Agent (feature O10). | Its own session and folder, six firm tools, the firm context strategy, handoffs through the advocate, the panel on Home ([specs/agent-framework.md](specs/agent-framework.md) section 2.1). | built |
