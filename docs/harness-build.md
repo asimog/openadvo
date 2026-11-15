@@ -36,13 +36,17 @@ The specification is [specs/native-harness-parts.md](specs/native-harness-parts.
 
 | Part | Code | Where the advocate sees it |
 |---|---|---|
-| Tool policy (decision 23): allow, ask or deny per tool; Pi's built-in tools and credential paths always denied; review log | `src/main/tool-policy.ts`; the hook `openadvo-policy` in every session | Settings → Tool permissions; an approval card in the chat for "ask" |
-| Helpers: four types, run in process through the calling agent's tools and policy | `src/main/helpers.ts`, `src/main/helper-types.ts`; the tool `start_helper` | The `start_helper` tool call in the chat; its trace lines |
-| Plan: the agent's task list for long work | `src/main/plan.ts`; the tools `plan_set`, `plan_update` | The plan card; Clear plan |
-| Context meter, cache numbers, Compact now | `Agent.setMeter`, `Agent.compact` in `src/main/agent.ts` | The chat header |
-| Context strategy per agent kind: tool-result clearing and the summary form | `src/main/agent-context.ts` | — |
+| Tool policy (decision 23): allow, ask or deny per tool; deny hides a tool; built-in tools and credential paths always denied; party-name and MCP rules; review log; trace lines | `src/main/tool-policy.ts`; the hook `openadvo-policy` in every session | Settings → Tool permissions; an approval card with the query, URL or field |
+| Helpers: four types, foreground and background jobs, fork context, progress, questions, Steer, Stop, paged output, waiting results, Final Recap, restart record, cost | `src/main/helpers.ts`, `src/main/helper-types.ts`; the tools `start_helper`, `helper_output`, `stop_helper`, `steer_helper` | Text lines in the chat; the status line's Helpers menu; Use results |
+| Plan: the agent's task list for long work, with dependencies, subtasks and tags | `src/main/plan.ts`; the tools `plan_set`, `plan_update` | The plan panel above the chat; its fold to the status line; Clear plan; Settings → Plan |
+| Context meter, cache and cost, Compact now | `Agent.setMeter`, `Agent.compact`, `contextReport`, `costReport`, `costCsv` in `src/main/agent.ts` | The pinned status line; `/context`; `/cost`; the run's cost line; "Export cost CSV" |
+| Context strategy per agent kind: tool-result clearing, summaries with refs, `recall_result`, and the summary form | `src/main/agent-context.ts` | A text line when results are summarised |
 
-**Policy file.** `<userData>/tool-policy.json`, written with defaults on first start: `{ "default": "allow", "tools": {} }`. The review log is `<userData>/logs/tool-policy.jsonl`: every deny and every ask with its answer, never the arguments. Pi's built-in tools and a call whose arguments name `auth.json`, `.env`, `.ssh/`, `manifest-signing.key` or `models.json` are refused whatever the file says.
+**Policy file.** `<userData>/tool-policy.json`, written with defaults on first start: `{ "default": "allow", "tools": {} }`. The review log is `<userData>/logs/tool-policy.jsonl`: every deny and every ask with its answer, never the arguments. Pi's built-in tools and a call whose arguments name `auth.json`, `.env`, `.ssh/`, `manifest-signing.key` or `models.json` are refused whatever the file says. A deny also hides the tool when a conversation opens. An MCP tool has the rule `mcp__<server>__*` (or `mcp__*`); Settings lists one row for each server in `<userData>/pi-agent/mcp.json` and one for every MCP tool.
+
+**Helper files.** `<matter>/chat/helpers.json` records each helper. `<matter>/chat/helpers/<id>.txt` holds its partial or full output. Each helper's Pi session is a file under `<matter>/chat/helpers/`. On reopen, a helper that was running shows as interrupted and never restarts.
+
+**Cost.** `chat/trace.jsonl` has a `run_end` line per run and a `helper_end` line per helper, with input, output, cache reads, cache writes, the hit percentage and the cost. `/cost` and "Export cost CSV" read those lines.
 
 ### 1.4 One owner for each job
 
@@ -50,11 +54,11 @@ The specification is [specs/native-harness-parts.md](specs/native-harness-parts.
 |---|---|
 | Which tools may run | The tool policy (section 1.3). Helper calls pass the same hook. |
 | Which skill and which tools a task gets | The skill registry and the tool scope per skill (N1 to N3, Q2, H-5). |
-| Context size | Pi's compaction with the strategy per agent kind; Compact now. |
+| Context size | Pi's compaction with the strategy per agent kind; summaries of old tool results with refs; Compact now. |
 | Plans and tasks | The plan (`plan_set`, `plan_update`); the planner (O1) builds on it. |
-| Delegation | Native helpers (`start_helper`). Skill runs and the planner are not helpers. |
-| Codemode and MCP | Pi's built-in extensions; codemode turns on by itself when an MCP server with codemode exposure connects. Helper types do not include `codemode` or MCP tools. The MCP settings view is H-19. |
-| What a run did | The run trace `chat/trace.jsonl` and the context meter. |
+| Delegation | Native helpers (`start_helper`), foreground or background. Skill runs and the planner are not helpers. |
+| Codemode and MCP | Pi's built-in extensions; codemode turns on by itself when an MCP server with codemode exposure connects. Helper types do not include `codemode` or MCP tools. MCP calls follow the policy's MCP rules. |
+| What a run did | The run trace `chat/trace.jsonl`, the pinned status line, `/context` and `/cost`. |
 
 ### 1.5 The extension interface in the window
 
@@ -71,7 +75,7 @@ Extensions bind with `mode: "rpc"` and the application's UI context (`extensionU
 
 | Path | Holds |
 |---|---|
-| `src/main/agent.ts` | Sessions of both agent kinds, the start check, send, follow-up, the run listener, the meter, `reloadIdle` |
+| `src/main/agent.ts` | Sessions of both agent kinds, the start check, send, follow-up, the run listener, the meter, the plan wiring, the helper wiring, `/context`, `/cost`, the CSV, `reloadIdle` |
 | `src/main/tool-policy.ts`, `helpers.ts`, `helper-types.ts`, `plan.ts`, `agent-context.ts`, `firm-agent.ts` | The native harness parts |
 | `src/main/pi-extensions.ts` | Loader, package manager, the extension UI context |
 | `src/main/index.ts` | `claimPiAgentDir`, the managers, the bridge functions |
