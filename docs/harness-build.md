@@ -60,7 +60,7 @@ The defect list and the status of each Pi feature are in [harness-hardening.md](
   | `permissionReviewLog` | `true` |
   | `debugLog` | `false` |
 
-- **Why allow by default.** In the window, an "ask" gets the default answer until extension questions reach the chat (harness-hardening H-12). So an `ask` acts as `deny`. The advocate may add `ask` or `deny` rules for chosen tools.
+- **Why allow by default.** An `ask` rule stops each call of the tool until the advocate answers a question in the chat (harness-hardening H-12). The advocate may add `ask` or `deny` rules for chosen tools.
 - **Logs.** The review log is written to `<userData>/pi-agent/extensions/pi-permission-system/logs/`, never to `~/.pi/agent`.
 - **What the test shows** (`tests/unit/pi-extensions.test.ts`, with a scripted faux model):
   - an allowed tool runs;
@@ -89,7 +89,7 @@ Extensions bind with `mode: "rpc"` and the application's UI context (`extensionU
 | `notify` | A notice in the matter's chat (multi-line notices keep their lines) |
 | `setStatus` and a text `setWidget` | Status lines above the chat log |
 | `custom` (a terminal screen) | Rendered once at 100 columns as text. It cannot be operated. |
-| `select`, `confirm`, `input`, `editor` | The default answer, with a notice that says so (H-12) |
+| `select`, `confirm`, `input`, `editor` | A question card in the chat; the extension waits for the answer. Dismiss, Stop or a timeout gives the default answer (H-12) |
 
 ### 1.6 Files
 

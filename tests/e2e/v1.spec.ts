@@ -100,7 +100,10 @@ test("v1: record table, memory, workflows, durable chat, rename and archive", as
     ({ app, page } = await launch(base));
     call = bridge(page);
     const chat = await call<any>("getChat", matterId);
-    expect(chat.messages.map((m: any) => m.text)).toEqual(["List the sources."]);
+    expect(chat.messages.filter((m: any) => m.role !== "notice").map((m: any) => m.text)).toEqual(["List the sources."]);
+    // H-3: with no model signed in, the chat says so once.
+    const noModel = chat.messages.filter((m: any) => /^No model is available/.test(m.text)).length;
+    expect(noModel).toBe(chat.model === null ? 1 : 0);
     const fresh = await call<any>("newConversation", matterId);
     expect(fresh.messages).toEqual([]);
     expect((await readdir(chatDir)).some((f) => /^messages-.*\.json$/.test(f))).toBe(true);

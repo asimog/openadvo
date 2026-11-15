@@ -44,12 +44,49 @@ export const CHAT_MESSAGE_EVENT = "openadvo.chat_message";
 /** The CUSTOM event that carries the status lines of the Pi extensions: { [key]: lines }. */
 export const EXTENSION_STATUS_EVENT = "openadvo.extension_status";
 
+/**
+ * H-12: the CUSTOM event that carries the open questions of the Pi extensions: ExtensionQuestion[].
+ * A question arrives during a run, and the run waits for the answer, so it is not a RUN_FINISHED interrupt.
+ */
+export const EXTENSION_QUESTIONS_EVENT = "openadvo.extension_questions";
+
+/** H-12: the AG-UI interrupt reason of a question from a Pi extension. */
+export const EXTENSION_QUESTION_REASON = "openadvo.extension_question";
+
+/**
+ * H-12: one question from a Pi extension (ctx.ui.select, confirm, input, editor), in the shape of an
+ * AG-UI Interrupt. The advocate answers it with answerExtensionQuestion, or dismisses it (null),
+ * which gives the extension its default answer.
+ */
+export interface ExtensionQuestion {
+  id: string;
+  reason: typeof EXTENSION_QUESTION_REASON;
+  /** The extension's title for the question. */
+  message: string;
+  /** What the answer must be: a JSON Schema. */
+  responseSchema: Record<string, unknown>;
+  /** ISO 8601. After this time the question gets its default answer. */
+  expiresAt?: string;
+  metadata: {
+    kind: "select" | "confirm" | "input" | "editor";
+    /** confirm: the extension's message under the title. */
+    detail?: string;
+    /** select: the choices, in order. */
+    options?: string[];
+    placeholder?: string;
+    /** editor: the starting text. */
+    prefill?: string;
+  };
+}
+
 export interface ChatState {
   messages: ChatMessage[];
   busy: boolean;
   model: string | null;
   /** Status lines that Pi extensions set (setStatus, setWidget with text), by key. */
   status?: Record<string, string[]>;
+  /** H-12: the open questions of the Pi extensions, oldest first. */
+  questions?: ExtensionQuestion[];
 }
 
 /** One Pi extension (decision 21). */
@@ -191,6 +228,8 @@ export interface OpenAdvoApi {
   setPolicy(matterId: string, p: { confidential: boolean; budgetTokens: number | null }): Promise<{ confidential: boolean; budgetTokens: number | null; usage: { runs: number; tokens: number; cost: number } }>;
   /** V5-22: stop the agent's run between steps. */
   stopChat(matterId: string): Promise<boolean>;
+  /** H-12: answer a Pi extension's question: a choice, true or false, or text. null dismisses it. */
+  answerExtensionQuestion(matterId: string, questionId: string, answer: string | boolean | null): Promise<void>;
   listContacts(): Promise<Contact[]>;
   addContact(c: { name: string; kind: string; email?: string; phone?: string; notes?: string }): Promise<Contact>;
   removeContact(id: string): Promise<Contact[]>;

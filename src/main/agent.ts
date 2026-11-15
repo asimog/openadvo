@@ -24,14 +24,14 @@ import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { AnchorRecord, PageRecord, SourceRecord, Notebook, NotebookEvent } from "../lib/matter-store/index.ts";
 import { EventType, type AGUIEvent } from "@ag-ui/core";
-import { CHAT_MESSAGE_EVENT, EXTENSION_STATUS_EVENT } from "../shared/api.ts";
+import { CHAT_MESSAGE_EVENT, EXTENSION_QUESTIONS_EVENT, EXTENSION_STATUS_EVENT } from "../shared/api.ts";
 import type { ChatEvent, ChatMessage, ChatState, EffortLevel, EffortState, ModelChoice } from "../shared/api.ts";
 
 type ThinkingLevel = EffortLevel;
 const EFFORT_LEVELS: readonly EffortLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { DraftCheck, DraftKind, ParagraphSource, RevisionRecord } from "../shared/records.ts";
-import { BUILTIN_TOOL_NAMES, extensionUi, type PiExtensions } from "./pi-extensions.ts";
+import { BUILTIN_TOOL_NAMES, ExtensionQuestions, extensionUi, type PiExtensions } from "./pi-extensions.ts";
 
 /** One correction the agent proposed in a run, as the AG-UI interrupt reports it. */
 export interface ProposedCorrection {
@@ -337,6 +337,20 @@ function keyOf(model: Model<Api>): string {
   return `${model.provider}/${model.id}`;
 }
 
+/**
+ * Close a session. Extensions close what they opened (servers, sockets, watchers) on
+ * session_shutdown, and Pi's dispose() does not send it, so it is sent here first.
+ */
+export async function closeSession(session: AgentSession, reason: "quit" | "reload" | "new"): Promise<void> {
+  try {
+    const runner = session.extensionRunner;
+    if (runner.hasHandlers("session_shutdown")) await runner.emit({ type: "session_shutdown", reason } as never);
+  } catch (e) {
+    console.error(`pi extension shutdown error: ${(e as Error).message}`);
+  }
+  session.dispose();
+}
+
 /** The session's model, or undefined. With no model, Pi's agent holds a stand-in named "unknown/unknown". */
 function sessionModel(session: AgentSession): Model<Api> | undefined {
   const m = session.model;
@@ -366,6 +380,8 @@ interface MatterChat {
   proposals: ProposedCorrection[];
   /** V5-22: the advocate stopped the current run. */
   stopped?: boolean;
+  /** H-12: the open questions of the session's Pi extensions. */
+  questions: ExtensionQuestions;
 }
 
 export class Agent {
@@ -562,7 +578,10 @@ export class Agent {
     if (old) {
       const chat = await old.catch(() => null);
       if (chat?.state.busy) throw new Error("CHAT_BUSY: wait for the agent's answer first");
-      chat?.session.dispose();
+      if (chat) {
+        chat.questions.cancelAll();
+        await closeSession(chat.session, "new");
+      }
       this.chats.delete(matterId);
     }
     const dir = await this.host.chatDir(matterId);
@@ -1056,7 +1075,13 @@ export class Agent {
       throw new Error(`agent tool policy violated: ${JSON.stringify(active)}`);
     }
     const chatRef: { state?: ChatState } = {};
+    // H-12: questions from extensions wait in the chat for the advocate.
+    const questions = new ExtensionQuestions((open) => {
+      if (chatRef.state) chatRef.state.questions = open;
+      host.emit({ matterId, event: { timestamp: Date.now(), type: EventType.CUSTOM, name: EXTENSION_QUESTIONS_EVENT, value: open } as unknown as AGUIEvent });
+    });
     const ui: ExtensionUIContext = extensionUi({
+      questions,
       notice: (text) => {
         const message: ChatMessage = { id: randomUUID(), role: "notice", text };
         chatRef.state?.messages.push(message);
@@ -1077,14 +1102,22 @@ export class Agent {
     await host.recordSession(matterId, session.sessionId, modelName);
     const state: ChatState = { messages: fresh ? [] : await loadMessages(chatDir), busy: false, model: modelName };
     chatRef.state = state;
-    if (!modelName) {
+    const NO_MODEL = "No model is available. Sign in to a model provider with Pi first.";
+    if (!modelName && state.messages.at(-1)?.text !== NO_MODEL) {
       state.messages.push({
         id: randomUUID(),
         role: "notice",
-        text: "No model is available. Sign in to a model provider with Pi first.",
+        text: NO_MODEL,
       });
     }
-    return { session, state, proposals: [] };
+    return { session, state, proposals: [], questions };
+  }
+
+  /** H-12: the advocate answers a question of a Pi extension. null dismisses it (the default answer). */
+  async answerQuestion(matterId: string, questionId: string, answer: string | boolean | null): Promise<void> {
+    const pending = this.chats.get(matterId);
+    if (!pending) throw new Error("QUESTION_CLOSED: the matter has no open conversation");
+    (await pending).questions.answer(questionId, answer);
   }
 
   /** The active tool names of a matter's session. Used by tests and the startup check. */
@@ -1099,6 +1132,7 @@ export class Agent {
   async getChat(matterId: string): Promise<ChatState> {
     const chat = await this.chat(matterId);
     const { state } = chat;
+    state.questions = chat.questions.list();
     // H-3: a model the advocate signed in to after the session opened is used at once.
     if (!state.busy) await this.ensureModel(matterId, chat).catch(() => undefined);
     return { ...state, messages: [...state.messages] };
@@ -1239,6 +1273,8 @@ export class Agent {
     const chat = await this.chats.get(matterId);
     if (!chat || !chat.state.busy) return false;
     chat.stopped = true;
+    // H-12: an extension waiting on a question gets its default answer, so the run can end.
+    chat.questions.cancelAll();
     await chat.session.abort();
     return true;
   }
@@ -1250,7 +1286,8 @@ export class Agent {
       try {
         const chat = await pending;
         if (chat.state.busy) continue;
-        chat.session.dispose();
+        chat.questions.cancelAll();
+        await closeSession(chat.session, "reload");
       } catch {
         // A session that failed to start is simply dropped.
       }
@@ -1263,7 +1300,9 @@ export class Agent {
   async disposeAll(): Promise<void> {
     for (const chat of this.chats.values()) {
       try {
-        (await chat).session.dispose();
+        const c = await chat;
+        c.questions.cancelAll();
+        await closeSession(c.session, "quit");
       } catch {
         // A session that failed to start has nothing to dispose.
       }

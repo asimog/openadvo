@@ -24,7 +24,7 @@ Status words: **built** (in the code and tested), **open** (planned, not built),
 | H-9 | Extensions (`DefaultResourceLoader`) | Every session loads the enabled bundled extensions, the packages the advocate added, and extensions in the application's Pi folder. | built |
 | H-10 | Packages (`DefaultPackageManager`) | Settings → Pi extensions: add from npm, git, a URL or a folder; remove; turn a bundled extension on or off. A change reopens idle conversations. | built |
 | H-11 | Extension UI: `notify`, `setStatus`, text `setWidget`, `custom` | A notice in the matter's chat; status lines above the chat log; a terminal screen rendered once as text. | built |
-| H-12 | Extension UI: `select`, `confirm`, `input`, `editor` | Each question becomes an AG-UI interrupt that the advocate answers in the chat. Until then, the question gets its default answer and a notice says so. | open |
+| H-12 | Extension UI: `select`, `confirm`, `input`, `editor` | Each question is an AG-UI interrupt object, sent in the CUSTOM event `EXTENSION_QUESTIONS_EVENT`, because the run waits in the middle for the answer. A card in the chat takes the answer (`answerExtensionQuestion`). Dismiss, Stop, a new conversation, the extension's abort signal or its timeout give the default answer; a notice says when time ran out. A pi-permission-system `ask` rule is now a question. Sessions are closed with `session_shutdown`, so extensions close their sockets. | built |
 | H-13 | Extension commands (`/name`) | Typed in the chat, they run through `session.prompt`, with or without a model. | built |
 | H-14 | Command list in the composer | `/` lists extension commands, Pi skills and prompt templates (with feature N3). | open |
 | H-15 | Command actions: new session, fork, tree navigation, switch session | Bind `commandContextActions` through `AgentSessionRuntime`, so an extension command can fork or start a conversation. | open |
@@ -54,8 +54,9 @@ The extension policy, the bundled extensions, the permission policy and the help
 
 | Test | Checks | Command |
 |---|---|---|
-| `tests/unit/pi-extensions.test.ts` | The seven load with no error, with their tools and commands; the permission policy and its repair on start; with a faux model, an allowed tool runs, a denied tool is withheld, a credential path is refused and logged in the app's folder; a bundled extension turns off; the helper policy files. | `node --test tests/unit/pi-extensions.test.ts` |
-| `tests/e2e/extensions.spec.ts` | Settings lists the seven and turns one off and on; the app writes the permission policy in its own Pi folder and sets `PI_CODING_AGENT_DIR` there; `/context` typed in a matter's chat shows its report. | `npx playwright test tests/e2e/extensions.spec.ts` |
+| `tests/unit/pi-extensions.test.ts` | The seven load with no error, with their tools and commands; the permission policy and its repair on start; with a faux model, an allowed tool runs, a denied tool is withheld, a credential path is refused and logged in the app's folder; an `ask` rule becomes a question, and Yes runs the tool and No withholds it; a bundled extension turns off; the helper policy files. | `node --test tests/unit/pi-extensions.test.ts` |
+| `tests/e2e/extensions.spec.ts` | Settings lists the seven and turns one off and on; the app writes the permission policy in its own Pi folder and sets `PI_CODING_AGENT_DIR` there; `/context` typed in a matter's chat shows its report; the questions of `/checklist clear` and `/pruner` are answered with Yes, Dismiss and a choice; a wrong answer is refused; Stop closes an open question. | `npx playwright test tests/e2e/extensions.spec.ts` |
+| `tests/unit/extension-questions.test.ts` | Extension questions: the interrupt shape, the answer checks, the extension's own option string, dismiss, timeout with a notice, abort, and cancel. | `node --test tests/unit/extension-questions.test.ts` |
 | `tests/unit/agent.test.ts` | The `Agent` class with a faux model: no model at first, then sign-in gives the open session the model with no restart; removing the credentials empties the model list; two quick sends start one run; a message sent during a run is a follow-up that the model reads in the same run. | `node --test tests/unit/agent.test.ts` |
 | `tests/e2e/app.spec.ts` | The bridge functions; the session has every application tool, no built-in tool, and the bundled extension tools. | `npx playwright test tests/e2e/app.spec.ts` |
 
@@ -63,7 +64,7 @@ Still needed: a live test of a helper agent with a real model.
 
 ## 5. Order
 
-1. H-12 and H-14: questions from extensions (this also turns pi-permission-system `ask` rules into real questions), and the `/` list.
+1. H-14: the `/` list.
 2. HB-1 side questions and HB-2 browser, in the order of [harness-build.md](harness-build.md).
 3. H-20, H-22, H-24, H-25: steering, compaction actions, run detail, settled runs.
 4. H-16, H-17, H-18 with features N1 to N3: the skill registry on Pi skills, workflows as prompt templates, the matter context file.

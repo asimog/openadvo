@@ -12,7 +12,8 @@ import path from "node:path";
 import { ModelRuntime, createAgentSession, defineTool, SessionManager } from "@earendil-works/pi-coding-agent";
 import { createFauxCore, fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
-import { BUILTIN_TOOL_NAMES, PiExtensions } from "../../src/main/pi-extensions.ts";
+import { BUILTIN_TOOL_NAMES, ExtensionQuestions, PiExtensions, extensionUi } from "../../src/main/pi-extensions.ts";
+import { closeSession } from "../../src/main/agent.ts";
 
 const bundledRoot = path.resolve(import.meta.dirname, "..", "..", "resources", "pi-extensions");
 const vendored = existsSync(path.join(bundledRoot, "vendor.lock.json"));
@@ -157,4 +158,71 @@ test("the helper-agent policy allows only listed tools and blocks the built-in o
   assert.match(coder, /allow:\n {4}- list_sources/);
   assert.match(coder, /block:\n {4}- read\n {4}- bash/);
   assert.match(coder, /models: null/);
+});
+
+test("H-12: an 'ask' rule of the permission system becomes a question; Yes runs the tool, No withholds it", { skip }, async () => {
+  const { ext, agentDir } = manager();
+  const policy = JSON.parse(readFileSync(ext.permissionPolicyFile(), "utf8"));
+  policy.permission.probe_ask = "ask";
+  writeFileSync(ext.permissionPolicyFile(), JSON.stringify(policy));
+  const core = createFauxCore({ provider: "faux-ask", models: [{ id: "m" }] });
+  const loader = await ext.loader({
+    systemPrompt: "test",
+    extraFactories: [
+      (pi) =>
+        pi.registerProvider("faux-ask", {
+          name: "Faux",
+          baseUrl: "http://localhost",
+          apiKey: "test",
+          api: core.api,
+          streamSimple: core.streamSimple,
+          models: core.models.map((m) => ({ ...m, type: "chat" })),
+        } as never),
+    ],
+  });
+  const ran: string[] = [];
+  const modelRuntime = await ModelRuntime.create({ authPath: path.join(agentDir, "auth.json"), modelsPath: null });
+  const { session } = await createAgentSession({
+    modelRuntime,
+    cwd: agentDir,
+    agentDir,
+    resourceLoader: loader,
+    settingsManager: ext.settings(),
+    sessionManager: SessionManager.inMemory(),
+    noTools: "builtin",
+    excludeTools: [...BUILTIN_TOOL_NAMES],
+    customTools: [tool("probe_ask", ran)],
+  });
+  // The window's answers: the first question gets "Yes", the second "No".
+  const answers = ["Yes", "No"];
+  const asked: string[] = [];
+  const questions = new ExtensionQuestions((open) => {
+    for (const q of open) {
+      if (asked.includes(q.id)) continue;
+      asked.push(q.id);
+      assert.ok(q.metadata.options?.includes("Yes") && q.metadata.options.includes("No"), "the question offers Yes and No");
+      const answer = answers.shift();
+      setTimeout(() => questions.answer(q.id, answer ?? null), 0);
+    }
+  });
+  try {
+    await session.bindExtensions({ uiContext: extensionUi({ notice: () => undefined, status: () => undefined, questions }), mode: "rpc" });
+    await session.setModel(modelRuntime.getModel("faux-ask", "m") as never);
+    (core as unknown as { setResponses: (r: unknown[]) => void }).setResponses([
+      fauxAssistantMessage([fauxToolCall("probe_ask", {})], { stopReason: "toolUse" }),
+      fauxAssistantMessage([fauxToolCall("probe_ask", {})], { stopReason: "toolUse" }),
+      fauxAssistantMessage("done"),
+    ]);
+    const ends: boolean[] = [];
+    session.subscribe((e) => {
+      if (e.type === "tool_execution_end") ends.push(e.isError);
+    });
+    await session.prompt("go");
+    assert.equal(asked.length, 2, "each call asked the advocate");
+    assert.deepEqual(ran, ["probe_ask"], "only the approved call ran");
+    assert.deepEqual(ends, [false, true], "the refused call failed");
+  } finally {
+    // session_shutdown lets pi-permission-system close its forwarding socket; dispose() alone leaves it open.
+    await closeSession(session, "quit");
+  }
 });

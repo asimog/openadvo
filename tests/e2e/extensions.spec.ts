@@ -66,3 +66,73 @@ test("an extension command typed in the chat runs and shows its output", async (
   expect(notices.length).toBeGreaterThan(0);
   await app.close();
 });
+
+/** A new matter in the window; returns its id. */
+async function newMatter(app: Awaited<ReturnType<typeof launch>>["app"], page: Awaited<ReturnType<typeof launch>>["page"], title: string) {
+  await page.getByRole("button", { name: "New matter" }).click();
+  await page.getByLabel("Matter title").fill(title);
+  await page.getByRole("button", { name: "Create matter" }).click();
+  await expect(page.getByRole("heading", { level: 2, name: title })).toBeVisible();
+  const id = await app.evaluate(() => (globalThis as any).__openadvoTest.lastMatterId?.() ?? null);
+  return (id ?? (await page.evaluate(async () => (await (globalThis as any).openadvo.listMatters())[0].id))) as string;
+}
+
+async function notices(page: Awaited<ReturnType<typeof launch>>["page"], matterId: string): Promise<string[]> {
+  const chat = await page.evaluate((m) => (globalThis as any).openadvo.getChat(m), matterId);
+  return chat.messages.filter((x: any) => x.role === "notice").map((x: any) => x.text);
+}
+
+test("H-12: an extension's questions are answered in the chat, and the extension waits for the answer", async () => {
+  test.skip(!vendored, "run npm run vendor:extensions");
+  const { app, page } = await launch();
+  const matterId = await newMatter(app, page, "Extension questions");
+  const card = page.getByTestId("extension-question");
+  const send = (text: string) => page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [matterId, text]);
+
+  // confirm, answered Yes: pi-checklist clears and says so.
+  const first = send("/checklist clear");
+  await expect(card).toBeVisible({ timeout: 30000 });
+  await expect(card).toHaveAttribute("data-kind", "confirm");
+  await expect(card).toContainText("Clear checklist?");
+  await expect(page.getByText("Working…")).toBeVisible();
+  const open = await page.evaluate((m) => (globalThis as any).openadvo.getChat(m), matterId);
+  expect(open.questions).toHaveLength(1);
+  expect(open.questions[0]).toMatchObject({ reason: "openadvo.extension_question", message: "Clear checklist?", responseSchema: { type: "boolean" } });
+  await page.screenshot({ path: path.join(repo, "test-results", "extension-question-confirm.png") });
+  await card.getByRole("button", { name: "Yes" }).click();
+  await first;
+  await expect(card).toHaveCount(0);
+  expect(await notices(page, matterId)).toContain("checklist cleared");
+
+  // confirm, dismissed: the default answer is no, so nothing is cleared.
+  const second = send("/checklist clear");
+  await expect(card).toBeVisible({ timeout: 30000 });
+  await card.getByRole("button", { name: "Dismiss" }).click();
+  await second;
+  await expect(card).toHaveCount(0);
+  expect((await notices(page, matterId)).filter((t) => t === "checklist cleared")).toHaveLength(1);
+
+  // select: pi-context-prune runs the chosen subcommand.
+  const third = send("/pruner");
+  await expect(card).toHaveAttribute("data-kind", "select", { timeout: 30000 });
+  await page.screenshot({ path: path.join(repo, "test-results", "extension-question-select.png") });
+  await card.getByRole("button", { name: /^stats/ }).click();
+  await third;
+  expect((await notices(page, matterId)).some((t) => t.startsWith("pruner stats"))).toBe(true);
+
+  // A wrong answer is refused by the bridge, and the question stays open.
+  const fourth = send("/checklist clear");
+  await expect(card).toBeVisible({ timeout: 30000 });
+  const qid = (await page.evaluate((m) => (globalThis as any).openadvo.getChat(m), matterId)).questions[0].id;
+  await expect(page.evaluate(([m, q]) => (globalThis as any).openadvo.answerExtensionQuestion(m, q, "yes"), [matterId, qid])).rejects.toThrow(/BAD_ANSWER/);
+  await expect(card).toBeVisible();
+
+  // Stop while a question waits: the question closes with its default answer and the run ends.
+  await page.getByRole("button", { name: "Stop" }).click();
+  await fourth;
+  await expect(card).toHaveCount(0);
+  await expect(page.getByText("Working…")).toHaveCount(0);
+  expect((await notices(page, matterId)).filter((t) => t === "checklist cleared")).toHaveLength(1);
+  expect(await notices(page, matterId)).toContain("Stopped by the advocate.");
+  await app.close();
+});

@@ -138,7 +138,7 @@ Key files:
 3. Describe it in `systemPrompt()`: what it reads, what it writes, what it may not do.
 4. Writes go through the host with `{ actor: "agent", sessionId }`.
 5. Add the name to the tool list in the test "the agent session has our tools, no built-in Pi tool, and its id is recorded" in `tests/e2e/app.spec.ts`.
-6. The permission policy allows every tool by default. Add a `deny` or `ask` rule in `writePermissionPolicy()` only if the tool needs one, and remember that an `ask` acts as a refusal until harness-hardening H-12 is built.
+6. The permission policy allows every tool by default. Add a `deny` or `ask` rule in `writePermissionPolicy()` only if the tool needs one. An `ask` stops each call until the advocate answers in the chat (harness-hardening H-12).
 
 ### 7.3 Add a table or a column to `matter.db`
 
@@ -293,6 +293,8 @@ PY
 7. **npm from Node on Windows.** Start npm with `spawnSync("npm", args, { shell: true })`, as `scripts/vendor-pi-extensions.ts` does. Node prints a deprecation warning (DEP0190) for this; the arguments are fixed strings, so it is safe here.
 8. **Heredocs with apostrophes.** The shell can reject a long heredoc that contains `'`. Write the script to a file and run the file.
 9. **Merged ids.** When you merge features, map the merged id to its survivor in every document, not only in the catalogue.
+10. **Pi's stand-in model.** A session with no model holds a stand-in named `unknown/unknown`, so `session.model` is never empty. Use `sessionModel()` in `src/main/agent.ts`.
+11. **Closing a session.** Pi's `session.dispose()` does not send `session_shutdown`, so extensions keep their sockets open and a test process never exits. Close sessions with `closeSession()` in `src/main/agent.ts`.
 
 ## 13. Checklists
 

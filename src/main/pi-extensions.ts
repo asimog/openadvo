@@ -20,8 +20,10 @@ import {
   type InlineExtension,
   type LoadExtensionsResult,
 } from "@earendil-works/pi-coding-agent";
+import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { EXTENSION_QUESTION_REASON, type ExtensionQuestion } from "../shared/api.ts";
 
 /** Pi's built-in tools. They never run in Open Advocate (decision 2). */
 export const BUILTIN_TOOL_NAMES = ["read", "bash", "powershell", "edit", "write", "grep", "find", "ls"] as const;
@@ -237,10 +239,100 @@ export class PiExtensions {
   }
 }
 
-/** Where extension output goes: notices in the matter's chat, and a status line per key. */
+/** Where extension output goes: notices in the matter's chat, a status line per key, and questions. */
 export interface ExtensionUiHost {
   notice(text: string): void;
   status(key: string, lines: string[] | undefined): void;
+  /** H-12: the matter's open questions. Without it, a question gets its default answer at once. */
+  questions?: ExtensionQuestions;
+}
+
+/** The longest text answer the window accepts for one question. */
+const MAX_ANSWER = 100_000;
+
+/** How a question ended. Only "answered" carries the advocate's value. */
+export type QuestionEnd = { how: "answered"; value: string | boolean } | { how: "dismissed" | "expired" | "cancelled" };
+
+/**
+ * H-12: the open questions of one matter's Pi extensions. A question waits until the advocate
+ * answers or dismisses it, its time runs out, or the extension cancels it. No Electron import.
+ */
+export class ExtensionQuestions {
+  private open = new Map<string, { question: ExtensionQuestion; end: (e: QuestionEnd) => void }>();
+  private onChange: (questions: ExtensionQuestion[]) => void;
+
+  constructor(onChange: (questions: ExtensionQuestion[]) => void) {
+    this.onChange = onChange;
+  }
+
+  list(): ExtensionQuestion[] {
+    return [...this.open.values()].map((q) => q.question);
+  }
+
+  ask(spec: ExtensionQuestion["metadata"] & { title: string }, opts: { signal?: AbortSignal; timeout?: number } = {}): Promise<QuestionEnd> {
+    const { title, ...metadata } = spec;
+    if (opts.signal?.aborted) return Promise.resolve({ how: "cancelled" });
+    const id = randomUUID();
+    const timeout = typeof opts.timeout === "number" && opts.timeout > 0 ? opts.timeout : undefined;
+    // The window shows text without terminal codes; the schema and the answer check use the same text.
+    const shown: ExtensionQuestion["metadata"] = {
+      ...metadata,
+      ...(metadata.detail !== undefined ? { detail: plain(metadata.detail) } : {}),
+      ...(metadata.options ? { options: metadata.options.map((o) => plain(String(o))) } : {}),
+    };
+    const question: ExtensionQuestion = {
+      id,
+      reason: EXTENSION_QUESTION_REASON,
+      message: plain(title),
+      responseSchema: schemaOf(shown),
+      ...(timeout ? { expiresAt: new Date(Date.now() + timeout).toISOString() } : {}),
+      metadata: shown,
+    };
+    return new Promise<QuestionEnd>((resolve) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const onAbort = () => end({ how: "cancelled" });
+      const end = (e: QuestionEnd) => {
+        if (!this.open.delete(id)) return;
+        if (timer) clearTimeout(timer);
+        opts.signal?.removeEventListener("abort", onAbort);
+        this.onChange(this.list());
+        resolve(e);
+      };
+      this.open.set(id, { question, end });
+      if (timeout) timer = setTimeout(() => end({ how: "expired" }), timeout);
+      opts.signal?.addEventListener("abort", onAbort, { once: true });
+      this.onChange(this.list());
+    });
+  }
+
+  /** The advocate's answer. null dismisses the question. Throws on an unknown question or a wrong answer. */
+  answer(id: string, value: string | boolean | null): void {
+    const q = this.open.get(id);
+    if (!q) throw new Error("QUESTION_CLOSED: the question is no longer open");
+    if (value === null) return q.end({ how: "dismissed" });
+    const { kind, options } = q.question.metadata;
+    if (kind === "confirm") {
+      if (typeof value !== "boolean") throw new Error("BAD_ANSWER: answer yes or no");
+    } else if (typeof value !== "string") {
+      throw new Error("BAD_ANSWER: the answer is text");
+    } else if (kind === "select" && !options?.includes(value)) {
+      throw new Error("BAD_ANSWER: choose one of the options");
+    } else if (value.length > MAX_ANSWER) {
+      throw new Error(`BAD_ANSWER: the answer is longer than ${MAX_ANSWER} characters`);
+    }
+    q.end({ how: "answered", value });
+  }
+
+  /** Every open question gets its default answer (Stop, a new conversation, a reload). */
+  cancelAll(): void {
+    for (const q of [...this.open.values()]) q.end({ how: "cancelled" });
+  }
+}
+
+function schemaOf(m: ExtensionQuestion["metadata"]): Record<string, unknown> {
+  if (m.kind === "confirm") return { type: "boolean" };
+  if (m.kind === "select") return { type: "string", enum: m.options ?? [] };
+  return { type: "string", maxLength: MAX_ANSWER };
 }
 
 const ANSI = /\u001b\[[0-9;?]*[ -/]*[@-~]|\u001b\][^\u0007]*(\u0007|\u001b\\)/g;
@@ -257,16 +349,38 @@ function currentTheme(): unknown {
 
 /**
  * The extension UI for the window. It follows Pi's RPC UI: notices and status lines work; a
- * terminal screen is shown once as text; a question to the advocate is not supported yet and
- * gets its default answer, with a notice that says so (harness-hardening H-11).
+ * terminal screen is shown once as text (harness-hardening H-11). A question (select, confirm,
+ * input, editor) waits in the chat for the advocate's answer (H-12). A question that is
+ * dismissed, cancelled or out of time gets its default answer; a notice says so when time runs out.
  */
 export function extensionUi(host: ExtensionUiHost): ExtensionUIContext {
-  const unsupported = (what: string, title: string) => host.notice(`An extension asked: "${title}". ${what} from an extension is not built yet, so it got the default answer.`);
+  type Opts = { signal?: AbortSignal; timeout?: number };
+  const ask = async (spec: ExtensionQuestion["metadata"] & { title: string }, opts?: Opts): Promise<string | boolean | undefined> => {
+    if (!host.questions) {
+      host.notice(`An extension asked: "${plain(spec.title)}". This window cannot show the question, so it got the default answer.`);
+      return undefined;
+    }
+    const end = await host.questions.ask(spec, opts);
+    if (end.how === "answered") return end.value;
+    if (end.how === "expired") host.notice(`The question "${plain(spec.title)}" ran out of time, so it got the default answer.`);
+    return undefined;
+  };
   const ui = {
-    select: async (title: string) => (unsupported("Choosing an option", title), undefined),
-    confirm: async (title: string) => (unsupported("Confirming", title), false),
-    input: async (title: string) => (unsupported("Typing an answer", title), undefined),
-    editor: async (title: string) => (unsupported("Editing text", title), undefined),
+    select: async (title: string, options: string[], opts?: Opts) => {
+      const choices = (options ?? []).map(String);
+      const v = await ask({ kind: "select", title, options: choices }, opts);
+      // The extension receives its own option string, not the cleaned copy shown in the window.
+      return typeof v === "string" ? choices[choices.map(plain).indexOf(v)] : undefined;
+    },
+    confirm: async (title: string, message: string, opts?: Opts) => (await ask({ kind: "confirm", title, ...(message ? { detail: message } : {}) }, opts)) === true,
+    input: async (title: string, placeholder?: string, opts?: Opts) => {
+      const v = await ask({ kind: "input", title, ...(placeholder ? { placeholder } : {}) }, opts);
+      return typeof v === "string" ? v : undefined;
+    },
+    editor: async (title: string, prefill?: string) => {
+      const v = await ask({ kind: "editor", title, ...(prefill ? { prefill } : {}) });
+      return typeof v === "string" ? v : undefined;
+    },
     notify: (message: string) => host.notice(plain(message)),
     onTerminalInput: () => () => {},
     setStatus: (key: string, text: string | undefined) => host.status(key, text === undefined ? undefined : [plain(text)]),

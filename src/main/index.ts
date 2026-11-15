@@ -293,6 +293,11 @@ function registerBridge(): void {
     return { ...store.policy(), usage: store.usage() };
   });
   handle("chat:stop", (matterId: string) => agent.stop(matterId));
+  handle("chat:answer-question", (matterId: string, questionId: unknown, answer: unknown) => {
+    if (typeof questionId !== "string" || !questionId) throw new Error("BAD_REQUEST: a question id is required");
+    if (answer !== null && typeof answer !== "string" && typeof answer !== "boolean") throw new Error("BAD_REQUEST: the answer is a string, true or false, or null");
+    return agent.answerQuestion(matterId, questionId, answer);
+  });
   handle("contacts:list", () => contacts.list());
   handle("contacts:add", (c: Record<string, unknown>) => contacts.add({ name: String(c?.name ?? ""), kind: String(c?.kind ?? "client"), email: String(c?.email ?? ""), phone: String(c?.phone ?? ""), notes: String(c?.notes ?? "") }));
   handle("contacts:remove", (id: string) => contacts.remove(String(id)));

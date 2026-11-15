@@ -18,11 +18,12 @@ import { Selector } from "@astryxdesign/core/Selector";
 import { Spinner } from "@astryxdesign/core/Spinner";
 import { Text } from "@astryxdesign/core/Text";
 import { ArrowLeftIcon, ChatBubbleLeftRightIcon, PlusCircleIcon, MicrophoneIcon, PaperClipIcon, StopIcon } from "@heroicons/react/24/outline";
-import { CHAT_MESSAGE_EVENT, EXTENSION_STATUS_EVENT } from "../../shared/api.ts";
+import { CHAT_MESSAGE_EVENT, EXTENSION_QUESTIONS_EVENT, EXTENSION_STATUS_EVENT } from "../../shared/api.ts";
 import { AgentChangesCard } from "./AgentChangesCard.tsx";
+import { ExtensionQuestionCard } from "./ExtensionQuestionCard.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { DropdownMenu } from "@astryxdesign/core/DropdownMenu";
-import type { AgentChanges, ChatEvent, ChatMessage as ChatRecord, EffortLevel, EffortState, ModelChoice, Workflow } from "../../shared/api.ts";
+import type { AgentChanges, ChatEvent, ChatMessage as ChatRecord, EffortLevel, EffortState, ExtensionQuestion, ModelChoice, Workflow } from "../../shared/api.ts";
 
 const api = window.openadvo;
 
@@ -246,6 +247,8 @@ export function ChatDock(props: {
   const [model, setModel] = useState<string | null>(null);
   // Decision 21: status lines that Pi extensions set, by key.
   const [extStatus, setExtStatus] = useState<Record<string, string[]>>({});
+  // H-12: questions from Pi extensions that wait for the advocate.
+  const [questions, setQuestions] = useState<ExtensionQuestion[]>([]);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<ChatComposerInputHandle>(null);
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
@@ -257,6 +260,7 @@ export function ChatDock(props: {
     setMessages([]);
     setError(null);
     setChanges([]);
+    setQuestions([]);
     void loadChanges();
     let live = true;
     // H-3: the session may take a model after it opened (sign-in with Pi, or credentials changed).
@@ -271,6 +275,7 @@ export function ChatDock(props: {
         setBusy(s.busy);
         setModel(s.model);
         setExtStatus(s.status ?? {});
+        setQuestions(s.questions ?? []);
       },
       (e: Error) => live && setError(`The agent could not start: ${e.message}`),
     );
@@ -299,6 +304,7 @@ export function ChatDock(props: {
       else if (e.type === "TOOL_CALL_START") add({ id: String(e.toolCallId), role: "tool", text: `Used tool: ${String(e.toolCallName)}` });
       else if (e.type === "CUSTOM" && e.name === CHAT_MESSAGE_EVENT) add(e.value as ChatRecord);
       else if (e.type === "CUSTOM" && e.name === EXTENSION_STATUS_EVENT) setExtStatus((e.value as Record<string, string[]>) ?? {});
+      else if (e.type === "CUSTOM" && e.name === EXTENSION_QUESTIONS_EVENT) setQuestions((e.value as ExtensionQuestion[]) ?? []);
     });
     return () => {
       live = false;
@@ -425,7 +431,7 @@ export function ChatDock(props: {
             />
           }
         >
-          {messages.length > 0 || changes.length > 0 ? (
+          {messages.length > 0 || changes.length > 0 || questions.length > 0 ? (
             <>
           {messages.length > 0 ? (
             <ChatMessageList density="compact" isStreaming={busy}>
@@ -445,6 +451,9 @@ export function ChatDock(props: {
                 await props.onRevisionsChanged();
               }}
             />
+          ))}
+          {questions.map((q) => (
+            <ExtensionQuestionCard key={q.id} matterId={props.matterId} question={q} />
           ))}
             </>
           ) : null}
