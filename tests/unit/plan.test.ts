@@ -18,7 +18,7 @@ test("plan: the agent sets and updates it; the window is told; it is saved; only
     await f.agent.getChat(MATTER);
     let afterUpdate = "";
     f.core.setResponses([
-      fauxAssistantMessage([fauxToolCall("plan_set", { title: "Draft the SLP", items: ["Read the impugned order", "List the dates", "Draft the grounds"] })], { stopReason: "toolUse" }),
+      fauxAssistantMessage([fauxToolCall("plan_set", { title: "Draft the SLP", items: [{ text: "Read the impugned order" }, { text: "List the dates" }, { text: "Draft the grounds" }] })], { stopReason: "toolUse" }),
       fauxAssistantMessage([fauxToolCall("plan_update", { item: 1, status: "done" }), fauxToolCall("plan_update", { item: 2, status: "ongoing" })], { stopReason: "toolUse" }),
       (c) => {
         afterUpdate = last(c);
@@ -29,7 +29,7 @@ test("plan: the agent sets and updates it; the window is told; it is saved; only
     const plan = (await f.agent.getChat(MATTER)).plan;
     assert.equal(plan?.title, "Draft the SLP");
     assert.deepEqual(plan?.items.map((i) => i.status), ["done", "ongoing", "planned"]);
-    assert.match(afterUpdate, /1 of 3 done/);
+    assert.match(afterUpdate, /1\/3 done/);
     assert.ok(f.events.some((e) => (e.event as { name?: string }).name === PLAN_EVENT));
     assert.equal(JSON.parse(readFileSync(path.join(f.chatDir, "plan.json"), "utf8")).items.length, 3, "saved in the chat folder");
     await f.agent.clearPlan(MATTER);
@@ -49,7 +49,7 @@ test("plan: more than 10 items, or an update with no plan, is an error the model
       fauxAssistantMessage([fauxToolCall("plan_update", { item: 1, status: "done" })], { stopReason: "toolUse" }),
       (c) => {
         a = last(c);
-        return fauxAssistantMessage([fauxToolCall("plan_set", { title: "Too long", items: Array.from({ length: 11 }, (_, i) => `step ${i}`) })], { stopReason: "toolUse" });
+        return fauxAssistantMessage([fauxToolCall("plan_set", { title: "Too long", items: Array.from({ length: 11 }, (_, i) => ({ text: `step ${i}` })) })], { stopReason: "toolUse" });
       },
       (c) => {
         b = last(c);

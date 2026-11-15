@@ -69,9 +69,20 @@ export interface FirmHandoff {
 /** The plan (native-harness-parts section 4). */
 export const PLAN_STATUSES = ["planned", "ongoing", "done", "cancelled"] as const;
 export type PlanStatus = (typeof PLAN_STATUSES)[number];
+export interface PlanItem {
+  n: number;
+  text: string;
+  status: PlanStatus;
+  /** Item numbers that must be done before this item starts. */
+  dependsOn: number[];
+  /** At most 3; the item cannot be done while one is open. */
+  subtasks: Array<{ text: string; done: boolean }>;
+  /** Short labels, for example the helper doing it or the draft it changes. */
+  tags: string[];
+}
 export interface Plan {
   title: string;
-  items: Array<{ n: number; text: string; status: PlanStatus }>;
+  items: PlanItem[];
   updatedAt: string;
 }
 /** CUSTOM event whose value is the conversation's plan (Plan or null). */
@@ -92,6 +103,22 @@ export interface ToolPolicyView {
   policy: { default: "allow" | "ask" | "deny"; tools: Record<string, "allow" | "ask" | "deny"> };
   tools: Array<{ name: string; label: string }>;
 }
+
+/** A helper as the window shows it (native-harness-parts section 3). */
+export interface HelperView {
+  id: string;
+  /** From the task, not the type. */
+  name: string;
+  type: string;
+  background: boolean;
+  state: "running" | "done" | "failed" | "stopped" | "interrupted";
+  /** True when its result waits for "Use results" or the advocate's next message. */
+  waiting: boolean;
+  startedAt: string;
+  endedAt?: string;
+}
+/** CUSTOM event whose value is the conversation's helpers (HelperView[]). */
+export const HELPERS_EVENT = "openadvo.helpers";
 
 /** CUSTOM event whose value is the conversation's ContextMeter. */
 export const CONTEXT_EVENT = "openadvo.context";
@@ -144,6 +171,8 @@ export interface ChatState {
   plan?: Plan | null;
   /** The context meter after the last run. */
   context?: ContextMeter;
+  /** The helpers of this conversation since it opened, newest last. */
+  helpers?: HelperView[];
 }
 
 /** One Pi extension (decision 21). */
@@ -292,6 +321,15 @@ export interface OpenAdvoApi {
   /** Settings → Tool permissions: the policy and the agent's tools. */
   getToolPolicy(): Promise<ToolPolicyView>;
   setToolPolicy(policy: ToolPolicyView["policy"]): Promise<ToolPolicyView>;
+  /** The advocate stops or steers one helper, or sends the waiting background results to the agent. */
+  stopHelper(conversationId: string, helperId: string): Promise<void>;
+  steerHelper(conversationId: string, helperId: string, text: string): Promise<void>;
+  useHelperResults(conversationId: string): Promise<void>;
+  /** Settings: how strongly the agent is asked to keep a plan. */
+  getPlanStrength(): Promise<"long" | "most">;
+  setPlanStrength(value: "long" | "most"): Promise<"long" | "most">;
+  /** The matter's runs and helpers with tokens, cache and cost, as CSV text; the window saves it. */
+  costCsv(matterId: string): Promise<string>;
   /** Human-only: clear the conversation's plan. */
   clearPlan(conversationId: string): Promise<void>;
   /** Compact the conversation now (Pi's compaction with the kind's summary form). */

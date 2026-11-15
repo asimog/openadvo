@@ -737,11 +737,24 @@ function writeSetting(key: string, value: unknown): void {
   writeFileSync(settingsFile(), JSON.stringify({ ...readSettings(), [key]: value }, null, 2));
 }
 
+let testModelInstalled = false;
 function exposeTestHooks(): void {
   // Read-only hooks for the Playwright tests. Present only when OPENADVO_TEST=1.
   if (process.env.OPENADVO_TEST !== "1") return;
   (globalThis as Record<string, unknown>).__openadvoTest = {
     agentToolNames: (matterId: string) => agent.toolNames(matterId),
+    // The scripted test model (src/main/test-model.ts): installed on first use, then chosen.
+    setModelScript: async (script: unknown) => {
+      const tm = await import("./test-model.ts");
+      if (!testModelInstalled) {
+        tm.installTestModel(await agent.runtimeForTests());
+        testModelInstalled = true;
+      }
+      tm.setModelScript(script as never);
+      await agent.setModel(tm.TEST_MODEL_KEY);
+    },
+    releaseModel: async (name: string) => (await import("./test-model.ts")).releaseModel(name),
+    modelSeen: async () => (await import("./test-model.ts")).seen,
     // O10: run one tool of a session through its own code, as the model would (no model in tests).
     callAgentTool: (matterId: string, name: string, params: Record<string, unknown>) => agent.callToolForTest(matterId, name, params),
     agentSessionId: (matterId: string) => agent.sessionId(matterId),
@@ -944,6 +957,7 @@ app.whenReady().then(() => {
         return typeof v === "string" && v ? v : null;
       },
       saveEffort: (level) => writeSetting("effort", level),
+      planStrength: () => (readSettings().planStrength === "most" ? "most" : "long"),
       chatDir: async (id) => {
         if (id !== FIRM_AGENT_ID) return matters.chatDir(id);
         const dir = firmAgentDir();

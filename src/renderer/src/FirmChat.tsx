@@ -7,7 +7,7 @@ import { Spinner } from "@astryxdesign/core/Spinner";
 import { Text } from "@astryxdesign/core/Text";
 import { BuildingLibraryIcon, PlusCircleIcon } from "@heroicons/react/24/outline";
 import { CHAT_MESSAGE_EVENT, EXTENSION_QUESTIONS_EVENT, FIRM_AGENT_ID, FIRM_HANDOFFS_EVENT, PLAN_EVENT } from "../../shared/api.ts";
-import { PlanCard } from "./PlanCard.tsx";
+import { PlanPanel, StatusLine } from "./PlanCard.tsx";
 import type { ChatEvent, ChatMessage as ChatRecord, ExtensionQuestion, FirmHandoff, Plan } from "../../shared/api.ts";
 import { Message } from "./ChatDock.tsx";
 import { ExtensionQuestionCard } from "./ExtensionQuestionCard.tsx";
@@ -97,7 +97,8 @@ export function FirmChat(props: { onOpenMatter: (matterId: string, carry: Carry)
         Ask about the whole firm: what is pending, which hearings come next, which deadlines are near, which workflow fits. It reads each matter's stage, hearings, deadlines and open items, and your workflows. It does not read a matter's documents. It proposes; you decide. Not yet available to it: the Knowledge Library and advocate memory.
       </Text>
       {error ? <div className="notice">{error}</div> : null}
-      {plan ? <PlanCard conversationId={FIRM_AGENT_ID} plan={plan} /> : null}
+      <StatusLine conversationId={FIRM_AGENT_ID} plan={plan} helpers={[]} meter={null} busy={busy} onCompact={async () => undefined} />
+      {plan ? <PlanPanel conversationId={FIRM_AGENT_ID} plan={plan} /> : null}
       {messages.length > 0 ? (
         <div className="firm-log" data-testid="firm-log">
           <ChatMessageList density="compact" isStreaming={busy}>

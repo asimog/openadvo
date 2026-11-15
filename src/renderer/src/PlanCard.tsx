@@ -1,35 +1,91 @@
+import { useState } from "react";
+import { Badge } from "@astryxdesign/core/Badge";
 import { Button } from "@astryxdesign/core/Button";
+import { Collapsible } from "@astryxdesign/core/Collapsible";
+import { DropdownMenu } from "@astryxdesign/core/DropdownMenu";
+import { List, ListItem } from "@astryxdesign/core/List";
+import { ProgressBar } from "@astryxdesign/core/ProgressBar";
+import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
-import type { ContextMeter, Plan } from "../../shared/api.ts";
+import type { ContextMeter, HelperView, Plan, PlanItem } from "../../shared/api.ts";
 
 const api = window.openadvo;
 
-const STATUS_LABEL: Record<Plan["items"][number]["status"], string> = {
-  planned: "Planned",
-  ongoing: "Working",
-  done: "Done",
-  cancelled: "Cancelled",
+const STATUS: Record<PlanItem["status"], { label: string; dot: "neutral" | "accent" | "success" | "warning" }> = {
+  planned: { label: "Planned", dot: "neutral" },
+  ongoing: { label: "Working", dot: "accent" },
+  done: { label: "Done", dot: "success" },
+  cancelled: { label: "Cancelled", dot: "warning" },
 };
 
-/** The agent's plan for long work (native-harness-parts section 4). Only the advocate clears it. */
-export function PlanCard(props: { conversationId: string; plan: Plan }) {
+function counts(plan: Plan) {
+  const counted = plan.items.filter((i) => i.status !== "cancelled");
+  return { done: counted.filter((i) => i.status === "done").length, total: counted.length };
+}
+
+/**
+ * The plan panel (native-harness-parts section 4; owner: "checklist must have some ui"): a
+ * compact checklist above the chat log, from Astryx components. It folds to the status line.
+ * Clear plan is human-only (decision 5).
+ */
+export function PlanPanel(props: { conversationId: string; plan: Plan }) {
   const { plan } = props;
-  const done = plan.items.filter((i) => i.status === "done").length;
-  const counted = plan.items.filter((i) => i.status !== "cancelled").length;
+  const [open, setOpen] = useState(true);
+  const { done, total } = counts(plan);
   return (
-    <section className="question-card plan-card" aria-label={`Plan: ${plan.title}`} data-testid="plan-card">
-      <Text type="supporting">The agent's plan · {done} of {counted} done</Text>
-      <Text weight="semibold">{plan.title}</Text>
-      <ol className="plan-items">
-        {plan.items.map((i) => (
-          <li key={i.n} data-status={i.status}>
-            <span className={`plan-status plan-${i.status}`}>{STATUS_LABEL[i.status]}</span> {i.text}
-          </li>
-        ))}
-      </ol>
-      <div className="question-options">
-        <Button label="Clear plan" size="sm" variant="ghost" clickAction={() => api.clearPlan(props.conversationId)} />
-      </div>
+    <section className="plan-panel" aria-label={`Plan: ${plan.title}`} data-testid="plan-panel">
+      <Collapsible
+        isOpen={open}
+        onOpenChange={setOpen}
+        trigger={
+          <span className="plan-trigger">
+            <Text weight="semibold">{plan.title}</Text> <Text type="supporting">{done} of {total} done</Text>
+          </span>
+        }
+      >
+        <ProgressBar label={`Plan progress: ${done} of ${total} done`} value={done} max={Math.max(total, 1)} />
+        <List density="compact">
+          {plan.items.map((i) => {
+            const blocked = (i.status === "planned" && i.dependsOn.some((d) => plan.items.find((x) => x.n === d)?.status !== "done")) || false;
+            return (
+              <ListItem
+                key={i.n}
+                data-testid={`plan-item-${i.n}`}
+                data-status={i.status}
+                startContent={<StatusDot variant={blocked ? "warning" : STATUS[i.status].dot} label={blocked ? "Waiting" : STATUS[i.status].label} />}
+                label={
+                  <span className={i.status === "cancelled" ? "plan-cancelled" : undefined}>
+                    {i.n}. {i.text}
+                  </span>
+                }
+                description={
+                  i.dependsOn.length || i.subtasks.length ? (
+                    <span>
+                      {i.dependsOn.length ? `After ${i.dependsOn.join(", ")}. ` : ""}
+                      {i.subtasks.map((s, k) => (
+                        <span key={k} className="plan-subtask" data-done={s.done}>
+                          {s.done ? "☑" : "☐"} {s.text}{" "}
+                        </span>
+                      ))}
+                    </span>
+                  ) : undefined
+                }
+                endContent={
+                  <span className="plan-tags">
+                    <Text type="supporting">{blocked ? "Waiting" : STATUS[i.status].label}</Text>
+                    {i.tags.map((t) => (
+                      <Badge key={t} label={t} />
+                    ))}
+                  </span>
+                }
+              />
+            );
+          })}
+        </List>
+        <div className="question-options">
+          <Button label="Clear plan" size="sm" variant="ghost" clickAction={() => api.clearPlan(props.conversationId)} />
+        </div>
+      </Collapsible>
     </section>
   );
 }
@@ -38,16 +94,58 @@ function k(n: number): string {
   return n >= 1000 ? `${Math.round(n / 100) / 10}k` : String(n);
 }
 
-/** The context meter and Compact now (native-harness-parts section 5). */
-export function ContextMeterView(props: { meter: ContextMeter | null; busy: boolean; onCompact: () => Promise<void> }) {
+/**
+ * The pinned status line (native-parts prompt, section 1): plan progress, running helpers and
+ * context use, as text. Its controls are where the advocate acts: Compact now, and Stop or Steer
+ * for a running helper.
+ */
+export function StatusLine(props: { conversationId: string; plan: Plan | null; helpers: HelperView[]; meter: ContextMeter | null; busy: boolean; onCompact: () => Promise<void> }) {
+  const [steering, setSteering] = useState<HelperView | null>(null);
+  const [instruction, setInstruction] = useState("");
+  const parts: string[] = [];
+  if (props.plan) {
+    const { done, total } = counts(props.plan);
+    parts.push(`Plan ${done}/${total}`);
+  }
+  const running = props.helpers.filter((h) => h.state === "running");
+  if (running.length) parts.push(`${running.length} helper${running.length === 1 ? "" : "s"} running`);
+  const waiting = props.helpers.filter((h) => h.waiting).length;
+  if (waiting) parts.push(`${waiting} result${waiting === 1 ? "" : "s"} waiting`);
   const m = props.meter;
-  if (!m || !m.window) return null;
-  const used = m.tokens === null ? "not known until the next answer" : `${k(m.tokens)} of ${k(m.window)}${m.percent === null ? "" : ` (${Math.round(m.percent)} %)`}`;
-  const cache = m.cacheRead + m.cacheWrite > 0 ? `Last run: ${k(m.cacheRead)} tokens read from the cache, ${k(m.cacheWrite)} written to it.` : "Last run: no cache use reported.";
+  if (m && m.window) parts.push(m.tokens === null ? `Context ? of ${k(m.window)}` : `Context ${k(m.tokens)} of ${k(m.window)}${m.percent === null ? "" : ` (${Math.round(m.percent)}%)`}`);
+  if (!parts.length) return null;
+  const cache = m && m.cacheRead + m.cacheWrite > 0 ? `Last run: ${k(m.cacheRead)} tokens read from the cache, ${k(m.cacheWrite)} written to it.` : undefined;
   return (
-    <div className="dock-meter" data-testid="context-meter" title={cache}>
-      <Text type="supporting">Context {used}</Text>
-      <Button label="Compact now" size="sm" variant="ghost" isDisabled={props.busy} clickAction={props.onCompact} />
+    <div className="status-line" data-testid="status-line" title={cache}>
+      <Text type="supporting">{parts.join(" · ")}</Text>
+      {running.length ? (
+        <DropdownMenu
+          button={{ label: "Helpers", variant: "ghost", size: "sm", children: "Helpers" }}
+          menuWidth={300}
+          items={running.flatMap((h) => [
+            { label: `Stop ${h.name}`, onClick: () => void api.stopHelper(props.conversationId, h.id) },
+            { label: `Steer ${h.name}…`, onClick: () => setSteering(h) },
+          ])}
+        />
+      ) : null}
+      {waiting ? <Button label="Use results" size="sm" variant="secondary" isDisabled={props.busy} clickAction={() => api.useHelperResults(props.conversationId)} /> : null}
+      {m && m.window ? <Button label="Compact now" size="sm" variant="ghost" isDisabled={props.busy} clickAction={props.onCompact} /> : null}
+      {steering ? (
+        <span className="steer-form">
+          <input className="text-input" aria-label={`Instruction for ${steering.name}`} value={instruction} onChange={(e) => setInstruction(e.target.value)} />
+          <Button
+            label="Send to helper"
+            size="sm"
+            isDisabled={!instruction.trim()}
+            clickAction={async () => {
+              await api.steerHelper(props.conversationId, steering.id, instruction.trim());
+              setSteering(null);
+              setInstruction("");
+            }}
+          />
+          <Button label="Cancel" size="sm" variant="ghost" clickAction={() => setSteering(null)} />
+        </span>
+      ) : null}
     </div>
   );
 }

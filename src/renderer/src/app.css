@@ -122,6 +122,12 @@ button.link { background: none; border: 0; padding: 0; color: var(--color-text-a
 .plan-cancelled { text-decoration: line-through; opacity: 0.7; }
 .plan-items li[data-status="cancelled"] { opacity: 0.7; }
 .dock-meter { display: flex; align-items: center; gap: 8px; padding: 0 8px; }
+.status-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 2px 8px; }
+.steer-form { display: flex; gap: 6px; align-items: center; }
+.plan-panel { margin: 4px 8px; padding: 6px 8px; border: 1px solid var(--color-border, #d0d0d0); border-radius: 8px; max-height: 40vh; overflow-y: auto; }
+.plan-trigger { display: inline-flex; gap: 8px; align-items: baseline; }
+.plan-tags { display: inline-flex; gap: 4px; align-items: center; }
+.plan-subtask[data-done="true"] { opacity: 0.7; }
 /* O10: the Firm Agent on Home. */
 .firm-chat { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--color-border, #d0d0d0); border-radius: 10px; }
 .firm-head { display: flex; align-items: center; gap: 8px; }
