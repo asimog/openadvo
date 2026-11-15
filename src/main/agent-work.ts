@@ -12,7 +12,8 @@ import { searchCitationIndex, type UlosPaths } from "../lib/ulos/index.ts";
 
 export function agentWorkHost(deps: { matters: Matters; research: Research; drafts: Drafts; portal: Portal; ulos: UlosPaths }): AgentWorkHost {
   const { matters, research, drafts, portal } = deps;
-  const agent = { actor: "agent" as const };
+  /** Defect B1-4: every write records the session id, and a helper's call its own actor id. */
+  const agent = (sessionId: string) => ({ actor: "agent" as const, sessionId });
   return {
     async research(matterId) {
       const s = await research.state(matterId);
@@ -34,16 +35,16 @@ export function agentWorkHost(deps: { matters: Matters; research: Research; draf
       if (hits.length === 0) return `No entry of the citation index matches "${query}". Finding aid only: not verification.`;
       return ["Finding aid only: not verification.", ...hits.map((h) => `- ${h.citation}: ${h.parties}, decided ${h.date}${h.caseNumber ? `, ${h.caseNumber}` : ""}`)].join("\n");
     },
-    async proposeIssue(matterId, text) {
-      const i = await research.addIssue(matterId, text, agent);
+    async proposeIssue(matterId, text, actor) {
+      const i = await research.addIssue(matterId, text, agent(actor));
       return `Recorded as a candidate issue [issue:${i.id}]. The advocate decides it at the case conference.`;
     },
-    async addAuthority(matterId, input) {
-      const a = await research.addAuthority(matterId, input, agent);
+    async addAuthority(matterId, input, actor) {
+      const a = await research.addAuthority(matterId, input, agent(actor));
       return `Recorded as a candidate authority [authority:${a.id}] (${a.role}). The advocate adopts or rejects it. It is not verified until the validator says so.`;
     },
-    async writeMemorandum(matterId, input) {
-      const m = await research.writeMemorandum(matterId, input, agent);
+    async writeMemorandum(matterId, input, actor) {
+      const m = await research.writeMemorandum(matterId, input, agent(actor));
       return `Memorandum stored: ${m.title}. ${m.refs.length} reference(s) resolved${m.unresolved.length ? `; unresolved: ${m.unresolved.join(", ")}` : ""}.`;
     },
     async proposeParagraph(matterId, input, sessionId) {

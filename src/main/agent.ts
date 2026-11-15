@@ -15,12 +15,14 @@ import {
   createExtensionRuntime,
   type ExtensionUIContext,
   defineTool,
+  truncateHead,
   type AgentSession,
+  type InlineExtension,
   type ResourceLoader,
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { AnchorRecord, PageRecord, SourceRecord, Notebook, NotebookEvent } from "../lib/matter-store/index.ts";
 import { EventType, type AGUIEvent } from "@ag-ui/core";
@@ -29,9 +31,10 @@ import type { ChatEvent, ChatMessage, ChatState, EffortLevel, EffortState, Model
 
 type ThinkingLevel = EffortLevel;
 const EFFORT_LEVELS: readonly EffortLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
-import type { Api, Model } from "@earendil-works/pi-ai";
+import { StringEnum, type Api, type Model } from "@earendil-works/pi-ai";
 import type { DraftCheck, DraftKind, ParagraphSource, RevisionRecord } from "../shared/records.ts";
 import { BUILTIN_TOOL_NAMES, ExtensionQuestions, extensionUi, type PiExtensions } from "./pi-extensions.ts";
+import { CONTEXT_STRATEGY, contextExtension } from "./agent-context.ts";
 
 /** One correction the agent proposed in a run, as the AG-UI interrupt reports it. */
 export interface ProposedCorrection {
@@ -174,9 +177,9 @@ export interface AgentHost {
 export interface AgentWorkHost {
   research(matterId: string): Promise<string>;
   searchCitationIndex(query: string): Promise<string>;
-  proposeIssue(matterId: string, text: string): Promise<string>;
-  addAuthority(matterId: string, input: { citation: string; parties: string; decisionDate: string; paragraph: string; proposition: string; role: "supporting" | "adverse" | "distinguishable" | "other"; issueId: string | null }): Promise<string>;
-  writeMemorandum(matterId: string, input: { title: string; issueId: string | null; body: string }): Promise<string>;
+  proposeIssue(matterId: string, text: string, actor: string): Promise<string>;
+  addAuthority(matterId: string, input: { citation: string; parties: string; decisionDate: string; paragraph: string; proposition: string; role: "supporting" | "adverse" | "distinguishable" | "other"; issueId: string | null }, actor: string): Promise<string>;
+  writeMemorandum(matterId: string, input: { title: string; issueId: string | null; body: string }, actor: string): Promise<string>;
   proposeParagraph(matterId: string, input: { kind: "questions_of_law" | "grounds"; after: string | null; text: string; reason: string }, sessionId: string): Promise<{ text: string; proposal: ProposedCorrection }>;
   checkCitations(matterId: string, kind: DraftKind | null): Promise<string>;
   portal(matterId: string, action: string, args: Record<string, string>): Promise<string>;
@@ -200,6 +203,8 @@ export interface AgentOptions {
   extensions?: PiExtensions;
   /** "provider/model" from OPENADVO_MODEL. It wins over the saved choice. */
   model?: string;
+  /** Extensions given in code (tests; the application's own parts). Loaded after the others. */
+  inlineExtensions?: InlineExtension[];
 }
 
 function systemPrompt(title: string): string {
@@ -226,6 +231,8 @@ function systemPrompt(title: string): string {
 
 /** V1-1: the window's messages of the current conversation, in the matter's chat folder. */
 export const MESSAGES_FILE = "messages.json";
+/** The run trace of a matter (docs/specs/agent-framework.md section 5): one JSON line per event. */
+export const TRACE_FILE = "trace.jsonl";
 
 export async function loadMessages(dir: string): Promise<ChatMessage[]> {
   try {
@@ -373,6 +380,16 @@ function resourceLoader(title: string): ResourceLoader {
   };
 }
 
+/** One run: from Pi's agent_start to agent_settled (docs/specs/agent-framework.md section 5). */
+interface Run {
+  id: string;
+  usage: { input: number; output: number; totalTokens: number; cost: number };
+  current: ChatMessage | null;
+  failure: string | null;
+  done: Promise<void>;
+  finish: () => void;
+}
+
 interface MatterChat {
   session: AgentSession;
   state: ChatState;
@@ -380,8 +397,64 @@ interface MatterChat {
   proposals: ProposedCorrection[];
   /** V5-22: the advocate stopped the current run. */
   stopped?: boolean;
+  /** Helper agents stopped with the run (Stop, defect B1-2). */
+  helpersStopped: number;
   /** H-12: the open questions of the session's Pi extensions. */
   questions: ExtensionQuestions;
+  /** H-25: the run in progress, seen by the one listener of the session. */
+  run: Run | null;
+  /** Detach the session's listener. */
+  unlisten: () => void;
+  /** The matter's chat folder: messages.json, the Pi session files, trace.jsonl. */
+  chatDir: string;
+}
+
+/**
+ * A string choice as Pi's extension guide asks (StringEnum: a plain enum every provider accepts),
+ * typed for TypeBox's Type.Object.
+ */
+function choice<const T extends readonly string[]>(values: T) {
+  return Type.Unsafe<T[number]>(StringEnum(values) as never);
+}
+
+/** Reading tools: no change to any store (A4: annotations.readOnlyHint). */
+const READ_ONLY_TOOLS = new Set([
+  "list_sources", "read_source_text", "search_sources", "list_events", "get_chronology", "read_draft",
+  "get_paragraph_source", "list_arguments", "list_research", "list_record_table", "read_matter_memory", "search_citation_index",
+]);
+/** Tools that write a draft or a record: one at a time (A4: executionMode "sequential"). */
+const SEQUENTIAL_TOOLS = new Set([
+  "propose_correction", "propose_paragraph", "fill_record_cell", "propose_issue", "add_authority", "write_memorandum",
+  "save_judgment", "save_provision", "assess_authority", "record_treatment", "propose_memory_note",
+]);
+
+/**
+ * The actor id of a write: the session id, and for a call made by another tool (a helper's
+ * call or a codemode script's call, id "<parent call id>/<n>") the parent call id after a slash.
+ */
+export function actorId(sessionId: string, toolCallId: string): string {
+  const i = toolCallId.lastIndexOf("/");
+  return i < 0 ? sessionId : `${sessionId}/${toolCallId.slice(0, i)}`;
+}
+
+/** Cut a long text at Pi's limits (2000 lines or 50 KB) and say how to read the rest. */
+export function boundText(text: string): string {
+  const t = truncateHead(text);
+  if (!t.truncated) return text;
+  return `${t.content}
+
+[Output cut at ${t.outputLines} of ${t.totalLines} lines. Ask for less: a narrower range, a filter, a page range or a search.]`;
+}
+
+/** A promise that settles with "stopped" when the signal aborts, so Stop never waits on a tool. */
+function untilAborted<T>(signal: AbortSignal | undefined, work: Promise<T>): Promise<T> {
+  if (!signal) return work;
+  if (signal.aborted) return Promise.reject(new Error("Stopped by the advocate."));
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new Error("Stopped by the advocate."));
+    signal.addEventListener("abort", onAbort, { once: true });
+    work.then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
+  });
 }
 
 export class Agent {
@@ -580,6 +653,7 @@ export class Agent {
       if (chat?.state.busy) throw new Error("CHAT_BUSY: wait for the agent's answer first");
       if (chat) {
         chat.questions.cancelAll();
+        chat.unlisten();
         await closeSession(chat.session, "new");
       }
       this.chats.delete(matterId);
@@ -659,8 +733,8 @@ export class Agent {
       label: "List Notebook events",
       description: "List the Notebook's dated events with every field: date, date type, kind, status, reading, conflicts and source line.",
       parameters: Type.Object({
-        kind: Type.Optional(Type.Union([Type.Literal("procedural"), Type.Literal("factual")])),
-        status: Type.Optional(Type.Union([Type.Literal("candidate"), Type.Literal("confirmed"), Type.Literal("rejected")])),
+        kind: Type.Optional(choice(["procedural", "factual"])),
+        status: Type.Optional(choice(["candidate", "confirmed", "rejected"])),
         from_date: Type.Optional(Type.String({ description: "YYYY-MM-DD" })),
         to_date: Type.Optional(Type.String({ description: "YYYY-MM-DD" })),
         limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 300 })),
@@ -691,7 +765,7 @@ export class Agent {
       label: "Read draft",
       description: "Read the live text of the latest revision of the List of Dates and the Synopsis, paragraph by paragraph, with the anchor of each paragraph.",
       parameters: Type.Object({
-        kind: Type.Optional(Type.Union([Type.Literal("list_of_dates"), Type.Literal("synopsis"), Type.Literal("questions_of_law"), Type.Literal("grounds"), Type.Literal("petition"), Type.Literal("conference")])),
+        kind: Type.Optional(choice(["list_of_dates", "synopsis", "questions_of_law", "grounds", "petition", "conference"])),
       }),
       execute: async (_id, params) => {
         const drafts = await host.drafts(matterId, params.kind);
@@ -715,20 +789,20 @@ export class Agent {
       },
     });
     const draftOfKind = async (kind: DraftKind) => (await host.drafts(matterId, kind))[0];
-    const draftKind = Type.Union([Type.Literal("list_of_dates"), Type.Literal("synopsis"), Type.Literal("questions_of_law"), Type.Literal("grounds"), Type.Literal("petition"), Type.Literal("conference")]);
+    const draftKind = choice(["list_of_dates", "synopsis", "questions_of_law", "grounds", "petition", "conference"]);
     const text = (t: string) => ({ content: [{ type: "text" as const, text: t }], details: {} });
     const work = host.work;
-    const studio = (tool: string) => async (_id: string, params: Record<string, unknown>) => {
-      const chat = await this.chats.get(matterId);
-      return text(await host.studio(matterId, tool, params, chat?.session.sessionId ?? ""));
-    };
+    /** The actor id of a write by this call (defect B1-4). */
+    const actor = async (callId: string) => actorId((await this.chats.get(matterId))?.session.sessionId ?? "", callId);
+    // A failed Studio call throws, so Pi reports it as an error (A4).
+    const studio = (tool: string) => async (id: string, params: Record<string, unknown>) => text(await host.studio(matterId, tool, params, await actor(id)));
     const v4Tools = [
       defineTool({
         name: "search_judgments",
         label: "Search judgments",
         description: "Search the local index of Supreme Court or High Court judgments (AWS Open Data metadata: title, parties, judge, citation, INSC number, CNR, date, disposal). It holds no judgment text, so search by party, citation or CNR; to search by subject use web_search, which links results that name an indexed neutral citation to the court copy.",
         parameters: Type.Object({
-          court: Type.Union([Type.Literal("sc"), Type.Literal("hc")]),
+          court: choice(["sc", "hc"]),
           query: Type.String({ description: "Party names, a citation such as 2023 INSC 1043, a CNR, a judge, or words of the title." }),
           from_year: Type.Optional(Type.Integer()),
           to_year: Type.Optional(Type.Integer()),
@@ -778,7 +852,7 @@ export class Agent {
           ref: Type.String(),
           paragraph: Type.Optional(Type.String()),
           proposition: Type.Optional(Type.String()),
-          role: Type.Union([Type.Literal("supporting"), Type.Literal("adverse"), Type.Literal("distinguishable"), Type.Literal("other")]),
+          role: choice(["supporting", "adverse", "distinguishable", "other"]),
           issue_id: Type.Optional(Type.String()),
         }),
         execute: studio("save_judgment"),
@@ -826,7 +900,7 @@ export class Agent {
         description: "Propose, as a candidate for the advocate, the support an authority gives (supports, partially_supports, does_not_support, contrary, cannot_assess) or the voice of the passage relied on (holding, obiter, counsel_submission, lower_court_view, dissent, concurrence, unknown), with the basis.",
         parameters: Type.Object({
           authority_id: Type.String(),
-          field: Type.Union([Type.Literal("support"), Type.Literal("voice")]),
+          field: choice(["support", "voice"]),
           value: Type.String(),
           basis: Type.String({ description: "Where in the judgment: the paragraph and why." }),
         }),
@@ -838,7 +912,7 @@ export class Agent {
         description: "Record that a later judgment overruled, doubted, distinguished, followed or referred an authority to a larger bench, with both judgments' dates and bench strengths when known. Overruled opens a review item that blocks the grounds until the advocate addresses it.",
         parameters: Type.Object({
           authority_id: Type.String(),
-          kind: Type.Union([Type.Literal("overruled"), Type.Literal("doubted"), Type.Literal("distinguished"), Type.Literal("followed"), Type.Literal("referred_to_larger_bench")]),
+          kind: choice(["overruled", "doubted", "distinguished", "followed", "referred_to_larger_bench"]),
           by_citation: Type.String(),
           by_date: Type.Optional(Type.String({ description: "YYYY-MM-DD" })),
           by_bench: Type.Optional(Type.Integer({ minimum: 1 })),
@@ -866,8 +940,7 @@ export class Agent {
           reason: Type.String({ description: "Why this belongs in memory: where the advocate said it." }),
         }),
         execute: async (_id, params) => {
-          const chat = await this.chats.get(matterId);
-          const id = await host.proposeMemory(matterId, params.text, params.reason, chat?.session.sessionId ?? "");
+          const id = await host.proposeMemory(matterId, params.text, params.reason, await actor(_id));
           return text(`Proposed (${id}). It waits for the advocate on the Matter tab; it is not in memory until accepted.`);
         },
       }),
@@ -901,8 +974,7 @@ export class Agent {
           line: Type.Integer({ minimum: 1 }),
         }),
         execute: async (_id, p) => {
-          const chat = await this.chats.get(matterId);
-          return text(await host.fillRecordCell(matterId, p, chat?.session.sessionId ?? ""));
+          return text(await host.fillRecordCell(matterId, p, await actor(_id)));
         },
       }),
     ];
@@ -926,7 +998,7 @@ export class Agent {
         label: "Propose issue",
         description: "Record a legal issue as a candidate for the case conference.",
         parameters: Type.Object({ text: Type.String() }),
-        execute: async (_id, p) => text(await work.proposeIssue(matterId, p.text)),
+        execute: async (_id, p) => text(await work.proposeIssue(matterId, p.text, await actor(_id))),
       }),
       defineTool({
         name: "add_authority",
@@ -938,32 +1010,32 @@ export class Agent {
           decision_date: Type.Optional(Type.String({ description: "YYYY-MM-DD" })),
           paragraph: Type.Optional(Type.String()),
           proposition: Type.Optional(Type.String()),
-          role: Type.Union([Type.Literal("supporting"), Type.Literal("adverse"), Type.Literal("distinguishable"), Type.Literal("other")]),
+          role: choice(["supporting", "adverse", "distinguishable", "other"]),
           issue_id: Type.Optional(Type.String()),
         }),
         execute: async (_id, p) =>
-          text(await work.addAuthority(matterId, { citation: p.citation, parties: p.parties ?? "", decisionDate: p.decision_date ?? "", paragraph: p.paragraph ?? "", proposition: p.proposition ?? "", role: p.role, issueId: p.issue_id ?? null })),
+          text(await work.addAuthority(matterId, { citation: p.citation, parties: p.parties ?? "", decisionDate: p.decision_date ?? "", paragraph: p.paragraph ?? "", proposition: p.proposition ?? "", role: p.role, issueId: p.issue_id ?? null }, await actor(_id))),
       }),
       defineTool({
         name: "write_memorandum",
         label: "Write memorandum",
         description: "Store a legal memorandum. Every reference must resolve in the matter; unresolved references are shown as such, and a memorandum with none is refused.",
         parameters: Type.Object({ title: Type.String(), issue_id: Type.Optional(Type.String()), body: Type.String() }),
-        execute: async (_id, p) => text(await work.writeMemorandum(matterId, { title: p.title, issueId: p.issue_id ?? null, body: p.body })),
+        execute: async (_id, p) => text(await work.writeMemorandum(matterId, { title: p.title, issueId: p.issue_id ?? null, body: p.body }, await actor(_id))),
       }),
       defineTool({
         name: "propose_paragraph",
         label: "Propose paragraph",
         description: "Add one new Question of Law or Ground as a tracked insertion, after the paragraph with anchor `after` or at the end. The advocate keeps or undoes it.",
         parameters: Type.Object({
-          draft: Type.Union([Type.Literal("questions_of_law"), Type.Literal("grounds")]),
+          draft: choice(["questions_of_law", "grounds"]),
           after: Type.Optional(Type.String({ description: "Anchor of the paragraph to insert after." })),
           text: Type.String(),
           reason: Type.String(),
         }),
         execute: async (_id, p) => {
           const chat = await this.chats.get(matterId);
-          const r = await work.proposeParagraph(matterId, { kind: p.draft, after: p.after ?? null, text: p.text, reason: p.reason }, chat?.session.sessionId ?? "");
+          const r = await work.proposeParagraph(matterId, { kind: p.draft, after: p.after ?? null, text: p.text, reason: p.reason }, await actor(_id));
           chat?.proposals.push(r.proposal);
           return text(r.text);
         },
@@ -1030,7 +1102,7 @@ export class Agent {
         const result = await host.proposeCorrection(
           matterId,
           { draftId: draft.draftId, anchor: params.anchor, expected: params.expected_text, replacement: params.new_text, reason: params.reason },
-          chat?.session.sessionId ?? "",
+          await actor(_id),
         );
         chat?.proposals.push({
           draftId: draft.draftId,
@@ -1047,26 +1119,42 @@ export class Agent {
         return { content: [{ type: "text", text }], details: { proposed: true } };
       },
     });
+    /**
+     * The tool rules of Pi's extension guide (A4; spec section 6): read-only and sequential
+     * hints, Stop ends a call at once, and long text results are cut with a hint.
+     */
+    const harden = <T extends { name: string; execute: (...a: never[]) => Promise<{ content: Array<{ type: string; text?: string }> }> }>(tool: T): T => {
+      const execute = tool.execute as unknown as (id: string, params: unknown, signal: AbortSignal | undefined, ...rest: unknown[]) => Promise<{ content: Array<{ type: string; text?: string }> }>;
+      return {
+        ...tool,
+        ...(READ_ONLY_TOOLS.has(tool.name) ? { annotations: { readOnlyHint: true } } : {}),
+        ...(SEQUENTIAL_TOOLS.has(tool.name) ? { executionMode: "sequential" } : {}),
+        execute: async (id: string, params: unknown, signal: AbortSignal | undefined, ...rest: unknown[]) => {
+          const result = await untilAborted(signal, execute(id, params, signal, ...rest));
+          return { ...result, content: result.content.map((c) => (c.type === "text" && typeof c.text === "string" ? { ...c, text: boundText(c.text) } : c)) };
+        },
+      } as T;
+    };
     const runtime = await this.modelRuntime();
     const model = await this.model();
     // Decision 21: the advocate's Pi extensions load in every session.
     const ext = this.options.extensions;
     const settingsManager = ext ? ext.settings() : SettingsManager.inMemory();
-    // H-2: compaction on (Pi's default), so a long conversation never stops every run.
-    settingsManager.applyOverrides({ compaction: { enabled: true } });
+    // H-2: compaction on, with the Matter Agent's strategy (docs/specs/agent-framework.md section 7).
+    settingsManager.applyOverrides({ compaction: { enabled: true, keepRecentTokens: CONTEXT_STRATEGY.matter.keepRecentTokens } });
     const { session } = await createAgentSession({
       cwd: this.options.agentDir,
       agentDir: this.options.agentDir,
       modelRuntime: runtime,
       model,
       thinkingLevel: this.effort(),
-      resourceLoader: ext ? await ext.loader({ systemPrompt: systemPrompt(title) }) : resourceLoader(title),
+      resourceLoader: ext ? await ext.loader({ systemPrompt: systemPrompt(title), extraFactories: [contextExtension("matter"), ...(this.options.inlineExtensions ?? [])] }) : resourceLoader(title),
       settingsManager,
       sessionManager: fresh ? SessionManager.create(this.options.agentDir, sessionDir) : SessionManager.continueRecent(this.options.agentDir, sessionDir),
       // Decision 2: Pi's built-in file and shell tools are off; our tools and extension tools are on.
       noTools: "builtin",
       excludeTools: [...BUILTIN_TOOL_NAMES],
-      customTools: [listSources, readSourceText, searchSources, listEvents, getChronology, readDraft, getParagraphSource, checkDraftTool, proposeCorrection, ...workTools, ...v1Tools, ...v4Tools, ...v5Tools],
+      customTools: [listSources, readSourceText, searchSources, listEvents, getChronology, readDraft, getParagraphSource, checkDraftTool, proposeCorrection, ...workTools, ...v1Tools, ...v4Tools, ...v5Tools].map(harden),
     });
     const active = session.getActiveToolNames();
     const builtins = active.filter((t) => (BUILTIN_TOOL_NAMES as readonly string[]).includes(t));
@@ -1110,7 +1198,9 @@ export class Agent {
         text: NO_MODEL,
       });
     }
-    return { session, state, proposals: [], questions };
+    const chat: MatterChat = { session, state, proposals: [], questions, helpersStopped: 0, run: null, unlisten: () => undefined, chatDir };
+    chat.unlisten = this.listen(matterId, chat);
+    return chat;
   }
 
   /** H-12: the advocate answers a question of a Pi extension. null dismisses it (the default answer). */
@@ -1143,12 +1233,7 @@ export class Agent {
     if (!clean) return;
     const chat = await this.chat(matterId);
     const { session, state } = chat;
-    const emit = (event: Record<string, unknown>) => this.host.emit({ matterId, event: { timestamp: Date.now(), ...event } as unknown as AGUIEvent });
-    /** A message of the application itself (the advocate's text, a notice): stored, and sent as a CUSTOM event. */
-    const push = (message: ChatMessage) => {
-      state.messages.push(message);
-      emit({ type: EventType.CUSTOM, name: CHAT_MESSAGE_EVENT, value: message });
-    };
+    const push = (message: ChatMessage) => this.push(matterId, chat, message);
     push({ id: randomUUID(), role: "advocate", text: clean });
     if (state.busy) {
       // H-1: a message sent while the agent works is a Pi follow-up, read when the current run ends.
@@ -1169,7 +1254,7 @@ export class Agent {
     const release = async (text: string) => {
       state.busy = false;
       push({ id: randomUUID(), role: "notice", text });
-      await saveMessages(await this.host.chatDir(matterId), state.messages).catch(() => undefined);
+      await saveMessages(chat.chatDir, state.messages).catch(() => undefined);
     };
     // H-3: resolve the model again if the session has none or its credentials changed.
     try {
@@ -1192,87 +1277,216 @@ export class Agent {
       return release(`The matter's budget of ${pol.budgetTokens} tokens is used (${pol.usedTokens}). Raise the budget to continue.`);
     }
     chat.stopped = false;
-    const usage = { input: 0, output: 0, totalTokens: 0, cost: 0 };
-    const threadId = session.sessionId;
-    const runId = randomUUID();
-    chat.proposals = [];
-    emit({ type: EventType.RUN_STARTED, threadId, runId });
-    let current: ChatMessage | null = null;
-    let failure: string | null = null;
-    const endText = () => {
-      if (current) emit({ type: EventType.TEXT_MESSAGE_END, messageId: current.id });
-      current = null;
-    };
-    const unsubscribe = session.subscribe((event) => {
-      if (event.type === "message_update" && event.assistantMessageEvent.type === "text_delta") {
-        if (!current) {
-          current = { id: randomUUID(), role: "agent", text: "" };
-          state.messages.push(current);
-          emit({ type: EventType.TEXT_MESSAGE_START, messageId: current.id, role: "assistant" });
-        }
-        const delta = event.assistantMessageEvent.delta;
-        current.text += delta;
-        // AG-UI refuses an empty delta.
-        if (delta) emit({ type: EventType.TEXT_MESSAGE_CONTENT, messageId: current.id, delta });
-      } else if (event.type === "message_end") {
-        endText();
-        // A failed model call ends the turn without an exception. It becomes RUN_ERROR; never silence.
-        const ended = event.message as { role?: string; stopReason?: string; errorMessage?: string; usage?: { input?: number; output?: number; totalTokens?: number; cost?: { total?: number } } };
-        if (ended.role === "assistant" && ended.stopReason === "error") failure = `The model call failed: ${ended.errorMessage || "no reason given"}`;
-        if (ended.role === "assistant" && ended.usage) {
-          usage.input += ended.usage.input ?? 0;
-          usage.output += ended.usage.output ?? 0;
-          usage.totalTokens += ended.usage.totalTokens ?? 0;
-          usage.cost += ended.usage.cost?.total ?? 0;
-        }
-      } else if (event.type === "tool_execution_start") {
-        endText();
-        state.messages.push({ id: event.toolCallId, role: "tool", text: `Used tool: ${event.toolName}` });
-        emit({ type: EventType.TOOL_CALL_START, toolCallId: event.toolCallId, toolCallName: event.toolName });
-      } else if (event.type === "tool_execution_end") {
-        emit({ type: EventType.TOOL_CALL_END, toolCallId: event.toolCallId });
-        if (event.isError) push({ id: randomUUID(), role: "tool", text: `Tool failed: ${event.toolName}` });
-      }
-    });
+    // The run starts now, so the window shows the work at once, also for an extension command
+    // that waits on a question. Pi's agent_start joins this run; agent_settled ends it (H-25).
+    const run = this.beginRun(matterId, chat);
     try {
       await session.prompt(clean);
+      await session.waitForIdle();
     } catch (e) {
-      failure = `The agent stopped with an error: ${(e as Error).message}`;
-    } finally {
-      unsubscribe();
-      endText();
-      state.busy = false;
-      if (chat.stopped) failure = null;
-      const used = sessionModel(session);
-      if (usage.totalTokens > 0 && used) await this.host.recordUsage(matterId, { model: keyOf(used), ...usage }, session.sessionId).catch(() => undefined);
-      if (chat.stopped) state.messages.push({ id: randomUUID(), role: "notice", text: "Stopped by the advocate." });
-      // V1-1: the window's messages survive a restart.
-      await saveMessages(await this.host.chatDir(matterId), state.messages).catch(() => undefined);
-      if (failure) {
-        state.messages.push({ id: randomUUID(), role: "notice", text: failure });
-        emit({ type: EventType.RUN_ERROR, message: failure });
-      } else if (chat.proposals.length > 0) {
-        // Human in the loop (engineering.md EC-11): the run waits for the advocate. Each
-        // interrupt is one agent change. The answer is a bridge function (decision 5), and the
-        // next run on the thread is an ordinary run.
-        const interrupts = draftChangeInterrupts(chat.proposals);
-        state.messages.push({
-          id: randomUUID(),
-          role: "notice",
-          text: `The agent proposed ${interrupts.length} change(s). Keep or undo each one.`,
-        });
-        emit({ type: EventType.RUN_FINISHED, threadId, runId, outcome: { type: "interrupt", interrupts } });
-      } else {
-        emit({ type: EventType.RUN_FINISHED, threadId, runId, outcome: { type: "success" } });
-      }
+      const failure = `The agent stopped with an error: ${(e as Error).message}`;
+      if (chat.run === run) run.failure ??= failure;
+      else console.error(failure);
     }
+    // No Pi run (an extension command), or a run that Pi has not settled: end it here.
+    if (chat.run === run) await this.finishRun(matterId, chat);
+    return run.done;
   }
 
-  /** V5-22: stop the matter's running turn between steps. */
+  /** A message of the application itself (the advocate's text, a notice): stored and sent as a CUSTOM event. */
+  private push(matterId: string, chat: MatterChat, message: ChatMessage): void {
+    chat.state.messages.push(message);
+    this.emit(matterId, { type: EventType.CUSTOM, name: CHAT_MESSAGE_EVENT, value: message });
+  }
+
+  private emit(matterId: string, event: Record<string, unknown>): void {
+    this.host.emit({ matterId, event: { timestamp: Date.now(), ...event } as unknown as AGUIEvent });
+  }
+
+  /** Append one line to the matter's run trace (spec section 5). Lines keep their order; a failure is ignored. */
+  private traces = new Map<string, Promise<void>>();
+  private trace(chat: MatterChat, line: Record<string, unknown>): void {
+    const file = path.join(chat.chatDir, TRACE_FILE);
+    const text = JSON.stringify({ at: new Date().toISOString(), session: chat.session.sessionId, ...line }) + "\n";
+    const next = (this.traces.get(file) ?? Promise.resolve()).then(() => appendFile(file, text)).catch(() => undefined);
+    this.traces.set(file, next);
+  }
+
+  /** Wait until every trace line written so far is on disk (tests, shutdown). */
+  async flushTraces(): Promise<void> {
+    await Promise.all([...this.traces.values()]);
+  }
+
+  private beginRun(matterId: string, chat: MatterChat): Run {
+    let finish!: () => void;
+    const done = new Promise<void>((r) => (finish = r));
+    const run: Run = { id: randomUUID(), usage: { input: 0, output: 0, totalTokens: 0, cost: 0 }, current: null, failure: null, done, finish };
+    chat.run = run;
+    chat.state.busy = true;
+    chat.proposals = [];
+    this.emit(matterId, { type: EventType.RUN_STARTED, threadId: chat.session.sessionId, runId: run.id });
+    this.trace(chat, { type: "run_start", run: run.id });
+    return run;
+  }
+
+  private endText(matterId: string, run: Run): void {
+    if (run.current) this.emit(matterId, { type: EventType.TEXT_MESSAGE_END, messageId: run.current.id });
+    run.current = null;
+  }
+
+  private async finishRun(matterId: string, chat: MatterChat): Promise<void> {
+    const run = chat.run;
+    if (!run) return;
+    chat.run = null;
+    const { session, state } = chat;
+    this.endText(matterId, run);
+    const stopped = chat.stopped === true;
+    const failure = stopped ? null : run.failure;
+    state.busy = false;
+    const used = sessionModel(session);
+    if (run.usage.totalTokens > 0 && used) await this.host.recordUsage(matterId, { model: keyOf(used), ...run.usage }, session.sessionId).catch(() => undefined);
+    if (stopped) {
+      const n = chat.helpersStopped;
+      this.push(matterId, chat, { id: randomUUID(), role: "notice", text: `Stopped by the advocate.${n ? ` ${n} helper agent${n === 1 ? "" : "s"} stopped.` : ""}` });
+    }
+    if (failure) state.messages.push({ id: randomUUID(), role: "notice", text: failure });
+    // V1-1: the window's messages survive a restart.
+    await saveMessages(chat.chatDir, state.messages).catch(() => undefined);
+    const threadId = session.sessionId;
+    if (failure) {
+      this.emit(matterId, { type: EventType.RUN_ERROR, message: failure });
+    } else if (chat.proposals.length > 0) {
+      // Human in the loop (engineering.md EC-11): the run waits for the advocate. Each
+      // interrupt is one agent change. The answer is a bridge function (decision 5), and the
+      // next run on the thread is an ordinary run.
+      const interrupts = draftChangeInterrupts(chat.proposals);
+      state.messages.push({ id: randomUUID(), role: "notice", text: `The agent proposed ${interrupts.length} change(s). Keep or undo each one.` });
+      this.emit(matterId, { type: EventType.RUN_FINISHED, threadId, runId: run.id, outcome: { type: "interrupt", interrupts } });
+    } else {
+      this.emit(matterId, { type: EventType.RUN_FINISHED, threadId, runId: run.id, outcome: { type: "success" } });
+    }
+    this.trace(chat, { type: "run_end", run: run.id, stopped, failed: failure !== null, tokens: run.usage.totalTokens, helpersStopped: chat.helpersStopped });
+    chat.stopped = false;
+    chat.helpersStopped = 0;
+    run.finish();
+  }
+
+  /**
+   * H-25: one listener per session, for the session's life. A run starts on agent_start and
+   * ends on agent_settled (Pi: agent_end is not final). So a turn that a helper's result starts
+   * is a run like any other: shown, saved, counted and busy (defect B1-1).
+   */
+  private listen(matterId: string, chat: MatterChat): () => void {
+    const { session, state } = chat;
+    const started = new Map<string, number>();
+    return session.subscribe((event) => {
+      if (event.type === "agent_start") {
+        if (!chat.run) this.beginRun(matterId, chat);
+        return;
+      }
+      if (event.type === "agent_settled") {
+        void this.finishRun(matterId, chat);
+        return;
+      }
+      if (event.type === "compaction_end") {
+        this.trace(chat, { type: "compaction", reason: event.reason, aborted: event.aborted, failed: Boolean(event.errorMessage) });
+        return;
+      }
+      const run = chat.run;
+      if (!run) return;
+      if (event.type === "message_update" && event.assistantMessageEvent.type === "text_delta") {
+        if (!run.current) {
+          run.current = { id: randomUUID(), role: "agent", text: "" };
+          state.messages.push(run.current);
+          this.emit(matterId, { type: EventType.TEXT_MESSAGE_START, messageId: run.current.id, role: "assistant" });
+        }
+        const delta = event.assistantMessageEvent.delta;
+        run.current.text += delta;
+        // AG-UI refuses an empty delta.
+        if (delta) this.emit(matterId, { type: EventType.TEXT_MESSAGE_CONTENT, messageId: run.current.id, delta });
+      } else if (event.type === "message_end") {
+        this.endText(matterId, run);
+        // A failed model call ends the turn without an exception. It becomes RUN_ERROR; never silence.
+        const ended = event.message as { role?: string; stopReason?: string; errorMessage?: string; usage?: { input?: number; output?: number; totalTokens?: number; cost?: { total?: number } } };
+        if (ended.role === "assistant" && ended.stopReason === "error") run.failure = `The model call failed: ${ended.errorMessage || "no reason given"}`;
+        if (ended.role === "assistant" && ended.usage) {
+          run.usage.input += ended.usage.input ?? 0;
+          run.usage.output += ended.usage.output ?? 0;
+          run.usage.totalTokens += ended.usage.totalTokens ?? 0;
+          run.usage.cost += ended.usage.cost?.total ?? 0;
+        }
+      } else if (event.type === "tool_execution_start") {
+        this.endText(matterId, run);
+        started.set(event.toolCallId, Date.now());
+        state.messages.push({ id: event.toolCallId, role: "tool", text: `Used tool: ${event.toolName}` });
+        this.emit(matterId, { type: EventType.TOOL_CALL_START, toolCallId: event.toolCallId, toolCallName: event.toolName });
+      } else if (event.type === "tool_execution_end") {
+        this.emit(matterId, { type: EventType.TOOL_CALL_END, toolCallId: event.toolCallId });
+        if (event.isError) this.push(matterId, chat, { id: randomUUID(), role: "tool", text: `Tool failed: ${event.toolName}` });
+        const content = (event.result as { content?: Array<{ type: string; text?: string }> } | undefined)?.content ?? [];
+        const t0 = started.get(event.toolCallId);
+        started.delete(event.toolCallId);
+        this.trace(chat, {
+          type: "tool",
+          run: run.id,
+          tool: event.toolName,
+          callId: event.toolCallId,
+          parent: (event as { parentToolCallId?: string }).parentToolCallId ?? null,
+          ms: t0 === undefined ? null : Date.now() - t0,
+          error: event.isError,
+          chars: content.reduce((n, c) => n + (typeof c.text === "string" ? c.text.length : 0), 0),
+        });
+      }
+    });
+  }
+
+  /**
+   * Defect B1-2: stop the session's running helper agents (pi-subagent-manager). The host calls
+   * the manager's own agent_status and agent_stop, bound to the root caller. Returns how many.
+   */
+  private async stopHelpers(session: AgentSession): Promise<number> {
+    const runner = session.extensionRunner;
+    const status = runner.getToolDefinition("agent_status");
+    const stop = runner.getToolDefinition("agent_stop");
+    if (!status || !stop) return 0;
+    const call = (def: NonNullable<typeof status>, params: Record<string, unknown>) =>
+      (def.execute as unknown as (id: string, p: unknown) => Promise<{ details?: unknown }>)(`openadvo-stop-${randomUUID()}`, params);
+    let threads: Array<{ path?: string; state?: string }> = [];
+    try {
+      const d = (await call(status, {})).details;
+      threads = Array.isArray(d) ? (d as typeof threads) : [];
+    } catch (e) {
+      console.error(`helper status failed: ${(e as Error).message}`);
+      return 0;
+    }
+    let n = 0;
+    for (const t of threads) {
+      if (!t.path || (t.state !== "running" && t.state !== "starting")) continue;
+      try {
+        await call(stop, { path: t.path });
+        n++;
+      } catch (e) {
+        console.error(`helper stop failed for ${t.path}: ${(e as Error).message}`);
+      }
+    }
+    return n;
+  }
+
+  /** V5-22: stop the matter's running turn between steps, and its running helpers. */
   async stop(matterId: string): Promise<boolean> {
-    const chat = await this.chats.get(matterId);
-    if (!chat || !chat.state.busy) return false;
+    const pending = this.chats.get(matterId);
+    if (!pending) return false;
+    const chat = await pending;
+    const helpers = await this.stopHelpers(chat.session);
+    if (!chat.state.busy) {
+      if (helpers > 0) {
+        this.push(matterId, chat, { id: randomUUID(), role: "notice", text: `Stopped by the advocate: ${helpers} helper agent${helpers === 1 ? "" : "s"}.` });
+        await saveMessages(chat.chatDir, chat.state.messages).catch(() => undefined);
+      }
+      return helpers > 0;
+    }
     chat.stopped = true;
+    chat.helpersStopped = helpers;
     // H-12: an extension waiting on a question gets its default answer, so the run can end.
     chat.questions.cancelAll();
     await chat.session.abort();
@@ -1287,6 +1501,7 @@ export class Agent {
         const chat = await pending;
         if (chat.state.busy) continue;
         chat.questions.cancelAll();
+        chat.unlisten();
         await closeSession(chat.session, "reload");
       } catch {
         // A session that failed to start is simply dropped.
@@ -1302,6 +1517,7 @@ export class Agent {
       try {
         const c = await chat;
         c.questions.cancelAll();
+        c.unlisten();
         await closeSession(c.session, "quit");
       } catch {
         // A session that failed to start has nothing to dispose.

@@ -24,6 +24,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { EXTENSION_QUESTION_REASON, type ExtensionQuestion } from "../shared/api.ts";
+import { HELPER_LIMITS, HELPER_TYPES, RETIRED_HELPER_TYPES, helperTypeFile } from "./helper-types.ts";
 
 /** Pi's built-in tools. They never run in Open Advocate (decision 2). */
 export const BUILTIN_TOOL_NAMES = ["read", "bash", "powershell", "edit", "write", "grep", "find", "ls"] as const;
@@ -32,8 +33,6 @@ export const BUILTIN_TOOL_NAMES = ["read", "bash", "powershell", "edit", "write"
 const SUBAGENT_CONTROLS = ["agent_output", "agent_pause", "agent_status", "agent_steer", "agent_stop", "agent_types", "agent_update", "agent_wait"];
 /** Files no tool may read or write, on every path-aware tool (pi-permission-system "path" rules). */
 const CREDENTIAL_PATHS = ["*auth.json", "*.env", "*.env.*", "*/.ssh/*", "*manifest-signing.key", "*models.json"];
-/** The agent types pi-subagent-manager ships. Each gets a host-owned overlay. */
-const SUBAGENT_TYPES = ["architect", "coder", "researcher", "reviewer", "tasker", "writer"];
 
 export interface ExtensionInfo {
   /** The package name (bundled) or the source string (added). */
@@ -103,9 +102,10 @@ export class PiExtensions {
   }
 
   /**
-   * pi-subagent-manager, least privilege: only listed tools; each bundled type may use the app's
-   * tools and the manager's controls, never Pi's built-in tools; types inherit the chat's model;
-   * no extension reloads inside a helper.
+   * pi-subagent-manager, least privilege (docs/specs/agent-framework.md section 4): only listed
+   * tools; the four Open Advocate types get their own allowlists; the coding types the manager
+   * ships get none; never Pi's built-in tools; the depth, concurrency and thread limits; types
+   * inherit the chat's model; no extension loads inside a helper.
    */
   writeSubagentPolicy(appTools: readonly string[]): void {
     const base = path.join(this.options.agentDir, "subagent-manager");
@@ -116,10 +116,16 @@ export class PiExtensions {
     } catch {
       // No settings yet.
     }
-    writeOwned(settingsFile, JSON.stringify({ ...current, toolFiltering: "allowed", subagentExtensions: false, housekeepingEnabled: false }, null, 2));
-    const allow = [...appTools, ...SUBAGENT_CONTROLS].map((t) => `    - ${t}`).join("\n");
-    for (const type of SUBAGENT_TYPES) {
-      writeOwned(path.join(base, "agents", `${type}.yml`), `# Written by Open Advocate on every start. Pi's built-in tools stay off.\nmodels: null\ntools:\n  allow:\n${allow}\n  block:\n${BUILTIN_TOOL_NAMES.map((t) => `    - ${t}`).join("\n")}\n`);
+    writeOwned(settingsFile, JSON.stringify({ ...current, toolFiltering: "allowed", subagentExtensions: false, housekeepingEnabled: false, ...HELPER_LIMITS }, null, 2));
+    const blocked = BUILTIN_TOOL_NAMES.map((t) => `    - ${t}`).join("\n");
+    // The coding types the manager ships get no tools: an empty allow list is no tools.
+    for (const type of RETIRED_HELPER_TYPES) {
+      writeOwned(path.join(base, "agents", `${type}.yml`), `# Written by Open Advocate on every start. Not used in Open Advocate: no tools.\ndescription: "Not used in Open Advocate. Use legal-research, record-reader, critic or drafter."\nmodels: null\ntools:\n  allow: []\n  block:\n${blocked}\n`);
+    }
+    // The Open Advocate types (docs/specs/agent-framework.md section 4). A tool the session does not have is left out.
+    const known = new Set([...appTools, ...SUBAGENT_CONTROLS, "agent_spawn"]);
+    for (const t of HELPER_TYPES) {
+      writeOwned(path.join(base, "agents", `${t.name}.md`), helperTypeFile({ ...t, tools: t.tools.filter((x) => known.has(x)) }, BUILTIN_TOOL_NAMES));
     }
   }
 
@@ -131,8 +137,8 @@ export class PiExtensions {
   /**
    * pi-permission-system (decision 23). Written on first start; the advocate may edit it. On every
    * start the safety rules are put back: Pi's built-in tools and every shell command are denied,
-   * and credential files are denied on every path-aware tool. Everything else defaults to allow,
-   * because an "ask" in the window gets the default answer (harness-hardening H-12). The review
+   * and credential files are denied on every path-aware tool. Everything else defaults to allow.
+   * An "ask" rule becomes a question in the chat (harness-hardening H-12). The review
    * log stays on and is written in the application's Pi folder, never in ~/.pi/agent.
    */
   writePermissionPolicy(): void {

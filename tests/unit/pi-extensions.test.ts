@@ -13,7 +13,8 @@ import { ModelRuntime, createAgentSession, defineTool, SessionManager } from "@e
 import { createFauxCore, fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import { BUILTIN_TOOL_NAMES, ExtensionQuestions, PiExtensions, extensionUi } from "../../src/main/pi-extensions.ts";
-import { closeSession } from "../../src/main/agent.ts";
+import { AGENT_TOOLS, closeSession } from "../../src/main/agent.ts";
+import { HELPER_TYPES, RETIRED_HELPER_TYPES } from "../../src/main/helper-types.ts";
 
 const bundledRoot = path.resolve(import.meta.dirname, "..", "..", "resources", "pi-extensions");
 const vendored = existsSync(path.join(bundledRoot, "vendor.lock.json"));
@@ -148,16 +149,33 @@ test("a bundled extension can be turned off", { skip }, async () => {
   assert.equal(ext.list().find((e) => e.id === "pi-checklist")?.enabled, false);
 });
 
-test("the helper-agent policy allows only listed tools and blocks the built-in ones", () => {
+test("the helper-agent policy: the four Open Advocate types, the limits, and no tools for the coding types", () => {
   const { ext, agentDir } = manager();
-  ext.writeSubagentPolicy(["list_sources"]);
-  const settings = JSON.parse(readFileSync(path.join(agentDir, "subagent-manager", "settings.json"), "utf8")) as Record<string, unknown>;
+  ext.writeSubagentPolicy(AGENT_TOOLS);
+  const base = path.join(agentDir, "subagent-manager");
+  const settings = JSON.parse(readFileSync(path.join(base, "settings.json"), "utf8")) as Record<string, unknown>;
   assert.equal(settings.toolFiltering, "allowed");
   assert.equal(settings.subagentExtensions, false);
-  const coder = readFileSync(path.join(agentDir, "subagent-manager", "agents", "coder.yml"), "utf8");
-  assert.match(coder, /allow:\n {4}- list_sources/);
-  assert.match(coder, /block:\n {4}- read\n {4}- bash/);
-  assert.match(coder, /models: null/);
+  assert.deepEqual([settings.maxLevels, settings.maxConcurrent, settings.maxThreads], [3, 4, 24]);
+  for (const t of RETIRED_HELPER_TYPES) {
+    const overlay = readFileSync(path.join(base, "agents", `${t}.yml`), "utf8");
+    assert.match(overlay, /allow: \[\]/, `${t} has no tools`);
+    assert.match(overlay, /block:\n {4}- read\n {4}- bash/);
+  }
+  const allow = (name: string) => {
+    const file = readFileSync(path.join(base, "agents", `${name}.md`), "utf8");
+    return [...file.split("block:")[0].matchAll(/^ {4}- (\S+)$/gm)].map((m) => m[1]);
+  };
+  for (const t of HELPER_TYPES) {
+    const tools = allow(t.name);
+    assert.ok(tools.length > 0, `${t.name} has tools`);
+    for (const x of tools) assert.ok((AGENT_TOOLS as readonly string[]).includes(x) || x.startsWith("agent_"), `${t.name}: ${x} is an application tool or a manager control`);
+    assert.ok(!tools.some((x) => (BUILTIN_TOOL_NAMES as readonly string[]).includes(x)), `${t.name} gets no built-in tool`);
+  }
+  assert.ok(allow("legal-research").includes("agent_spawn"), "legal-research may start helpers");
+  for (const t of ["record-reader", "critic", "drafter"]) assert.ok(!allow(t).includes("agent_spawn"), `${t} may not start helpers`);
+  assert.ok(!allow("record-reader").some((x) => /^(propose|save|add|write|fill|record|assess)_/.test(x)), "record-reader writes nothing");
+  assert.ok(!allow("critic").some((x) => /^propose_/.test(x)), "critic changes no text");
 });
 
 test("H-12: an 'ask' rule of the permission system becomes a question; Yes runs the tool, No withholds it", { skip }, async () => {

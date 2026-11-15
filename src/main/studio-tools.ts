@@ -1,6 +1,7 @@
 /**
- * V4: the agent's Studio tools. Each returns plain text for the model; a refusal or a source
- * that cannot be reached is returned as text, so the model can tell the advocate. The agent
+ * V4: the agent's Studio tools. Each returns plain text for the model. A refusal or a failure
+ * throws, so Pi reports it to the model and the window as an error; the model can tell the
+ * advocate. A refusal is also kept in the matter's refusal table. The agent
  * writes only candidates (decision 5). Spec: docs/archive/2026-11-15/specs/v4.md.
  */
 import type { ArgumentStudio, ResearchHub, SourceName } from "./studio.ts";
@@ -94,13 +95,14 @@ export function studioTools(hub: ResearchHub, studio: ArgumentStudio, matters: M
           return `Rehearsal prepared (${r.added} anchored item(s); ${r.rejected} dropped as unanchored). It is in the Studio's Rehearsal part for the advocate.`;
         }
         default:
-          return `Unknown Studio tool: ${tool}`;
+          throw new Error(`Unknown Studio tool: ${tool}`);
       }
     } catch (e) {
       // V5-2: a refused tool request is kept in the matter's refusal table.
       const code = (e as { code?: string }).code ?? /^([A-Z][A-Z_]{3,})\b/.exec((e as Error).message ?? "")?.[1];
       if (code) await matters.store(matterId).then((s) => s.refuse("agent", tool, code, (e as Error).message)).catch(() => undefined);
-      return `Refused or failed: ${(e as Error).message}`;
+      // A failed call is an error to the model and the window, never a success (A4).
+      throw new Error(`Refused or failed: ${(e as Error).message}`, { cause: e });
     }
   };
 }
