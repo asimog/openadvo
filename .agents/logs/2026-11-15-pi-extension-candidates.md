@@ -46,3 +46,24 @@ Most Pi extensions are built for coding in a terminal. They fall into three grou
 ## Not verified
 
 Whether pi-subagent-manager's helper agents receive the application's own tools. Its docs say that main-session tools are bridged to helpers, but that "other custom model-only tools fail closed". The application's 43 tools are SDK custom tools. A live run with a model is needed to see which case applies.
+
+## Second round (same day): pi-background-tasks, pi-crew, pi-agent-browser-native
+
+Same method (`npm pack`, scan, README, downloads).
+
+| Package | Version, updated, downloads/week | What it does | Fit | Verdict |
+|---|---|---|---|---|
+| pi-background-tasks | 2.6.10, 2026-10-13, 7,314 | Long-running shell tasks (`bg_run`, `bg_logs`, `bg_kill`), delegated agents and "attested" runs as child `pi` processes. 246 files; 8 files use `child_process`. | Its peer range is `@earendil-works/pi-coding-agent ^0.81.1 \|\| ^0.82.1 \|\| ^0.83.0 \|\| ^0.84.0`. The app pins 1.5.2, outside that range. Its core is shell commands, which are off. | No. |
+| pi-crew | 0.11.59, 2026-11-06, 3,485 | Agent teams and workflows. Each task runs as a child `pi` process (`spawn("pi")`) with on-disk state, optionally in git worktrees. 736 files; 49 use `child_process`; about 30 commands. | Child `pi` processes start from the owner's own Pi setup with Pi's default tools, outside the app's tool policy, the confidential rule and the matter store. Needs the Pi CLI and git. It overlaps pi-subagent-manager, which runs in-process under the app's policy. | No. |
+| pi-agent-browser-native | 0.9.32, 2026-11-14, 11,442 | Tools (`agent_browser` and seven more) that drive the separate `agent-browser` program and its browser: open pages, snapshots, click, fill, screenshots, persistent profiles. 14 files use `child_process`. | Needs `agent-browser` installed separately. Its README says Windows qualification was waived (2026-09-21), so it does not claim a Windows pass. The browser it drives is not the app's window, so the advocate does not see or control it, and it sits outside the portal's origin list and submit guard. | No. A browser pane in the app (the portal window, generalised) meets the need better. |
+
+## Confidentiality: code facts recorded
+
+- Flag: `matter_policy.confidential` in `matter.db` (`src/lib/matter-store/practice.ts`), set by the advocate (`setPolicy`, actor advocate).
+- "Local model" = the model's `baseUrl` host is `localhost`, `127.0.0.1` or `::1` (`isLocalModel`, `src/main/agent.ts`).
+- Checks: chat send (`agent.ts`), argument loop and rehearsal (`studio.ts:331`), web search (`studio.ts:151`), extensions (`pi-extensions.ts` loader).
+- Gap: `web_fetch` (`ResearchHub.read`, source `web`) has no confidential check. Judgment-index and India Code searches have none either. Today these run only when a local model drives the agent, or when the advocate searches.
+
+## State left by the interrupted install
+
+`npm run vendor:extensions` completed after the manifest gained @gotgenes/pi-permission-system 42.0.0 and @narumitw/pi-btw 0.63.8: both are in `resources/pi-extensions/vendor.lock.json`. The manifest change is not committed. pi-permission-system with no config treats every tool as "ask" (`config-schema.ts`: an omitted `"*"` means `"ask"`), and in the window an unanswered ask is denied, so the next conversation would have its tools blocked. pi-btw answers `/btw` outside the terminal with "/btw requires interactive TUI mode".
