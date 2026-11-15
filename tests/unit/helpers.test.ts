@@ -5,8 +5,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
-import { startHelperTool } from "../../src/main/helpers.ts";
+import { HelperManager } from "../../src/main/helpers.ts";
 import { MATTER, agentFixture, until } from "./agent-fixture.ts";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
 type Msg = ReturnType<typeof fauxAssistantMessage>;
 const isHelper = (c: { messages: unknown[] }) => JSON.stringify(c.messages).includes("You are a helper agent of Open Advocate");
@@ -61,9 +64,12 @@ test("a helper runs with its type's tools only; its calls carry the nested id; i
 
 test("a helper's calls pass the tool policy", async () => {
   let searched = 0;
-  const f = await agentFixture({ policy: { default: "allow", tools: { web_search: "deny" } }, host: { studio: async () => (searched++, "results") } });
+  const f = await agentFixture({ host: { studio: async () => (searched++, "results") } });
   try {
     await f.agent.getChat(MATTER);
+    // The policy is read at every call; set the deny after the conversation opened, so the
+    // helper still has the tool and the hook refuses it.
+    f.policy.write({ default: "allow", tools: { web_search: "deny" } });
     f.core.setResponses(
       router(
         (_c, n) => (n === 0 ? fauxAssistantMessage([fauxToolCall("start_helper", { type: "legal-research", task: "Search the web." })], { stopReason: "toolUse" }) : fauxAssistantMessage("ok")),
@@ -117,11 +123,19 @@ test("helpers of one message run at the same time, and a fifth over the limit fa
 });
 
 test("spawn rights: only legal-research starts helpers, and only record-reader helpers", () => {
-  const deps = { slots: { running: 0 }, createSession: async () => assert.fail("not started") };
+  const manager = new HelperManager({
+    chatDir: mkdtempSync(path.join(tmpdir(), "openadvo-helpers-")),
+    model: () => "test/scripted",
+    createSession: async () => assert.fail("not started"),
+    parentContext: () => "",
+    text: () => undefined,
+    changed: () => undefined,
+    usage: async () => undefined,
+  });
   const enumOf = (t: { parameters: unknown }) => (t.parameters as { properties: { type: { enum: string[] } } }).properties.type.enum;
-  assert.deepEqual(enumOf(startHelperTool(deps, { type: null })), ["legal-research", "record-reader", "critic", "drafter"]);
-  assert.deepEqual(enumOf(startHelperTool(deps, { type: "legal-research" })), ["record-reader"]);
-  for (const t of ["record-reader", "critic", "drafter"]) assert.deepEqual(enumOf(startHelperTool(deps, { type: t })), [], `${t} starts nothing`);
+  assert.deepEqual(enumOf(manager.startTool({ type: null })), ["legal-research", "record-reader", "critic", "drafter"]);
+  assert.deepEqual(enumOf(manager.startTool({ type: "legal-research" })), ["record-reader"]);
+  for (const t of ["record-reader", "critic", "drafter"]) assert.deepEqual(enumOf(manager.startTool({ type: t })), [], `${t} starts nothing`);
 });
 
 test("Stop stops a running helper, and the notice says so", async () => {

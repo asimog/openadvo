@@ -21,6 +21,12 @@ test("rules: the default, a tool's own rule, and the fixed denials the file cann
   }
   assert.equal(decide(p, "web_fetch", { url: "https://indiacode.nic.in/environment" }).rule, "allow", "a word that only looks like .env is not a credential path");
   assert.equal(decide({ default: "ask", tools: {} }, "anything", {}).rule, "ask");
+  // MCP rules: per server, then every MCP tool, then the default.
+  assert.equal(decide({ default: "allow", tools: { "mcp__court__*": "deny" } }, "mcp__court__search", {}).rule, "deny");
+  assert.equal(decide({ default: "allow", tools: { "mcp__court__*": "ask" } }, "mcp__court__search", {}).rule, "ask");
+  assert.equal(decide({ default: "allow", tools: { "mcp__*": "ask" } }, "mcp__other__list", {}).rule, "ask");
+  assert.equal(decide({ default: "allow", tools: { "mcp__*": "ask" } }, "list_sources", {}).rule, "allow");
+  assert.equal(decide({ default: "allow", tools: { "mcp__court__search": "deny", "mcp__court__*": "allow" } }, "mcp__court__search", {}).rule, "deny", "the tool's own rule wins");
 });
 
 test("the policy file: defaults on first start; bad values become the defaults", () => {
@@ -32,9 +38,11 @@ test("the policy file: defaults on first start; bad values become the defaults",
 });
 
 test("deny: the call is refused, the model is told why, and the log has no arguments", async () => {
-  const f = await agentFixture({ policy: { default: "allow", tools: { web_search: "deny" } }, host: { studio: async () => "should not run" } });
+  const f = await agentFixture({ host: { studio: async () => "should not run" } });
   try {
     await f.agent.getChat(MATTER);
+    // The policy is read at every call; a change after the conversation opened applies at once.
+    f.policy.write({ default: "allow", tools: { web_search: "deny" } });
     let seen = "";
     f.core.setResponses([
       fauxAssistantMessage([fauxToolCall("web_search", { query: "secret client name" })], { stopReason: "toolUse" }),
@@ -63,7 +71,7 @@ test("ask: the run waits on an approval card; Allow once runs it once, Allow for
     const answerNext = async (choice: string) => {
       await until(() => f.questions().length === 1, "the approval card");
       const q = f.questions()[0];
-      assert.equal(q.message, "The agent wants to use Web search.");
+      assert.equal(q.message, "The agent wants to use Web search. Query: “x”.");
       assert.equal(q.metadata.asker, "Open Advocate");
       assert.deepEqual(q.metadata.options, Object.values(APPROVAL_OPTIONS));
       await f.agent.answerQuestion(MATTER, q.id, choice);

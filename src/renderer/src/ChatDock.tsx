@@ -28,6 +28,16 @@ import type { AgentChanges, ChatEvent, ChatMessage as ChatRecord, ContextMeter, 
 
 const api = window.openadvo;
 
+/** Save text as a file from the window (the bridge has no write access by design). */
+function saveTextFile(name: string, text: string, type = "text/csv"): void {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
 const EFFORT_LABEL: Record<EffortLevel, string> = {
   off: "No reasoning",
   minimal: "Minimal reasoning",
@@ -358,10 +368,16 @@ export function ChatDock(props: {
               setModel(s.model);
             }}
           />
-          {busy ? (
+          <Button
+            label="Export cost CSV"
+            size="sm"
+            variant="ghost"
+            clickAction={async () => saveTextFile(`Open Advocate cost ${props.title.replace(/[\\/:*?"<>|]+/g, " ").trim()}.csv`, await api.costCsv(props.matterId))}
+          />
+          {busy || helpers.some((h) => h.state === "running") ? (
             <span className="dock-busy">
-              <Spinner size="sm" />
-              <Text type="supporting">Working…</Text>
+              {busy ? <Spinner size="sm" /> : null}
+              {busy ? <Text type="supporting">Working…</Text> : <Text type="supporting">{helpers.filter((h) => h.state === "running").length} helper{helpers.filter((h) => h.state === "running").length === 1 ? "" : "s"} running</Text>}
               <Button label="Stop" size="sm" variant="ghost" clickAction={async () => { await api.stopChat(props.matterId); }} />
             </span>
           ) : null}

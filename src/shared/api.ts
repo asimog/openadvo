@@ -102,6 +102,8 @@ export interface ContextMeter {
 export interface ToolPolicyView {
   policy: { default: "allow" | "ask" | "deny"; tools: Record<string, "allow" | "ask" | "deny"> };
   tools: Array<{ name: string; label: string }>;
+  /** The party-name rule for web_search and web_fetch. */
+  partyRule: boolean;
 }
 
 /** A helper as the window shows it (native-harness-parts section 3). */
@@ -114,6 +116,8 @@ export interface HelperView {
   state: "running" | "done" | "failed" | "stopped" | "interrupted";
   /** True when its result waits for "Use results" or the advocate's next message. */
   waiting: boolean;
+  /** The question it stopped to ask, until the parent answers it. */
+  question?: string;
   startedAt: string;
   endedAt?: string;
 }
@@ -320,7 +324,7 @@ export interface OpenAdvoApi {
   closeFirmHandoff(id: string): Promise<FirmHandoff[]>;
   /** Settings → Tool permissions: the policy and the agent's tools. */
   getToolPolicy(): Promise<ToolPolicyView>;
-  setToolPolicy(policy: ToolPolicyView["policy"]): Promise<ToolPolicyView>;
+  setToolPolicy(policy: ToolPolicyView["policy"], partyRule?: boolean): Promise<ToolPolicyView>;
   /** The advocate stops or steers one helper, or sends the waiting background results to the agent. */
   stopHelper(conversationId: string, helperId: string): Promise<void>;
   steerHelper(conversationId: string, helperId: string, text: string): Promise<void>;

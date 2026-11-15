@@ -37,6 +37,9 @@ export async function agentFixture(opts: { host?: Partial<AgentHost>; inlineExte
     loadEffort: () => null,
     saveEffort: () => undefined,
     policy: async () => ({ budgetTokens: null, usedTokens: 0 }),
+    planStrength: () => "long",
+    partyRule: () => true,
+    parties: async () => [],
     recordUsage: async (_m, u) => {
       usage.push(u.totalTokens);
     },

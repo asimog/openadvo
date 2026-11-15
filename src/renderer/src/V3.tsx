@@ -190,6 +190,11 @@ export function SettingsPage(props: { mailbox: ReactNode; research?: ReactNode; 
         <Text type="supporting">For each tool of the agent: Allow, Ask (the agent waits for your approval in the chat), or Refuse. Pi's built-in file and shell tools, and any call that names a credential file, are always refused. A change applies to the next tool call.</Text>
         <ToolPermissionsSettings />
       </section>
+      <section className="work-section" aria-label="Plan">
+        <Heading level={3}>Plan</Heading>
+        <Text type="supporting">How strongly the agent is asked to keep a plan. A plan is the checklist above the chat; the advocate can add an item by typing "add to the plan: …".</Text>
+        <PlanStrengthSettings />
+      </section>
       <section className="work-section" aria-label="Mailbox">
         <Heading level={3}>Authorised mailbox</Heading>
         {props.mailbox}
@@ -343,9 +348,9 @@ export function ToolPermissionsSettings() {
     void api.getToolPolicy().then(setData, (e: Error) => setMessage(e.message));
   }, []);
   if (!data) return message ? <Text>{message}</Text> : null;
-  const save = async (policy: ToolPolicyView["policy"]) => {
+  const save = async (policy: ToolPolicyView["policy"], partyRule = data.partyRule) => {
     try {
-      setData(await api.setToolPolicy(policy));
+      setData(await api.setToolPolicy(policy, partyRule));
       setMessage("Saved.");
     } catch (e) {
       setMessage(`Not saved: ${(e as Error).message}`);
@@ -359,6 +364,15 @@ export function ToolPermissionsSettings() {
         <select aria-label="Rule for every other tool" value={data.policy.default} onChange={(e) => void save({ ...data.policy, default: e.target.value as "allow" })}>
           {RULES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
+      </label>
+      <label className="row-actions">
+        <input
+          type="checkbox"
+          aria-label="Ask when a web search or a web page names a party"
+          checked={data.partyRule}
+          onChange={(e) => void save(data.policy, e.target.checked)}
+        />
+        <Text>Ask when a web search or a web page names a party of this matter</Text>
       </label>
       <ul className="plain-list">
         {data.tools.map((t) => (
@@ -381,6 +395,40 @@ export function ToolPermissionsSettings() {
         ))}
       </ul>
       {message ? <Text>{message}</Text> : null}
+    </div>
+  );
+}
+
+/** Settings: how strongly the agent is asked to keep a plan (native-harness-parts section 4). */
+export function PlanStrengthSettings() {
+  const [value, setValue] = useState<"long" | "most" | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  useEffect(() => {
+    void api.getPlanStrength().then(setValue, (e: Error) => setMessage(e.message));
+  }, []);
+  const choose = async (v: "long" | "most") => {
+    setValue(v);
+    try {
+      setValue(await api.setPlanStrength(v));
+      setMessage("Saved. It applies when a conversation next opens.");
+    } catch (e) {
+      setMessage(`Not saved: ${(e as Error).message}`);
+    }
+  };
+  if (!value) return message ? <Text>{message}</Text> : null;
+  return (
+    <div className="row-actions" role="radiogroup" aria-label="Plan strength" data-testid="plan-strength">
+      {(
+        [
+          ["long", "Only for long work: three or more steps"],
+          ["most", "For most work: almost every task"],
+        ] as const
+      ).map(([v, label]) => (
+        <label key={v} className="radio">
+          <input type="radio" name="plan-strength" checked={value === v} onChange={() => void choose(v)} /> {label}
+        </label>
+      ))}
+      {message ? <Text type="supporting">{message}</Text> : null}
     </div>
   );
 }
