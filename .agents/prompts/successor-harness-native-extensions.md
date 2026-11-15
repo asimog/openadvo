@@ -95,6 +95,14 @@ Report a table: tool, what Pi's guide asks, what the code does, the fix. Write t
 
 Write `.agents/logs/<date>-subagents-codemode-mcp-tools.md`: what you did, the commands and their results, the evidence paths, and the tables of A2, A3 and A4. Then stop and tell the owner in plain words what you found. Do not start part B until the owner says so.
 
+## 5a. Status (2026-11-15)
+
+A1, A3 and A4 are done, and part of A2 is done. Read `.agents/logs/2026-11-15-subagents-codemode-mcp-tools.md` first. In short:
+- The built-in extensions are **not** loaded twice. Drop that check.
+- Helper agent = subagent: the same thing. A skill run is different.
+- Still open: A2 for Pi's subagent example and the npm packages; the repo-map and agent-guide rows for `C:\dev\pireference`; the terms row in `decisions.md` section 4.
+- Part B order: B1 (1, 2, 4, and Studio failures reported as success) → A4 fixes → B3 spike → adapters → H-14. Each B3 adapter is its own phase (L5). Done means the owner runs a real brief (L3).
+
 ## 6. Part B: build only after the owner says so
 
 ### B1. Defects to fix (found by reading the code; not run with a live model)
