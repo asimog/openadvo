@@ -134,6 +134,7 @@ test("the party rule asks when a web query names a party of the matter", async (
 
   // The party rule can be turned off in Settings: the same query then runs without a card.
   await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: "Tool permissions", exact: true }).click();
   const toggle = page.getByLabel("Ask when a web search or a web page names a party");
   await expect(toggle).toBeChecked();
   await toggle.click();
@@ -168,6 +169,7 @@ test("Settings changes a tool rule and the next conversation uses it", async () 
   const { app, page, userData } = await launch();
   const matterId = await newMatter(app, page, "Policy settings");
   await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: "Tool permissions", exact: true }).click();
   const perms = page.getByTestId("tool-permissions");
   await perms.getByLabel("Rule for List sources").selectOption("ask");
   await expect(perms).toContainText("Saved.");

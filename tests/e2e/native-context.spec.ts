@@ -58,7 +58,16 @@ test("/context and /cost print text; each run adds a tokens-and-cost line; the C
   await script(app, { agent: [{ text: "Ready." }] });
   await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [matterId, "Hello."]);
   await idle(page, matterId);
-  await expect.poll(() => notices(page, matterId), { timeout: 30000 }).toEqual(expect.arrayContaining([expect.stringMatching(/^This run: .*tokens.*Cost:/)]));
+  // The run's numbers live in the Context tab, not in a line after every message.
+  expect((await notices(page, matterId)).some((t) => t.startsWith("This run:"))).toBe(false);
+  await page.getByTestId("context-tab").click();
+  const panel = page.getByTestId("context-panel");
+  await expect(panel).toBeVisible();
+  for (const label of ["Session", "Messages", "Provider", "Model", "Context limit", "Total tokens in context", "Usage", "Input tokens (last run)", "Output tokens (last run)", "Cache read (last run)", "Cache hit (last run)", "Cost (last run)", "Runs in this matter"]) {
+    await expect(panel).toContainText(label);
+  }
+  await page.screenshot({ path: path.join(repo, "test-results", "context-panel.png") });
+  await page.getByTestId("chat-tab").click();
 
   await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [matterId, "/context"]);
   await expect.poll(() => notices(page, matterId), { timeout: 30000 }).toEqual(expect.arrayContaining([expect.stringContaining("Context (these are estimates; the provider's own totals can differ).")]));
@@ -122,9 +131,11 @@ test("Compact now acts from the pinned status line", async () => {
   await idle(page, matterId);
   await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [matterId, "Two."]);
   await idle(page, matterId);
-  const button = page.getByTestId("status-line").getByRole("button", { name: "Compact now" });
-  await expect(button).toBeVisible({ timeout: 30000 });
+  const button = page.getByTestId("context-tab");
   await button.click();
+  const compact = page.getByTestId("context-panel").getByRole("button", { name: "Compact now" });
+  await expect(compact).toBeVisible({ timeout: 30000 });
+  await compact.click();
   await expect.poll(() => notices(page, matterId), { timeout: 30000 }).toEqual(expect.arrayContaining([expect.stringMatching(/compacted|Not compacted/i)]));
   await app.close();
 });

@@ -13,7 +13,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { HELPER_LIMITS, HELPER_TYPES, type HelperType } from "./helper-types.ts";
-import type { HelperView } from "../shared/api.ts";
+import type { HelperEventView, HelperView } from "../shared/api.ts";
 
 /** What a tool's context gives a tool: the callable tools and a way to run them through the hooks. */
 interface ToolContext {
@@ -38,6 +38,16 @@ export interface HelperDeps {
   limits?: Partial<typeof HELPER_LIMITS>;
 }
 
+export interface HelperToolNotice {
+  id: string;
+  helper: { id: string; name: string; type: string };
+  name: string;
+  target?: string;
+  status: "running" | "done" | "error";
+  durationMs?: number;
+  error?: string;
+}
+
 export interface HelperManagerOptions {
   chatDir: string;
   limits?: Partial<typeof HELPER_LIMITS>;
@@ -46,8 +56,10 @@ export interface HelperManagerOptions {
   createSession(input: { prompt: string; tools: ToolDefinition[]; thinkingLevel: HelperType["thinkingLevel"]; helperId: string }): Promise<AgentSession>;
   /** The parent's last ~30k characters of conversation, as a frozen block for a fork. */
   parentContext(): string;
-  /** A text line in the parent's chat. */
-  text(line: string): void;
+  /** A text line in the parent's chat, with the helper event the window groups. */
+  text(line: string, event?: HelperEventView): void;
+  /** One tool call of a helper, for its card (ChatToolCalls). Called at start and at end. */
+  tool?(event: HelperToolNotice): void;
   /** The helpers as the window shows them, after any change. */
   changed(views: HelperView[]): void;
   /** Cost per helper, with the conversation (host.recordUsage). */
@@ -56,6 +68,8 @@ export interface HelperManagerOptions {
 
 interface HelperRecord {
   id: string;
+  /** The id of the start_helper call that made it, for the tool calls it runs. */
+  callId: string;
   name: string;
   type: HelperType;
   background: boolean;
@@ -98,6 +112,15 @@ export function nameFromTask(task: string, given?: string): string {
   if (name.length <= 48) return name || "Helper";
   const at = name.slice(0, 48).lastIndexOf(" ");
   return `${(at > 12 ? name.slice(0, at) : name.slice(0, 48)).trimEnd()}…`;
+}
+
+/** The short target of a helper's tool call, for its card. */
+export function shortTarget(args: unknown): string | undefined {
+  const o = (args && typeof args === "object" ? args : {}) as Record<string, unknown>;
+  const pick = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+  const any = pick(o.task) ?? pick(o.query) ?? pick(o.url) ?? pick(o.source) ?? pick(o.citation) ?? pick(o.title) ?? pick(o.text) ?? pick(o.field) ?? pick(o.helper) ?? pick(o.ref);
+  if (!any) return undefined;
+  return any.length > 120 ? `${any.slice(0, 117).trimEnd()}…` : any;
 }
 
 function page(text: string, chars: number, n: number): { text: string; pages: number; page: number } {
@@ -145,6 +168,14 @@ export class HelperManager {
     }));
   }
 
+  /** The helper behind a tool call of the parent (a nested call id), or undefined. */
+  forCall(callId: string): { id: string; name: string; type: string } | undefined {
+    for (const r of this.records.values()) {
+      if (r.callId && (callId === r.callId || callId.startsWith(`${r.callId}/`))) return { id: r.id, name: r.name, type: r.type.name };
+    }
+    return undefined;
+  }
+
   /** After a restart a running helper is interrupted, with the partial output it left. */
   async restore(): Promise<number> {
     let saved: Array<Partial<HelperRecord> & { typeName?: string }> = [];
@@ -161,6 +192,7 @@ export class HelperManager {
       if (wasRunning) interrupted++;
       this.records.set(s.id, {
         id: String(s.id),
+        callId: String(s.callId ?? ""),
         name: String(s.name ?? nameFromTask(String(s.task ?? ""))),
         type,
         background: s.background === true,
@@ -189,11 +221,12 @@ export class HelperManager {
    * Start one helper. A foreground helper returns its result (or its question) when it ends; after
    * the wait limit it becomes a background job. A background helper returns its job id at once.
    */
-  async start(type: HelperType, task: string, input: { background?: boolean; forkContext?: boolean; name?: string }, root: ToolContext, signal?: AbortSignal): Promise<string> {
+  async start(type: HelperType, task: string, input: { background?: boolean; forkContext?: boolean; name?: string }, root: ToolContext, signal?: AbortSignal, callId = ""): Promise<string> {
     if (this.slots.running >= this.limits.maxConcurrent) throw new Error(`${this.limits.maxConcurrent} helpers are already running. Wait for one to finish.`);
     const id = randomUUID();
     const record: HelperRecord = {
       id,
+      callId,
       name: nameFromTask(task, input.name),
       type,
       background: input.background === true,
@@ -210,7 +243,7 @@ export class HelperManager {
     this.records.set(id, record);
     this.slots.running++;
     if (record.background) this.backgroundStarted++;
-    this.opts.text(`Helper ${record.name} (${type.name}) started${record.background ? ` in the background, job ${id.slice(0, 8)}` : ""}.`);
+    this.opts.text(`Helper ${record.name} (${type.name}) started${record.background ? ` in the background, job ${id.slice(0, 8)}` : ""}.`, { id, name: record.name, type: type.name, event: "started" });
     this.opts.changed(this.views());
     await this.persist();
 
@@ -222,7 +255,7 @@ export class HelperManager {
         record.state = signal?.aborted ? "stopped" : "failed";
         record.endedAt = new Date().toISOString();
         record.output ||= `The helper failed: ${(e as Error).message}`;
-        this.opts.text(`Helper ${record.name} failed: ${(e as Error).message}`);
+        this.opts.text(`Helper ${record.name} failed: ${(e as Error).message}`, { id, name: record.name, type: type.name, event: "failed", detail: (e as Error).message });
         record.settled = true;
         this.slots.running = Math.max(0, this.slots.running - 1);
       }
@@ -342,7 +375,13 @@ export class HelperManager {
     record.waiting = record.background && why === null;
     record.state = signal?.aborted || why === "the advocate stopped it" ? "stopped" : why ? "failed" : "done";
     const note = why ? ` (stopped because ${why})` : "";
-    this.opts.text(`Helper ${record.name} ${record.state === "done" ? "finished" : record.state}${note}.${record.waiting ? " Its result waits for the advocate's next message or Use results." : ""}`);
+    this.opts.text(`Helper ${record.name} ${record.state === "done" ? "finished" : record.state}${note}.${record.waiting ? " Its result waits for the advocate's next message or Use results." : ""}`, {
+      id: record.id,
+      name: record.name,
+      type: record.type.name,
+      event: record.state === "done" ? "finished" : record.state === "failed" ? "failed" : "stopped",
+      detail: why ?? undefined,
+    });
     await this.writePartial(record);
     await this.persist();
     this.opts.changed(this.views());
@@ -369,9 +408,28 @@ export class HelperManager {
           description: t.description,
           parameters: t.parameters as never,
           execute: async (_hid, args, s) => {
-            const out = await root.executeTool(t.name, args, { signal: s });
-            if (out.isError) throw new Error(out.result.content.map((c) => c.text ?? "").join("\n") || `${t.name} failed`);
-            return { content: out.result.content as never, details: {} };
+            // A helper's tool call is shown in its own card, at start and at end. The parent's
+            // event stream does not carry a background helper's calls after start_helper returned.
+            const noticeId = `helper-tool-${randomUUID()}`;
+            const startedAt = Date.now();
+            const helper = { id: record.id, name: record.name, type: record.type.name };
+            this.opts.tool?.({ id: noticeId, helper, name: t.name, target: shortTarget(args), status: "running" });
+            let reported = false;
+            try {
+              const out = await root.executeTool(t.name, args, { signal: s });
+              const text = out.result.content.map((c) => c.text ?? "").join("\n").trim();
+              if (out.isError) {
+                this.opts.tool?.({ id: noticeId, helper, name: t.name, target: shortTarget(args), status: "error", durationMs: Date.now() - startedAt, error: (text || `${t.name} failed`).slice(0, 300) });
+                reported = true;
+                throw new Error(text || `${t.name} failed`);
+              }
+              this.opts.tool?.({ id: noticeId, helper, name: t.name, target: shortTarget(args), status: "done", durationMs: Date.now() - startedAt });
+              reported = true;
+              return { content: out.result.content as never, details: {} };
+            } catch (e) {
+              if (!reported) this.opts.tool?.({ id: noticeId, helper, name: t.name, target: shortTarget(args), status: "error", durationMs: Date.now() - startedAt, error: (e as Error).message.slice(0, 300) });
+              throw e;
+            }
           },
         }),
       );
@@ -386,7 +444,7 @@ export class HelperManager {
         execute: async (_id, p) => {
           const line = p.text.trim();
           if (!line) return { content: [{ type: "text" as const, text: "Nothing to report." }], details: {} };
-          this.opts.text(`Helper ${record.name}: ${line}`);
+          this.opts.text(`Helper ${record.name}: ${line}`, { id: record.id, name: record.name, type: record.type.name, event: "progress", detail: line });
           return { content: [{ type: "text" as const, text: "Reported." }], details: {} };
         },
       }),
@@ -397,7 +455,7 @@ export class HelperManager {
         parameters: Type.Object({ question: Type.String({ description: "One question, with what you need to continue." }) }),
         execute: async (_id, p) => {
           record.question = p.question.trim();
-          this.opts.text(`Helper ${record.name} asks: ${record.question}`);
+          this.opts.text(`Helper ${record.name} asks: ${record.question}`, { id: record.id, name: record.name, type: record.type.name, event: "question", detail: record.question });
           void this.persist();
           this.opts.changed(this.views());
           return { content: [{ type: "text" as const, text: "Your question went to the agent. Stop here; the answer resumes you." }], details: {}, terminate: true };
@@ -432,7 +490,7 @@ export class HelperManager {
         const type = choices.find((t) => t.name === params.type);
         if (!type) throw new Error(`This agent may not start a ${params.type} helper.`);
         const root = caller.root ?? (ctx as unknown as ToolContext);
-        const text = await this.start(type, params.task, { background: params.background, forkContext: params.fork_context, name: params.name }, root, signal);
+        const text = await this.start(type, params.task, { background: params.background, forkContext: params.fork_context, name: params.name }, root, signal, _id);
         return { content: [{ type: "text" as const, text }], details: { type: type.name } };
       },
     });
@@ -456,12 +514,12 @@ export class HelperManager {
     if (!instruction) throw new Error("The instruction is empty.");
     if (!session) throw new Error(`Helper ${record.name} is not running.`);
     if (record.question) {
-      this.opts.text(`Helper ${record.name} was answered and continues.`);
+      this.opts.text(`Helper ${record.name} was answered and continues.`, { id: record.id, name: record.name, type: record.type.name, event: "progress", detail: "answered and continues" });
       this.answers.get(id)?.(instruction);
       return;
     }
     await session.steer(instruction);
-    this.opts.text(`Helper ${record.name} was steered: ${instruction}`);
+    this.opts.text(`Helper ${record.name} was steered: ${instruction}`, { id: record.id, name: record.name, type: record.type.name, event: "progress", detail: `steered: ${instruction}` });
   }
 
   /** Stop one helper. */
@@ -481,7 +539,7 @@ export class HelperManager {
     // Do not wait for a model call that ignores the abort: Stop ends the call at once.
     void this.sessions.get(id)?.abort().catch(() => undefined);
     this.sessions.delete(id);
-    this.opts.text(`Helper ${record.name} stopped by the advocate.`);
+    this.opts.text(`Helper ${record.name} stopped by the advocate.`, { id: record.id, name: record.name, type: record.type.name, event: "stopped", detail: "stopped by the advocate" });
     await this.writePartial(record);
     await this.persist();
     this.opts.changed(this.views());
@@ -523,7 +581,7 @@ export class HelperManager {
     if (backgrounds.some((r) => !r.settled)) return;
     const waiting = backgrounds.filter((r) => r.waiting).length;
     this.backgroundStarted = 0;
-    this.opts.text(`Final recap: ${backgrounds.length} background helpers finished (${backgrounds.map((r) => `${r.name}: ${r.state}`).join(", ")}).${waiting ? ` ${waiting} result${waiting === 1 ? "" : "s"} wait for the advocate's next message or Use results.` : ""}`);
+    this.opts.text(`Final recap: ${backgrounds.length} background helpers finished (${backgrounds.map((r) => `${r.name}: ${r.state}`).join(", ")}).${waiting ? ` ${waiting} result${waiting === 1 ? "" : "s"} wait for the advocate's next message or Use results.` : ""}`, { event: "recap" });
   }
 
   private async writePartial(record: HelperRecord): Promise<void> {
@@ -541,6 +599,7 @@ export class HelperManager {
       await mkdir(this.opts.chatDir, { recursive: true });
       const saved = [...this.records.values()].map((r) => ({
         id: r.id,
+        callId: r.callId,
         name: r.name,
         type: r.type.name,
         typeName: r.type.name,

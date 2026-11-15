@@ -85,7 +85,7 @@ test("the plan panel shows statuses, dependencies and subtasks; it folds; Clear 
   await panel.getByText("Application for condonation").click();
   await panel.getByRole("button", { name: "Clear plan" }).click();
   await expect(page.getByTestId("plan-panel")).toHaveCount(0);
-  await expect(page.getByTestId("status-line")).not.toContainText("Plan ");
+  await expect(page.getByTestId("status-line")).toHaveCount(0);
   await app.close();
 });
 
@@ -133,6 +133,7 @@ test("a dependency blocks a start, a subtask blocks done, and the advocate adds 
 test("Settings sets how strongly the agent is asked to keep a plan", async () => {
   const { app, page } = await launch();
   await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: "Plan", exact: true }).click();
   const group = page.getByTestId("plan-strength");
   await expect(group).toBeVisible();
   await group.getByLabel("For most work: almost every task").check();

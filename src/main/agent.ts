@@ -27,8 +27,8 @@ import { appendFile, mkdir, readFile, rename, stat, writeFile } from "node:fs/pr
 import path from "node:path";
 import type { AnchorRecord, PageRecord, SourceRecord, Notebook, NotebookEvent } from "../lib/matter-store/index.ts";
 import { EventType, type AGUIEvent } from "@ag-ui/core";
-import { CHAT_MESSAGE_EVENT, CONTEXT_EVENT, EXTENSION_QUESTIONS_EVENT, EXTENSION_STATUS_EVENT, FIRM_AGENT_ID, FIRM_HANDOFFS_EVENT, HELPERS_EVENT, PLAN_EVENT, type ContextMeter, type FirmHandoff, type Plan } from "../shared/api.ts";
-import type { ChatEvent, ChatMessage, ChatState, EffortLevel, EffortState, ModelChoice } from "../shared/api.ts";
+import { CHAT_MESSAGE_EVENT, CONTEXT_EVENT, COST_EVENT, EXTENSION_QUESTIONS_EVENT, EXTENSION_STATUS_EVENT, FIRM_AGENT_ID, FIRM_HANDOFFS_EVENT, HELPERS_EVENT, PLAN_EVENT, type ContextMeter, type CostSummary, type FirmHandoff, type Plan, type RunSummary } from "../shared/api.ts";
+import type { ChatEvent, ChatMessage, ChatState, EffortLevel, EffortState, HelperEventView, ModelChoice } from "../shared/api.ts";
 
 type ThinkingLevel = EffortLevel;
 const EFFORT_LEVELS: readonly EffortLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
@@ -422,13 +422,6 @@ export function money(cost: number): string {
   return cost >= 0.01 ? `$${cost.toFixed(4)}` : `$${cost.toPrecision(3)}`;
 }
 
-/** One text line after a run: its tokens, its cache use and its cost. */
-export function runLine(run: { usage: { input: number; output: number; totalTokens: number; cost: number }; cache: { read: number; write: number } }): string {
-  const hit = cacheHit(run.usage.input, run.cache.read, run.cache.write);
-  const cache = run.cache.read + run.cache.write > 0 ? ` Cache: ${run.cache.read.toLocaleString("en-IN")} read, ${run.cache.write.toLocaleString("en-IN")} written${hit === null ? "" : ` (${hit}% hit)`}.` : "";
-  return `This run: ${run.usage.totalTokens.toLocaleString("en-IN")} tokens (${run.usage.input.toLocaleString("en-IN")} in, ${run.usage.output.toLocaleString("en-IN")} out).${cache} Cost: ${money(run.usage.cost)}.`;
-}
-
 /** The lines of one conversation's trace.jsonl, newest last. */
 export async function readTrace(chatDir: string): Promise<Array<Record<string, unknown>>> {
   try {
@@ -481,6 +474,56 @@ export function costReportText(lines: ReadonlyArray<Record<string, unknown>>): s
     ...table,
     `Total: ${totalTokens.toLocaleString("en-IN")} tokens, ${cacheRead.toLocaleString("en-IN")} tokens read from the cache, ${money(totalCost)}.`,
   ].join("\n");
+}
+
+/** The matter's totals from a trace (native-harness-parts section 6). */
+export function costSummaryFromTrace(lines: ReadonlyArray<Record<string, unknown>>): CostSummary {
+  const c: CostSummary = { runs: 0, helpers: 0, input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0, cost: 0 };
+  for (const l of lines) {
+    if (l.type !== "run_end" && l.type !== "helper_end") continue;
+    if (l.type === "run_end") c.runs++;
+    else c.helpers++;
+    c.input += n(l.input);
+    c.output += n(l.output);
+    c.total += n(l.tokens);
+    c.cacheRead += n(l.cacheRead);
+    c.cacheWrite += n(l.cacheWrite);
+    c.cost += n(l.cost);
+  }
+  return c;
+}
+
+export function emptyCost(): CostSummary {
+  return { runs: 0, helpers: 0, input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0, cost: 0 };
+}
+
+/** What a tool call acted on, for ChatToolCalls: the query, URL, source or task, in one line. */
+export function toolTarget(name: string, args: unknown): string | undefined {
+  const o = (args && typeof args === "object" ? args : {}) as Record<string, unknown>;
+  const text = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+  const named =
+    name === "start_helper"
+      ? text(o.task)
+      : name === "web_search"
+        ? text(o.query)
+        : name === "web_fetch"
+          ? text(o.url)
+          : name === "read_source_text"
+            ? [text(o.source), o.from_page ? `p. ${String(o.from_page)}` : ""].filter(Boolean).join(", ")
+            : name === "propose_correction"
+              ? [text(o.draftId), text(o.anchor)].filter(Boolean).join(", ")
+              : name === "plan_set"
+                ? text(o.title)
+                : undefined;
+  const any = named ?? text(o.source) ?? text(o.query) ?? text(o.url) ?? text(o.citation) ?? text(o.title) ?? text(o.text) ?? text(o.field) ?? text(o.helper) ?? text(o.ref);
+  if (!any) return undefined;
+  return any.length > 120 ? `${any.slice(0, 117).trimEnd()}…` : any;
+}
+
+/** A duration as ChatToolCalls shows it: "340ms" or "1.2s". */
+export function toolDuration(ms: number | undefined): string | undefined {
+  if (ms === undefined || !Number.isFinite(ms)) return undefined;
+  return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}s`;
 }
 
 function resourceLoader(prompt: string): ResourceLoader {  return {
@@ -1495,10 +1538,10 @@ export class Agent {
     const sessionRef: { s?: AgentSession } = {};
     const chatRef: { state?: ChatState } = {};
     /** A text line of the application in the chat, before or after the state exists. */
-    const notice = (line: string): void => {
+    const notice = (line: string, helper?: HelperEventView): void => {
       const st = chatRef.state;
       if (!st) return;
-      const message: ChatMessage = { id: randomUUID(), role: "notice", text: line };
+      const message: ChatMessage = { id: randomUUID(), role: "notice", text: line, ...(helper ? { helper } : {}) };
       st.messages.push(message);
       this.emit(matterId, { type: EventType.CUSTOM, name: CHAT_MESSAGE_EVENT, value: message });
     };
@@ -1524,7 +1567,29 @@ export class Agent {
       },
       createSession: (input) => this.helperSession(sessionRef.s, { ...input, sessionDir: path.join(chatDir, "helpers") }),
       parentContext: () => (stateRef.state?.messages ?? []).slice(-80).map((m) => `${m.role}: ${m.text}`).join("\n").slice(-30_000),
-      text: (line) => notice(line),
+      text: (line, event) => notice(line, event),
+      tool: (event) => {
+        const st = chatRef.state;
+        if (!st) return;
+        const message: ChatMessage = {
+          id: event.id,
+          role: "tool",
+          text: `Used tool: ${event.name}`,
+          tool: {
+            name: event.name,
+            target: event.target,
+            status: event.status,
+            durationMs: event.durationMs,
+            error: event.error,
+            helperId: event.helper.id,
+            helperName: event.helper.name,
+          },
+        };
+        const at = st.messages.findIndex((m) => m.id === event.id);
+        if (at >= 0) st.messages[at] = message;
+        else st.messages.push(message);
+        this.emit(matterId, { type: EventType.CUSTOM, name: CHAT_MESSAGE_EVENT, value: message });
+      },
       changed: (views) => {
         if (stateRef.state) stateRef.state.helpers = views;
         this.emit(matterId, { type: EventType.CUSTOM, name: HELPERS_EVENT, value: views });
@@ -1547,6 +1612,22 @@ export class Agent {
           cost: usage.cost,
         }) + "\n";
         await appendFile(path.join(chatDir, TRACE_FILE), text).catch(() => undefined);
+        // The helper's cost joins the matter's totals in the Context panel.
+        const st = stateRef.state;
+        if (st) {
+          const before = st.cost ?? emptyCost();
+          st.cost = {
+            runs: before.runs,
+            helpers: before.helpers + 1,
+            input: before.input + usage.input,
+            output: before.output + usage.output,
+            total: before.total + usage.totalTokens,
+            cacheRead: before.cacheRead + usage.cacheRead,
+            cacheWrite: before.cacheWrite + usage.cacheWrite,
+            cost: before.cost + usage.cost,
+          };
+          this.emit(matterId, { type: EventType.CUSTOM, name: COST_EVENT, value: { lastRun: st.lastRun, cost: st.cost } });
+        }
       },
     });
     // harden: Stop ends the call at once, even when the helper's model call does not end.
@@ -1655,7 +1736,14 @@ export class Agent {
     const started = sessionModel(session);
     const modelName = started ? keyOf(started) : null;
     await host.recordSession(matterId, session.sessionId, modelName);
-    const state: ChatState = { messages: fresh ? [] : await loadMessages(chatDir), busy: false, model: modelName, plan: await loadPlan(chatDir) };
+    const state: ChatState = {
+      messages: fresh ? [] : await loadMessages(chatDir),
+      busy: false,
+      model: modelName,
+      plan: await loadPlan(chatDir),
+      sessionId: session.sessionId,
+      cost: costSummaryFromTrace(await readTrace(chatDir)),
+    };
     chatRef.state = state;
     stateRef.state = state;
     const NO_MODEL = "No model is available. Sign in to a model provider with Pi first.";
@@ -1887,6 +1975,28 @@ export class Agent {
       this.emit(matterId, { type: EventType.RUN_FINISHED, threadId, runId: run.id, outcome: { type: "success" } });
     }
     this.setMeter(matterId, chat, run.cache);
+    // The Context panel's numbers: the last run, and the matter's totals.
+    const lastRun: RunSummary = {
+      input: run.usage.input,
+      output: run.usage.output,
+      total: run.usage.totalTokens,
+      cacheRead: run.cache.read,
+      cacheWrite: run.cache.write,
+      cacheHit: cacheHit(run.usage.input, run.cache.read, run.cache.write),
+      cost: run.usage.cost,
+    };
+    state.lastRun = lastRun;
+    const before = state.cost ?? emptyCost();
+    state.cost = {
+      runs: before.runs + 1,
+      helpers: before.helpers,
+      input: before.input + lastRun.input,
+      output: before.output + lastRun.output,
+      total: before.total + lastRun.total,
+      cacheRead: before.cacheRead + lastRun.cacheRead,
+      cacheWrite: before.cacheWrite + lastRun.cacheWrite,
+      cost: before.cost + lastRun.cost,
+    };
     // Summarise the run's old tool results once, at its end (native-harness-parts section 4).
     chat.summaryPending.summarise = true;
     this.trace(chat, {
@@ -1899,14 +2009,11 @@ export class Agent {
       tokens: run.usage.totalTokens,
       cacheRead: run.cache.read,
       cacheWrite: run.cache.write,
-      cacheHit: cacheHit(run.usage.input, run.cache.read, run.cache.write),
+      cacheHit: lastRun.cacheHit,
       cost: run.usage.cost,
       helpersStopped: chat.helpersStopped,
     });
-    // One text line with the run's tokens and cost (native-harness-parts section 6).
-    if (!stopped && run.usage.totalTokens > 0) {
-      this.push(matterId, chat, { id: randomUUID(), role: "notice", text: runLine(run) });
-    }
+    this.emit(matterId, { type: EventType.CUSTOM, name: COST_EVENT, value: { lastRun, cost: state.cost } });
     chat.stopped = false;
     chat.helpersStopped = 0;
     run.finish();
@@ -1961,12 +2068,28 @@ export class Agent {
       } else if (event.type === "tool_execution_start") {
         this.endText(matterId, run);
         started.set(event.toolCallId, Date.now());
-        state.messages.push({ id: event.toolCallId, role: "tool", text: `Used tool: ${event.toolName}` });
+        // A nested call belongs to the helper that made it (the start_helper call carries it).
+        // The helper wrapper already reports its calls in the helper's card; skip them here.
+        const helper = event.parentToolCallId ? chat.helpers.forCall(event.parentToolCallId) : undefined;
+        if (!helper) {
+          const message: ChatMessage = {
+            id: event.toolCallId,
+            role: "tool",
+            text: `Used tool: ${event.toolName}`,
+            tool: {
+              name: event.toolName,
+              target: toolTarget(event.toolName, event.args),
+              status: "running",
+            },
+          };
+          state.messages.push(message);
+          this.emit(matterId, { type: EventType.CUSTOM, name: CHAT_MESSAGE_EVENT, value: message });
+        }
         this.emit(matterId, { type: EventType.TOOL_CALL_START, toolCallId: event.toolCallId, toolCallName: event.toolName });
       } else if (event.type === "tool_execution_end") {
         this.emit(matterId, { type: EventType.TOOL_CALL_END, toolCallId: event.toolCallId });
-        if (event.isError) this.push(matterId, chat, { id: randomUUID(), role: "tool", text: `Tool failed: ${event.toolName}` });
         const content = (event.result as { content?: Array<{ type: string; text?: string }> } | undefined)?.content ?? [];
+        const contentText = content.map((c) => c.text ?? "").join("\n").trim();
         const used = (event.result as { usage?: { input?: number; output?: number; totalTokens?: number; cost?: { total?: number } } } | undefined)?.usage;
         if (used) {
           run.usage.input += used.input ?? 0;
@@ -1976,6 +2099,17 @@ export class Agent {
         }
         const t0 = started.get(event.toolCallId);
         started.delete(event.toolCallId);
+        // The same row becomes complete or failed, with its duration.
+        const message = state.messages.find((m) => m.id === event.toolCallId && m.tool);
+        if (message?.tool) {
+          message.tool = {
+            ...message.tool,
+            status: event.isError ? "error" : "done",
+            durationMs: event.durationMs ?? (t0 === undefined ? undefined : Date.now() - t0),
+            ...(event.isError ? { error: (contentText || "The tool failed.").slice(0, 300) } : {}),
+          };
+          this.emit(matterId, { type: EventType.CUSTOM, name: CHAT_MESSAGE_EVENT, value: message });
+        }
         this.trace(chat, {
           type: "tool",
           run: run.id,

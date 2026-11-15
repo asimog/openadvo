@@ -40,7 +40,8 @@ async function notices(page: Awaited<ReturnType<typeof launch>>["page"], matterI
 
 test("Settings lists the placeholder extension, which turns off and on, and saves a tool permission", async () => {
   const { app, page, userData } = await launch();
-  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: "Pi extensions", exact: true }).click();
   const panel = page.getByTestId("pi-extensions");
   await expect(panel.getByTestId("pi-extension-openadvo-placeholder")).toBeVisible();
   const box = panel.getByTestId("pi-extension-openadvo-placeholder").getByRole("checkbox");
@@ -52,6 +53,7 @@ test("Settings lists the placeholder extension, which turns off and on, and save
   expect((await page.evaluate(() => (globalThis as any).openadvo.listExtensions())).map((x: any) => x.id)).toEqual(["openadvo-placeholder"]);
 
   // Tool permissions: the policy file is in user data; a rule chosen in the window is saved there.
+  await page.getByRole("button", { name: "Tool permissions", exact: true }).click();
   const policyFile = path.join(userData, "tool-policy.json");
   expect(existsSync(policyFile)).toBe(true);
   const perms = page.getByTestId("tool-permissions");

@@ -61,6 +61,14 @@ test("a foreground helper reports progress and returns its result to the agent",
   await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [matterId, "Read the petition."]);
   await expect.poll(async () => (await page.evaluate((m) => (globalThis as any).openadvo.getChat(m), matterId)).busy, { timeout: 60000 }).toBe(false);
   await expect.poll(() => notices(page, matterId), { timeout: 60000 }).toEqual(expect.arrayContaining([expect.stringContaining("Helper Petition dates: Reading page 3.")]));
+  // The chat groups the agent's tool calls and the helper's work as Astryx components.
+  await expect(page.getByTestId("chat-log")).toContainText("start_helper");
+  const card = page.getByTestId("helper-card");
+  await expect(card).toBeVisible();
+  await expect(card).toContainText("Petition dates");
+  await expect(card).toContainText("record-reader");
+  await expect(card).toContainText("Reading page 3");
+  await page.screenshot({ path: path.join(repo, "test-results", "helper-card.png") });
   await expect.poll(() => notices(page, matterId), { timeout: 60000 }).toEqual(expect.arrayContaining([expect.stringContaining("Helper Petition dates finished.")]));
   const requests = await seen(app);
   expect(requests.some((r) => r.queue === "agent" && r.last.includes("Page 3, line 7: the order was passed on 4 March 2024."))).toBe(true);
@@ -85,6 +93,7 @@ test("two background helpers end with one Final Recap, and Use results sends bot
   await expect.poll(() => notices(page, matterId), { timeout: 60000 }).toEqual(expect.arrayContaining([expect.stringContaining("Final recap: 2 background helpers finished")]));
   // One recap, not one per helper.
   expect((await notices(page, matterId)).filter((t) => t.startsWith("Final recap:")).length).toBe(1);
+  await expect(page.getByTestId("helper-card")).toHaveCount(2);
   await expect(page.getByTestId("status-line").getByRole("button", { name: "Use results" })).toBeVisible({ timeout: 30000 });
   await page.getByTestId("status-line").getByRole("button", { name: "Use results" }).click();
   await expect.poll(() => notices(page, matterId), { timeout: 60000 }).toContain("The results of 2 background helpers go to the agent.");
@@ -121,7 +130,7 @@ test("Steer and Stop from the status line, and Stop on the chat stops every help
   await line.getByRole("button", { name: "Helpers" }).click();
   await page.getByRole("menuitem", { name: /Stop Limitation/ }).click();
   await expect.poll(() => notices(page, matterId), { timeout: 30000 }).toEqual(expect.arrayContaining([expect.stringContaining("Helper Limitation stopped by the advocate.")]));
-  await page.getByTestId("chat-dock").getByRole("button", { name: "Stop" }).click();
+  await page.getByTestId("stop-chat").click();
   await expect.poll(() => notices(page, matterId), { timeout: 30000 }).toEqual(expect.arrayContaining([expect.stringContaining("Helper Synopsis critic stopped by the advocate.")]));
   await app.evaluate(async () => (globalThis as any).__openadvoTest.releaseModel("hold-1"));
   await app.evaluate(async () => (globalThis as any).__openadvoTest.releaseModel("hold-2"));
@@ -138,6 +147,8 @@ test("after a background start_helper returns, the helper uses the parent's tool
   await page.evaluate(([m, t]) => (globalThis as any).openadvo.sendChat(m, t), [matterId, "Count the sources in the background."]);
   await expect.poll(() => notices(page, matterId), { timeout: 60000 }).toEqual(expect.arrayContaining([expect.stringContaining("Helper Source counter finished.")]));
   expect((await notices(page, matterId)).some((t) => t.includes("failed"))).toBe(false);
+  // The helper's own tool call is shown inside its card, not as the agent's call.
+  await expect(page.getByTestId("helper-card")).toContainText("list_sources");
 
   // The result waits; the advocate's next message carries it, and no turn starts by itself.
   await script(app, { agent: [{ text: "Used the source count." }] });
