@@ -296,6 +296,9 @@ function registerBridge(): void {
   handle("chat:stop", (matterId: string) => agent.stop(matterId));
   // O10, human-only: a Firm Agent handoff was taken to its matter, or dismissed.
   handle("firm:close-handoff", (id: string) => agent.closeFirmHandoff(String(id ?? "")));
+  // Native harness parts: the plan (clear is human-only) and Compact now.
+  handle("chat:clear-plan", (id: string) => agent.clearPlan(String(id ?? "")));
+  handle("chat:compact", (id: string) => agent.compact(String(id ?? "")));
   handle("chat:answer-question", (matterId: string, questionId: unknown, answer: unknown) => {
     if (typeof questionId !== "string" || !questionId) throw new Error("BAD_REQUEST: a question id is required");
     if (answer !== null && typeof answer !== "string" && typeof answer !== "boolean") throw new Error("BAD_REQUEST: the answer is a string, true or false, or null");

@@ -66,6 +66,30 @@ export interface FirmHandoff {
   createdAt: string;
 }
 
+/** The plan (native-harness-parts section 4). */
+export const PLAN_STATUSES = ["planned", "ongoing", "done", "cancelled"] as const;
+export type PlanStatus = (typeof PLAN_STATUSES)[number];
+export interface Plan {
+  title: string;
+  items: Array<{ n: number; text: string; status: PlanStatus }>;
+  updatedAt: string;
+}
+/** CUSTOM event whose value is the conversation's plan (Plan or null). */
+export const PLAN_EVENT = "openadvo.plan";
+
+/** The context meter (native-harness-parts section 5): after each run. */
+export interface ContextMeter {
+  /** Estimated tokens in the context, or null right after compaction. */
+  tokens: number | null;
+  window: number;
+  percent: number | null;
+  /** The last run's cache reads and writes, in tokens. */
+  cacheRead: number;
+  cacheWrite: number;
+}
+/** CUSTOM event whose value is the conversation's ContextMeter. */
+export const CONTEXT_EVENT = "openadvo.context";
+
 /** O10: CUSTOM event whose value is the Firm Agent's open handoffs (FirmHandoff[]). */
 export const FIRM_HANDOFFS_EVENT = "openadvo.firm_handoffs";
 
@@ -110,6 +134,10 @@ export interface ChatState {
   questions?: ExtensionQuestion[];
   /** O10: the Firm Agent's open handoffs. Only in the Firm Agent's state. */
   handoffs?: FirmHandoff[];
+  /** The agent's plan for long work, or null. */
+  plan?: Plan | null;
+  /** The context meter after the last run. */
+  context?: ContextMeter;
 }
 
 /** One Pi extension (decision 21). */
@@ -255,6 +283,10 @@ export interface OpenAdvoApi {
   answerExtensionQuestion(matterId: string, questionId: string, answer: string | boolean | null): Promise<void>;
   /** O10, human-only: the advocate took a Firm Agent handoff to its matter, or dismissed it. Returns the handoffs left. */
   closeFirmHandoff(id: string): Promise<FirmHandoff[]>;
+  /** Human-only: clear the conversation's plan. */
+  clearPlan(conversationId: string): Promise<void>;
+  /** Compact the conversation now (Pi's compaction with the kind's summary form). */
+  compactChat(conversationId: string): Promise<ContextMeter>;
   listContacts(): Promise<Contact[]>;
   addContact(c: { name: string; kind: string; email?: string; phone?: string; notes?: string }): Promise<Contact>;
   removeContact(id: string): Promise<Contact[]>;
