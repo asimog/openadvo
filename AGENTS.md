@@ -1,6 +1,6 @@
 # Open Advocate: standing orders
 
-Open Advocate is one desktop application for Supreme Court Advocates-on-Record. The advocate gives an instruction, the agent does the work, and the advocate decides every legal point. Start from [docs/README.md](docs/README.md). Keep this file short: standing orders only. Detail lives in `docs/`.
+Open Advocate is one desktop agentic harness for Indian litigation, before every court and tribunal. The advocate gives an instruction, the agent does the work through litigation skills, and the advocate decides every legal point. No practice management: no billing, time, CRM or marketing. Start from [docs/README.md](docs/README.md). Keep this file short: standing orders only. Detail lives in `docs/`.
 
 ## Working with the user
 
@@ -38,6 +38,7 @@ The owner is a lawyer. Never give licensing, legal or compliance advice. Record 
 - The accepted decisions in [docs/decisions.md](docs/decisions.md) are frozen. Do not reopen them.
 - The reference repositories are read only. Read a file there only when a task names it. See [docs/repo-map.md](docs/repo-map.md).
 - Vendored Euro-Office files are never modified.
+- `docs/archive/` is history. Never edit it, and never take scope from it.
 - The advocate workflow governs. When a plan, spec or design conflicts with [docs/advocate-workflow.md](docs/advocate-workflow.md), the workflow wins, unless an accepted decision says otherwise.
 
 ## Lessons from earlier work

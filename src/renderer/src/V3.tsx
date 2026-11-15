@@ -1,5 +1,5 @@
 /**
- * V3 views (docs/specs/v3.md): matter progress (V3-1) and the review inbox (V3-2).
+ * V3 views (docs/archive/2026-11-15/specs/v3.md): matter progress (V3-1) and the review inbox (V3-2).
  * Reads only, except the review-item decisions, which are the same bridge functions as before.
  */
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";

@@ -1,7 +1,7 @@
 /**
  * V5-13 to V5-17: revision compare, citation hygiene, victim identity, limitation exclusions,
  * the AI-use disclosure, the paper book and the conversion check. Plain library: it computes;
- * the matter store writes. Spec: docs/specs/v5.md.
+ * the matter store writes. Spec: docs/archive/2026-11-15/specs/v5.md.
  */
 import { PDFDocument, PDFHexString, PDFName, PDFNumber, StandardFonts, rgb, type PDFFont, type PDFRef } from "pdf-lib";
 

@@ -1,6 +1,6 @@
 /**
  * V3-1: the progress of a matter through the workflow. A plain function of records the
- * application already holds: it decides nothing and changes nothing. Spec: docs/specs/v3.md.
+ * application already holds: it decides nothing and changes nothing. Spec: docs/archive/2026-11-15/specs/v3.md.
  */
 
 export type StageState = "not_started" | "in_progress" | "done" | "blocked";

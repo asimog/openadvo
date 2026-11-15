@@ -278,7 +278,7 @@
    * Editor defaults: tracked changes off (the advocate's typing is not tracked) and
    * the editable review display. In this build "Final" and "Original" are read-only
    * preview modes; the editable mode is "Edit", which shows no markup while the
-   * draft carries no tracked changes (see docs/editor-design.md section 1.2).
+   * draft carries no tracked changes (see docs/archive/2026-11-15/editor-design.md section 1.2).
    */
   function applyEditorDefaults() {
     var editor = ascEditor()
@@ -454,7 +454,7 @@
   /**
    * Insert one Notebook sentence as a new anchored paragraph. The block content
    * control is created with the builder API, tagged with the anchor, and added at
-   * the end of the document (v0: the end; see docs/editor-design.md).
+   * the end of the document (v0: the end; see docs/archive/2026-11-15/editor-design.md).
    */
   function insertEvent(args) {
     var anchor = args && typeof args.anchor === 'string' ? args.anchor : ''

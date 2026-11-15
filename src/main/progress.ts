@@ -1,6 +1,6 @@
 /**
  * V3-1 and V3-2: the matter's progress and its review inbox, assembled from the records of
- * the matter store. Reads only. Spec: docs/specs/v3.md.
+ * the matter store. Reads only. Spec: docs/archive/2026-11-15/specs/v3.md.
  */
 import { matterProgress, type Stage } from "../lib/progress/index.ts";
 import type { Filing } from "./filing.ts";

@@ -8,7 +8,7 @@
  * Only PDF attachments become sources. Each records its capture provenance: the message id,
  * sender, subject and date. The IMAP password is kept with Electron safeStorage by the caller
  * (decision 9); this module never writes it in clear text.
- * Spec: docs/specs/v0-capture.md.
+ * Spec: docs/archive/2026-11-15/specs/v0-capture.md.
  */
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";

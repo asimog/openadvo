@@ -8,7 +8,7 @@
  * - a submit control is refused to `browser_click`; only `submit_filing` presses it, and only
  *   after both confirmations bound to the payload hash of the newest filing set;
  * - `upload_filing_file` accepts only files of that filing set whose bytes still match the manifest.
- * Specs: docs/specs/v0-capture.md, docs/specs/v0-agent-filing.md.
+ * Specs: docs/archive/2026-11-15/specs/v0-capture.md, docs/archive/2026-11-15/specs/v0-agent-filing.md.
  */
 import { BrowserWindow, session, type WebContents } from "electron";
 import { createHash, randomUUID } from "node:crypto";

@@ -1,7 +1,7 @@
 /**
  * Document intelligence: text with page and line anchors, and OCR of pages without text.
  * Plain library: no Electron import, no Pi import (decision 6). It computes; the matter store writes.
- * Spec: docs/specs/v0-document-intelligence.md.
+ * Spec: docs/archive/2026-11-15/specs/v0-document-intelligence.md.
  */
 import { createRequire } from "node:module";
 import path from "node:path";

@@ -1,7 +1,7 @@
 /**
  * V5-7 and V5-8: OCR disputes, event corrections and date anchors. Part of the matter store
  * (decision 4). The system opens disputes and anchor questions; only the advocate decides.
- * Plain library. Spec: docs/specs/v5.md.
+ * Plain library. Spec: docs/archive/2026-11-15/specs/v5.md.
  */
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";

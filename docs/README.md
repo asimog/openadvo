@@ -1,20 +1,25 @@
 # Documents
 
-Read in this order.
+Open Advocate is a desktop agentic harness for Indian litigation. These documents were rewritten on 2026-11-15, when the owner accepted the litigation-harness plan. The documents they replace are in [archive/2026-11-15/](archive/2026-11-15/). Those govern nothing.
+
+Read in this order. Each fact has one owning file. Link to it; do not restate it.
 
 | Order | Document | Owns |
 |---|---|---|
 | 1 | [../AGENTS.md](../AGENTS.md) | Standing orders, lessons L1 to L6, the advice boundary. |
-| 2 | [advocate-workflow.md](advocate-workflow.md) | What the advocate experiences, from instruction to a filing-ready SLP. It governs every other document. |
-| 3 | [decisions.md](decisions.md) | Accepted decisions, engineering choices, carried-over rulings, what they supersede, the map of old terms to new terms. |
-| 4 | [build-plan.md](build-plan.md) | Build order, steps and rounds, coverage of the workflow, integration of records. |
-| 5 | [repo-map.md](repo-map.md) | Folders, write boundaries, the reference repositories. |
-| 6 | [specs/](specs/) | One v0 spec per started step: app and matter store, document intelligence, Notebook, List of Dates and Synopsis, verification, research, citations, filing, capture, agent filing and voice. The v1 spec of the components: [specs/v1.md](specs/v1.md). The v2 spec: [specs/v2.md](specs/v2.md). The v3 spec (finish and polish): [specs/v3.md](specs/v3.md). The v4 spec (the Research and Argument Studio): [specs/v4.md](specs/v4.md). The v5 spec (the features of the earlier specifications and the research): [specs/v5.md](specs/v5.md). |
-| 7 | [editor-design.md](editor-design.md) | How the editor fits the product, and the engine rules carried over. |
-| 8 | [euro-office-vendoring.md](euro-office-vendoring.md) | Where each Euro-Office part comes from. The owner reads it before step 2. |
+| 2 | [product.md](product.md) | What Open Advocate is, its scope, the hard rules, the risks. |
+| 3 | [advocate-workflow.md](advocate-workflow.md) | What the advocate experiences: onboarding, the Practice Profile, the interface, a matter from instruction to order, review and approval. It governs every other document. |
+| 4 | [decisions.md](decisions.md) | Accepted decisions (frozen), rulings that still apply, what they supersede, old terms to new terms. |
+| 5 | [architecture.md](architecture.md) | Layers, the stores and what each owns, the three graphs, context assembly, memory, the harness, local intelligence, court adapters, languages. |
+| 6 | [features.md](features.md) | The feature catalogue: 204 features with ids, phases, outputs and dependencies. |
+| 7 | [skills.md](skills.md) | The skill format, the skills library and the practice packs. |
+| 8 | [build-plan.md](build-plan.md) | The five phases, the order inside each, the proof tests and the exits. |
+| 9 | [engineering.md](engineering.md) | Engineering choices, the vendored parts and their scripts, the editor rules. |
+| 10 | [repo-map.md](repo-map.md) | Folders, write boundaries, data outside the repository, the reference repositories. |
+| 11 | [specs/](specs/) | One-page specs, one per started step. |
 | — | [questions.md](questions.md) | Open questions for the owner, with the default used until answered. |
-| — | [parking.md](parking.md) | Ideas outside the current step (lesson L6). |
+| — | [parking.md](parking.md) | Items outside the current step (lesson L6). |
 
-Records of work sessions, reports and logs are in `../.agents/logs/`. They govern nothing.
+Session reports and logs are in `../.agents/logs/`. They govern nothing. The assessment behind this plan is [../.agents/logs/2026-11-15-litigation-harness-report.md](../.agents/logs/2026-11-15-litigation-harness-report.md).
 
-When two documents disagree, the workflow and the accepted decisions win, then the newer source. Record the conflict and its resolution in the work report.
+When two documents disagree, the workflow and the accepted decisions win, then the owning file. When a document and the code disagree, follow the code and report the mismatch.

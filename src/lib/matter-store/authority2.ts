@@ -1,7 +1,7 @@
 /**
  * V5-10: support, voice and treatment of authorities; V5-11: the challenge register of the
  * hearing rehearsal. Part of the matter store (decision 4). The agent proposes; the advocate
- * confirms. Plain library. Spec: docs/specs/v5.md.
+ * confirms. Plain library. Spec: docs/archive/2026-11-15/specs/v5.md.
  */
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";

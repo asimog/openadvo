@@ -81,7 +81,7 @@ export interface AppInfo {
 export interface OpenAdvoApi {
   // Queries
   listMatters(): Promise<MatterSummary[]>;
-  // V1 (docs/specs/v1.md). Human-only where marked.
+  // V1 (docs/archive/2026-11-15/specs/v1.md). Human-only where marked.
   /** Human-only (V1-10). */
   renameMatter(matterId: string, title: string): Promise<MatterSummary>;
   /** Human-only (V1-10). Nothing is deleted. */
@@ -99,7 +99,7 @@ export interface OpenAdvoApi {
   addRecordColumn(matterId: string, question: string): Promise<RecordColumn>;
   /** Human-only (V1-5). */
   decideRecordCell(matterId: string, sourceId: string, columnId: string, decision: "confirm" | "clear"): Promise<RecordTable>;
-  // V2 (docs/specs/v2.md). Human-only where marked.
+  // V2 (docs/archive/2026-11-15/specs/v2.md). Human-only where marked.
   /** Human-only (V2-2). */
   setSourceType(matterId: string, sourceId: string, type: string): Promise<SourceRecord[]>;
   listDuplicates(matterId: string): Promise<DuplicatePair[]>;
@@ -111,7 +111,7 @@ export interface OpenAdvoApi {
   listMemoryProposals(matterId: string): Promise<MemoryProposal[]>;
   /** Human-only (V2-8). An accepted text is added to memory.md. */
   decideMemoryProposal(matterId: string, id: string, accept: boolean): Promise<MemoryProposal[]>;
-  // V3 (docs/specs/v3.md).
+  // V3 (docs/archive/2026-11-15/specs/v3.md).
   getProgress(matterId: string): Promise<ProgressStage[]>;
   getInbox(matterId: string): Promise<InboxItem[]>;
   /** V3-3: lines of the matter's sources that contain the words. */
@@ -149,7 +149,7 @@ export interface OpenAdvoApi {
   resolveReviewItem(matterId: string, itemId: string): Promise<ReviewItem>;
   skipReviewItem(matterId: string, itemId: string): Promise<ReviewItem>;
   onIngestUpdate(listener: (matterId: string) => void): () => void;
-  // V5 (docs/specs/v5.md).
+  // V5 (docs/archive/2026-11-15/specs/v5.md).
   verifyRecordChain(matterId: string): Promise<ChainCheck>;
   listRefusals(matterId: string): Promise<Refusal[]>;
   inspectRecord(matterId: string, id: string): Promise<Inspection | null>;
@@ -205,7 +205,7 @@ export interface OpenAdvoApi {
   listOcrDisputes(matterId: string, sourceId?: string): Promise<OcrDispute[]>;
   /** Human-only (V5-8). */
   decideOcrDispute(matterId: string, id: string, choice: "a" | "b" | "typed", typed?: string): Promise<{ dispute: OcrDispute; added: number }>;
-  // V4 (docs/specs/v4.md). Human-only where marked.
+  // V4 (docs/archive/2026-11-15/specs/v4.md). Human-only where marked.
   getStudio(matterId: string): Promise<StudioState>;
   getResearchLog(matterId: string): Promise<EventRecord[]>;
   researchSearch(matterId: string, source: ResearchHit["source"], query: string, opts?: { from?: number; to?: number; limit?: number }): Promise<{ hits: ResearchHit[]; notice: string }>;

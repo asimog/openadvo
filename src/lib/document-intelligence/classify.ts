@@ -1,6 +1,6 @@
 /**
  * V2-2: propose a document type from the first page. Fixed rules, no model. The proposal is a
- * candidate; the advocate confirms it or sets another type. Plain library. Spec: docs/specs/v2.md.
+ * candidate; the advocate confirms it or sets another type. Plain library. Spec: docs/archive/2026-11-15/specs/v2.md.
  */
 
 export const DOC_TYPES = [

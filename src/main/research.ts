@@ -4,7 +4,7 @@
  * Issues, authorities and memoranda are records of the matter. The agent writes candidates
  * and memoranda; the advocate decides (decision 5). Citations are checked by the external
  * validator `ulos` through `lib/ulos`; this module stores what the validator says and never
- * decides an outcome itself. Specs: docs/specs/v0-research.md, docs/specs/v0-citations.md.
+ * decides an outcome itself. Specs: docs/archive/2026-11-15/specs/v0-research.md, docs/archive/2026-11-15/specs/v0-citations.md.
  */
 import type { Matters } from "./matters.ts";
 import { findCitations, ulosAvailable, verifyCitation, type UlosPaths } from "../lib/ulos/index.ts";

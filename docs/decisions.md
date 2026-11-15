@@ -1,84 +1,77 @@
 # Decisions
 
-Status: frozen. Do not reopen an accepted decision (lesson L4). A new decision is added only by the owner, or where a task explicitly gives the choice to the engineer (for example decision 11).
+Status: frozen. Do not reopen an accepted decision (lesson L4). Only the owner adds a decision.
 
-This file owns: the accepted decisions, the engineering choices made under them, the rulings carried over from earlier records, the table of what they supersede, and the map from old terms to new terms.
+This file owns the accepted decisions, the rulings that still apply, what the decisions supersede, and the map from old terms to new terms. The engineering choices made under the decisions are in [engineering.md](engineering.md).
 
-## 1. Accepted decisions
+The owner's instruction of 2026-11-15 ("archive old docs and rewrite new ones") accepted the litigation-harness plan. The old documents are in [archive/2026-11-15/](archive/2026-11-15/). They govern nothing.
+
+## 1. Base decisions (kept from the code)
+
+The code follows these decisions now. They keep their numbers.
 
 | No. | Decision |
 |---|---|
-| 1 | One desktop application of our own, in Electron, in TypeScript. No Tauri. No Rust. Setup: electron-vite. Main process, preload bridge, React renderer. |
-| 2 | The agent is Pi (pi.dev), embedded in the main process through its SDK. The agent gets only the tools we register. It gets no shell tool and no file-write tool. |
+| 1 | One desktop application of our own, in Electron, in TypeScript. Setup: electron-vite. Main process, preload bridge, React renderer. |
+| 2 | The agent is Pi, embedded in the main process through its SDK. The agent gets only the tools we register. It gets no shell tool and no file-write tool. |
 | 3 | The renderer is React. It holds no business logic and has no file access (`contextIsolation` on, `nodeIntegration` off, `sandbox` on). |
-| 4 | One module, the matter store, is the single writer of matter facts: a matter folder, `matter.db` (SQLite), files stored by SHA-256, an append-only event record. |
-| 5 | Human-only actions (confirm a fact, keep or undo a change, approve a revision) are named functions on the preload bridge. They are never agent tools. |
+| 4 | Each store has one writer. The matter store is the single writer of matter facts: a matter folder, `matter.db` (SQLite), files stored by SHA-256, and an append-only, hash-chained event record. |
+| 5 | Human-only actions are named functions on the preload bridge. They are never agent tools. |
 | 6 | Domain logic is plain libraries with no Electron import and no Pi import. |
-| 7 | The Pi session records agent activity. The matter store records case facts. They link by ids only. |
-| 8 | The editor is official Euro-Office only, from the Euro-Office organisation on GitHub. The third-party euro-office-lite project is not used, in any part. No Docker and no document server on the advocate's machine. Vendored Euro-Office files are never modified. |
-| 9 | No dependency on one operating system. Node scripts, not PowerShell. Paths from Electron and `node:path`, never written by hand. Secrets through Electron `safeStorage`. A native binary sits behind one module that selects it by platform. |
-| 10 | Supreme Court documents are English. Hindi OCR is out of scope. |
+| 7 | The Pi session records agent activity. The stores record case facts. They link by ids only. |
+| 8 | The editor is official Euro-Office only. No Docker and no document server on the advocate's machine. Vendored Euro-Office files are never modified. |
+| 9 | No dependency on one operating system. Node scripts, not PowerShell. Paths from Electron and `node:path`. Secrets through Electron `safeStorage`. A native binary sits behind one module that selects it by platform. |
 
-## 2. Engineering choices made under the decisions
+## 2. Decisions of 2026-11-15
 
-| No. | Choice | Under | Evidence |
-|---|---|---|---|
-| 11 | **Component library: Astryx** (`@astryxdesign/core` with `@astryxdesign/theme-neutral`). It has a sortable table (`Table` with `useTableSortable`), tabs (`TabList`) and a dialog (`Dialog`, `AlertDialog`). It ships prebuilt CSS, so no StyleX build plugin is needed. Fluent UI and Mantine are not used. No second component library is added. | Task D3 | `@astryxdesign/core@0.7.15` package exports and `dist/Table/index.d.ts`; [D2 and D3 record](../.agents/logs/2026-11-13-step1-report.md) |
-| 12 | **SQLite: the built-in `node:sqlite`** (`DatabaseSync`) in the main process. No native SQLite addon, so no per-platform rebuild. Fact: Node 24.13 prints "ExperimentalWarning: SQLite is an experimental feature" when it loads `node:sqlite`. If an Electron upgrade changes its API, `better-sqlite3` is the replacement behind the same matter-store module. | Decision 4, 9 | D2 smoke test, `spikes/d2-smoke/main.mjs` |
-| 13 | **Pi package: `@earendil-works/pi-coding-agent`**, pinned exact. The session is created with our own `ResourceLoader` (no extensions, skills, prompt templates or context files are discovered), an in-memory `SettingsManager`, and `tools: [<our tool names>]` with `customTools`. This is how "only the tools we register" is enforced. | Decision 2 | D2 smoke test; Pi `docs/sdk.md`; `dist/core/sdk.d.ts` (`tools`, `customTools`, `noTools`) |
-| 14 | **Panes: `react-resizable-panels`.** It splits the chat dock from the view, and the PDF editor from the page text. | Task D4 | — |
-| 15 | **Tests: Playwright against the built application** (`_electron.launch`), plus `node:test` for the plain libraries. | Task D4 | — |
-| 16 | **Model credentials: Pi's own credential store.** The application stores no model secret. | Owner, 2026-11-13 | questions.md Q-2 |
-| 17 | **Model selection: pi-ai's model list.** The chat composer lists `ModelRuntime.getAvailable()`. The default is `OPENADVO_MODEL`, then the advocate's saved choice (`settings.json` in user data, resolved with the SDK's `resolveCliModel`), then the application default `opencode-go/deepseek-v4.1-flash` (owner, 2026-11-14), then Pi's own default model setting, then the first available model. A change applies to open sessions through `session.setModel`. Pi's own default is not changed. **Reasoning effort** (owner, 2026-11-14): shown beside the model, with the levels the model accepts; the choice is saved in `settings.json` and applies through `session.setThinkingLevel`. | Owner, 2026-11-13 and 2026-11-14 | `src/main/agent.ts` |
-| 18 | **Euro-Office: the complete official desktop release, every editor, inside the window.** Hosted like euro-office-lite hosts it (host page, `AscDesktopEditor` bridge, `x2t` backend), but with the release's published editor files, unchanged. Moves Euro-Office hosting to build step 2. | Owner, 2026-11-13 | [euro-office-vendoring.md](euro-office-vendoring.md) |
-| 19 | **PDF text: `pdfjs-dist`** (text layer with positions, grouped into lines). **Page images for OCR: `@napi-rs/canvas`**, a prebuilt native canvas per platform, installed by npm and loaded through N-API. **OCR: `tesseract.js`** with English data from `@tesseract.js-data/eng`, so nothing is downloaded at run time. All run in the main process (decision 6: inside `lib/document-intelligence`). | Step 2 | `tests/unit/document-intelligence.test.ts` |
+| No. | Decision |
+|---|---|
+| 10 | **Litigation only.** Open Advocate covers litigation before every Indian court and tribunal. It has no practice management: no billing, time, fees, accounting, CRM, marketing or firm analytics. Scope is in [product.md](product.md) section 2. Replaces the old decision 10 (Supreme Court only, English only). |
+| 11 | **Simple onboarding.** Four skippable steps, then one Practice Profile page. Every other preference is learned later and approved by the advocate. See [advocate-workflow.md](advocate-workflow.md) sections 1 and 2. |
+| 12 | **Canonical stores.** `matter.db` per matter, `corpus.db` (public law), `intel.db` (courts, rules and sources, versioned) and `advocate.db` (profile, preferences, advocate memory, Knowledge Library). Each store has one writer module and its own hash-chained audit. See [architecture.md](architecture.md) section 3. |
+| 13 | **Derived indexes own nothing.** Full text, vectors, the three graphs and the analytics views are rebuilt from the canonical stores. The graphs are SQLite edge tables, not a graph database. |
+| 14 | **Skills are the unit of work.** A skill is a versioned file with inputs, required context, permitted tools, an output schema, checks and approval points. Built-in skills live in the repository. The advocate's own skills live in user data. See [skills.md](skills.md). |
+| 15 | **One harness.** Every skill run gets a context package, a scoped Pi session, an output check, an evaluator gate (at most two rewrites) and a report card. See [architecture.md](architecture.md) sections 5 and 7. |
+| 16 | **Rules are dated.** Every court rule, statute version and source has its source, its retrieval date and its check interval. A row past its interval is stale. A check that depends on a stale row is "unconfirmed", never "passed". |
+| 17 | **Court adapters prepare. They never submit.** An adapter declares its capabilities and its access method. It never solves a CAPTCHA, never holds court credentials, and never submits a filing. Submission keeps the two-confirmation flow of the code. |
+| 18 | **No outcome prediction.** No judge personality profile. Bench data is used only for legal-authority research. Replaces ruling R-1. |
+| 19 | **Confidential matters stay local.** A confidential matter uses only local models and makes no web query. |
+| 20 | **Languages.** English first. Hindi OCR and display in Phase 2. Other regional languages in Phase 4. A translation sits beside the original. It is never the source. |
+| 21 | **Build order.** Five phases ([build-plan.md](build-plan.md)). Each phase ends with real briefs that the owner completes. |
 
-| 20 | **Window layout** (replaces the step 1 layout of matters, view, chat). One title bar of our own, with the system window controls at its end; no File, Edit, View, Window menu. A side navigation that hides to an icon rail (Astryx `AppShell` and `SideNav`): New matter, Home, the matters. With no matter open, the view is the chat landing page. In a matter, the chat is docked on the left and the view fills the right: the Notebook, a source, or the Word editor. There is no pane right of the view. An editor fills the view to its top edge, and the harness bar of a draft sits in the chat dock. The navigation folds while a source or a draft is open. Icons: `@heroicons/react`, the set the Astryx templates use. | Owner, 2026-11-14 | `src/renderer/src/App.tsx`; `tests/e2e/app.spec.ts` |
-| 21 | **Agent to window stream: the AG-UI protocol** (`@ag-ui/core`, pinned exact; types and event schemas only). The main process translates Pi session events into AG-UI events and sends them over our own IPC: `RUN_STARTED`, text message and tool call events, then `RUN_FINISHED` or `RUN_ERROR`. No HTTP server and no CopilotKit UI: Astryx renders the events (choice 11). A question the agent puts to the advocate will use an AG-UI interrupt; the answer to a human-only action is still recorded by a bridge function (decision 5). Since step 5, a run in which the agent proposed draft changes ends with `RUN_FINISHED` and an `interrupt` outcome, one interrupt per change; Keep and Undo are the bridge function `decideAgentChanges`. | Owner, 2026-11-14 | `src/main/agent.ts`; `src/renderer/src/ChatDock.tsx`; one real turn of 124 events, all valid against `EventSchemas` ([session record](../.agents/logs/2026-11-14-layout-and-step5-start.md)) |
+## 3. Rulings that still apply
 
-## 3. Rulings carried over from earlier records
+| No. | Ruling |
+|---|---|
+| R-2 | An advocate attestation of a citation unblocks it. The AI-use disclosure lists it as advocate-attested. |
+| R-3 | The AI-use disclosure is a required part of every filing package. |
+| R-4 | An amended section with no advocate attestation blocks, through "Blocked pending legal review". |
+| R-5 | Verification is online. A source that cannot be reached yields `unresolved`, and `unresolved` blocks. |
+| R-6 | Only court public records are verified against the validator. Client-supplied files are tagged `client_supplied` and are never put through the validator. |
 
-The workflow names these. They keep their meaning. The earlier id is given for traceability only.
-
-| No. | Ruling | Earlier id |
-|---|---|---|
-| R-1 | An advisory outcome score may use subject category, bench strength, disposal type and period. It never uses a judge identifier. | OQ-10 |
-| R-2 | An advocate attestation of a citation unblocks it. The AI-use disclosure lists it as advocate-attested. | OQ-08 |
-| R-3 | The AI-use disclosure is a required part of every filing package. | OQ-06 |
-| R-4 | An amended section with no advocate attestation blocks, through "Blocked pending legal review". | OQ-09 |
-| R-5 | Verification is online. A source that cannot be reached yields `unresolved`, and `unresolved` blocks. | P4 |
-| R-6 | Only court public records are verified. Client-supplied files are tagged `client_supplied` and are never put through the validator. | P5 |
+R-1 (an advisory outcome score) is superseded by decision 18.
 
 ## 4. What the decisions supersede
 
-The three earlier repositories are reference only (see [repo-map.md](repo-map.md)). Their rules and tests may be ported. Their architecture is not taken.
-
-| Earlier decision or design | Where it is recorded | Superseded by |
+| Earlier design | Where it is recorded | Superseded by |
 |---|---|---|
-| Rust kernel that writes the record; `oa` CLI; `oa-protocol` crate; Rust stores; native addon for the window | `openadvodeprecated/docs/decisions.md` P1, P2, PH-01, PH-02, PH-03, PH-16; specs B, C, E | 1, 4, 6 |
-| "CLI first": every capability usable from `oa` before it has a pane; GUI and CLI parity | `openadvodeprecated` P1, P9 | 1. The bridge and the agent tools are the two surfaces. |
-| Window named `oa-shell.exe`, one `WebContentsView` per view split, three regions in the order left pane, chat, view | `openadvodeprecated` PH-05, PH-15 | 1, 3, and choice 20: side navigation, chat dock, view |
-| Pi runs as a separate supervised Node process, never in Electron's main process | `openadvodeprecated` PH-18, P7 | 2 |
-| Pi, OCR engines and Euro-Office vendored as source into our tree | `openadvodeprecated` P7 | 2 (Pi is an npm dependency), 8 (Euro-Office is fetched from official releases or source by a script) |
-| One internal UI module; no third-party widget kit | `openadvodeprecated` PH-10 | 11 |
-| PDF viewer through pdfium and `pdfium-render`; DOCX reader `docx-rs` | `openadvodeprecated` OQ-18, OQ-19 | 1 (no Rust). Step 2 and step 4 choose TypeScript-side libraries. |
-| DeepSeek Harness (DSH) plugins; `dsh-workspace-editor` component; component publication and compatibility gate | `advodsh` AGENTS.md, docs; `openadvocate` docs V0-C01 to V0-C22 | 1, 2 |
-| Editor frontend and Document Builder taken from euro-office-lite | `advodsh/docs/eurooffice-hosting-assessment.md`, `advodsh/vendor/euro-office/manifest.json` | 8 |
-| Agent edits are proposals in a separate proposal store; change proposals and fan-out | `openadvocate` V0-C13; `advodsh/docs/legal-docx-workspace.md` sections 4.12, 12, 19 | [editor-design.md](editor-design.md) item a: agent edits are tracked changes in the DOCX |
-| LibreOffice for read-only previews and as a conversion fallback | `openadvocate` V0-C15 | 8 |
-| Build order owned by `openadvodeprecated/docs/architecture.md` | `openadvodeprecated` PH-12 | [build-plan.md](build-plan.md) |
+| One product for Supreme Court Advocates-on-Record, from the impugned judgment to a filing-ready SLP | [archive/2026-11-15/advocate-workflow.md](archive/2026-11-15/advocate-workflow.md) | 10, and [advocate-workflow.md](advocate-workflow.md) |
+| Supreme Court documents are English; Hindi OCR is out of scope (old decision 10) | [archive/2026-11-15/decisions.md](archive/2026-11-15/decisions.md) | 20 |
+| Build steps 1 to 10 and rounds v0 to v5 | [archive/2026-11-15/build-plan.md](archive/2026-11-15/build-plan.md), [archive/2026-11-15/specs/](archive/2026-11-15/specs/) | 21 |
+| Five built-in SLP workflows as the only workflows | `src/lib/workflows` | 14. The SLP work becomes the SLP skill (SK-308) and the Supreme Court pack (feature Q3). |
+| An advisory outcome score (R-1) | [archive/2026-11-15/decisions.md](archive/2026-11-15/decisions.md) | 18 |
+| The architecture of the three earlier repositories (Rust kernel, `oa` CLI, DSH plugins) | [repo-map.md](repo-map.md) | 1, 2, 4, 6 (unchanged) |
 
 ## 5. Map of old terms to new terms
 
 | Old term | New term |
 |---|---|
-| Kernel | The matter store (canonical matter facts, revisions, events). Permissions and approvals sit in the main process and the bridge. |
-| Harness, harness connection | The agent: one Pi session in the main process, with our registered tools. |
-| `oa` commands | Bridge functions (for the advocate) and agent tools (for the agent). |
-| Crates (`oa-kernel`, `oa-protocol`, stores) | Main-process modules and plain TypeScript libraries under `src/lib`. |
-| Spec letters A to U | Build-plan steps 1 to 10. See the coverage table in [build-plan.md](build-plan.md). |
-| `ulos` | Unchanged. The validator, built in its own repository. |
-
-## 6. Questions for the owner
-
-Open questions live in [questions.md](questions.md).
+| Notebook | The Facts & Chronology tab. The code module keeps the name `notebook`. |
+| Sources view | The Documents & Evidence tab |
+| Studio, Research and Argument Studio | The Research & Authorities and the Arguments & Strategy tabs. The code module keeps the name `studio`. |
+| Practice view | The Proceedings & Hearings and the Tasks & Deadlines tabs |
+| Workflow (the five SLP workflows) | Skill and workflow ([skills.md](skills.md)) |
+| Step, round, v0 to v5 | Phase and feature id ([build-plan.md](build-plan.md), [features.md](features.md)) |
+| Kernel | The stores and their writer modules |
+| `oa` commands | Bridge functions (for the advocate) and agent tools (for the agent) |
+| `ulos` | Unchanged. The citation validator, built in its own repository. |

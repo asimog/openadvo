@@ -1,7 +1,7 @@
 /**
  * V4: the Research and Argument Studio in the main process. The research hub reaches the four
  * sources and keeps the shared judgment index; the argument studio runs the loop of
- * lib/studio for one issue. Every write goes through the matter store. Spec: docs/specs/v4.md.
+ * lib/studio for one issue. Every write goes through the matter store. Spec: docs/archive/2026-11-15/specs/v4.md.
  */
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";

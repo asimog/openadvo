@@ -1,7 +1,7 @@
 /**
  * V4: the agent's Studio tools. Each returns plain text for the model; a refusal or a source
  * that cannot be reached is returned as text, so the model can tell the advocate. The agent
- * writes only candidates (decision 5). Spec: docs/specs/v4.md.
+ * writes only candidates (decision 5). Spec: docs/archive/2026-11-15/specs/v4.md.
  */
 import type { ArgumentStudio, ResearchHub, SourceName } from "./studio.ts";
 import type { Matters } from "./matters.ts";

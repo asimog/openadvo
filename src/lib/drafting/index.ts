@@ -2,7 +2,7 @@
  * Drafting: the List of Dates and the Synopsis as DOCX, with one paragraph anchor per paragraph.
  * Plain library: no Electron import, no Pi import (decision 6).
  * Deterministic: no model writes text. Only the anchors are random.
- * Spec: docs/build-plan.md step 4. Anchor scheme: docs/editor-design.md section 1.1.
+ * Spec: docs/archive/2026-11-15/build-plan.md step 4. Anchor scheme: docs/archive/2026-11-15/editor-design.md section 1.1.
  */
 import { randomUUID } from "node:crypto";
 import { AlignmentType, Document, HeadingLevel, Packer, Paragraph, TextRun } from "docx";

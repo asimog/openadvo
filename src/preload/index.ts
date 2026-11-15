@@ -96,7 +96,7 @@ const api: OpenAdvoApi = {
   fetchMail: (matterId, filter) => ipcRenderer.invoke("mail:fetch", matterId, filter),
   decideAgentChanges: (matterId, draftId, baseRevisionId, decisions) =>
     ipcRenderer.invoke("drafts:decideAgentChanges", matterId, draftId, baseRevisionId, decisions),
-  // V5 (docs/specs/v5.md).
+  // V5 (docs/archive/2026-11-15/specs/v5.md).
   verifyRecordChain: (matterId) => ipcRenderer.invoke("audit:verifyChain", matterId),
   listRefusals: (matterId) => ipcRenderer.invoke("audit:refusals", matterId),
   inspectRecord: (matterId, id) => ipcRenderer.invoke("audit:inspect", matterId, id),

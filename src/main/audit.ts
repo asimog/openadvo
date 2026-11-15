@@ -1,6 +1,6 @@
 /**
  * V5-1 to V5-5 in the main process: the Find index built from the matter's records, the Files
- * view, the Jobs view, and the record of refused requests. Spec: docs/specs/v5.md.
+ * view, the Jobs view, and the record of refused requests. Spec: docs/archive/2026-11-15/specs/v5.md.
  */
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";

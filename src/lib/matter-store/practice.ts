@@ -1,7 +1,7 @@
 /**
  * V5-19 to V5-23: hearings, reminders, the matter's policy (budget and confidentiality) and its
  * parties. Part of the matter store (decision 4). Every write here is the advocate's.
- * Plain library. Spec: docs/specs/v5.md.
+ * Plain library. Spec: docs/archive/2026-11-15/specs/v5.md.
  */
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";

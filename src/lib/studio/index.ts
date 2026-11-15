@@ -2,7 +2,7 @@
  * V4-3: the argument loop. Built here, comparable to MOTO (Intrafere/MOTO, MIT; not vendored,
  * no code copied): generators, staged validators, a diversity archive keyed by ground and
  * stance, pairwise comparison, and typed rejection memory. Plain library: the model call, the
- * records and the writes are passed in. Spec: docs/specs/v4.md.
+ * records and the writes are passed in. Spec: docs/archive/2026-11-15/specs/v4.md.
  *
  * Code decides what is grounded and what an argument's status is. A model only proposes text,
  * lists critical questions, writes attacks, and compares two arguments on grounding and clarity.

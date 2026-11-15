@@ -3,7 +3,7 @@
  *
  * A matter is a folder: `matter.db` (SQLite) and `blobs/<sha256>`.
  * Plain library: no Electron import and no Pi import (decision 6).
- * Spec: docs/specs/v0-app-and-matter-store.md.
+ * Spec: docs/archive/2026-11-15/specs/v0-app-and-matter-store.md.
  */
 import { DatabaseSync } from "node:sqlite";
 import { createHash, randomUUID } from "node:crypto";

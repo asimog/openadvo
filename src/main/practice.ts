@@ -1,6 +1,6 @@
 /**
  * V5-19 to V5-25 in the main process: the impact of a new order, the docket, reminders, the
- * questions document and the diagnostics file. Spec: docs/specs/v5.md.
+ * questions document and the diagnostics file. Spec: docs/archive/2026-11-15/specs/v5.md.
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";

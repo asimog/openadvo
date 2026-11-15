@@ -1,5 +1,5 @@
 /**
- * V2 views (docs/specs/v2.md): the document type control (V2-2), the List of Dates rows (V2-5)
+ * V2 views (docs/archive/2026-11-15/specs/v2.md): the document type control (V2-2), the List of Dates rows (V2-5)
  * and the memory proposals (V2-8). No business logic: each action is one bridge function.
  */
 import { useCallback, useEffect, useState } from "react";

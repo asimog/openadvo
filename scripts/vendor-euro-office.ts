@@ -1,6 +1,6 @@
 /**
  * Fetch and check the official Euro-Office desktop release for this platform.
- * See docs/euro-office-vendoring.md. Vendored files are never modified.
+ * See docs/archive/2026-11-15/euro-office-vendoring.md. Vendored files are never modified.
  *
  * Usage:
  *   node scripts/vendor-euro-office.ts                 download into .vendor-cache/, then stage

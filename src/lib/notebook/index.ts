@@ -1,6 +1,6 @@
 /**
  * Notebook extraction: dates, candidate events and date conflicts. Deterministic rules only.
- * Plain library: no Electron import, no Pi import. Spec: docs/specs/v0-notebook.md.
+ * Plain library: no Electron import, no Pi import. Spec: docs/archive/2026-11-15/specs/v0-notebook.md.
  */
 
 export const METHOD = "rules-v3";

@@ -5,7 +5,7 @@
  * the compliance results, and the advocate approves the filing: that action makes the filing
  * set. Each petition document is the approved DOCX revision rendered to PDF/A by the release's
  * own x2t. The manifest lists every file with its SHA-256; the payload hash is the SHA-256 of
- * the manifest, and every filing confirmation is bound to it. Spec: docs/specs/v0-filing.md.
+ * the manifest, and every filing confirmation is bound to it. Spec: docs/archive/2026-11-15/specs/v0-filing.md.
  */
 import { createHash } from "node:crypto";
 import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";

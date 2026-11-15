@@ -1,7 +1,7 @@
 /**
  * V2-1: files other than PDF. Detects the media type from the first bytes of a file, and reads
  * DOCX and plain text into pages of lines. Plain library: no Electron import, no Pi import.
- * Spec: docs/specs/v2.md (V2-1).
+ * Spec: docs/archive/2026-11-15/specs/v2.md (V2-1).
  */
 import { unzipSync, strFromU8 } from "fflate";
 

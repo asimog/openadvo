@@ -158,7 +158,7 @@ function registerBridge(): void {
     if (decision !== "confirm" && decision !== "clear") throw new Error("BAD_DECISION: confirm or clear");
     return recordTables.decide(matterId, sourceId, columnId, decision);
   });
-  // V2 (docs/specs/v2.md). Every write here is human-only.
+  // V2 (docs/archive/2026-11-15/specs/v2.md). Every write here is human-only.
   handle("sources:setType", (matterId: string, sourceId: string, type: string) => matters.setSourceType(matterId, sourceId, String(type)));
   handle("duplicates:list", (matterId: string) => matters.listDuplicates(matterId));
   handle("duplicates:decide", (matterId: string, reviewItemId: string, decision: string) => {

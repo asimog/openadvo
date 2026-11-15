@@ -1,6 +1,8 @@
 # Open Advocate
 
-One desktop application for Supreme Court Advocates-on-Record. The advocate gives an instruction, the agent does the work, and the advocate decides every legal point. The application takes a matter from the impugned judgment to a verified filing set for a Special Leave Petition.
+One desktop agentic harness for Indian litigation, before every court and tribunal. The advocate gives an instruction, the agent does the work through litigation skills, and the advocate decides every legal point. What it is and what it is not is in [docs/product.md](docs/product.md).
+
+The code today takes a Supreme Court matter from the impugned judgment to a verified filing set for a Special Leave Petition. The plan that widens it to every proceeding is in [docs/build-plan.md](docs/build-plan.md).
 
 What the advocate does and sees is in [docs/advocate-workflow.md](docs/advocate-workflow.md). The documents are listed, in reading order, in [docs/README.md](docs/README.md).
 
@@ -18,9 +20,9 @@ npm run build
 npm start
 ```
 
-`npm run vendor` fetches the official Euro-Office release ([docs/euro-office-vendoring.md](docs/euro-office-vendoring.md)). `npm run vendor:ulos` copies the citation validator. `npm run vendor:voice` fetches the speech model. `npm run vendor:ocr` fetches the second OCR engine's models.
+`npm run vendor` fetches the official Euro-Office release ([docs/engineering.md](docs/engineering.md) section 2). `npm run vendor:ulos` copies the citation validator. `npm run vendor:voice` fetches the speech model. `npm run vendor:ocr` fetches the second OCR engine's models.
 
-The agent uses the model credentials that Pi already stores for the user ([docs/questions.md](docs/questions.md), Q-2).
+The agent uses the model credentials that Pi already stores for the user ([docs/engineering.md](docs/engineering.md), choice EC-6).
 
 ## Build a folder to install
 
@@ -43,4 +45,4 @@ The tests that need a live model run only when `OPENADVO_LIVE_MODEL` names one. 
 
 ## Where things are
 
-The folders and the data outside the repository are in [docs/repo-map.md](docs/repo-map.md). The build order and what each round built are in [docs/build-plan.md](docs/build-plan.md). The standing orders for agents that work on this repository are in [AGENTS.md](AGENTS.md).
+The folders and the data outside the repository are in [docs/repo-map.md](docs/repo-map.md). The phases and the features are in [docs/build-plan.md](docs/build-plan.md) and [docs/features.md](docs/features.md). What the earlier rounds built is in [docs/archive/2026-11-15/build-plan.md](docs/archive/2026-11-15/build-plan.md). The standing orders for agents that work on this repository are in [AGENTS.md](AGENTS.md).

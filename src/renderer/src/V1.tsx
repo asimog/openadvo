@@ -1,5 +1,5 @@
 /**
- * V1 views (docs/specs/v1.md): matter rename and archive (V1-10), matter memory (V1-3) and the
+ * V1 views (docs/archive/2026-11-15/specs/v1.md): matter rename and archive (V1-10), matter memory (V1-3) and the
  * record table (V1-5). No business logic: each action is one bridge function.
  */
 import { useCallback, useEffect, useState } from "react";

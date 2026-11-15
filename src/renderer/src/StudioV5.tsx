@@ -1,5 +1,5 @@
 /**
- * V5-9 to V5-12 in the Studio (docs/specs/v5.md): support, voice and treatment of authorities,
+ * V5-9 to V5-12 in the Studio (docs/archive/2026-11-15/specs/v5.md): support, voice and treatment of authorities,
  * the quick check, bench trends (advisory) and the admission-hearing rehearsal.
  */
 import { useCallback, useEffect, useState } from "react";

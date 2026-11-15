@@ -1,6 +1,6 @@
 /**
  * V2-3: same text, different files (duplication kind 3). Compares the word sequences of five
- * words of two texts. Suggests only; nothing is merged. Plain library. Spec: docs/specs/v2.md.
+ * words of two texts. Suggests only; nothing is merged. Plain library. Spec: docs/archive/2026-11-15/specs/v2.md.
  */
 
 export const SHINGLE = 5;

@@ -4,7 +4,7 @@
  *
  * Every write is either the advocate's (human-only, decision 5), the agent's (a candidate or a
  * proposal), or the system's (a computed record). Each write appends an event to the matter's
- * event record. Specs: docs/specs/v0-research.md, v0-citations.md, v0-filing.md,
+ * event record. Specs: docs/archive/2026-11-15/specs/v0-research.md, v0-citations.md, v0-filing.md,
  * v0-capture.md, v0-agent-filing.md.
  */
 import { createHash, randomUUID } from "node:crypto";

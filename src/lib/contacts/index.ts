@@ -1,6 +1,6 @@
 /**
  * V5-23: the firm's contacts (clients, opposing parties, advocates, others), one JSON file in the
- * user data folder. A matter's parties link to these by id. Plain library. Spec: docs/specs/v5.md.
+ * user data folder. A matter's parties link to these by id. Plain library. Spec: docs/archive/2026-11-15/specs/v5.md.
  */
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";

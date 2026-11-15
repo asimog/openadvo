@@ -1,5 +1,5 @@
 /**
- * V4-4: the Research and Argument Studio (docs/specs/v4.md). No business logic: each action is
+ * V4-4: the Research and Argument Studio (docs/archive/2026-11-15/specs/v4.md). No business logic: each action is
  * one bridge function. Accept, reject, adopt are human-only bridge functions.
  */
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";

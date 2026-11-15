@@ -1,5 +1,5 @@
 /**
- * V5 views (docs/specs/v5.md). No business logic: each action is one bridge function.
+ * V5 views (docs/archive/2026-11-15/specs/v5.md). No business logic: each action is one bridge function.
  */
 import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@astryxdesign/core/Badge";

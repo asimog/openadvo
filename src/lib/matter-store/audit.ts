@@ -1,6 +1,6 @@
 /**
  * V5-1, V5-2, V5-3, V5-4: the event chain, refused writes, the Inspector's lookups and the Find
- * index. Part of the matter store (decision 4). Plain library. Spec: docs/specs/v5.md.
+ * index. Part of the matter store (decision 4). Plain library. Spec: docs/archive/2026-11-15/specs/v5.md.
  */
 import { createHash, randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";

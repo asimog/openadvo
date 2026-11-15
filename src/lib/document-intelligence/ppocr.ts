@@ -2,7 +2,7 @@
  * V5-8: the second OCR engine. PP-OCRv3 (English) through ONNX Runtime: a text detector finds
  * text regions, a recogniser reads each, and a CTC decoder turns scores into characters. It is
  * an independent engine from Tesseract (different models, different method), so where the two
- * disagree on a critical token the line is a dispute. Plain library. Spec: docs/specs/v5.md.
+ * disagree on a critical token the line is a dispute. Plain library. Spec: docs/archive/2026-11-15/specs/v5.md.
  */
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";

@@ -1,7 +1,7 @@
 /**
  * V2-7: the application's Ed25519 key for filing manifests. The private key is kept encrypted
  * with Electron safeStorage (decision 9) in the user data folder and never leaves the main
- * process. Spec: docs/specs/v2.md (V2-7).
+ * process. Spec: docs/archive/2026-11-15/specs/v2.md (V2-7).
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, sign, type KeyObject } from "node:crypto";

@@ -2,7 +2,7 @@
  * V5-11: admission-hearing rehearsal. Model calls propose the bench's likely questions with a
  * one-line answer, and opposing counsel's objections with a response; code keeps only those
  * whose answer is anchored to the record or an authority, by the same checks as the argument
- * loop. No outcome is predicted. Plain library. Spec: docs/specs/v5.md.
+ * loop. No outcome is predicted. Plain library. Spec: docs/archive/2026-11-15/specs/v5.md.
  */
 import { aliases, contextText, extractJson, labelAliases, SYSTEM, type Aliases, type Complete, type LoopContext } from "./index.ts";
 
