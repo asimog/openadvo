@@ -1,6 +1,5 @@
 /**
- * The tool policy (docs/specs/native-harness-parts.md section 2), which replaces
- * pi-permission-system: the rules, the fixed denials, the approval card, and the review log.
+ * The tool policy (docs/specs/native-harness-parts.md section 2): the rules, the fixed denials, the approval card, and the review log.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

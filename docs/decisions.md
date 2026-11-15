@@ -2,6 +2,8 @@
 
 Status: frozen. Do not reopen an accepted decision (lesson L4). Only the owner adds a decision.
 
+**New decisions overrule old decisions** (owner, 2026-11-15: "new decisions overrule old decisions"). When a newer instruction of the owner conflicts with an older accepted decision, the newer one wins. The older decision's text is then updated to the new state, with the date and the owner's words. Only the owner's own instruction does this; an agent never does it on its own.
+
 This file owns the accepted decisions, the rulings that apply, and the terms the code still uses. The engineering choices made under the decisions are in [engineering.md](engineering.md).
 
 ## 1. Base decisions
