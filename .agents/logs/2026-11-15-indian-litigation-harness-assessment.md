@@ -1,5 +1,7 @@
 # Assessment: making Open Advocate a first-class Indian litigation harness
 
+**Superseded** by [2026-11-15-litigation-harness-report.md](2026-11-15-litigation-harness-report.md) and [2026-11-15-litigation-harness-plan.md](2026-11-15-litigation-harness-plan.md).
+
 Date: 2026-11-15. Author: the agent, on the owner's instruction. This report governs nothing (see [docs/README.md](../../docs/README.md)). It recommends. The owner decides.
 
 Scope set by the owner: Indian litigation only. No practice management (no billing, time, CRM, invoicing, firm analytics, client portal, contract lifecycle). The Supreme Court SLP becomes one proceeding among many.
