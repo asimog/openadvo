@@ -215,18 +215,28 @@ export class Filing {
       // V5-17: the AI-use disclosure, generated from the records and rendered like the other documents.
       {
         const w = store.work;
-        const events = store.listEvents(5000);
-        const model = (events.find((e) => e.action === "agent.session_started")?.data?.model as string | undefined) ?? null;
+        // Every event of each kind, with no limit: the disclosure must not miss early use.
+        const sessions = store.eventsWithAction("agent.session_started");
+        const rehearsals = store.eventsWithAction("rehearsal.run");
+        const models = [
+          ...new Set(
+            [...sessions, ...store.eventsWithAction("agent.usage"), ...rehearsals]
+              .map((e) => e.data?.model)
+              .concat(store.studio.runs().map((r) => r.model))
+              .filter((m): m is string => typeof m === "string" && m !== "" && m !== "test"),
+          ),
+        ];
         const assistance = [
-          events.some((e) => e.action === "agent.session_started") ? "The agent of the application assisted with research and drafting under the advocate's instructions; every change it proposed was kept or undone by the advocate." : "",
+          sessions.length ? "The agent of the application assisted with research and drafting under the advocate's instructions; every change it proposed was kept or undone by the advocate." : "",
           store.studio.runs().length ? `The argument loop proposed candidate arguments (${store.studio.runs().length} run(s)); the advocate accepted or rejected each.` : "",
-          events.some((e) => e.action === "ocr.read") ? "Scanned pages were read by optical character recognition; disputed readings were decided by the advocate." : "",
+          rehearsals.length ? `The rehearsal proposed likely questions and objections (${rehearsals.length} run(s)); the advocate accepted or rejected each.` : "",
+          store.eventsWithAction("ocr.read").length ? "Scanned pages were read by optical character recognition; disputed readings were decided by the advocate." : "",
           "Dates and events were extracted from the record by fixed rules and confirmed by the advocate.",
         ].filter(Boolean);
         const blocks = disclosureBlocks({
           matter: store.matter().title,
           generatedAt: new Date().toISOString(),
-          model,
+          models,
           assistance,
           citations: await this.disclosureCitations(matterId),
           provisions: store.studio.listProvisions().filter((x) => x.status !== "rejected").map((x) => ({ act: x.act, section: x.section, repealed: x.repealed })),

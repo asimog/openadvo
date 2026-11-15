@@ -3,7 +3,7 @@
  * the AI-use disclosure, the paper book and the conversion check. Plain library: it computes;
  * the matter store writes. Spec: docs/specs/v5.md.
  */
-import { PDFDocument, PDFName, PDFNumber, PDFString, StandardFonts, rgb, type PDFRef } from "pdf-lib";
+import { PDFDocument, PDFHexString, PDFName, PDFNumber, StandardFonts, rgb, type PDFFont, type PDFRef } from "pdf-lib";
 
 // ---- V5-13: compare two revisions, paragraph by paragraph ----
 
@@ -105,7 +105,7 @@ export function extendDeadline(deadline: string, extra: number): string {
 export interface DisclosureInput {
   matter: string;
   generatedAt: string;
-  model: string | null;
+  models: string[];
   assistance: string[];
   citations: Array<{ citation: string; outcome: string; attested: boolean; reason: string | null }>;
   provisions: Array<{ act: string; section: string; repealed: boolean }>;
@@ -119,7 +119,7 @@ export function disclosureBlocks(i: DisclosureInput): Array<{ text: string; styl
     { text: `Matter: ${i.matter}. Prepared on ${i.generatedAt.slice(0, 10)}.` },
     { text: "1. Assistance used", style: "heading" },
     ...i.assistance.map((a) => ({ text: a })),
-    { text: `Language model used for drafting and research assistance: ${i.model ?? "none recorded"}.` },
+    { text: i.models.length ? `Language model(s) used for drafting and research assistance: ${i.models.join(", ")}.` : "Language model used for drafting and research assistance: none recorded." },
     { text: "2. Citations and their verification", style: "heading" },
   ];
   const verified = i.citations.filter((c) => !c.attested);
@@ -154,13 +154,34 @@ export interface PaperBookPart {
  * numbers stamped at the foot of every page, and a bookmark per part. Returns the bytes and the
  * index rows.
  */
+/** Rows of the index on one page. */
+export const INDEX_ROWS_PER_PAGE = 32;
+
+/**
+ * Text the standard font can draw. A character outside its encoding (for example Devanagari) is
+ * drawn as "?" so the paper book is still made; the bookmarks keep the full title.
+ */
+export function drawable(font: PDFFont, text: string): string {
+  let out = "";
+  for (const ch of text) {
+    try {
+      font.encodeText(ch);
+      out += ch;
+    } catch {
+      out += "?";
+    }
+  }
+  return out;
+}
+
 export async function paperBook(title: string, parts: PaperBookPart[]): Promise<{ bytes: Uint8Array; index: Array<{ title: string; from: number; to: number }> }> {
   const out = await PDFDocument.create();
   const font = await out.embedFont(StandardFonts.TimesRoman);
   const bold = await out.embedFont(StandardFonts.TimesRomanBold);
-  const indexPage = out.addPage([595, 842]);
+  // Enough index pages for every part; the parts start after them.
+  const indexPages = Array.from({ length: Math.max(1, Math.ceil(parts.length / INDEX_ROWS_PER_PAGE)) }, () => out.addPage([595, 842]));
   const index: Array<{ title: string; from: number; to: number }> = [];
-  let pageNo = 2;
+  let pageNo = indexPages.length + 1;
   const firstPages: PDFRef[] = [];
   for (const part of parts) {
     const src = await PDFDocument.load(part.bytes, { ignoreEncryption: true });
@@ -173,17 +194,19 @@ export async function paperBook(title: string, parts: PaperBookPart[]): Promise<
     });
     index.push({ title: part.title, from, to: pageNo - 1 });
   }
-  // The index page.
-  indexPage.drawText("INDEX", { x: 270, y: 790, size: 14, font: bold });
-  indexPage.drawText(title.slice(0, 80), { x: 60, y: 765, size: 11, font });
-  indexPage.drawText("Sl.", { x: 60, y: 735, size: 11, font: bold });
-  indexPage.drawText("Particulars", { x: 95, y: 735, size: 11, font: bold });
-  indexPage.drawText("Pages", { x: 480, y: 735, size: 11, font: bold });
-  index.forEach((r, k) => {
-    const y = 712 - k * 20;
-    indexPage.drawText(String(k + 1), { x: 60, y, size: 11, font });
-    indexPage.drawText(r.title.slice(0, 70), { x: 95, y, size: 11, font });
-    indexPage.drawText(r.from === r.to ? String(r.from) : `${r.from}-${r.to}`, { x: 480, y, size: 11, font });
+  // The index pages.
+  indexPages.forEach((page, pg) => {
+    page.drawText(pg === 0 ? "INDEX" : "INDEX (continued)", { x: pg === 0 ? 270 : 230, y: 790, size: 14, font: bold });
+    page.drawText(drawable(font, title.slice(0, 80)), { x: 60, y: 765, size: 11, font });
+    page.drawText("Sl.", { x: 60, y: 735, size: 11, font: bold });
+    page.drawText("Particulars", { x: 95, y: 735, size: 11, font: bold });
+    page.drawText("Pages", { x: 480, y: 735, size: 11, font: bold });
+    index.slice(pg * INDEX_ROWS_PER_PAGE, (pg + 1) * INDEX_ROWS_PER_PAGE).forEach((r, k) => {
+      const y = 712 - k * 20;
+      page.drawText(String(pg * INDEX_ROWS_PER_PAGE + k + 1), { x: 60, y, size: 11, font });
+      page.drawText(drawable(font, r.title.slice(0, 70)), { x: 95, y, size: 11, font });
+      page.drawText(r.from === r.to ? String(r.from) : `${r.from}-${r.to}`, { x: 480, y, size: 11, font });
+    });
   });
   // Page numbers at the foot of every page.
   out.getPages().forEach((p, k) => {
@@ -196,7 +219,7 @@ export async function paperBook(title: string, parts: PaperBookPart[]): Promise<
     const itemRefs = firstPages.map(() => out.context.nextRef());
     itemRefs.forEach((ref, k) => {
       const item = out.context.obj({
-        Title: PDFString.of(index[k].title),
+        Title: PDFHexString.fromText(index[k].title),
         Parent: outlineRef,
         Dest: out.context.obj([firstPages[k], PDFName.of("Fit")]),
         ...(k > 0 ? { Prev: itemRefs[k - 1] } : {}),

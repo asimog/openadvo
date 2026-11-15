@@ -304,6 +304,14 @@ function formatSources(sources: SourceRecord[]): string {  if (sources.length ==
   return `${sources.length} source(s):\n${lines.join("\n")}`;
 }
 
+/** V5-21: the tokens and cost of one or more model calls. */
+export interface ModelUsage {
+  input: number;
+  output: number;
+  totalTokens: number;
+  cost: number;
+}
+
 /** V5-21: a model served on this computer (its address is localhost). */
 export function isLocalModel(model: { baseUrl?: string }): boolean {
   try {
@@ -394,16 +402,18 @@ export class Agent {
    * V4-3: one plain model call with no tool, for the argument loop. The same model and
    * credentials as the chat. Returns null when no model is available.
    */
-  async completer(): Promise<{ model: string; local: boolean; complete: (system: string, user: string, sessionId?: string) => Promise<string> } | null> {
+  async completer(): Promise<{ model: string; local: boolean; complete: (system: string, user: string, sessionId?: string, onUsage?: (u: ModelUsage) => void) => Promise<string> } | null> {
     const model = await this.model();
     if (!model) return null;
     const runtime = await this.modelRuntime();
     return {
       model: keyOf(model),
       local: isLocalModel(model),
-      complete: async (system, user, sessionId) => {
+      complete: async (system, user, sessionId, onUsage) => {
         // Some providers route by session (opencode sends x-opencode-session): one id per loop run.
         const msg = await runtime.completeSimple(model, { systemPrompt: system, messages: [{ role: "user", content: user, timestamp: Date.now() }] }, { sessionId });
+        const u = (msg as { usage?: { input?: number; output?: number; totalTokens?: number; cost?: { total?: number } } }).usage;
+        if (u && onUsage) onUsage({ input: u.input ?? 0, output: u.output ?? 0, totalTokens: u.totalTokens ?? 0, cost: u.cost?.total ?? 0 });
         if (msg.stopReason === "error" || msg.stopReason === "aborted") throw new Error(msg.errorMessage || `the model stopped: ${msg.stopReason}`);
         return msg.content.map((b) => (b.type === "text" ? b.text : "")).join("");
       },

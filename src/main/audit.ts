@@ -8,10 +8,21 @@ import { readParagraphs } from "../lib/drafting/index.ts";
 import type { FindRow } from "../lib/matter-store/audit.ts";
 import type { Matters } from "./matters.ts";
 
-/** Build the Find index again when the record has moved on since it was built. */
+/**
+ * Events that never change what Find holds. Any other event since the last build rebuilds the
+ * index, so an unknown action is safe: it costs a rebuild, never a stale result.
+ */
+const NOT_INDEXED = /^(agent\.|review_item\.|reminder\.|hearing\.|party\.|matter\.policy_set$|rehearsal\.|filing\.|export\.|revision\.opened_in_word$|questions\.)/;
+
+/** Build the Find index again when the record has moved on in a way that changes it. */
 export async function ensureFindIndex(matters: Matters, matterId: string): Promise<void> {
   const store = await matters.store(matterId);
-  if (store.findIndexSeq() === store.lastEventSeq()) return;
+  const built = store.findIndexSeq();
+  if (built === store.lastEventSeq()) return;
+  if (built !== null && store.actionsSince(built).every((a) => NOT_INDEXED.test(a))) {
+    store.touchFindIndex();
+    return;
+  }
   const rows: FindRow[] = [];
   const names = new Map(store.listSources().map((s) => [s.id, s.name]));
   for (const s of store.listSources()) {

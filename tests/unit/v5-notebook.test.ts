@@ -90,11 +90,20 @@ test("the store: a dispute blocks confirming its event until the advocate decide
     assert.equal(store.listNotebookEvents()[0].disputed, "open");
     assert.throws(() => store.decideEvent(`ev:${d.anchorId}:1`, "confirmed", adv), /OCR_DISPUTED/);
     assert.throws(() => store.decideDispute(d.id, "b", "", { actor: "agent" }), /HUMAN_ONLY/);
+    // The dispute's review item closes only through the dispute decision.
+    assert.throws(() => store.decideReviewItem(d.reviewItemId, "resolved", adv), /DISPUTE_OPEN/);
     store.decideDispute(d.id, "b", "", adv);
+    assert.equal(store.listReviewItems().find((r) => r.id === d.reviewItemId)?.status, "resolved");
+    assert.ok(store.listEvents(50).some((e) => e.action === "ocr.dispute_decided"));
     assert.equal(store.listNotebookEvents()[0].disputed, "replaced");
-    store.decideEvent(`ev:${d.anchorId}:1`, "confirmed", adv);
+    // An event from the reading the advocate did not choose cannot be confirmed; the chosen reading's event can.
+    assert.throws(() => store.decideEvent(`ev:${d.anchorId}:1`, "confirmed", adv), /READING_REPLACED/);
+    store.addEvents(src.id, [{ id: `ev:${d.anchorId}:d1`, sourceId: src.id, anchorId: d.anchorId, page: 1, line: 1, dateText: "12.08.2024", dateStart: "2024-08-12", dateEnd: "2024-08-12", dateType: "explicit", description: "Order dated 12.08.2024", kind: "procedural", reading: "ocr", method: "rules-v3+decided" }]);
+    store.decideEvent(`ev:${d.anchorId}:d1`, "confirmed", adv);
     store.correctEvent(`ev:${d.anchorId}:1`, { dateStart: "2024-08-12", description: "Order dated 12.08.2024" }, "The second reading matches the certified copy.", adv);
-    const e = store.listNotebookEvents()[0];
+    // A corrected event is the advocate's own version, so it can be confirmed.
+    store.decideEvent(`ev:${d.anchorId}:1`, "confirmed", adv);
+    const e = store.listNotebookEvents().find((x) => x.id === `ev:${d.anchorId}:1`)!;
     assert.equal(e.dateStart, "2024-08-12");
     assert.equal(e.dateText, "12.08.2024");
     assert.equal(e.corrected?.original.dateStart, "2024-03-12");

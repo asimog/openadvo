@@ -749,7 +749,13 @@ function exposeTestHooks(): void {
     recordUsageForTest: async (matterId: string, totalTokens: number) => (await matters.store(matterId)).appendEvent({ actor: "agent" }, "agent.usage", null, { model: "test", input: totalTokens, output: 0, totalTokens, cost: 0.01 }),
     // V5-11: the rehearsal with a scripted model.
     rehearseScripted: async (matterId: string, script: Array<{ match: string; answer: string }>) => {
-      const fake = new ArgumentStudio(matters, async () => ({ model: "test/scripted", complete: async (_s: string, user: string) => script.find((x) => user.includes(x.match))?.answer ?? "{}" }));
+      const fake = new ArgumentStudio(matters, async () => ({
+        model: "test/scripted",
+        complete: async (_s: string, user: string, _id?: string, onUsage?: (u: { input: number; output: number; totalTokens: number; cost: number }) => void) => {
+          onUsage?.({ input: 60, output: 40, totalTokens: 100, cost: 0 });
+          return script.find((x) => user.includes(x.match))?.answer ?? "{}";
+        },
+      }));
       return fake.rehearse(matterId);
     },
     importEml: async (matterId: string, paths: string[]) => {

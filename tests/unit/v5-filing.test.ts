@@ -37,7 +37,7 @@ test("disclosure: attested citations stand apart and are never called verified; 
   const blocks = disclosureBlocks({
     matter: "Ram v. State",
     generatedAt: "2026-11-15T00:00:00Z",
-    model: "opencode-go/deepseek-v4.1-flash",
+    models: ["opencode-go/deepseek-v4.1-flash"],
     assistance: ["The agent assisted."],
     citations: [{ citation: "1950 INSC 1", outcome: "verified", attested: false, reason: null }, { citation: "2023 INSC 99999", outcome: "failed", attested: true, reason: "not found" }],
     provisions: [],
@@ -61,6 +61,17 @@ test("paper book: an index page, every page in order, page numbers and one bookm
   const doc = await PDFDocument.load(book.bytes);
   assert.equal(doc.getPageCount(), 6);
   assert.ok(doc.catalog.get(PDFName.of("Outlines")), "the book has bookmarks");
+});
+
+test("paper book: a title the standard font cannot draw, and more parts than one index page holds", async () => {
+  const one = await PDFDocument.create();
+  one.addPage([595, 842]);
+  const bytes = await one.save();
+  const parts = Array.from({ length: 40 }, (_, i) => ({ title: i === 0 ? "राम कुमार affidavit" : `Annexure P-${i}`, bytes }));
+  const book = await paperBook("राम v. State", parts);
+  assert.equal(book.index[0].from, 3, "two index pages come first");
+  assert.equal(book.index[39].to, 42);
+  assert.equal((await PDFDocument.load(book.bytes)).getPageCount(), 42);
 });
 
 test("conversion check: every paragraph in order, whatever the line breaks", () => {

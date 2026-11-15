@@ -106,6 +106,13 @@ export const RECORD_TABLES: Array<{ kind: string; table: string; id: string }> =
   { kind: "anchor", table: "anchor", id: "id" },
   { kind: "date conflict", table: "date_conflict", id: "id" },
   { kind: "filing set", table: "filing_set", id: "id" },
+  { kind: "OCR dispute", table: "ocr_dispute", id: "id" },
+  { kind: "event correction", table: "event_correction", id: "id" },
+  { kind: "treatment", table: "treatment", id: "id" },
+  { kind: "challenge", table: "challenge", id: "id" },
+  { kind: "hearing", table: "hearing", id: "id" },
+  { kind: "reminder", table: "reminder", id: "id" },
+  { kind: "party", table: "party", id: "id" },
 ];
 
 function tableExists(db: DatabaseSync, t: string): boolean {
@@ -117,7 +124,7 @@ function tableExists(db: DatabaseSync, t: string): boolean {
 export function idsIn(text: string): string[] {
   const out = new Set<string>();
   for (const m of text.matchAll(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi)) out.add(m[0]);
-  for (const m of text.matchAll(/\bev:[0-9a-f]{64}:\d+:\d+:(?:r?\d+)\b/g)) out.add(m[0]);
+  for (const m of text.matchAll(/\bev:[0-9a-f]{64}:\d+:\d+:(?:[rad]?\d+)\b/g)) out.add(m[0]);
   for (const m of text.matchAll(/\b[0-9a-f]{64}:\d+:\d+\b/g)) out.add(m[0]);
   return [...out];
 }

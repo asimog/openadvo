@@ -24,6 +24,10 @@ test("the store: hearings keep confirmed and inferred dates apart; reminders, po
     assert.throws(() => store.setReminderStatus(r.id, "done", { actor: "agent" }), /HUMAN_ONLY/);
     store.setReminderStatus(r.id, "done", adv);
     assert.equal(store.reminders()[0].status, "done");
+    assert.throws(() => store.setReminderStatus(r.id, "done", adv), /BAD_REMINDER_STATUS/, "a reminder closes once");
+    const before = store.lastEventSeq();
+    assert.throws(() => store.setReminderStatus("no-such-id", "done", adv), /REMINDER_NOT_FOUND/);
+    assert.equal(store.lastEventSeq(), before, "a refused change writes no event");
     assert.deepEqual(store.setPolicy({ confidential: true, budgetTokens: 5000 }, adv), { confidential: true, budgetTokens: 5000 });
     assert.deepEqual(store.setPolicy({ confidential: false, budgetTokens: -3 }, adv), { confidential: false, budgetTokens: null });
     store.appendEvent({ actor: "agent" }, "agent.usage", null, { totalTokens: 1200, cost: 0.002 });

@@ -286,7 +286,25 @@ export class ResearchHub {
 
 // ---------------------------------------------------------------------------------------------
 
-export type Completer = () => Promise<{ model: string; local?: boolean; complete: (system: string, user: string, sessionId?: string) => Promise<string> } | null>;
+export type Completer = () => Promise<{
+  model: string;
+  local?: boolean;
+  complete: (system: string, user: string, sessionId?: string, onUsage?: (u: { input: number; output: number; totalTokens: number; cost: number }) => void) => Promise<string>;
+} | null>;
+
+/** V5-21: one run's model usage, added call by call. */
+class Meter {
+  input = 0;
+  output = 0;
+  totalTokens = 0;
+  cost = 0;
+  add = (u: { input: number; output: number; totalTokens: number; cost: number }): void => {
+    this.input += u.input;
+    this.output += u.output;
+    this.totalTokens += u.totalTokens;
+    this.cost += u.cost;
+  };
+}
 
 export class ArgumentStudio {
   private matters: Matters;
@@ -304,6 +322,22 @@ export class ArgumentStudio {
 
   runningRun(matterId: string): string | null {
     return this.running.get(matterId) ?? null;
+  }
+
+  /** V5-21: a confidential matter uses a local model only; a used budget refuses the next run. */
+  private async admit(matterId: string, c: { model: string; local?: boolean }): Promise<{ budget: number | null; used: number }> {
+    const store = await this.matters.store(matterId);
+    const pol = store.policy();
+    if (pol.confidential && c.local === false) throw new MatterStoreError("CONFIDENTIAL_MATTER", `this matter is confidential: ${c.model} is not a model on this computer`);
+    const used = store.usage().tokens;
+    if (pol.budgetTokens != null && used >= pol.budgetTokens) throw new MatterStoreError("BUDGET_USED", `the matter's budget of ${pol.budgetTokens} tokens is used (${used}). Raise the budget to continue`);
+    return { budget: pol.budgetTokens, used };
+  }
+
+  /** V5-21: the run's usage joins the matter's usage, like a chat turn's. */
+  private async recordUsage(matterId: string, model: string, m: Meter, sessionId: string): Promise<void> {
+    if (m.totalTokens <= 0) return;
+    (await this.matters.store(matterId)).appendEvent({ actor: "agent", sessionId }, "agent.usage", null, { model, input: m.input, output: m.output, totalTokens: m.totalTokens, cost: m.cost });
   }
   private onChange: (matterId: string) => void;
 
@@ -375,7 +409,8 @@ export class ArgumentStudio {
     if (this.running.has(matterId)) throw new MatterStoreError("LOOP_BUSY", "a loop is already running for this matter");
     const c = await this.completer();
     if (!c) throw new MatterStoreError("NO_MODEL", "no model is available. Set up a model in Pi, then try again");
-    if ((await this.matters.store(matterId)).policy().confidential && c.local === false) throw new MatterStoreError("CONFIDENTIAL_MATTER", `this matter is confidential: ${c.model} is not a model on this computer`);
+    const allowance = await this.admit(matterId, c);
+    const meter = new Meter();
     const context = await this.context(matterId, issueId);
     if (context.events.length === 0 && context.authorities.length === 0) throw new MatterStoreError("NO_RECORDS", "confirm Notebook events or add authorities first: the loop uses records only");
     const rounds = Math.min(Math.max(Math.trunc(opts.rounds ?? 2), 1), 4);
@@ -388,7 +423,7 @@ export class ArgumentStudio {
     let n = 0;
     const calls: Array<{ label: string; request: string; response: string }> = [];
     const complete = async (system: string, user: string, label: string) => {
-      const response = await c.complete(system, user, `openadvo-studio-${run.id}`);
+      const response = await c.complete(system, user, `openadvo-studio-${run.id}`, meter.add);
       const i = ++n;
       const record = { label, model: c.model, system, user, response };
       const request = createHash("sha256").update(JSON.stringify({ system, user })).digest("hex");
@@ -417,7 +452,8 @@ export class ArgumentStudio {
           addRejection: (round, cell, reason, detail, claim) => store.studio.addRejection({ runId: run.id, round, ground: cell.ground, stance: cell.stance, reason, detail, claim }),
           setQuestions: (id, q) => store.studio.setQuestions(id, q),
           setElo: (id, elo) => store.studio.setElo(id, elo),
-          shouldStop: () => this.stopping.has(matterId),
+          // The loop also stops between steps once the run has used the rest of the budget.
+          shouldStop: () => this.stopping.has(matterId) || (allowance.budget != null && allowance.used + meter.totalTokens >= allowance.budget),
           onProgress: (t) => {
             this.progress.set(matterId, t);
             this.onChange(matterId);
@@ -428,6 +464,7 @@ export class ArgumentStudio {
       } catch (e) {
         store.studio.finishRun(run.id, "failed", { calls: n }, (e as Error).message);
       } finally {
+        await this.recordUsage(matterId, c.model, meter, `openadvo-studio-${run.id}`).catch((e) => console.error(`studio usage: ${(e as Error).message}`));
         this.running.delete(matterId);
         this.stopping.delete(matterId);
         this.progress.delete(matterId);
@@ -449,18 +486,24 @@ export class ArgumentStudio {
   async rehearse(matterId: string, ctx: WriteContext = { actor: "advocate" }): Promise<{ runId: string; added: number; rejected: number }> {
     const c = await this.completer();
     if (!c) throw new MatterStoreError("NO_MODEL", "no model is available. Set up a model in Pi, then try again");
-    if ((await this.matters.store(matterId)).policy().confidential && c.local === false) throw new MatterStoreError("CONFIDENTIAL_MATTER", `this matter is confidential: ${c.model} is not a model on this computer`);
+    await this.admit(matterId, c);
+    const meter = new Meter();
     const context = await this.context(matterId, null);
     const store = await this.matters.store(matterId);
     const runId = randomUUID();
     const folder = path.join(store.folder, "studio", `rehearsal-${runId}`);
     await mkdir(folder, { recursive: true });
     let n = 0;
-    const r = await rehearse(async (system, user, label) => {
-      const response = await c.complete(system, user, `openadvo-rehearsal-${runId}`);
-      await writeFile(path.join(folder, `${String(++n).padStart(3, "0")}-${label}.json`), JSON.stringify({ label, model: c.model, system, user, response }, null, 2));
-      return response;
-    }, context);
+    let r: Awaited<ReturnType<typeof rehearse>>;
+    try {
+      r = await rehearse(async (system, user, label) => {
+        const response = await c.complete(system, user, `openadvo-rehearsal-${runId}`, meter.add);
+        await writeFile(path.join(folder, `${String(++n).padStart(3, "0")}-${label}.json`), JSON.stringify({ label, model: c.model, system, user, response }, null, 2));
+        return response;
+      }, context);
+    } finally {
+      await this.recordUsage(matterId, c.model, meter, `openadvo-rehearsal-${runId}`);
+    }
     for (const it of r.items) store.studio.addChallenge({ runId, kind: it.kind, category: it.category, text: it.text, answer: it.answer, refs: it.refs, origin: "generated" });
     for (const item of store.listReviewItems().filter((x) => x.status === "open" && x.draftId)) {
       if (store.studio.challenges().some((ch) => ch.origin === "verified_defect" && ch.text === item.detail)) continue;

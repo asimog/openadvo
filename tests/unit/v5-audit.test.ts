@@ -69,6 +69,11 @@ test("refusals are kept; the Inspector finds a record, its events and its links;
     assert.match(store.find("custody")[0].snippet, /\[custody\]/i);
     assert.equal(store.findIndexSeq(), store.lastEventSeq());
     assert.deepEqual(idsIn(`x ${issue.id} ev:${"a".repeat(64)}:1:2:1`), [issue.id, `ev:${"a".repeat(64)}:1:2:1`, `${"a".repeat(64)}:1:2`], "an event id names its anchor too");
+    const sha = "b".repeat(64);
+    assert.ok(idsIn(`ev:${sha}:1:2:a1 ev:${sha}:1:2:d2`).includes(`ev:${sha}:1:2:a1`), "an event dated from a base date");
+    assert.ok(idsIn(`ev:${sha}:1:2:d2`).includes(`ev:${sha}:1:2:d2`), "an event from a decided reading");
+    const h = store.addHearing({ date: "2026-11-10", bench: "", directions: "", nextDate: "", nextDateStatus: "confirmed", notes: "" }, { actor: "advocate" });
+    assert.equal(store.inspect(h.id)?.kind, "hearing", "the Inspector opens v5 records");
     } finally {
       store.close();
     }

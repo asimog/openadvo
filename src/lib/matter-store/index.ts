@@ -640,6 +640,9 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
   /** "notified" is written by the application's scheduler; "done" only by the advocate. */
   setReminderStatus(id: string, status: Reminder["status"], ctx: WriteContext): void {
     if (status === "done") this.human(ctx, "closes a reminder");
+    const r = this.reminders().find((x) => x.id === id);
+    if (!r) throw new MatterStoreError("REMINDER_NOT_FOUND", id);
+    if (r.status === "done" || (status === "notified" && r.status !== "open") || status === "open") throw new MatterStoreError("BAD_REMINDER_STATUS", `the reminder is ${r.status}`);
     setReminderStatus(this.db, id, status);
     this.appendEvent(ctx, `reminder.${status}`, id, null);
   }
@@ -708,6 +711,21 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
 
   findIndexSeq(): number | null {
     return findIndexSeq(this.db);
+  }
+
+  /** The actions of the events after a sequence number (V5-4: does Find need a rebuild). */
+  actionsSince(seq: number): string[] {
+    return (this.db.prepare("SELECT DISTINCT action FROM event WHERE seq > ?").all(seq) as Array<{ action: string }>).map((r) => String(r.action));
+  }
+
+  /** Move the Find index's sequence forward when nothing it holds changed. */
+  touchFindIndex(): void {
+    this.db.prepare("UPDATE find_state SET event_seq = ? WHERE id = 1").run(this.lastEventSeq());
+  }
+
+  /** V5-17: every event with this action, oldest first, with no limit. */
+  eventsWithAction(action: string): Array<{ at: string; data: Record<string, unknown> | null }> {
+    return (this.db.prepare("SELECT at, data FROM event WHERE action = ? ORDER BY seq").all(action) as Array<{ at: string; data: string | null }>).map((r) => ({ at: String(r.at), data: r.data == null ? null : (JSON.parse(String(r.data)) as Record<string, unknown>) }));
   }
 
   replaceFindIndex(rows: FindRow[]): void {
@@ -867,6 +885,9 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
     const item = this.listReviewItems().find((r) => r.id === id);
     if (!item) throw new MatterStoreError("REVIEW_ITEM_NOT_FOUND", id);
     if (item.status !== "open") throw new MatterStoreError("ALREADY_DECIDED", id);
+    if (item.kind === "ocr_dispute" && this.db.prepare("SELECT 1 FROM ocr_dispute WHERE review_item_id = ? AND status = 'open'").get(id)) {
+      throw new MatterStoreError("DISPUTE_OPEN", "choose a reading or type the line; that closes this item");
+    }
     this.db.prepare("UPDATE review_item SET status = ?, decided_at = ?, decided_by = ? WHERE id = ?").run(status, now(), ctx.actor, id);
     this.appendEvent(ctx, `review_item.${status}`, id, { kind: item.kind });
     return this.listReviewItems().find((r) => r.id === id)!;
@@ -978,11 +999,18 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
   /** A human decision on an event (decision 5). Nothing is deleted; the latest decision counts. */
   decideEvent(eventId: string, decision: EventDecision, ctx: WriteContext): void {
     if (ctx.actor !== "advocate") throw new MatterStoreError("HUMAN_ONLY", "only the advocate decides an event");
-    const exists = this.db.prepare("SELECT anchor_id FROM notebook_event WHERE id = ?").get(eventId) as { anchor_id: string } | undefined;
+    const exists = this.db.prepare("SELECT anchor_id, method FROM notebook_event WHERE id = ?").get(eventId) as { anchor_id: string; method: string } | undefined;
     if (!exists) throw new MatterStoreError("EVENT_NOT_FOUND", eventId);
     // V5-8: a fact from a line the two OCR engines read differently waits for the advocate's reading.
-    if (decision === "confirmed" && this.db.prepare("SELECT 1 FROM ocr_dispute WHERE anchor_id = ? AND status = 'open'").get(exists.anchor_id)) {
-      throw new MatterStoreError("OCR_DISPUTED", "the two OCR engines read this line differently; choose a reading or type the line first");
+    if (decision === "confirmed") {
+      const d = this.db.prepare("SELECT status, choice FROM ocr_dispute WHERE anchor_id = ? ORDER BY created_at DESC LIMIT 1").get(exists.anchor_id) as { status: string; choice: string | null } | undefined;
+      if (d?.status === "open") throw new MatterStoreError("OCR_DISPUTED", "the two OCR engines read this line differently; choose a reading or type the line first");
+      // After the advocate chose another reading, only the events from that reading, or an event the
+      // advocate corrected, can be confirmed.
+      const corrected = !!this.db.prepare("SELECT 1 FROM event_correction WHERE event_id = ?").get(eventId);
+      if (d && d.choice !== "a" && !String(exists.method).endsWith("+decided") && !corrected) {
+        throw new MatterStoreError("READING_REPLACED", "this event comes from a reading of the line that the advocate did not choose; confirm the event from the chosen reading");
+      }
     }
     this.db.prepare("INSERT INTO event_decision (event_id, decision, actor, at) VALUES (?, ?, 'advocate', ?)").run(eventId, decision, now());
     this.appendEvent(ctx, `notebook.event_${decision}`, eventId, null);
@@ -1126,9 +1154,17 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
     if (d.status !== "open") throw new MatterStoreError("ALREADY_DECIDED", id);
     const text = choice === "a" ? d.readingA : choice === "b" ? d.readingB : String(typed ?? "").replace(/\s+/g, " ").trim();
     if (!text) throw new MatterStoreError("TEXT_REQUIRED", "type the line as it reads on the page");
-    decideDispute(this.db, id, choice, text);
-    this.decideReviewItem(d.reviewItemId, "resolved", ctx);
-    this.appendEvent(ctx, "ocr.dispute_decided", d.anchorId, { dispute: id, choice, text });
+    this.db.exec("BEGIN");
+    try {
+      decideDispute(this.db, id, choice, text);
+      const item = this.listReviewItems().find((r) => r.id === d.reviewItemId);
+      if (item?.status === "open") this.decideReviewItem(d.reviewItemId, "resolved", ctx);
+      this.appendEvent(ctx, "ocr.dispute_decided", d.anchorId, { dispute: id, choice, text });
+      this.db.exec("COMMIT");
+    } catch (e) {
+      this.db.exec("ROLLBACK");
+      throw e;
+    }
     return listDisputes(this.db).find((x) => x.id === id)!;
   }
 

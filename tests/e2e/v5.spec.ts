@@ -158,6 +158,7 @@ test("v5 B: entities, a correction, a base date and an OCR dispute decided by th
       await expect.poll(async () => (await call<any>("getNotebook", matterId)).events.some((e: any) => e.description.includes("6,589") && e.method.endsWith("+decided"))).toBe(true);
       const old = (await call<any>("getNotebook", matterId)).events.find((e: any) => e.id === scanEvent.id);
       expect(old.disputed).toBe("replaced");
+      await expect(call("confirmEvent", matterId, scanEvent.id)).rejects.toThrow(/READING_REPLACED/);
     }
   } finally {
     await app.close();
@@ -224,6 +225,8 @@ test("v5 C: quick check, voice, an overruling treatment, the rehearsal and bench
       { match: "bench is most likely", answer: JSON.stringify({ questions: [{ question: "How long has the petitioner been in custody?", answer: "Since 05.01.2020, as E1 records.", events: [{ ref: "E1", quote: "in custody since 05.01.2020" }] }] }) },
       { match: "As counsel for the respondent at the admission hearing", answer: JSON.stringify({ objections: [{ category: "delay", objection: "The petition was filed late.", response: "A1 at para 12.", authorities: [{ ref: "A1", paragraph: "12" }] }] }) },
     ]), matterId);
+    // V5-21: the rehearsal's model calls join the matter's usage.
+    expect((await call<any>("getPolicy", matterId)).usage.tokens).toBe(200);
     await page.getByTestId("studio").getByRole("tab", { name: "Rehearsal" }).click();
     await expect(page.getByTestId("rehearsal")).toContainText("How long has the petitioner been in custody?");
     await expect(page.getByTestId("rehearsal")).toContainText("The petition was filed late.");
@@ -350,6 +353,8 @@ test("v5 E: a new client, hearings, reminders, the docket, a new order's impact,
     await call("setPolicy", matterId, { confidential: false, budgetTokens: 1000 });
     await app.evaluate((_e, id) => (globalThis as any).__openadvoTest.recordUsageForTest(id, 1500), matterId);
     expect((await call<any>("getPolicy", matterId)).usage.tokens).toBe(1500);
+    // The used budget also refuses a Studio run, not only a chat turn.
+    await expect(app.evaluate((_e, id) => (globalThis as any).__openadvoTest.rehearseScripted(id, []), matterId)).rejects.toThrow(/BUDGET_USED/);
 
     // ---- V5-24: the questions document ----
     const q = await call<any>("generateQuestions", matterId);
