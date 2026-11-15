@@ -1,0 +1,10 @@
+{
+  "name": "openadvo-placeholder",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A harmless Pi extension that ships with Open Advocate to test the extension system. It adds one command and no tool.",
+  "keywords": ["pi-package"],
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}

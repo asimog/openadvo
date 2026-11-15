@@ -1,12 +1,12 @@
 /**
- * Pi extensions in Open Advocate (docs/harness-hardening.md section 3; decision 21).
+ * Pi extensions in Open Advocate (decision 21; docs/specs/native-harness-parts.md).
  *
- * Two kinds: bundled extensions, vendored at build time into resources/pi-extensions
- * (scripts/vendor-pi-extensions.ts), and packages the advocate adds, which Pi's own package
- * manager installs into the application's Pi folder and records in its settings.json.
- * Every session loads them (decision 24 removed the confidential exception). A host guard and
- * pi-permission-system block Pi's built-in file and shell tools (decisions 2, 23). Pi's agent
- * folder is the application's own folder (decision 22). No Electron import here.
+ * Two kinds: bundled extensions, which are the Pi packages in the application's `extensions/`
+ * folder (today only the placeholder), and packages the advocate adds, which Pi's own package
+ * manager installs into the application's Pi folder and records in its settings.json. Every
+ * session loads them. The harness parts that were extensions are native code now. The tool
+ * policy (src/main/tool-policy.ts) blocks Pi's built-in file and shell tools (decision 2).
+ * Pi's agent folder is the application's own folder (decision 22). No Electron import here.
  */
 import {
   DefaultPackageManager,
@@ -21,18 +21,13 @@ import {
   type LoadExtensionsResult,
 } from "@earendil-works/pi-coding-agent";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { EXTENSION_QUESTION_REASON, type ExtensionQuestion } from "../shared/api.ts";
-import { HELPER_LIMITS, HELPER_TYPES, RETIRED_HELPER_TYPES, helperTypeFile } from "./helper-types.ts";
 
 /** Pi's built-in tools. They never run in Open Advocate (decision 2). */
 export const BUILTIN_TOOL_NAMES = ["read", "bash", "powershell", "edit", "write", "grep", "find", "ls"] as const;
 
-/** The control tools of pi-subagent-manager. Helper agents may coordinate with these. */
-const SUBAGENT_CONTROLS = ["agent_output", "agent_pause", "agent_status", "agent_steer", "agent_stop", "agent_types", "agent_update", "agent_wait"];
-/** Files no tool may read or write, on every path-aware tool (pi-permission-system "path" rules). */
-const CREDENTIAL_PATHS = ["*auth.json", "*.env", "*.env.*", "*/.ssh/*", "*manifest-signing.key", "*models.json"];
 
 export interface ExtensionInfo {
   /** The package name (bundled) or the source string (added). */
@@ -57,16 +52,10 @@ interface Bundled {
 export interface PiExtensionsOptions {
   /** The application's own Pi folder (not ~/.pi/agent). */
   agentDir: string;
-  /** resources/pi-extensions. */
+  /** The application's extensions/ folder: one Pi package per folder. */
   bundledRoot: string;
   loadDisabled: () => string[];
   saveDisabled: (ids: string[]) => void;
-}
-
-/** A host-owned file: written on every start so a change elsewhere never widens it. */
-function writeOwned(file: string, text: string): void {
-  mkdirSync(path.dirname(file), { recursive: true });
-  writeFileSync(file, text);
 }
 
 export class PiExtensions {
@@ -87,11 +76,21 @@ export class PiExtensions {
     return new DefaultPackageManager({ cwd: this.options.agentDir, agentDir: this.options.agentDir, settingsManager: settings });
   }
 
+  /** The bundled packages: each folder of bundledRoot whose package.json names Pi extensions. */
   bundled(): Bundled[] {
-    const lockFile = path.join(this.options.bundledRoot, "vendor.lock.json");
-    if (!existsSync(lockFile)) return [];
-    const lock = JSON.parse(readFileSync(lockFile, "utf8")) as { extensions: Record<string, { version: string; entries: string[] }> };
-    return Object.entries(lock.extensions).map(([name, e]) => ({ name, version: e.version, dir: path.join(this.options.bundledRoot, "node_modules", name), entries: e.entries }));
+    if (!existsSync(this.options.bundledRoot)) return [];
+    const out: Bundled[] = [];
+    for (const name of readdirSync(this.options.bundledRoot).sort()) {
+      const dir = path.join(this.options.bundledRoot, name);
+      try {
+        const pkg = JSON.parse(readFileSync(path.join(dir, "package.json"), "utf8")) as { name?: string; version?: string; pi?: { extensions?: string[] } };
+        const entries = pkg.pi?.extensions ?? [];
+        if (entries.length) out.push({ name: pkg.name ?? name, version: pkg.version ?? "0.0.0", dir, entries });
+      } catch {
+        // Not a package.
+      }
+    }
+    return out;
   }
 
   private enabledBundledPaths(): string[] {
@@ -99,68 +98,6 @@ export class PiExtensions {
     return this.bundled()
       .filter((b) => !off.has(b.name))
       .flatMap((b) => b.entries.map((e) => path.resolve(b.dir, e)));
-  }
-
-  /**
-   * pi-subagent-manager, least privilege (docs/specs/agent-framework.md section 4): only listed
-   * tools; the four Open Advocate types get their own allowlists; the coding types the manager
-   * ships get none; never Pi's built-in tools; the depth, concurrency and thread limits; types
-   * inherit the chat's model; no extension loads inside a helper.
-   */
-  writeSubagentPolicy(appTools: readonly string[]): void {
-    const base = path.join(this.options.agentDir, "subagent-manager");
-    const settingsFile = path.join(base, "settings.json");
-    let current: Record<string, unknown> = {};
-    try {
-      current = JSON.parse(readFileSync(settingsFile, "utf8")) as Record<string, unknown>;
-    } catch {
-      // No settings yet.
-    }
-    writeOwned(settingsFile, JSON.stringify({ ...current, toolFiltering: "allowed", subagentExtensions: false, housekeepingEnabled: false, ...HELPER_LIMITS }, null, 2));
-    const blocked = BUILTIN_TOOL_NAMES.map((t) => `    - ${t}`).join("\n");
-    // The coding types the manager ships get no tools: an empty allow list is no tools.
-    for (const type of RETIRED_HELPER_TYPES) {
-      writeOwned(path.join(base, "agents", `${type}.yml`), `# Written by Open Advocate on every start. Not used in Open Advocate: no tools.\ndescription: "Not used in Open Advocate. Use legal-research, record-reader, critic or drafter."\nmodels: null\ntools:\n  allow: []\n  block:\n${blocked}\n`);
-    }
-    // The Open Advocate types (docs/specs/agent-framework.md section 4). A tool the session does not have is left out.
-    const known = new Set([...appTools, ...SUBAGENT_CONTROLS, "agent_spawn"]);
-    for (const t of HELPER_TYPES) {
-      writeOwned(path.join(base, "agents", `${t.name}.md`), helperTypeFile({ ...t, tools: t.tools.filter((x) => known.has(x)) }, BUILTIN_TOOL_NAMES));
-    }
-  }
-
-  /** The policy file of @gotgenes/pi-permission-system. Pi's agent folder is agentDir (decision 22). */
-  permissionPolicyFile(): string {
-    return path.join(this.options.agentDir, "extensions", "pi-permission-system", "config.json");
-  }
-
-  /**
-   * pi-permission-system (decision 23). Written on first start; the advocate may edit it. On every
-   * start the safety rules are put back: Pi's built-in tools and every shell command are denied,
-   * and credential files are denied on every path-aware tool. Everything else defaults to allow.
-   * An "ask" rule becomes a question in the chat (harness-hardening H-12). The review
-   * log stays on and is written in the application's Pi folder, never in ~/.pi/agent.
-   */
-  writePermissionPolicy(): void {
-    const file = this.permissionPolicyFile();
-    let current: { permission?: Record<string, unknown> } & Record<string, unknown> = {};
-    try {
-      current = JSON.parse(readFileSync(file, "utf8")) as typeof current;
-    } catch {
-      current = {
-        permissionReviewLog: true,
-        debugLog: false,
-        yoloMode: false,
-        permission: { "*": "allow", mcp: { "*": "allow" }, skill: { "*": "allow" }, external_directory: "allow" },
-      };
-    }
-    const permission = { ...(current.permission ?? {}) };
-    for (const t of BUILTIN_TOOL_NAMES) if (t !== "bash") permission[t] = "deny";
-    permission.bash = { "*": "deny" };
-    const paths: Record<string, unknown> = typeof permission.path === "object" && permission.path ? { ...(permission.path as Record<string, unknown>) } : { "*": "allow" };
-    for (const p of CREDENTIAL_PATHS) paths[p] = "deny";
-    permission.path = paths;
-    writeOwned(file, JSON.stringify({ ...current, yoloMode: false, permission }, null, 2) + "\n");
   }
 
   /** The resource loader for one session. */

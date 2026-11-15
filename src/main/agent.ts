@@ -18,6 +18,7 @@ import {
   truncateHead,
   type AgentSession,
   type InlineExtension,
+  type ToolDefinition,
   type ResourceLoader,
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
@@ -36,6 +37,7 @@ import type { DraftCheck, DraftKind, ParagraphSource, RevisionRecord } from "../
 import { BUILTIN_TOOL_NAMES, ExtensionQuestions, extensionUi, type PiExtensions } from "./pi-extensions.ts";
 import { CONTEXT_STRATEGY, contextExtension, type AgentKind } from "./agent-context.ts";
 import { APPROVAL_OPTIONS, PolicyStore, policyExtension, type Approval } from "./tool-policy.ts";
+import { startHelperTool } from "./helpers.ts";
 import { FIRM_READ_ONLY, FIRM_TOOLS, firmSystemPrompt, firmTools, type FirmHost } from "./firm-agent.ts";
 
 /** One correction the agent proposed in a run, as the AG-UI interrupt reports it. */
@@ -416,6 +418,8 @@ interface MatterChat {
   stopped?: boolean;
   /** Helper agents stopped with the run (Stop, defect B1-2). */
   helpersStopped: number;
+  /** Helpers running now in this conversation (native-harness-parts section 3). */
+  slots: { running: number };
   /** H-12: the open questions of the session's Pi extensions. */
   questions: ExtensionQuestions;
   /** H-25: the run in progress, seen by the one listener of the session. */
@@ -1190,6 +1194,29 @@ export class Agent {
     return chat;
   }
 
+  /**
+   * A helper's session: in memory, the conversation's model, the type's prompt and tools, no
+   * extensions (its calls run through the parent's hooks), Pi's default compaction.
+   */
+  private async helperSession(parent: AgentSession | undefined, input: { prompt: string; tools: ToolDefinition[]; thinkingLevel: ThinkingLevel }): Promise<AgentSession> {
+    const settingsManager = SettingsManager.inMemory();
+    settingsManager.applyOverrides({ compaction: { enabled: true } });
+    const { session } = await createAgentSession({
+      cwd: this.options.agentDir,
+      agentDir: this.options.agentDir,
+      modelRuntime: await this.modelRuntime(),
+      model: (parent && sessionModel(parent)) ?? (await this.model()),
+      thinkingLevel: input.thinkingLevel,
+      resourceLoader: resourceLoader(input.prompt),
+      settingsManager,
+      sessionManager: SessionManager.inMemory(this.options.agentDir),
+      noTools: "builtin",
+      excludeTools: [...BUILTIN_TOOL_NAMES],
+      customTools: input.tools as never,
+    });
+    return session;
+  }
+
   /** O10: store the Firm Agent's open handoffs and tell the window. */
   private async setHandoffs(chat: MatterChat, handoffs: FirmHandoff[]): Promise<void> {
     chat.state.handoffs = handoffs;
@@ -1213,6 +1240,11 @@ export class Agent {
   ): Promise<MatterChat> {
     const host = this.host;
     const { chatDir, sessionDir } = spec;
+    const slots = { running: 0 };
+    const sessionRef: { s?: AgentSession } = {};
+    // Native helpers (native-harness-parts section 3): only a Matter Agent starts them.
+    // harden: Stop ends the call at once, even when the helper's model call does not end.
+    const helperTools = spec.kind === "matter" ? [harden(startHelperTool({ slots, createSession: (input) => this.helperSession(sessionRef.s, input) }, { type: null }) as never)] : [];
     // The tool policy asks through the session's question queue, made below.
     const questionsRef: { q?: ExtensionQuestions } = {};
     const labels = new Map(spec.tools.map((t) => [t.name, (t as { label?: string }).label ?? t.name]));
@@ -1247,8 +1279,9 @@ export class Agent {
       // Decision 2: Pi's built-in file and shell tools are off; our tools and extension tools are on.
       noTools: "builtin",
       excludeTools: [...BUILTIN_TOOL_NAMES],
-      customTools: spec.tools.map(harden) as never,
+      customTools: [...spec.tools.map(harden), ...helperTools] as never,
     });
+    sessionRef.s = session;
     const active = session.getActiveToolNames();
     const builtins = active.filter((t) => (BUILTIN_TOOL_NAMES as readonly string[]).includes(t));
     if (!spec.required.every((t) => active.includes(t)) || builtins.length > 0) {
@@ -1292,7 +1325,7 @@ export class Agent {
         text: NO_MODEL,
       });
     }
-    const chat: MatterChat = { session, state, proposals: [], questions, helpersStopped: 0, run: null, unlisten: () => undefined, chatDir };
+    const chat: MatterChat = { session, state, proposals: [], questions, helpersStopped: 0, run: null, unlisten: () => undefined, chatDir, slots };
     chat.unlisten = this.listen(matterId, chat);
     return chat;
   }
@@ -1526,6 +1559,13 @@ export class Agent {
         this.emit(matterId, { type: EventType.TOOL_CALL_END, toolCallId: event.toolCallId });
         if (event.isError) this.push(matterId, chat, { id: randomUUID(), role: "tool", text: `Tool failed: ${event.toolName}` });
         const content = (event.result as { content?: Array<{ type: string; text?: string }> } | undefined)?.content ?? [];
+        const used = (event.result as { usage?: { input?: number; output?: number; totalTokens?: number; cost?: { total?: number } } } | undefined)?.usage;
+        if (used) {
+          run.usage.input += used.input ?? 0;
+          run.usage.output += used.output ?? 0;
+          run.usage.totalTokens += used.totalTokens ?? 0;
+          run.usage.cost += used.cost?.total ?? 0;
+        }
         const t0 = started.get(event.toolCallId);
         started.delete(event.toolCallId);
         this.trace(chat, {
@@ -1543,53 +1583,17 @@ export class Agent {
   }
 
   /**
-   * Defect B1-2: stop the session's running helper agents (pi-subagent-manager). The host calls
-   * the manager's own agent_status and agent_stop, bound to the root caller. Returns how many.
+   * V5-22: stop the matter's running turn between steps. Helpers run inside the turn's
+   * start_helper calls, so the abort signal stops them too (defect B1-2).
    */
-  private async stopHelpers(session: AgentSession): Promise<number> {
-    const runner = session.extensionRunner;
-    const status = runner.getToolDefinition("agent_status");
-    const stop = runner.getToolDefinition("agent_stop");
-    if (!status || !stop) return 0;
-    const call = (def: NonNullable<typeof status>, params: Record<string, unknown>) =>
-      (def.execute as unknown as (id: string, p: unknown) => Promise<{ details?: unknown }>)(`openadvo-stop-${randomUUID()}`, params);
-    let threads: Array<{ path?: string; state?: string }> = [];
-    try {
-      const d = (await call(status, {})).details;
-      threads = Array.isArray(d) ? (d as typeof threads) : [];
-    } catch (e) {
-      console.error(`helper status failed: ${(e as Error).message}`);
-      return 0;
-    }
-    let n = 0;
-    for (const t of threads) {
-      if (!t.path || (t.state !== "running" && t.state !== "starting")) continue;
-      try {
-        await call(stop, { path: t.path });
-        n++;
-      } catch (e) {
-        console.error(`helper stop failed for ${t.path}: ${(e as Error).message}`);
-      }
-    }
-    return n;
-  }
-
-  /** V5-22: stop the matter's running turn between steps, and its running helpers. */
   async stop(matterId: string): Promise<boolean> {
     const pending = this.chats.get(matterId);
     if (!pending) return false;
     const chat = await pending;
-    const helpers = await this.stopHelpers(chat.session);
-    if (!chat.state.busy) {
-      if (helpers > 0) {
-        this.push(matterId, chat, { id: randomUUID(), role: "notice", text: `Stopped by the advocate: ${helpers} helper agent${helpers === 1 ? "" : "s"}.` });
-        await saveMessages(chat.chatDir, chat.state.messages).catch(() => undefined);
-      }
-      return helpers > 0;
-    }
+    if (!chat.state.busy) return false;
     chat.stopped = true;
-    chat.helpersStopped = helpers;
-    // H-12: an extension waiting on a question gets its default answer, so the run can end.
+    chat.helpersStopped = chat.slots.running;
+    // H-12: a question that waits (an extension's, or an approval card) ends; an approval refuses.
     chat.questions.cancelAll();
     await chat.session.abort();
     return true;

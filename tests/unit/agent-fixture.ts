@@ -16,13 +16,14 @@ import { CHAT_MESSAGE_EVENT, EXTENSION_QUESTIONS_EVENT, type ChatEvent, type Ext
 
 export const MATTER = "m1";
 
-export async function agentFixture(opts: { host?: Partial<AgentHost>; inlineExtensions?: InlineExtension[]; policy?: ToolPolicy; provider?: string } = {}) {
+export async function agentFixture(opts: { host?: Partial<AgentHost>; inlineExtensions?: InlineExtension[]; policy?: ToolPolicy; provider?: string; bundledRoot?: string } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), "openadvo-agent-"));
   const agentDir = path.join(root, "pi-agent");
   const piHome = path.join(root, "owner-pi");
   const chatDir = path.join(root, "chat");
-  const bundledRoot = path.join(root, "no-bundled");
-  for (const d of [agentDir, piHome, chatDir, bundledRoot]) mkdirSync(d, { recursive: true });
+  const bundledRoot = opts.bundledRoot ?? path.join(root, "no-bundled");
+  for (const d of [agentDir, piHome, chatDir]) mkdirSync(d, { recursive: true });
+  if (!opts.bundledRoot) mkdirSync(bundledRoot, { recursive: true });
   process.env.PI_CODING_AGENT_DIR = agentDir;
   const events: ChatEvent[] = [];
   const usage: number[] = [];

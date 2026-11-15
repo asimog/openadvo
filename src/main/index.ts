@@ -6,7 +6,7 @@ import path from "node:path";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { Matters } from "./matters.ts";
-import { AGENT_TOOLS, Agent, findSource } from "./agent.ts";
+import { Agent, findSource } from "./agent.ts";
 import { PiExtensions } from "./pi-extensions.ts";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { RecordTables } from "./record-table.ts";
@@ -796,7 +796,7 @@ function exposeTestHooks(): void {
   };
 }
 
-// Decision 21: the Pi extensions. Bundled ones are vendored in resources/pi-extensions; added ones live in the app's Pi folder.
+// Decision 21: the Pi extensions. Bundled ones are the packages in extensions/ (the placeholder); added ones live in the app's Pi folder.
 /**
  * Decision 22: Pi's agent folder is the application's own folder, so every Pi extension keeps its
  * settings and logs there, never in the owner's ~/.pi/agent. Model credentials and models are
@@ -820,15 +820,13 @@ function piExtensions(): PiExtensions {
   if (!piExtensionsManager) {
     piExtensionsManager = new PiExtensions({
       agentDir: piAgentDir(),
-      bundledRoot: path.join(resourcesRoot(), "pi-extensions"),
+      bundledRoot: path.join(app.getAppPath(), "extensions"),
       loadDisabled: () => {
         const v = readSettings().disabledExtensions;
         return Array.isArray(v) ? v.map(String) : [];
       },
       saveDisabled: (ids) => writeSetting("disabledExtensions", ids),
     });
-    piExtensionsManager.writeSubagentPolicy(AGENT_TOOLS);
-    piExtensionsManager.writePermissionPolicy();
   }
   return piExtensionsManager;
 }

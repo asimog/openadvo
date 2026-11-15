@@ -1,91 +1,40 @@
 /**
  * The agent framework (docs/specs/agent-framework.md) with pi-ai's faux model:
- * one listener per session (H-25, defect B1-1), Stop stops helpers (B1-2), nested writes
- * carry their own actor id (B1-4), a failed Studio call is an error, the run trace, and the
- * tool rules of section 6. A test extension stands in for pi-subagent-manager.
+ * one listener per session (H-25, defect B1-1), nested writes carry their own actor id (B1-4),
+ * a failed Studio call is an error, the run trace, the tool rules of section 6, and the context
+ * meter of native-harness-parts section 5. Helpers have their own tests (helpers.test.ts).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import path from "node:path";
-import type { AgentSession, ExtensionAPI, InlineExtension, ModelRuntime } from "@earendil-works/pi-coding-agent";
-import { createFauxCore, fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
+import type { ExtensionAPI, InlineExtension } from "@earendil-works/pi-coding-agent";
+import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
-import { Agent, TRACE_FILE, type AgentHost } from "../../src/main/agent.ts";
-import { PiExtensions } from "../../src/main/pi-extensions.ts";
-import { CHAT_MESSAGE_EVENT, type ChatEvent } from "../../src/shared/api.ts";
+import type { AgentHost } from "../../src/main/agent.ts";
+import { MATTER, agentFixture, until } from "./agent-fixture.ts";
 
-const PROVIDER = "faux-runs";
-const MATTER = "m1";
-
-interface Helpers {
-  threads: Array<{ path: string; state: string }>;
-  stopped: string[];
-}
-
-/** Stands in for pi-subagent-manager: agent_status, agent_stop, and a tool that calls another tool. */
-function fakeHelpers(h: Helpers): InlineExtension {
-  return {
-    name: "fake-helpers",
-    factory: (pi: ExtensionAPI) => {
-      pi.registerTool({
-        name: "agent_status",
-        label: "agent_status",
-        description: "test",
-        parameters: Type.Object({ path: Type.Optional(Type.String()) }),
-        execute: async () => ({ content: [{ type: "text", text: JSON.stringify(h.threads) }], details: h.threads }),
-      });
-      pi.registerTool({
-        name: "agent_stop",
-        label: "agent_stop",
-        description: "test",
-        parameters: Type.Object({ path: Type.String() }),
-        execute: async (_id, p: { path: string }) => {
-          h.stopped.push(p.path);
-          return { content: [{ type: "text", text: "stopped" }], details: {} };
-        },
-      });
-      pi.registerTool({
-        name: "agent_spawn",
-        label: "agent_spawn",
-        description: "test: runs propose_issue as a helper would",
-        parameters: Type.Object({}),
-        execute: async (_id, _p, _s, _u, ctx) => {
-          const out = await (ctx as unknown as { executeTool: (n: string, a: unknown) => Promise<{ isError: boolean }> }).executeTool("propose_issue", { text: "Helper's issue" });
-          return { content: [{ type: "text", text: out.isError ? "failed" : "done" }], details: {} };
-        },
-      });
-    },
-  };
-}
+/** A tool that calls another tool through Pi, as a codemode script or a helper does. */
+const nestedCaller: InlineExtension = {
+  name: "nested-caller",
+  factory: (pi: ExtensionAPI) => {
+    pi.registerTool({
+      name: "nested_caller",
+      label: "nested_caller",
+      description: "test: runs propose_issue through ctx.executeTool",
+      parameters: Type.Object({}),
+      execute: async (_id, _p, _s, _u, ctx) => {
+        const out = await (ctx as unknown as { executeTool: (n: string, a: unknown) => Promise<{ isError: boolean }> }).executeTool("propose_issue", { text: "Nested issue" });
+        return { content: [{ type: "text", text: out.isError ? "failed" : "done" }], details: {} };
+      },
+    });
+  },
+};
 
 async function fixture() {
-  const root = mkdtempSync(path.join(tmpdir(), "openadvo-runs-"));
-  const agentDir = path.join(root, "pi-agent");
-  const piHome = path.join(root, "owner-pi");
-  const chatDir = path.join(root, "chat");
-  const bundledRoot = path.join(root, "no-bundled");
-  for (const d of [agentDir, piHome, chatDir, bundledRoot]) mkdirSync(d, { recursive: true });
-  process.env.PI_CODING_AGENT_DIR = agentDir;
-  const events: ChatEvent[] = [];
-  const usage: number[] = [];
   const actors: string[] = [];
-  const helpers: Helpers = { threads: [], stopped: [] };
   let studio: (tool: string) => Promise<string> = async () => "ok";
-  const known: Partial<AgentHost> = {
-    matterTitle: async () => "Test v. State",
-    chatDir: async () => chatDir,
-    recordSession: async () => undefined,
-    emit: (e) => events.push(e),
-    loadModelKey: () => null,
-    saveModelKey: () => undefined,
-    loadEffort: () => null,
-    saveEffort: () => undefined,
-    policy: async () => ({ budgetTokens: null, usedTokens: 0 }),
-    recordUsage: async (_m, u) => {
-      usage.push(u.totalTokens);
-    },
+  const host: Partial<AgentHost> = {
     studio: async (_m, tool) => studio(tool),
     notebook: async () => ({ events: Array.from({ length: 3000 }, (_, i) => ({ id: `e${i}`, dateStart: "2020-01-01", dateEnd: "2020-01-01", dateType: "exact", kind: "factual", status: "confirmed", text: `Event number ${i} with some words`, excluded: false, conflicts: [], anchor: null })), readiness: { ready: true, jobsPending: 0, openReviewItems: 0 } }) as never,
     work: {
@@ -95,39 +44,8 @@ async function fixture() {
       },
     } as never,
   };
-  const host = new Proxy(known, {
-    get: (t, k) => (k in t ? t[k as keyof AgentHost] : () => Promise.reject(new Error(`host.${String(k)} not in this test`))),
-  }) as AgentHost;
-  const extensions = new PiExtensions({ agentDir, bundledRoot, loadDisabled: () => [], saveDisabled: () => undefined });
-  const agent = new Agent(host, { agentDir, piHome, extensions, inlineExtensions: [fakeHelpers(helpers)] });
-  const core = createFauxCore({ provider: PROVIDER, models: [{ id: "m" }] });
-  const runtime = await (agent as unknown as { modelRuntime(): Promise<ModelRuntime> }).modelRuntime();
-  runtime.registerProvider(PROVIDER, { name: "Faux", baseUrl: "http://localhost", api: core.api, streamSimple: core.streamSimple, models: core.models.map((m) => ({ ...m, type: "chat" })) } as never);
-  writeFileSync(path.join(piHome, "auth.json"), JSON.stringify({ [PROVIDER]: { type: "api_key", key: "test-key" } }));
-  const session = async () => (await (agent as unknown as { chats: Map<string, Promise<{ session: AgentSession }>> }).chats.get(MATTER))!.session;
-  const trace = async () => {
-    await agent.flushTraces();
-    return readFileSync(path.join(chatDir, TRACE_FILE), "utf8")
-      .trim()
-      .split("\n")
-      .map((l) => JSON.parse(l) as Record<string, unknown>);
-  };
-  const count = (type: string) => events.filter((e) => e.event.type === type).length;
-  const texts = (role: string) =>
-    events
-      .filter((e) => (e.event as { name?: string }).name === CHAT_MESSAGE_EVENT)
-      .map((e) => (e.event as unknown as { value: { role: string; text: string } }).value)
-      .filter((m) => m.role === role)
-      .map((m) => m.text);
-  return { agent, core, events, usage, actors, helpers, session, trace, count, texts, chatDir, setStudio: (f: typeof studio) => (studio = f) };
-}
-
-async function until(check: () => boolean, what: string) {
-  for (let i = 0; i < 300; i++) {
-    if (check()) return;
-    await new Promise((r) => setTimeout(r, 10));
-  }
-  assert.fail(`timed out waiting for ${what}`);
+  const f = await agentFixture({ host, inlineExtensions: [nestedCaller], provider: "faux-runs" });
+  return { ...f, actors, setStudio: (fn: typeof studio) => (studio = fn) };
 }
 
 test("B1-1 (H-25): a turn that a helper's result starts is a run the window sees, saves and counts", async () => {
@@ -136,7 +54,7 @@ test("B1-1 (H-25): a turn that a helper's result starts is a run the window sees
     await f.agent.getChat(MATTER);
     const s = await f.session();
     f.core.setResponses([fauxAssistantMessage("The helper found two authorities.")]);
-    // pi-subagent-manager hands a wait:false result back like this (src/index.ts).
+    // An extension that hands work back with sendMessage(triggerTurn) starts a turn like this.
     await s.sendCustomMessage({ customType: "subagent-result", content: "Helper result", display: true }, { triggerTurn: true });
     await until(() => f.count("RUN_FINISHED") === 1, "the run to finish");
     assert.equal(f.count("RUN_STARTED"), 1);
@@ -151,32 +69,6 @@ test("B1-1 (H-25): a turn that a helper's result starts is a run the window sees
   }
 });
 
-test("B1-2: Stop stops the running helpers and says how many", async () => {
-  const f = await fixture();
-  try {
-    await f.agent.getChat(MATTER);
-    f.helpers.threads = [
-      { path: "/root/research", state: "running" },
-      { path: "/root/reader", state: "starting" },
-      { path: "/root/old", state: "completed" },
-    ];
-    let open!: () => void;
-    const gate = new Promise<void>((r) => (open = r));
-    f.core.setResponses([async () => (await gate, fauxAssistantMessage("late"))]);
-    const run = f.agent.send(MATTER, "research this");
-    await until(() => f.core.state.callCount >= 1, "the model call");
-    // The faux model ignores the abort signal, so its answer is released while Stop waits.
-    const stopping = f.agent.stop(MATTER);
-    setTimeout(open, 50);
-    assert.equal(await stopping, true);
-    await run;
-    assert.deepEqual(f.helpers.stopped.sort(), ["/root/reader", "/root/research"]);
-    assert.ok(f.texts("notice").some((t) => /Stopped by the advocate\. 2 helper agents stopped\./.test(t)));
-  } finally {
-    await f.agent.disposeAll();
-  }
-});
-
 test("B1-4: a write made through another tool carries <session id>/<parent call id>", async () => {
   const f = await fixture();
   try {
@@ -184,7 +76,7 @@ test("B1-4: a write made through another tool carries <session id>/<parent call 
     const sessionId = await f.agent.sessionId(MATTER);
     f.core.setResponses([
       fauxAssistantMessage([fauxToolCall("propose_issue", { text: "Own issue" }, { id: "own-1" })], { stopReason: "toolUse" }),
-      fauxAssistantMessage([fauxToolCall("agent_spawn", {}, { id: "spawn-1" })], { stopReason: "toolUse" }),
+      fauxAssistantMessage([fauxToolCall("nested_caller", {}, { id: "spawn-1" })], { stopReason: "toolUse" }),
       fauxAssistantMessage("done"),
     ]);
     await f.agent.send(MATTER, "go");

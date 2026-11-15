@@ -70,7 +70,6 @@ const vendored: [string, string, string][] = [
   ["ulos validator", "resources/ulos", "npm run vendor:ulos"],
   ["PP-OCR models", "resources/models/ppocr", "npm run vendor:ocr"],
   ["Whisper model", "resources/models/Xenova", "npm run vendor:voice"],
-  ["Pi extensions", "resources/pi-extensions/node_modules", "npm run vendor:extensions"],
 ];
 for (const [name, rel, fix] of vendored) {
   const ok = hasContent(path.join(root, rel));

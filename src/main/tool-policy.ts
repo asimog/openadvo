@@ -1,6 +1,6 @@
 /**
- * The tool policy (docs/specs/native-harness-parts.md section 2): the native part that replaces
- * pi-permission-system. One `tool_call` hook in every session decides each call: allow, ask
+ * The tool policy (docs/specs/native-harness-parts.md section 2): a native part of the harness.
+ * One `tool_call` hook in every session decides each call: allow, ask
  * (an approval card in the chat) or deny. Pi's built-in tools and credential paths are always
  * denied (decision 2). Helper calls run through the parent's tools, so the same hook checks them.
  */
