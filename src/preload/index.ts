@@ -118,6 +118,7 @@ const api: OpenAdvoApi = {
   setPolicy: (matterId, p) => ipcRenderer.invoke("policy:set", matterId, p),
   stopChat: (matterId) => ipcRenderer.invoke("chat:stop", matterId),
   answerExtensionQuestion: (matterId, questionId, answer) => ipcRenderer.invoke("chat:answer-question", matterId, questionId, answer),
+  closeFirmHandoff: (id) => ipcRenderer.invoke("firm:close-handoff", id),
   listContacts: () => ipcRenderer.invoke("contacts:list"),
   addContact: (c) => ipcRenderer.invoke("contacts:add", c),
   removeContact: (id) => ipcRenderer.invoke("contacts:remove", id),

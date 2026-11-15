@@ -50,6 +50,25 @@ export const EXTENSION_STATUS_EVENT = "openadvo.extension_status";
  */
 export const EXTENSION_QUESTIONS_EVENT = "openadvo.extension_questions";
 
+/**
+ * O10: the Firm Agent's conversation id in every chat bridge function. A colon cannot be in a
+ * matter folder's name, so it never equals a matter id (docs/specs/agent-framework.md section 2).
+ */
+export const FIRM_AGENT_ID = "firm:agent";
+
+/** O10: an instruction the Firm Agent proposes for one matter. Only the advocate takes it there. */
+export interface FirmHandoff {
+  id: string;
+  matterId: string;
+  matterTitle: string;
+  instruction: string;
+  reason: string;
+  createdAt: string;
+}
+
+/** O10: CUSTOM event whose value is the Firm Agent's open handoffs (FirmHandoff[]). */
+export const FIRM_HANDOFFS_EVENT = "openadvo.firm_handoffs";
+
 /** H-12: the AG-UI interrupt reason of a question from a Pi extension. */
 export const EXTENSION_QUESTION_REASON = "openadvo.extension_question";
 
@@ -87,6 +106,8 @@ export interface ChatState {
   status?: Record<string, string[]>;
   /** H-12: the open questions of the Pi extensions, oldest first. */
   questions?: ExtensionQuestion[];
+  /** O10: the Firm Agent's open handoffs. Only in the Firm Agent's state. */
+  handoffs?: FirmHandoff[];
 }
 
 /** One Pi extension (decision 21). */
@@ -230,6 +251,8 @@ export interface OpenAdvoApi {
   stopChat(matterId: string): Promise<boolean>;
   /** H-12: answer a Pi extension's question: a choice, true or false, or text. null dismisses it. */
   answerExtensionQuestion(matterId: string, questionId: string, answer: string | boolean | null): Promise<void>;
+  /** O10, human-only: the advocate took a Firm Agent handoff to its matter, or dismissed it. Returns the handoffs left. */
+  closeFirmHandoff(id: string): Promise<FirmHandoff[]>;
   listContacts(): Promise<Contact[]>;
   addContact(c: { name: string; kind: string; email?: string; phone?: string; notes?: string }): Promise<Contact>;
   removeContact(id: string): Promise<Contact[]>;

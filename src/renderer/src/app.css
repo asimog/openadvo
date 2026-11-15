@@ -114,6 +114,10 @@ button.link { background: none; border: 0; padding: 0; color: var(--color-text-a
 .insert-item { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--color-border); padding-top: 6px; align-items: flex-start; }
 
 /* Step 5: agent changes card in the chat dock (editor-design items e to g). */
+/* O10: the Firm Agent on Home. */
+.firm-chat { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--color-border, #d0d0d0); border-radius: 10px; }
+.firm-head { display: flex; align-items: center; gap: 8px; }
+.firm-log { max-height: 420px; overflow-y: auto; }
 .question-card { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; padding: 10px; border: 1px solid var(--color-border, #d0d0d0); border-radius: 8px; }
 .question-options { display: flex; flex-wrap: wrap; gap: 6px; }
 /* Defect B1-6: a long option of a select question wraps inside its button instead of being cut. */

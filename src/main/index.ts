@@ -40,7 +40,8 @@ import { transcribe, voiceAvailable } from "../lib/voice/index.ts";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import type { AgentWorkHost } from "./agent.ts";
-import type { ChatEvent } from "../shared/api.ts";
+import { FIRM_AGENT_ID, type ChatEvent } from "../shared/api.ts";
+import { appendFile, mkdir } from "node:fs/promises";
 import type { DraftKind } from "../shared/records.ts";
 
 // Tests and the proof run may point the application at separate folders.
@@ -293,6 +294,8 @@ function registerBridge(): void {
     return { ...store.policy(), usage: store.usage() };
   });
   handle("chat:stop", (matterId: string) => agent.stop(matterId));
+  // O10, human-only: a Firm Agent handoff was taken to its matter, or dismissed.
+  handle("firm:close-handoff", (id: string) => agent.closeFirmHandoff(String(id ?? "")));
   handle("chat:answer-question", (matterId: string, questionId: unknown, answer: unknown) => {
     if (typeof questionId !== "string" || !questionId) throw new Error("BAD_REQUEST: a question id is required");
     if (answer !== null && typeof answer !== "string" && typeof answer !== "boolean") throw new Error("BAD_REQUEST: the answer is a string, true or false, or null");
@@ -730,6 +733,8 @@ function exposeTestHooks(): void {
   if (process.env.OPENADVO_TEST !== "1") return;
   (globalThis as Record<string, unknown>).__openadvoTest = {
     agentToolNames: (matterId: string) => agent.toolNames(matterId),
+    // O10: run one tool of a session through its own code, as the model would (no model in tests).
+    callAgentTool: (matterId: string, name: string, params: Record<string, unknown>) => agent.callToolForTest(matterId, name, params),
     agentSessionId: (matterId: string) => agent.sessionId(matterId),
     mattersRoot: () => matters.root,
     ingestIdle: () => ingest.idle(),
@@ -805,6 +810,10 @@ function claimPiAgentDir(): void {
 }
 function piAgentDir(): string {
   return path.join(app.getPath("userData"), "pi-agent");
+}
+/** O10: the Firm Agent's folder in user data: its Pi session, messages, handoffs, trace and usage. */
+function firmAgentDir(): string {
+  return path.join(app.getPath("userData"), "firm-agent");
 }
 let piExtensionsManager: PiExtensions | null = null;
 function piExtensions(): PiExtensions {
@@ -901,8 +910,9 @@ app.whenReady().then(() => {
       checkDraft: (id, draftId) => drafts.check(id, draftId),
       proposeCorrection: (id, input, sessionId) => drafts.proposeCorrection(id, input, sessionId),
       work: workHost,
-      matterTitle: (id) => matters.title(id),
-      recordSession: (id, sessionId, model) => matters.recordAgentSession(id, sessionId, model),
+      // O10: the Firm Agent (FIRM_AGENT_ID) has its own folder and no matter store.
+      matterTitle: (id) => (id === FIRM_AGENT_ID ? Promise.resolve("Firm") : matters.title(id)),
+      recordSession: (id, sessionId, model) => (id === FIRM_AGENT_ID ? Promise.resolve() : matters.recordAgentSession(id, sessionId, model)),
       emit: emitChat,
       loadModelKey: () => {
         const v = readSettings().model;
@@ -914,18 +924,37 @@ app.whenReady().then(() => {
         return typeof v === "string" && v ? v : null;
       },
       saveEffort: (level) => writeSetting("effort", level),
-      chatDir: (id) => matters.chatDir(id),
+      chatDir: async (id) => {
+        if (id !== FIRM_AGENT_ID) return matters.chatDir(id);
+        const dir = firmAgentDir();
+        await mkdir(dir, { recursive: true });
+        return dir;
+      },
       readMemory: (id) => matters.memory(id),
       proposeMemory: async (id, text, reason, sessionId) => (await matters.proposeMemory(id, text, reason, sessionId)).id,
       recordTable: (id) => recordTables.describe(id),
       fillRecordCell: (id, input, sessionId) => recordTables.fillByAgent(id, input, sessionId, findSource),
       studio: (id, tool, params, sessionId) => studioTools(hub, studio, matters)(id, tool, params, sessionId),
       policy: async (id) => {
+        if (id === FIRM_AGENT_ID) return { budgetTokens: null, usedTokens: 0 };
         const store = await matters.store(id);
         const p = store.policy();
         return { ...p, usedTokens: store.usage().tokens };
       },
-      recordUsage: async (id, usage, sessionId) => (await matters.store(id)).appendEvent({ actor: "agent", sessionId }, "agent.usage", null, usage),
+      recordUsage: async (id, usage, sessionId) => {
+        // O10: the Firm Agent's usage is kept in its own folder; no matter pays for it.
+        if (id === FIRM_AGENT_ID) {
+          await appendFile(path.join(firmAgentDir(), "usage.jsonl"), JSON.stringify({ at: new Date().toISOString(), sessionId, ...usage }) + "\n");
+          return;
+        }
+        await (await matters.store(id)).appendEvent({ actor: "agent", sessionId }, "agent.usage", null, usage);
+      },
+      firm: {
+        matters: () => docket(matters, progress),
+        openItems: async (id) => (await progress.inbox(id)).map((i) => ({ kind: i.kind, title: i.title, blocks: i.blocks, tab: i.tab })),
+        hearings: async (id) => (await matters.store(id)).hearings().map((h) => ({ date: h.date, bench: h.bench, nextDate: h.nextDate, nextDateStatus: h.nextDateStatus })),
+        workflows: async () => allWorkflows(customWorkflows()),
+      },
     },
     { agentDir: piAgentDir(), piHome: ownerPiHome ?? getAgentDir(), model: process.env.OPENADVO_MODEL || undefined, extensions: piExtensions() },
   );

@@ -26,7 +26,7 @@ import { appendFile, mkdir, readFile, rename, stat, writeFile } from "node:fs/pr
 import path from "node:path";
 import type { AnchorRecord, PageRecord, SourceRecord, Notebook, NotebookEvent } from "../lib/matter-store/index.ts";
 import { EventType, type AGUIEvent } from "@ag-ui/core";
-import { CHAT_MESSAGE_EVENT, EXTENSION_QUESTIONS_EVENT, EXTENSION_STATUS_EVENT } from "../shared/api.ts";
+import { CHAT_MESSAGE_EVENT, EXTENSION_QUESTIONS_EVENT, EXTENSION_STATUS_EVENT, FIRM_AGENT_ID, FIRM_HANDOFFS_EVENT, type FirmHandoff } from "../shared/api.ts";
 import type { ChatEvent, ChatMessage, ChatState, EffortLevel, EffortState, ModelChoice } from "../shared/api.ts";
 
 type ThinkingLevel = EffortLevel;
@@ -34,7 +34,8 @@ const EFFORT_LEVELS: readonly EffortLevel[] = ["off", "minimal", "low", "medium"
 import { StringEnum, type Api, type Model } from "@earendil-works/pi-ai";
 import type { DraftCheck, DraftKind, ParagraphSource, RevisionRecord } from "../shared/records.ts";
 import { BUILTIN_TOOL_NAMES, ExtensionQuestions, extensionUi, type PiExtensions } from "./pi-extensions.ts";
-import { CONTEXT_STRATEGY, contextExtension } from "./agent-context.ts";
+import { CONTEXT_STRATEGY, contextExtension, type AgentKind } from "./agent-context.ts";
+import { FIRM_READ_ONLY, FIRM_TOOLS, firmSystemPrompt, firmTools, type FirmHost } from "./firm-agent.ts";
 
 /** One correction the agent proposed in a run, as the AG-UI interrupt reports it. */
 export interface ProposedCorrection {
@@ -171,6 +172,8 @@ export interface AgentHost {
   proposeMemory(matterId: string, text: string, reason: string, sessionId?: string): Promise<string>;
   /** V1-5: the record table as text, and one cell filled by the agent. */
   recordTable(matterId: string): Promise<string>;
+  /** O10: the firm data the Firm Agent reads. Absent, the Firm Agent cannot start. */
+  firm?: FirmHost;
   fillRecordCell(matterId: string, input: { source: string; column: string; answer: string; quote: string; page: number; line: number }, sessionId: string): Promise<string>;
 }
 
@@ -233,6 +236,17 @@ function systemPrompt(title: string): string {
 export const MESSAGES_FILE = "messages.json";
 /** The run trace of a matter (docs/specs/agent-framework.md section 5): one JSON line per event. */
 export const TRACE_FILE = "trace.jsonl";
+/** O10: the Firm Agent's open handoffs, in its chat folder. */
+export const HANDOFFS_FILE = "handoffs.json";
+
+async function loadHandoffs(dir: string): Promise<FirmHandoff[]> {
+  try {
+    const v = JSON.parse(await readFile(path.join(dir, HANDOFFS_FILE), "utf8")) as unknown;
+    return Array.isArray(v) ? (v as FirmHandoff[]) : [];
+  } catch {
+    return [];
+  }
+}
 
 export async function loadMessages(dir: string): Promise<ChatMessage[]> {
   try {
@@ -364,14 +378,14 @@ function sessionModel(session: AgentSession): Model<Api> | undefined {
   return m && !(m.provider === "unknown" && m.id === "unknown") ? m : undefined;
 }
 
-function resourceLoader(title: string): ResourceLoader {
+function resourceLoader(prompt: string): ResourceLoader {
   return {
     getExtensions: () => ({ extensions: [], errors: [], runtime: createExtensionRuntime() }),
     getSkills: () => ({ skills: [], diagnostics: [] }),
     getPrompts: () => ({ prompts: [], diagnostics: [] }),
     getThemes: () => ({ themes: [], diagnostics: [] }),
     getAgentsFiles: () => ({ agentsFiles: [] }),
-    getSystemPrompt: () => systemPrompt(title),
+    getSystemPrompt: () => prompt,
     getSystemPromptSource: () => undefined,
     getAppendSystemPrompt: () => [],
     getAppendSystemPromptSources: () => [],
@@ -425,7 +439,7 @@ const READ_ONLY_TOOLS = new Set([
 /** Tools that write a draft or a record: one at a time (A4: executionMode "sequential"). */
 const SEQUENTIAL_TOOLS = new Set([
   "propose_correction", "propose_paragraph", "fill_record_cell", "propose_issue", "add_authority", "write_memorandum",
-  "save_judgment", "save_provision", "assess_authority", "record_treatment", "propose_memory_note",
+  "save_judgment", "save_provision", "assess_authority", "record_treatment", "propose_memory_note", "propose_matter_instruction",
 ]);
 
 /**
@@ -444,6 +458,23 @@ export function boundText(text: string): string {
   return `${t.content}
 
 [Output cut at ${t.outputLines} of ${t.totalLines} lines. Ask for less: a narrower range, a filter, a page range or a search.]`;
+}
+
+/**
+ * The tool rules of Pi's extension guide (A4; spec section 6): read-only and sequential hints,
+ * Stop ends a call at once, and long text results are cut with a hint.
+ */
+function harden<T extends { name: string; execute: (...a: never[]) => Promise<{ content: Array<{ type: string; text?: string }> }> }>(tool: T): T {
+  const execute = tool.execute as unknown as (id: string, params: unknown, signal: AbortSignal | undefined, ...rest: unknown[]) => Promise<{ content: Array<{ type: string; text?: string }> }>;
+  return {
+    ...tool,
+    ...(READ_ONLY_TOOLS.has(tool.name) || FIRM_READ_ONLY.has(tool.name) ? { annotations: { readOnlyHint: true } } : {}),
+    ...(SEQUENTIAL_TOOLS.has(tool.name) ? { executionMode: "sequential" } : {}),
+    execute: async (id: string, params: unknown, signal: AbortSignal | undefined, ...rest: unknown[]) => {
+      const result = await untilAborted(signal, execute(id, params, signal, ...rest));
+      return { ...result, content: result.content.map((c) => (c.type === "text" && typeof c.text === "string" ? { ...c, text: boundText(c.text) } : c)) };
+    },
+  } as T;
 }
 
 /** A promise that settles with "stopped" when the signal aborts, so Stop never waits on a tool. */
@@ -677,6 +708,7 @@ export class Agent {
   }
 
   private async start(matterId: string, fresh = false): Promise<MatterChat> {
+    if (matterId === FIRM_AGENT_ID) return this.startFirm(fresh);
     const title = await this.host.matterTitle(matterId);
     const host = this.host;
     // V1-1: the Pi session is a file session in the matter's chat folder, so it survives a restart.
@@ -1119,46 +1151,82 @@ export class Agent {
         return { content: [{ type: "text", text }], details: { proposed: true } };
       },
     });
-    /**
-     * The tool rules of Pi's extension guide (A4; spec section 6): read-only and sequential
-     * hints, Stop ends a call at once, and long text results are cut with a hint.
-     */
-    const harden = <T extends { name: string; execute: (...a: never[]) => Promise<{ content: Array<{ type: string; text?: string }> }> }>(tool: T): T => {
-      const execute = tool.execute as unknown as (id: string, params: unknown, signal: AbortSignal | undefined, ...rest: unknown[]) => Promise<{ content: Array<{ type: string; text?: string }> }>;
-      return {
-        ...tool,
-        ...(READ_ONLY_TOOLS.has(tool.name) ? { annotations: { readOnlyHint: true } } : {}),
-        ...(SEQUENTIAL_TOOLS.has(tool.name) ? { executionMode: "sequential" } : {}),
-        execute: async (id: string, params: unknown, signal: AbortSignal | undefined, ...rest: unknown[]) => {
-          const result = await untilAborted(signal, execute(id, params, signal, ...rest));
-          return { ...result, content: result.content.map((c) => (c.type === "text" && typeof c.text === "string" ? { ...c, text: boundText(c.text) } : c)) };
-        },
-      } as T;
-    };
+    return this.open(matterId, {
+      kind: "matter",
+      prompt: systemPrompt(title),
+      tools: [listSources, readSourceText, searchSources, listEvents, getChronology, readDraft, getParagraphSource, checkDraftTool, proposeCorrection, ...workTools, ...v1Tools, ...v4Tools, ...v5Tools],
+      required: AGENT_TOOLS,
+      chatDir,
+      sessionDir,
+    }, fresh);
+  }
+
+  /** O10: the Firm Agent's session (docs/specs/agent-framework.md section 2). It opens no matter. */
+  private async startFirm(fresh: boolean): Promise<MatterChat> {
+    const firm = this.host.firm;
+    if (!firm) throw new Error("FIRM_AGENT_UNAVAILABLE: the Firm Agent has no firm data in this build");
+    const chatDir = await this.host.chatDir(FIRM_AGENT_ID);
+    const sessionDir = path.join(chatDir, "pi");
+    await mkdir(sessionDir, { recursive: true });
+    const tools = firmTools(firm, async (input) => {
+      const chat = await this.chats.get(FIRM_AGENT_ID);
+      if (!chat) throw new Error("the Firm Agent's conversation is closed");
+      const h: FirmHandoff = { id: `handoff-${randomUUID().slice(0, 8)}`, createdAt: new Date().toISOString(), ...input };
+      await this.setHandoffs(chat, [...(chat.state.handoffs ?? []), h]);
+      return h;
+    });
+    const chat = await this.open(FIRM_AGENT_ID, { kind: "firm", prompt: firmSystemPrompt(), tools, required: FIRM_TOOLS, chatDir, sessionDir }, fresh);
+    chat.state.handoffs = await loadHandoffs(chatDir);
+    return chat;
+  }
+
+  /** O10: store the Firm Agent's open handoffs and tell the window. */
+  private async setHandoffs(chat: MatterChat, handoffs: FirmHandoff[]): Promise<void> {
+    chat.state.handoffs = handoffs;
+    await writeFile(path.join(chat.chatDir, HANDOFFS_FILE), JSON.stringify(handoffs, null, 2));
+    this.emit(FIRM_AGENT_ID, { type: EventType.CUSTOM, name: FIRM_HANDOFFS_EVENT, value: handoffs });
+  }
+
+  /** O10, human-only (decision 5): the advocate took a handoff to its matter, or dismissed it. */
+  async closeFirmHandoff(id: string): Promise<FirmHandoff[]> {
+    const chat = await this.chat(FIRM_AGENT_ID);
+    const left = (chat.state.handoffs ?? []).filter((h) => h.id !== id);
+    await this.setHandoffs(chat, left);
+    return left;
+  }
+
+  /** Open a session of one agent kind: tools, prompt, context strategy, extensions, listener. */
+  private async open(
+    matterId: string,
+    spec: { kind: AgentKind; prompt: string; tools: Array<{ name: string; execute: (...a: never[]) => Promise<{ content: Array<{ type: string; text?: string }> }> }>; required: readonly string[]; chatDir: string; sessionDir: string },
+    fresh: boolean,
+  ): Promise<MatterChat> {
+    const host = this.host;
+    const { chatDir, sessionDir } = spec;
     const runtime = await this.modelRuntime();
     const model = await this.model();
     // Decision 21: the advocate's Pi extensions load in every session.
     const ext = this.options.extensions;
     const settingsManager = ext ? ext.settings() : SettingsManager.inMemory();
-    // H-2: compaction on, with the Matter Agent's strategy (docs/specs/agent-framework.md section 7).
-    settingsManager.applyOverrides({ compaction: { enabled: true, keepRecentTokens: CONTEXT_STRATEGY.matter.keepRecentTokens } });
+    // H-2: compaction on, with the kind's strategy (docs/specs/agent-framework.md section 7).
+    settingsManager.applyOverrides({ compaction: { enabled: true, keepRecentTokens: CONTEXT_STRATEGY[spec.kind].keepRecentTokens } });
     const { session } = await createAgentSession({
       cwd: this.options.agentDir,
       agentDir: this.options.agentDir,
       modelRuntime: runtime,
       model,
       thinkingLevel: this.effort(),
-      resourceLoader: ext ? await ext.loader({ systemPrompt: systemPrompt(title), extraFactories: [contextExtension("matter"), ...(this.options.inlineExtensions ?? [])] }) : resourceLoader(title),
+      resourceLoader: ext ? await ext.loader({ systemPrompt: spec.prompt, extraFactories: [contextExtension(spec.kind), ...(this.options.inlineExtensions ?? [])] }) : resourceLoader(spec.prompt),
       settingsManager,
       sessionManager: fresh ? SessionManager.create(this.options.agentDir, sessionDir) : SessionManager.continueRecent(this.options.agentDir, sessionDir),
       // Decision 2: Pi's built-in file and shell tools are off; our tools and extension tools are on.
       noTools: "builtin",
       excludeTools: [...BUILTIN_TOOL_NAMES],
-      customTools: [listSources, readSourceText, searchSources, listEvents, getChronology, readDraft, getParagraphSource, checkDraftTool, proposeCorrection, ...workTools, ...v1Tools, ...v4Tools, ...v5Tools].map(harden),
+      customTools: spec.tools.map(harden) as never,
     });
     const active = session.getActiveToolNames();
     const builtins = active.filter((t) => (BUILTIN_TOOL_NAMES as readonly string[]).includes(t));
-    if (!AGENT_TOOLS.every((t) => active.includes(t)) || builtins.length > 0) {
+    if (!spec.required.every((t) => active.includes(t)) || builtins.length > 0) {
       session.dispose();
       throw new Error(`agent tool policy violated: ${JSON.stringify(active)}`);
     }
@@ -1208,6 +1276,14 @@ export class Agent {
     const pending = this.chats.get(matterId);
     if (!pending) throw new Error("QUESTION_CLOSED: the matter has no open conversation");
     (await pending).questions.answer(questionId, answer);
+  }
+
+  /** Tests only: run one tool of a session through its own code, as a model call would, and return its text. */
+  async callToolForTest(matterId: string, name: string, params: Record<string, unknown>): Promise<string> {
+    const def = (await this.chat(matterId)).session.getToolDefinition(name);
+    if (!def) throw new Error(`no tool ${name}`);
+    const run = def.execute as unknown as (id: string, p: unknown) => Promise<{ content: Array<{ text?: string }> }>;
+    return (await run(`test-${randomUUID()}`, params)).content.map((c) => c.text ?? "").join("\n");
   }
 
   /** The active tool names of a matter's session. Used by tests and the startup check. */

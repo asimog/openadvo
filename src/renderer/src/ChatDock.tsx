@@ -107,7 +107,7 @@ export function ModelPicker(props: { isDisabled: boolean }) {
   );
 }
 
-function Message(props: { message: ChatRecord }) {
+export function Message(props: { message: ChatRecord }) {
   const m = props.message;
   if (m.role === "advocate") {
     return (

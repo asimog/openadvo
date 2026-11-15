@@ -12,6 +12,7 @@ import { Text } from "@astryxdesign/core/Text";
 import { AppNav } from "./AppNav.tsx";
 import { ChatDock } from "./ChatDock.tsx";
 import { Landing, type Carry } from "./Landing.tsx";
+import { FirmChat } from "./FirmChat.tsx";
 import { NotebookView, type SourceLink } from "./Notebook.tsx";
 import { DraftsSection } from "./Drafts.tsx";
 import { DraftView } from "./DraftView.tsx";
@@ -432,6 +433,7 @@ export function App() {
             onNewMatter={askNewMatter}
             footer={
               <>
+                <FirmChat onOpenMatter={(id, carry) => void openWithCarry(id, carry, false)} />
                 <Docket onOpen={(id) => void openMatter(id)} />
                 <ArchivedMatters matters={matters} onChanged={refreshMatters} />
               </>
