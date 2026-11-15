@@ -6,7 +6,7 @@ This spec owns the kinds of agent, what each may read, write and start, how a ru
 
 ## 1. Principles
 
-1. **Use Pi's parts.** Sessions, events, compaction, the `context` hook, codemode and tool search are Pi's. Helpers are pi-subagent-manager threads. The application adds policy and the window, not a second agent runtime.
+1. **Use Pi's parts.** Sessions, events, compaction, the `context` hook, codemode and tool search are Pi's. Helpers are Pi sessions the application starts in process ([native-harness-parts.md](native-harness-parts.md) section 3). The application adds policy and the window, not a second agent runtime.
 2. **Few agent kinds, each with a fixed scope.** An agent kind is a tool scope, a prompt, a spawn right and a context strategy. It is not an authority: only the advocate approves (decision 5).
 3. **The smallest set of high-signal tokens.** Each kind gets a hybrid context: a short package up front (stable records, by id), and tools to read more on demand. Legal work changes slowly, so the up-front part is larger than for coding work.
 4. **Every run is observable.** One listener per session records every run, including runs that the agent starts by itself.
@@ -18,7 +18,7 @@ This spec owns the kinds of agent, what each may read, write and start, how a ru
 |---|---|---|---|---|---|
 | **Firm Agent** | One per advocate (a solo practitioner is a firm) | One Pi session in user data, not in a matter | Every matter's summary (stage, next date, open Review Inbox items, last handoff note); the Knowledge Library (templates, memos, workflows, playbooks the advocate uploads); advocate memory; the calendar | Advocate-memory proposals; instructions handed to a Matter Agent (shown to the advocate first) | Helpers of the firm types (section 4). It never reads one matter's facts into another matter's work (architecture section 6). |
 | **Matter Agent** | One per matter | The matter's chat session (current code) | That matter's records, drafts and research; public law; the matter memory | Candidates, tracked changes and memory proposals in that matter | Helpers of the matter types (section 4) |
-| **Helper** | Started by a Firm or Matter Agent | A pi-subagent-manager thread, in process | What its type allows, through the parent's tools | What its type allows, through the parent's tools, recorded with its own actor id (section 5) | Only the `legal-research` type, and only `record-reader` helpers |
+| **Helper** | Started by a Matter Agent | An in-memory Pi session, in process, for one `start_helper` call | What its type allows, through the parent's tools | What its type allows, through the parent's tools, recorded with its own actor id (section 5) | Only the `legal-research` type, and only `record-reader` helpers |
 | **Skill run** (planned, N2) | One per skill run | A session the harness starts | The skill's declared context | The skill's output schema | Nothing. It is not a helper. |
 
 "Godmode" means the Firm Agent sees the whole firm. It does not mean more rights: it proposes, and the advocate decides.
@@ -35,9 +35,9 @@ Status: all three are built. The Firm Agent is built as section 2.1 says.
 
 ## 3. What a helper is
 
-A helper is a Pi session that a Firm or Matter Agent starts with `agent_spawn` (pi-subagent-manager). Facts that define it ([../../.agents/logs/2026-11-15-subagents-codemode-mcp-tools.md](../../.agents/logs/2026-11-15-subagents-codemode-mcp-tools.md) A2):
+A helper is a Pi session that a Matter Agent starts with `start_helper` ([native-harness-parts.md](native-harness-parts.md) section 3). The Firm Agent starts no helper yet: no helper type reads firm data. Facts that define it:
 
-- It runs in the main process. Its tool calls run through the parent's tools and the parent's `tool_call` hooks (the guard and pi-permission-system).
+- It runs in the main process. Its tool calls run through the parent's tools and the parent's `tool_call` hooks (the tool policy).
 - It starts with a fresh context and a task brief: the objective, the output wanted, the records to start from, and the limits (lesson from the multi-agent research system).
 - It returns a short result (about 1,000 to 2,000 tokens) with record ids, never the full text it read.
 - It never talks to the advocate. A question goes back to its parent.
@@ -47,23 +47,23 @@ Not helpers: a skill run (section 2), a codemode script (a program that calls to
 
 ## 4. Helper types
 
-The application writes these types into `<userData>/pi-agent/subagent-manager/agents/` on every start. The six coding types that pi-subagent-manager ships (`architect`, `coder`, `researcher`, `reviewer`, `tasker`, `writer`) get an overlay with no tools, so the agent cannot use them.
+The type table is `src/main/helper-types.ts`.
 
 | Type | Job | Tools | May spawn |
 |---|---|---|---|
-| `legal-research` | Find and assess law for one question: judgments, statutes, the citation index, the web for discovery | Reading and research tools; `save_judgment`, `save_provision`, `add_authority`, `assess_authority`, `record_treatment` (candidates) | `record-reader`, at most 4 at once |
+| `legal-research` | Find and assess law for one question: judgments, statutes, the citation index, the web for discovery | Reading and research tools; `save_judgment`, `save_provision`, `add_authority`, `assess_authority`, `record_treatment` (candidates); `start_helper` | `record-reader` |
 | `record-reader` | Read a set of pages or judgments and return facts or passages with page and line anchors | Reading tools only | No |
 | `critic` | Test a draft, an argument or a research note against the record and the law; report defects with anchors | Reading tools, `check_draft`, `quick_check_citations`, `check_citations` | No |
 | `drafter` | Propose new text for named paragraphs | Reading tools, `propose_correction`, `propose_paragraph` | No |
 
-All types also get `agent_update` and `agent_pause`. The limits, written in `subagent-manager/settings.json`: `maxLevels` 3 (the parent, a helper, a reader), `maxConcurrent` 4, `maxThreads` 24 per session. A spawn past a limit fails at once; it does not wait (pi-subagent-manager `docs/settings.md`).
+The limits (`HELPER_LIMITS`): 4 helpers at once per conversation, 30 turns, 15 minutes, a result of at most 8,000 characters. A call past the limit fails at once. Spawn rights are enforced in code: `start_helper` offers each caller only the types it may start, and only `legal-research` has it.
 
 Role names of feature O2 (intake, chronology, drafting and the others) are skills, not helper types.
 
 ## 5. Runs and observation
 
 - **One listener per session** (H-25). It is attached when the session opens and lives as long as the session. A run starts on Pi's `agent_start` and ends on `agent_settled` (Pi `docs/extensions.md`: `agent_end` is not final). So a turn that a helper's result starts (`sendMessage` with `triggerTurn`) is shown, saved, counted and marks the chat busy, like a turn the advocate starts.
-- **Stop** aborts the Matter Agent's run and stops every running helper of the session (`agent_status`, then `agent_stop` for each thread that runs). The notice says how many helpers were stopped.
+- **Stop** aborts the Matter Agent's run. Helpers run inside the run's `start_helper` calls, so the abort stops them too. The notice says how many helpers were stopped.
 - **Actor ids.** A tool call that another tool made (a helper's call or a codemode script's call) has the id `<parent call id>/<n>` (Pi `nested-tool-calls.ts`). Writes record the session id followed by `/<parent call id>`, so the record tells the Matter Agent's own writes from a helper's.
 - **Run trace.** The listener appends one JSON line per event to `chat/trace.jsonl` in the matter folder: run start and end, each finished tool call (tool, call id, parent call id, duration in ms, error flag, result size in characters), compaction, and usage. The Jobs view (O7) and tests read it. It holds no tool arguments or results, so it holds no client text.
 

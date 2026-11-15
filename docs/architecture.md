@@ -85,11 +85,11 @@ Memory records are typed, in `matter.db` (matter scope) and `advocate.db` (advoc
 
 ## 7. The harness
 
-- **Sessions.** The agent kinds are in [specs/agent-framework.md](specs/agent-framework.md) (owner, 2026-11-15): one **Firm Agent** per advocate, which sees the whole firm and proposes; one **Matter Agent** per matter (the matter's chat session); **helpers** that a Firm or Matter Agent starts through pi-subagent-manager; and one session per skill run, with that skill's tool scope. Several runs can go in parallel inside the main process.
+- **Sessions.** The agent kinds are in [specs/agent-framework.md](specs/agent-framework.md) (owner, 2026-11-15): one **Firm Agent** per advocate, which sees the whole firm and proposes; one **Matter Agent** per matter (the matter's chat session); **helpers** that a Matter Agent starts with `start_helper` ([specs/native-harness-parts.md](specs/native-harness-parts.md)); and one session per skill run, with that skill's tool scope. Several runs can go in parallel inside the main process.
 - **Roles.** Intake, jurisdiction, research, evidence, chronology, drafting, review, strategy, filing, hearing, monitoring and memory. Each role is a set of skills and a tool scope, not a separate authority. A reviewer role never approves its own run. A critic can use a different model family.
 - **Controls.** The planner breaks a request into skill runs and shows the plan before it starts long work. The harness also provides checkpoints (Pi session files), retry with limits, timeouts, Stop, budget, an evaluator gate (at most two rewrites), and approvals as AG-UI interrupts that a bridge function answers.
 - **Pi extensions.** Each session loads the advocate's enabled Pi extensions, Pi skills, prompt templates and context files from the application's Pi folder, and MCP, codemode and tool search. Pi's built-in file and shell tools stay off. The build and the policy are in [harness-build.md](harness-build.md).
-- **Policy.** Each skill names its permitted tools. The policy module enforces the list. Human-only actions stay outside the agent. pi-permission-system enforces the tool policy (decision 23).
+- **Policy.** Each skill names its permitted tools. The policy module enforces the list. Human-only actions stay outside the agent. The tool policy decides every tool call (decision 23; [harness-build.md](harness-build.md) section 1.3).
 
 ## 8. Local intelligence
 

@@ -111,7 +111,7 @@ A1, A3 and A4 are done, and part of A2 is done. Read `.agents/logs/2026-11-15-su
 - The eight knowledge layers are mapped onto the frozen stores (report section 4). Q-8 (firm knowledgebase) is open; compiled pages are parked.
 - Part B still waits for the owner.
 
-**Update (2026-11-15, part B).** The owner started part B. Read `.agents/logs/2026-11-15-part-b-agent-framework.md` and `docs/specs/agent-framework.md` first. Built and tested: B1 defects 1, 2, 4, 5, 6 and the Studio error (H-33 to H-39), the A4 tool fixes, the run trace, the Matter Agent's context strategy, the four helper types, the B2 owners (`docs/harness-build.md` section 1.6). Open, in this order: a live run on a real brief; H-42 (B3 spike, then adapters); H-14. H-43 (the Firm Agent, O10) is built: read `.agents/logs/2026-11-15-firm-agent.md`. The knowledge layers are parked; do not take scope from them.
+**Update (2026-11-15, part B).** The owner started part B. Read `.agents/logs/2026-11-15-part-b-agent-framework.md` and `docs/specs/agent-framework.md` first. Built and tested: B1 defects 1, 2, 4, 5, 6 and the Studio error (H-33 to H-39), the A4 tool fixes, the run trace, the Matter Agent's context strategy, the four helper types, the B2 owners (`docs/harness-build.md` section 1.6). Open, in this order: a live run on a real brief; H-14. H-42 is built as native code, not adapters (owner, 2026-11-15): read `.agents/logs/2026-11-15-native-harness-parts.md` and `docs/specs/native-harness-parts.md`; part B3 below is superseded. H-43 (the Firm Agent, O10) is built: read `.agents/logs/2026-11-15-firm-agent.md`. The knowledge layers are parked; do not take scope from them.
 
 ## 6. Part B: build only after the owner says so
 

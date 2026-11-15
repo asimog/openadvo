@@ -27,7 +27,8 @@ This file owns the folders, the write boundaries, the data outside the repositor
 | `resources/euro-office/` | The vendored Euro-Office parts ([engineering.md](engineering.md) section 2). Never committed, never modified. | The vendor script only. |
 | `resources/ulos/` | The vendored `ulos` validator and its court database. Never committed, never modified. | The vendor script only. |
 | `resources/models/` | The vendored speech model and, in `ppocr/`, the second OCR engine's models. Never committed, never modified. | The vendor scripts only. |
-| `resources/pi-extensions/` | The bundled Pi extensions ([harness-hardening.md](harness-hardening.md) section 3). Never committed, never modified. | The vendor script only. |
+| `extensions/` | The bundled Pi extensions: one Pi package per folder. Today only `placeholder/` ([specs/native-harness-parts.md](specs/native-harness-parts.md) section 6). | Code changes with tests. |
+| `resources/pi-extensions/` | Not used any more. An older checkout vendored seven Pi packages here; the folder can be deleted. | — |
 | `out/` | Build output of electron-vite. Not committed. | — |
 | `release/` | The folder to install, made by `npm run dist`. Not committed. | — |
 
@@ -38,7 +39,8 @@ This file owns the folders, the write boundaries, the data outside the repositor
 | Matters root: `<Documents>/Open Advocate/Matters`, or the folder in `OPENADVO_HOME` | One folder per matter: `matter.db`, `blobs/<sha256>`, `filing/<time>/` (filing sets with `manifest.json`), `chat/` (Pi session files and the window's messages), `memory.md`, `studio/<run>/` (the model calls of an argument-loop or rehearsal run), `questions/`, and the marker file `archived` when the matter is archived. |
 | User data | `settings.json` (model, effort, mail account), `workflows.json` (the advocate's own workflows), `manifest-signing.key` (encrypted with `safeStorage`), `corpus/` (`corpus.db` and the fetched judgment PDFs by SHA-256), `contacts.json`, `word/<matter id>/` (the Word round trip), `logs/editor-host.log`, and `Crashpad/` (local crash dumps; nothing is uploaded). No secret in plain text: the mail password is in `safeStorage`. |
 | User data: `firm-agent/` | The Firm Agent's conversation (feature O10): `pi/` (Pi session files), `messages.json`, `trace.jsonl`, `handoffs.json` (instructions waiting for the advocate) and `usage.jsonl`. |
-| User data: `pi-agent/` | The application's Pi folder, which is also Pi's agent folder (`PI_CODING_AGENT_DIR`, decision 22): `settings.json` (packages the advocate added, Pi settings), `npm/` and `git/` (installed packages), `extensions/pi-permission-system/` (`config.json`, the permission policy; `logs/`, the review log), `subagent-manager/` (the helper-agent policy, rewritten on every start), the extensions' own preference files, and any Pi skills, prompt templates, context files or extensions placed there. |
+| User data: `pi-agent/` | The application's Pi folder, which is also Pi's agent folder (`PI_CODING_AGENT_DIR`, decision 22): `settings.json` (packages the advocate added, Pi settings), `npm/` and `git/` (installed packages), the added extensions' own files, and any Pi skills, prompt templates, context files or extensions placed there. |
+| User data: `tool-policy.json`, `logs/tool-policy.jsonl` | The tool policy and its review log (decision 23; [harness-build.md](harness-build.md) section 1.3). |
 | User data, **planned (Q4)** | `advocate.db` (profile, preferences, advocate memory, Knowledge Library) and `intel.db` (court directory, packs, sources and their freshness). `skills/` for the advocate's own skills (N1). |
 | Pi credentials | Pi's own credential store. The application does not read or copy it (choice EC-6). |
 

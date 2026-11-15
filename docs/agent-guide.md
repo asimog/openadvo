@@ -43,7 +43,6 @@ npm run vendor
 npm run vendor:ulos
 npm run vendor:voice
 npm run vendor:ocr
-npm run vendor:extensions
 npm run build
 npm start
 ```
@@ -54,7 +53,6 @@ npm start
 | `npm run vendor:ulos` | The `ulos` citation validator and its court database | `C:\dev\ulosadvo`, or `ULOS_SRC` |
 | `npm run vendor:voice` | The Whisper speech model | Network; `VOICE_REVISION` pins a revision |
 | `npm run vendor:ocr` | The PP-OCR models, checked by SHA-256 | Network |
-| `npm run vendor:extensions` | The bundled Pi extensions, at exact npm versions, checked against the registry integrity hashes in `scripts/pi-extensions.manifest.json` | Network and npm |
 
 Vendored parts go into `resources/` and are never committed. Tests that need a vendored part skip with a message when it is missing. Vendor it, and run the tests again.
 
@@ -159,23 +157,12 @@ Key files:
 - The navigation follows [advocate-workflow.md](advocate-workflow.md) section 3.
 - Test it end to end: launch the application, use the view as the advocate would, and assert on visible text and test ids.
 
-### 7.5 Add or change a bundled Pi extension
+### 7.5 Change a native harness part, or the placeholder extension
 
-1. Assess it first. Run `npm pack <name>@<version>` in a temporary folder and read the tarball, not the repository head, because they can differ. Scan for:
-   - registered tools and commands;
-   - `ctx.ui` calls and `ctx.mode !== "tui"` checks;
-   - `child_process`, network calls and file writes;
-   - `getAgentDir()`.
-
-   Read the README. Record the facts in a session report. An extension that works only in Pi's terminal does not belong in the bundle.
-2. Get the integrity hash with `npm view <name>@<version> dist.integrity` and add an entry to `scripts/pi-extensions.manifest.json`.
-3. Run `npm run vendor:extensions`. It fails on any integrity mismatch.
-4. Update the tests:
-   - `WANTED` in `tests/unit/pi-extensions.test.ts`;
-   - `BUNDLED` in `tests/e2e/extensions.spec.ts`;
-   - the `EXTENSION_TOOL` pattern in `tests/e2e/app.spec.ts`, if the extension adds tools.
-5. Update the bundled table in [harness-build.md](harness-build.md) section 1.2.
-6. If its default behaviour asks the user or needs policy, set it in `PiExtensions` the way `writePermissionPolicy` and `writeSubagentPolicy` do.
+- The harness parts that were bundled Pi extensions are native code ([specs/native-harness-parts.md](specs/native-harness-parts.md)). Change them as code: a failing test first in `tests/unit/` (the faux-model fixture is `tests/unit/agent-fixture.ts`), then the change.
+- Before you add a harness part, check whether Pi already has it, in `C:\dev\pireference` (section 1). Before you add a bundled extension back, ask the owner: decision 21 makes the harness parts native.
+- The placeholder (`extensions/placeholder`) registers no tool on purpose. Keep it free of tools, reads and writes; it tests the extension system only.
+- A tool the agent should not call without approval gets an `ask` rule in the tool policy, not a question inside the tool.
 
 ### 7.6 Add a vendored part
 
@@ -292,8 +279,8 @@ PY
 1. **Escaped newlines in scripted edits.** A Python string with `"\n"` written into TypeScript becomes a real line break and breaks the build. Use the Edit tool, or `String.fromCharCode(10)`.
 2. **A renderer build failure after two successes.** `npm run build` builds three bundles. Count the "built in" lines, or read the whole output.
 3. **Tool order.** Pi's active tool list is not in a fixed order. Compare sorted lists.
-4. **Extension tools in tool lists.** The session's tools include extension tools. Tests filter them with `EXTENSION_TOOL` in `tests/e2e/app.spec.ts`.
-5. **pi-permission-system.** A tool with a `deny` rule stays in Pi's active list but is withheld at call time ("Tool … not found"). Its review log records blocks, not allows.
+4. **Extension tools in tool lists.** The session's tools include the tools of Pi's built-in MCP, codemode and tool-search extensions. Tests filter them with `EXTENSION_TOOL` in `tests/e2e/app.spec.ts`.
+5. **A refused tool.** The tool policy refuses a call in Pi's `tool_call` hook: the tool stays in the active list, and the model gets the refusal as an error result.
 6. **`getAgentDir()`.** Set `PI_CODING_AGENT_DIR` before loading extensions in a test. Otherwise their files land in the owner's `~/.pi/agent`.
 7. **npm from Node on Windows.** Start npm with `spawnSync("npm", args, { shell: true })`, as `scripts/vendor-pi-extensions.ts` does. Node prints a deprecation warning (DEP0190) for this; the arguments are fixed strings, so it is safe here.
 8. **Heredocs with apostrophes.** The shell can reject a long heredoc that contains `'`. Write the script to a file and run the file.

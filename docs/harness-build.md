@@ -2,9 +2,8 @@
 
 Owner's instructions, 2026-11-15. This file owns how the agent harness is built:
 - the Pi folders and credentials;
-- the extensions and their policy;
-- the permission system;
-- the helper agents;
+- the extensions;
+- the native harness parts: the tool policy, the helpers, the plan and the context meter;
 - the extension interface in the window;
 - the planned builds HB-1 (side questions) and HB-2 (browser).
 
@@ -18,84 +17,44 @@ The defect list and the status of each Pi feature are in [harness-hardening.md](
 - **Pi's agent folder is the application's own folder,** `<userData>/pi-agent` (decision 22). At start, `src/main/index.ts` reads the owner's Pi folder first (normally `~/.pi/agent`). It then sets `PI_CODING_AGENT_DIR` to the application's folder. Every extension that uses Pi's `getAgentDir()` therefore keeps its settings and logs in the application's folder.
 - **Model credentials and models** are still read from the owner's Pi folder (decision 16): `ModelRuntime.create({ authPath: <owner>/auth.json, modelsPath: <owner>/models.json })`. Pi's default model is read from `<owner>/settings.json`.
 - **Resources.** Each session uses Pi's `DefaultResourceLoader` in the application's folder, with a file-backed `SettingsManager`. It loads:
-  - the bundled extensions and the packages the advocate added;
+  - the bundled placeholder and the packages the advocate added;
   - Pi skills, prompt templates and context files;
   - MCP, codemode and tool search.
 - **Tools.** `noTools: "builtin"` and an exclude list keep Pi's built-in tools (`read`, `bash`, `powershell`, `edit`, `write`, `grep`, `find`, `ls`) off. The application's own tools come in as `customTools`. The start check refuses a session that lacks one of the application's tools or has a built-in tool.
 - **Run behaviour.** Compaction is on. A message sent while the agent works is queued as a Pi follow-up. An extension command (`/name`) runs with or without a model. The token budget per matter still applies.
 - **No confidential distinction** (decision 24). Every matter uses the chosen model, loads the extensions and may search the web. The matter store keeps a `confidential` column that nothing reads.
 
-### 1.2 Bundled extensions
+### 1.2 Extensions
 
-`npm run vendor:extensions` installs them from `scripts/pi-extensions.manifest.json`. It uses exact npm versions, checks each registry integrity hash, and runs no install scripts and installs no peer packages. They go into `resources/pi-extensions/`.
+- **Bundled.** Each folder of `extensions/` in the application is a Pi package. Today there is one: `extensions/placeholder` (`openadvo-placeholder` 1.0.0). It adds the command `/placeholder` and no tool, so it adds nothing to any context. It tests the extension system: loading, a command, a notice, a question, and turning a bundled extension off ([specs/native-harness-parts.md](specs/native-harness-parts.md) section 6). The build ships `extensions/` beside the application code (`electron-builder.yml`).
+- **Added.** The advocate adds packages in Settings → Pi extensions, from npm, git, a URL or a folder. Pi's package manager installs them in the application's folder and records them in its `settings.json`. npm and git sources need npm or git on the computer. A change reopens idle conversations.
+- **Not bundled any more.** The seven packages bundled until 2026-11-15 became native parts or were dropped (section 1.3). @narumitw/pi-btw was assessed and removed earlier: outside Pi's terminal it only answers "/btw requires interactive TUI mode". HB-1 provides side questions instead.
 
-| Extension | Version | Adds |
+### 1.3 Native harness parts
+
+The specification is [specs/native-harness-parts.md](specs/native-harness-parts.md); the agent kinds are in [specs/agent-framework.md](specs/agent-framework.md).
+
+| Part | Code | Where the advocate sees it |
 |---|---|---|
-| pi-subagent-manager | 1.9.0 | Helper agents in parallel: `agent_spawn`, `agent_wait`, `agent_steer` and others; `/agents` |
-| pi-context-decisions | 4.0.0 | Picks which Pi skills the model sees; `/decisions` |
-| pi-checklist | 3.3.0 | Task checklist: `checklist_create`, `checklist_read`, `checklist_update`; `/checklist` |
-| pi-context-prune | 2.2.0 | Summarises and prunes finished tool output: `context_tree_query`, `context_prune`; `/pruner` |
-| pi-context-usage | 2.1.0 | `/context`: what fills the context window |
-| pi-cache-graph | 1.2.1 | `/cache`: cache use over the session |
-| @gotgenes/pi-permission-system | 42.0.0 | Allow, ask or deny rules for every tool, shell command, MCP server, skill and file path; `/permission-system` |
+| Tool policy (decision 23): allow, ask or deny per tool; Pi's built-in tools and credential paths always denied; review log | `src/main/tool-policy.ts`; the hook `openadvo-policy` in every session | Settings → Tool permissions; an approval card in the chat for "ask" |
+| Helpers: four types, run in process through the calling agent's tools and policy | `src/main/helpers.ts`, `src/main/helper-types.ts`; the tool `start_helper` | The `start_helper` tool call in the chat; its trace lines |
+| Plan: the agent's task list for long work | `src/main/plan.ts`; the tools `plan_set`, `plan_update` | The plan card; Clear plan |
+| Context meter, cache numbers, Compact now | `Agent.setMeter`, `Agent.compact` in `src/main/agent.ts` | The chat header |
+| Context strategy per agent kind: tool-result clearing and the summary form | `src/main/agent-context.ts` | — |
 
-@narumitw/pi-btw was assessed and removed. Outside Pi's terminal it only answers "/btw requires interactive TUI mode" (`src/btw.ts:275`). HB-1 provides side questions instead.
+**Policy file.** `<userData>/tool-policy.json`, written with defaults on first start: `{ "default": "allow", "tools": {} }`. The review log is `<userData>/logs/tool-policy.jsonl`: every deny and every ask with its answer, never the arguments. Pi's built-in tools and a call whose arguments name `auth.json`, `.env`, `.ssh/`, `manifest-signing.key` or `models.json` are refused whatever the file says.
 
-**Added extensions.** The advocate adds them in Settings → Pi extensions, from npm, git, a URL or a folder. Pi's package manager installs them in the application's folder and records them in its `settings.json`. npm and git sources need npm or git on the computer. A change reopens idle conversations.
+### 1.4 One owner for each job
 
-### 1.3 The permission policy (decision 23)
-
-- **File:** `<userData>/pi-agent/extensions/pi-permission-system/config.json`. This is pi-permission-system's own global config path, because Pi's agent folder is the application's.
-- **Written by** `PiExtensions.writePermissionPolicy()` (`src/main/pi-extensions.ts`). The first start writes the whole file. The advocate may edit it. Every later start puts back the safety rules and keeps everything else:
-
-  | Rule | Value |
-  |---|---|
-  | `"*"` (any tool) | `allow` |
-  | `bash` | `{ "*": "deny" }` |
-  | `read`, `powershell`, `edit`, `write`, `grep`, `find`, `ls` | `deny` |
-  | `path` | `"*": "allow"`, with `deny` for `*auth.json`, `*.env`, `*.env.*`, `*/.ssh/*`, `*manifest-signing.key`, `*models.json` |
-  | `mcp`, `skill` | `{ "*": "allow" }` |
-  | `external_directory` | `allow` |
-  | `yoloMode` | `false` (put back on every start) |
-  | `permissionReviewLog` | `true` |
-  | `debugLog` | `false` |
-
-- **Why allow by default.** An `ask` rule stops each call of the tool until the advocate answers a question in the chat (harness-hardening H-12). The advocate may add `ask` or `deny` rules for chosen tools.
-- **Logs.** The review log is written to `<userData>/pi-agent/extensions/pi-permission-system/logs/`, never to `~/.pi/agent`.
-- **What the test shows** (`tests/unit/pi-extensions.test.ts`, with a scripted faux model):
-  - an allowed tool runs;
-  - a tool with a `deny` rule is withheld ("Tool … not found");
-  - a call with a credential path is refused with "Denied by policy: 'path' … (rule '*auth.json')";
-  - the block is in the review log in the application's folder.
-- **Two layers.** Pi's built-in tools are also blocked by the application's own guard extension (`openadvo-policy`) and by the start check. pi-permission-system is a second layer, not the only one.
-
-### 1.4 Helper agents (pi-subagent-manager)
-
-What a helper is, the helper types and who may start whom are in [specs/agent-framework.md](specs/agent-framework.md) sections 3 and 4. The type table is `src/main/helper-types.ts`.
-
-On every start, the application writes `<userData>/pi-agent/subagent-manager/settings.json` with:
-- `toolFiltering: "allowed"`;
-- `subagentExtensions: false`;
-- `housekeepingEnabled: false`;
-- `maxLevels: 3`, `maxConcurrent: 4`, `maxThreads: 24`.
-
-It writes one Markdown agent file per Open Advocate type (`legal-research`, `record-reader`, `critic`, `drafter`), each with its allowlist, Pi's built-in tools blocked, and its prompt. It writes an overlay with an empty allowlist for each coding type that the manager ships (`architect`, `coder`, `researcher`, `reviewer`, `tasker`, `writer`), so these have no tools. Helpers use the chat's model.
-
-A helper's tool calls run through the main session's tools and hooks (pi-subagent-manager `src/orch/inherited-tools.ts`). pi-subagent-manager has no per-type list of the types a helper may start: that `legal-research` starts only `record-reader` helpers is a rule in its prompt, and the depth limit stops deeper trees.
-
-Not yet verified with a live model: a helper's run end to end.
-
-### 1.6 One owner for each job (part B2)
-
-| Job | Owner | The other parts |
-|---|---|---|
-| Which tools may run | The guard `openadvo-policy` (Pi's built-in tools), then pi-permission-system (the policy file), then the helper type's allowlist | pi-context-decisions, pi-context-prune, pi-subagent-manager and pi-permission-system may call `setActiveTools`; a built-in tool is still blocked at call time by the guard. |
-| Which skill and which tools a task gets | The skill registry and the tool scope per skill (N1 to N3, Q2, H-5) | pi-context-decisions stays inert: the application sets no decision model, and its tool filtering stays off. |
-| Context size | Pi's compaction with the application's strategy per agent kind (`src/main/agent-context.ts`) | pi-context-prune stays off (`enabled: false`), so two parts never clear the same results. |
-| Plans and tasks | pi-checklist until the planner (O1) is built; then the plan card, through its adapter (part B3) | — |
-| Delegation | pi-subagent-manager, the one helper runtime | No second subagent extension: two clash on `/agents` (pi-subagent-manager README). Skill runs and the planner are not helpers. |
-| Codemode and MCP | Pi's built-in extensions; codemode turns on by itself when an MCP server with codemode exposure connects | The helper allowlists do not include `codemode` or MCP tools. The MCP settings view is H-19. |
-| What a run did | The run trace `chat/trace.jsonl` (H-40) | pi-context-usage and pi-cache-graph show numbers in Pi's terminal only; the context meter comes from the session's numbers (part B3).
+| Job | Owner |
+|---|---|
+| Which tools may run | The tool policy (section 1.3). Helper calls pass the same hook. |
+| Which skill and which tools a task gets | The skill registry and the tool scope per skill (N1 to N3, Q2, H-5). |
+| Context size | Pi's compaction with the strategy per agent kind; Compact now. |
+| Plans and tasks | The plan (`plan_set`, `plan_update`); the planner (O1) builds on it. |
+| Delegation | Native helpers (`start_helper`). Skill runs and the planner are not helpers. |
+| Codemode and MCP | Pi's built-in extensions; codemode turns on by itself when an MCP server with codemode exposure connects. Helper types do not include `codemode` or MCP tools. The MCP settings view is H-19. |
+| What a run did | The run trace `chat/trace.jsonl` and the context meter. |
 
 ### 1.5 The extension interface in the window
 
@@ -103,20 +62,22 @@ Extensions bind with `mode: "rpc"` and the application's UI context (`extensionU
 
 | Extension call | In the window |
 |---|---|
-| `notify` | A notice in the matter's chat (multi-line notices keep their lines) |
+| `notify` | A notice in the conversation (multi-line notices keep their lines) |
 | `setStatus` and a text `setWidget` | Status lines above the chat log |
 | `custom` (a terminal screen) | Rendered once at 100 columns as text. It cannot be operated. |
-| `select`, `confirm`, `input`, `editor` | A question card in the chat; the extension waits for the answer. Dismiss, Stop or a timeout gives the default answer (H-12) |
+| `select`, `confirm`, `input`, `editor` | A question card, "An extension asks"; the extension waits for the answer. Dismiss, Stop or a timeout gives the default answer (H-12). The tool policy's approvals use the same queue with the card "Approval needed". |
 
 ### 1.6 Files
 
 | Path | Holds |
 |---|---|
-| `src/main/agent.ts` | Sessions, tools, the start check, send, follow-up, `reloadIdle` |
-| `src/main/pi-extensions.ts` | Loader, package manager, guard, permission and helper policies, UI context |
-| `src/main/index.ts` | `claimPiAgentDir`, the manager, the bridge functions |
-| `scripts/vendor-pi-extensions.ts`, `scripts/pi-extensions.manifest.json` | Vendoring |
-| `<userData>/pi-agent/` | `settings.json`, `npm/` and `git/` (added packages), `extensions/pi-permission-system/` (policy, logs), `subagent-manager/`, and the extensions' own preference files |
+| `src/main/agent.ts` | Sessions of both agent kinds, the start check, send, follow-up, the run listener, the meter, `reloadIdle` |
+| `src/main/tool-policy.ts`, `helpers.ts`, `helper-types.ts`, `plan.ts`, `agent-context.ts`, `firm-agent.ts` | The native harness parts |
+| `src/main/pi-extensions.ts` | Loader, package manager, the extension UI context |
+| `src/main/index.ts` | `claimPiAgentDir`, the managers, the bridge functions |
+| `extensions/placeholder/` | The placeholder extension |
+| `<userData>/tool-policy.json`, `<userData>/logs/tool-policy.jsonl` | The tool policy and its review log |
+| `<userData>/pi-agent/` | `settings.json`, `npm/` and `git/` (added packages), and the added extensions' own files |
 
 ## 2. HB-1: side questions (planned; feature O9, phase 1)
 
@@ -124,7 +85,7 @@ The replacement for pi-btw, built in the window.
 
 - **Start.** A "Side question" action in the chat dock, or `/btw <question>` typed in the chat.
 - **Session.** A separate Pi session in memory (`SessionManager.inMemory()`) on the chat's model, using the same loader as the main session.
-- **Tools.** Read tools only: sources, Notebook, drafts, research, Find. No proposal, record, portal or filing tool, so a side question cannot change the matter. Enforced by the session's tool list and by a pi-permission-system agent override.
+- **Tools.** Read tools only: sources, Notebook, drafts, research, Find. No proposal, record, portal or filing tool, so a side question cannot change the matter. Enforced by the session's tool list and by the tool policy.
 - **Context.** The main conversation's recent messages and the open view, copied in read-only. The main conversation does not change.
 - **Panel.** The side thread shows beside the chat, with follow-up questions inside it.
 - **Bring into chat.** Puts the answer, or a selected part, into the main composer as a quote. The advocate sends it or not.
@@ -158,7 +119,7 @@ It also carries the import of the advocate's case list from eCourts and court po
 - **Guards.** From the court portal window:
   - a submit control only through `submit_filing` after both confirmations;
   - uploads only from the newest filing set;
-  - pi-permission-system rules on every `browser_*` tool.
+  - tool-policy rules on every `browser_*` tool.
 - **The court portal window** becomes a tab profile of this browser, keeping its origin list for filing.
 - **Not used:** a remote debugging port with Playwright `connectOverCDP` into the application. It would expose every application window to any local program.
 
@@ -169,7 +130,7 @@ It also carries the import of the advocate's case list from eCourts and court po
 - **Build:**
   - vendor the binary, pinned by version and SHA-256, like the other vendored parts;
   - register it as an MCP server in the application's Pi settings;
-  - pi-permission-system `mcp` rules decide which of its tools the agent gets;
+  - tool-policy rules decide which of its tools the agent may call;
   - it uses its own browser profile, never the advocate's.
 - **To settle in a spike:** Chrome for Testing (a large download) against attaching to a hidden Electron page; behaviour on Windows.
 
