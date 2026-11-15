@@ -27,12 +27,11 @@ Date: 2026-11-15. Owner's instruction: configure pi-permission-system the best w
 | `npm run typecheck` | exit 0 |
 | `npm run build` | 3 bundles built |
 | `npx playwright test tests/e2e/extensions.spec.ts tests/e2e/app.spec.ts tests/e2e/v5.spec.ts` | 11 passed, 2 skipped (live model) |
-| full suites | see below |
+| `npm run test:unit` | 112 tests: 109 pass, 0 fail, 3 skipped; exit 0 |
+| `npx playwright test` (full) | 22 passed, 2 skipped (live model); exit 0 |
+| after the Settings text change: `npm run typecheck`, `npm run build`, `npx playwright test tests/e2e/extensions.spec.ts` | exit 0; 3 bundles; 2 passed |
 
 ## Facts found
 
 - With pi-permission-system, a tool whose rule is `deny` stays in Pi's active tool list but is withheld from the model at call time ("Tool … not found").
 - Its review log records blocks at call time (`permission_request.blocked`), not plain allows.
-| `npm run test:unit` | 112 tests: 109 pass, 0 fail, 3 skipped; exit 0 |
-| `npx playwright test` (full) | 22 passed, 2 skipped (live model); exit 0 |
-| after the Settings text change: `npm run typecheck`, `npm run build`, `npx playwright test tests/e2e/extensions.spec.ts` | exit 0; 3 bundles; 2 passed |
