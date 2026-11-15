@@ -67,3 +67,7 @@ The unit step passed on both runners; the build and end-to-end steps ran on CI f
 | `tests/e2e/step4.spec.ts:132` (Linux) | The editor answered "This paragraph has no source link." before the selection reached its cursor. | The test selects and asks again until the source shows (30 s limit). |
 
 Local run after the fix: `npx playwright test tests/e2e/step4.spec.ts tests/e2e/v1.spec.ts tests/e2e/v3.spec.ts`: 3 passed.
+
+## CI after the fix (run 43750019177, commit c5cf2e3)
+
+`gh run watch 43750019177 --exit-status`: exit 0. Both runners: typecheck passed; unit tests 177 passed, 0 failed; build passed; end-to-end 42 passed, 5 skipped (live model, voice and other vendored-part tests), 0 failed.
