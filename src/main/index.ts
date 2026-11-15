@@ -38,6 +38,10 @@ import type { ResearchSettings } from "../shared/studio.ts";
 import { Portal, portalOptionsFromEnv } from "./portal.ts";
 import { Mail, type MailAccount } from "./mail.ts";
 import { agentWorkHost } from "./agent-work.ts";
+import { SkillRegistry } from "./skills.ts";
+import { registerHarnessBridge } from "./harness-bridge.ts";
+import { AdvocateStore } from "../lib/advocate-store/index.ts";
+import { IntelStore } from "../lib/intel-store/index.ts";
 import { searchCitationIndex, ulosPaths, type UlosPaths } from "../lib/ulos/index.ts";
 import { transcribe, voiceAvailable } from "../lib/voice/index.ts";
 import { randomUUID } from "node:crypto";
@@ -74,6 +78,10 @@ let progress: Progress;
 let hub: ResearchHub;
 let contacts: Contacts;
 let studio: ArgumentStudio;
+/** Phase 1 (Q4, N1): the advocate store, the local intelligence store and the skill registry. */
+let advocateStore: AdvocateStore;
+let intelStore: IntelStore;
+let skillRegistry: SkillRegistry;
 
 /** Steps 6 to 10 notify the window that a matter changed (a capture, a proposal). */
 function matterChanged(matterId: string): void {
@@ -961,6 +969,9 @@ app.whenReady().then(() => {
   hub = new ResearchHub(matters, path.join(app.getPath("userData"), "corpus"), researchSettings, (text) => window?.webContents.send("studio:progress", text));
   studio = new ArgumentStudio(matters, () => agent.completer(), (id) => window?.webContents.send("studio:changed", id));
   recordTables = new RecordTables(matters);
+  advocateStore = AdvocateStore.open(app.getPath("userData"));
+  intelStore = IntelStore.open(app.getPath("userData"));
+  skillRegistry = new SkillRegistry({ builtIn: path.join(app.getAppPath(), "skills"), advocate: path.join(app.getPath("userData"), "skills") }, AGENT_TOOLS);
   agent = new Agent(
     {
       listSources: (id) => matters.listSources(id),
@@ -1022,6 +1033,11 @@ app.whenReady().then(() => {
         }
         await (await matters.store(id)).appendEvent({ actor: "agent", sessionId }, "agent.usage", null, usage);
       },
+      harness: {
+        registry: (fresh) => skillRegistry.get(fresh === true),
+        store: (id) => matters.store(id),
+        ensureFind: (id) => ensureFindIndex(matters, id),
+      },
       firm: {
         matters: () => docket(matters, progress),
         openItems: async (id) => (await progress.inbox(id)).map((i) => ({ kind: i.kind, title: i.title, blocks: i.blocks, tab: i.tab })),
@@ -1033,6 +1049,7 @@ app.whenReady().then(() => {
   );
   ingest = new Ingest(matters, (matterId) => window?.webContents.send("ingest:update", matterId));
   registerBridge();
+  registerHarnessBridge(handle, { matters, agent, progress, skills: skillRegistry, advocate: advocateStore, intel: intelStore, corpus: () => hub?.corpus ?? null });
   exposeTestHooks();
   createWindow();
 });
@@ -1044,4 +1061,6 @@ app.on("window-all-closed", () => {
 app.on("will-quit", () => {
   void agent?.disposeAll();
   matters?.closeAll();
+  advocateStore?.close();
+  intelStore?.close();
 });

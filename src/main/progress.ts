@@ -83,12 +83,12 @@ export class Progress {
       items.push({ id: `conflict:${c.id}`, kind: "date_conflict", blocks: true, title: "Date conflict", detail: `${a?.dateText ?? "?"} or ${b?.dateText ?? "?"}: ${a?.description ?? ""}`, tab: "chronology" });
     }
     for (const r of store.listReviewItems().filter((x) => x.status === "open")) {
-      const blocks = r.draftId !== null || r.kind === "file_unreadable" || r.kind === "possible_duplicate" || r.kind === "ocr_dispute";
+      const blocks = r.draftId !== null || r.kind === "file_unreadable" || r.kind === "possible_duplicate" || r.kind === "ocr_dispute" || r.kind === "skill_run";
       items.push({
         id: `review:${r.id}`,
         kind: r.kind,
         blocks,
-        title: r.kind === "possible_duplicate" ? "Possible duplicate" : r.kind === "ocr_dispute" ? "OCR engines disagree" : r.kind === "date_anchor" ? "Base date needed" : r.draftId ? "Draft defect" : r.kind.replace(/_/g, " "),
+        title: r.kind === "skill_run" ? "Skill run needs review" : r.kind === "possible_duplicate" ? "Possible duplicate" : r.kind === "ocr_dispute" ? "OCR engines disagree" : r.kind === "date_anchor" ? "Base date needed" : r.draftId ? "Draft defect" : r.kind.replace(/_/g, " "),
         detail: r.detail,
         tab: "matter",
         reviewItemId: r.id,

@@ -16,6 +16,8 @@ import { STUDIO_SCHEMA, StudioStore } from "./studio.ts";
 import { NOTEBOOK2_SCHEMA, addCorrection, dateAnchor, decideDispute, insertDispute, listCorrections, listDisputes, type EventCorrection, type OcrDispute } from "./notebook2.ts";
 import { AUTHORITY2_SCHEMA } from "./authority2.ts";
 import { PRACTICE_SCHEMA, addHearing, addParty, addReminder, hearings, markImpactChecked, parties, policy, reminders, setPolicy, setReminderStatus, type Hearing, type Party, type Policy, type Reminder } from "./practice.ts";
+import { SKILL_RUN_SCHEMA, insertPackage, listRuns, packageById, packageByHash, runById } from "./skill-runs.ts";
+import type { ContextPackageRecord, ReportCard, RunState, SkillRunRecord } from "../../shared/skills.ts";
 import { AUDIT_SCHEMA, addRefusal, eventHash, find, findIndexSeq, inspect, listRefusals, replaceFindIndex, verifyChain, type ChainCheck, type FindHit, type FindRow, type Inspection, type Refusal } from "./audit.ts";
 import { ACCEPTED_TEXT, detectMediaType } from "../document-intelligence/formats.ts";
 import type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus, DraftKind, RevisionAuthor, DraftRecord, RevisionRecord, ParagraphLinkRecord } from "../../shared/records.ts";
@@ -324,6 +326,7 @@ export class MatterStore {
     db.exec(NOTEBOOK2_SCHEMA);
     db.exec(AUTHORITY2_SCHEMA);
     db.exec(PRACTICE_SCHEMA);
+    db.exec(SKILL_RUN_SCHEMA);
     // V5-1: the event chain. Events written before v5 have no hash and start the record.
     const ev = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'event'").get() as { sql?: string } | undefined;
     if (ev?.sql && !ev.sql.includes("prev_hash")) {
@@ -684,6 +687,66 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
       cost += Number(d.cost ?? 0);
     }
     return { runs: rows.length, tokens, cost: Math.round(cost * 10000) / 10000 };
+  }
+
+  // ---- Phase 1 (N2, I1, O3): skill runs and their context packages ----
+
+  /** I1: record a context package once. The harness (actor system) writes it for a run. */
+  recordPackage(p: ContextPackageRecord, ctx: WriteContext): ContextPackageRecord {
+    insertPackage(this.db, p);
+    this.appendEvent(ctx, "context_package.recorded", p.id, { skill: p.skillId, version: p.skillVersion, hash: p.hash, tokens: p.tokens, included: p.included.length, excluded: p.excluded.length });
+    return p;
+  }
+
+  packageByHash(hash: string): ContextPackageRecord | null {
+    return packageByHash(this.db, hash);
+  }
+
+  contextPackage(id: string): ContextPackageRecord | null {
+    return packageById(this.db, id);
+  }
+
+  startSkillRun(input: { id: string; skillId: string; skillVersion: string; request: string; reason: string }, ctx: WriteContext): SkillRunRecord {
+    this.db
+      .prepare("INSERT INTO skill_run (id, skill_id, skill_version, state, request, reason, package_id, session_id, started_at, ended_at, report) VALUES (?, ?, ?, 'running', ?, ?, NULL, NULL, ?, NULL, NULL)")
+      .run(input.id, input.skillId, input.skillVersion, input.request.slice(0, 4000), input.reason.slice(0, 1000), now());
+    this.appendEvent(ctx, "skill_run.started", input.id, { skill: input.skillId, version: input.skillVersion });
+    return runById(this.db, input.id)!;
+  }
+
+  /** A checkpoint of a run: its package, its session, its state. Only a running run moves. */
+  updateSkillRun(id: string, change: { state?: RunState; packageId?: string; sessionId?: string; report?: ReportCard }, ctx: WriteContext): SkillRunRecord {
+    const run = runById(this.db, id);
+    if (!run) throw new MatterStoreError("NOT_FOUND", `no skill run ${id}`);
+    const finalState = change.state && change.state !== "running";
+    if (run.state !== "running" && run.state !== "interrupted") throw new MatterStoreError("RUN_ENDED", `the skill run is ${run.state}`);
+    this.db
+      .prepare("UPDATE skill_run SET state = ?, package_id = ?, session_id = ?, ended_at = ?, report = ? WHERE id = ?")
+      .run(
+        change.state ?? run.state,
+        change.packageId ?? run.packageId,
+        change.sessionId ?? run.sessionId,
+        finalState && change.state !== "interrupted" ? now() : change.state === "running" ? null : run.endedAt,
+        change.report ? JSON.stringify(change.report) : run.report ? JSON.stringify(run.report) : null,
+        id,
+      );
+    if (change.state && change.state !== run.state) this.appendEvent(ctx, `skill_run.${change.state}`, id, change.report ? { checks: change.report.checks.map((c) => `${c.name}:${c.result}`), attempts: change.report.attempts } : null);
+    return runById(this.db, id)!;
+  }
+
+  skillRuns(): SkillRunRecord[] {
+    return listRuns(this.db);
+  }
+
+  skillRun(id: string): SkillRunRecord | null {
+    return runById(this.db, id);
+  }
+
+  /** O3: runs left running by a restart become interrupted. Returns how many. */
+  interruptRunningSkills(): number {
+    const running = listRuns(this.db).filter((r) => r.state === "running");
+    for (const r of running) this.updateSkillRun(r.id, { state: "interrupted" }, { actor: "system" });
+    return running.length;
   }
 
   // ---- V5-1 to V5-4: chain, refusals, Inspector, Find ----

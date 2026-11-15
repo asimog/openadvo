@@ -40,6 +40,8 @@ export async function agentFixture(opts: { host?: Partial<AgentHost>; inlineExte
     planStrength: () => "long",
     partyRule: () => true,
     parties: async () => [],
+    // Optional: without it the agent has no skill runner (a test gives one when it needs it).
+    harness: undefined,
     recordUsage: async (_m, u) => {
       usage.push(u.totalTokens);
     },

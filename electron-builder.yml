@@ -16,6 +16,7 @@ files:
   - resources/ulos/**
   - resources/models/**
   - extensions/**
+  - skills/**
   - package.json
   - "!**/*.map"
 win:

@@ -34,12 +34,12 @@ export function progress(p: Plan): string {
 
 export function formatPlan(p: Plan): string {
   return [
-    `Plan: ${p.title} (${progress(p)} done)`,
+    `Plan: ${p.title} (${progress(p)} done)${p.approval === "pending" ? ". It waits for the advocate's approval: stop now; the approval resumes you." : p.approval === "approved" ? ". Approved by the advocate." : ""}`,
     ...p.items.map((i) => {
       const deps = i.dependsOn.length ? ` (after ${i.dependsOn.join(", ")})` : "";
       const tags = i.tags.length ? ` [${i.tags.join(", ")}]` : "";
       const subs = i.subtasks.map((s, k) => `\n   ${String.fromCharCode(97 + k)}. [${s.done ? "x" : " "}] ${s.text}`).join("");
-      return `${i.n}. [${i.status}] ${i.text}${deps}${tags}${subs}`;
+      return `${i.n}. [${i.status}] ${i.text}${i.skill ? ` (skill ${i.skill})` : ""}${deps}${tags}${subs}`;
     }),
   ].join("\n");
 }
@@ -47,6 +47,7 @@ export function formatPlan(p: Plan): string {
 /** Check a status change against the rules. Returns the reason it is refused, or null. */
 export function refuse(plan: Plan, item: PlanItem, status: PlanStatus): string | null {
   if (item.status === status) return null;
+  if (plan.approval === "pending" && (status === "ongoing" || status === "done")) return "The plan waits for the advocate's approval. Stop now; the approval resumes you.";
   if (!NEXT[item.status].includes(status)) return `Item ${item.n} cannot go from ${item.status} to ${status}.${item.status === "done" ? " Done is final." : ""}`;
   if (status === "ongoing" || status === "done") {
     const open = item.dependsOn.filter((d) => plan.items.find((x) => x.n === d)?.status !== "done");
@@ -56,7 +57,7 @@ export function refuse(plan: Plan, item: PlanItem, status: PlanStatus): string |
   return null;
 }
 
-function cleanItems(input: Array<{ text: string; depends_on?: number[]; subtasks?: string[]; tags?: string[] }>): PlanItem[] {
+function cleanItems(input: Array<{ text: string; depends_on?: number[]; subtasks?: string[]; tags?: string[]; skill?: string }>): PlanItem[] {
   const items = input.map((x) => ({ ...x, text: x.text.trim() })).filter((x) => x.text);
   if (items.length === 0 || items.length > MAX_PLAN_ITEMS) throw new Error(`A plan has 1 to ${MAX_PLAN_ITEMS} items.`);
   return items.map((x, i) => {
@@ -65,8 +66,17 @@ function cleanItems(input: Array<{ text: string; depends_on?: number[]; subtasks
     for (const d of dependsOn) if (d >= n || d < 1) throw new Error(`Item ${n} can depend only on earlier items; ${d} is not one.`);
     const subtasks = (x.subtasks ?? []).map((t) => t.trim()).filter(Boolean);
     if (subtasks.length > MAX_SUBTASKS) throw new Error(`Item ${n} has more than ${MAX_SUBTASKS} subtasks.`);
-    return { n, text: x.text, status: "planned" as const, dependsOn, subtasks: subtasks.map((text) => ({ text, done: false })), tags: (x.tags ?? []).map((t) => t.trim()).filter(Boolean).slice(0, 4) };
+    const skill = x.skill?.trim().toUpperCase();
+    return { n, text: x.text, status: "planned" as const, dependsOn, subtasks: subtasks.map((text) => ({ text, done: false })), tags: (x.tags ?? []).map((t) => t.trim()).filter(Boolean).slice(0, 4), ...(skill ? { skill } : {}) };
   });
+}
+
+/** O1, decision 5: the advocate approves a plan that waits. Human-only: a bridge function, never a tool. */
+export function approvePlan(plan: Plan | null): Plan {
+  if (!plan) throw new Error("NO_PLAN: there is no plan to approve");
+  if (plan.approval !== "pending") throw new Error("NOT_PENDING: the plan does not wait for approval");
+  const at = new Date().toISOString();
+  return { ...plan, approval: "approved", approvedAt: at, updatedAt: at };
 }
 
 /** The advocate adds an item by typing it ("add to the plan: …"). It starts as planned. */
@@ -85,7 +95,7 @@ export function planTools(store: PlanStore) {
     defineTool({
       name: "plan_set",
       label: "Set plan",
-      description: `Set the plan for work with three or more steps, before you start it. It replaces the current plan. At most ${MAX_PLAN_ITEMS} short items, in order; each starts as planned. An item may depend on earlier items (depends_on, by number), have up to ${MAX_SUBTASKS} subtasks and a few tags (for example the helper doing it). The advocate sees it in the plan panel.`,
+      description: `Set the plan for work with three or more steps, before you start it. It replaces the current plan. At most ${MAX_PLAN_ITEMS} short items, in order; each starts as planned. An item may depend on earlier items (depends_on, by number), have up to ${MAX_SUBTASKS} subtasks and a few tags (for example the helper doing it). An item that runs a skill names it (skill: SK-nnn); a plan with a skill step waits for the advocate's approval before any of it runs. The advocate sees it in the plan panel.`,
       parameters: Type.Object({
         title: Type.String({ description: "What the plan is for, in a few words." }),
         items: Type.Array(
@@ -94,14 +104,19 @@ export function planTools(store: PlanStore) {
             depends_on: Type.Optional(Type.Array(Type.Integer({ minimum: 1 }))),
             subtasks: Type.Optional(Type.Array(Type.String(), { maxItems: MAX_SUBTASKS })),
             tags: Type.Optional(Type.Array(Type.String())),
+            skill: Type.Optional(Type.String({ description: "The skill id this step runs, for example SK-011." })),
           }),
           { minItems: 1, maxItems: MAX_PLAN_ITEMS },
         ),
       }),
       execute: async (_id, p) => {
-        const plan: Plan = { title: p.title.trim() || "Plan", items: cleanItems(p.items), updatedAt: new Date().toISOString() };
-        await store.set(plan, `Plan set: ${plan.title}, ${plan.items.length} items.`);
-        return text(plan);
+        const items = cleanItems(p.items);
+        // O1: long work that runs skills waits for the advocate's approval.
+        const pending = items.some((i) => i.skill);
+        const plan: Plan = { title: p.title.trim() || "Plan", items, updatedAt: new Date().toISOString(), ...(pending ? { approval: "pending" as const } : {}) };
+        await store.set(plan, `Plan set: ${plan.title}, ${plan.items.length} items.${pending ? " It waits for your approval." : ""}`);
+        // A plan that waits ends the turn: the advocate's approval starts the next one.
+        return pending ? { ...text(plan), terminate: true } : text(plan);
       },
     }),
     defineTool({

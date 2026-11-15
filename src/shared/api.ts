@@ -15,6 +15,10 @@ import type { ChainCheck, Refusal, Inspection, FindHit, Entity, OcrDispute } fro
 import type { Assessment, Challenge, QuickCheck, Treatment, ArgumentRun, ArgumentRecord, CorpusPart, ProvisionRecord, ResearchDocument, ResearchHit, ResearchSettings, StudioState } from "./studio.ts";
 
 import type { AGUIEvent } from "@ag-ui/core";
+import type { ContextCandidate, ContextPackageRecord, JobRow, ReportCard, RoleSummary, SideThread, SkillRunRecord, SkillSummary } from "./skills.ts";
+import type { AdvocateProfile, IntelSource, Freshness, MemoryRecord, PreferenceRecord, StoreChains } from "./stores.ts";
+export type * from "./skills.ts";
+export type * from "./stores.ts";
 
 export type { AGUIEvent };
 export type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft, DraftCheck, DraftDefect };
@@ -29,6 +33,8 @@ export interface ChatMessage {
   tool?: ToolCallView;
   /** A helper's lifecycle event, grouped into one card per helper. */
   helper?: HelperEventView;
+  /** N2: the report card of a skill run, shown as a card. */
+  skillRun?: ReportCard;
 }
 
 /** One tool call as the chat shows it (native-harness-parts section 2). */
@@ -133,12 +139,19 @@ export interface PlanItem {
   subtasks: Array<{ text: string; done: boolean }>;
   /** Short labels, for example the helper doing it or the draft it changes. */
   tags: string[];
+  /** O1: the skill this step runs, when it is a skill run. */
+  skill?: string;
 }
 export interface Plan {
   title: string;
   items: PlanItem[];
   updatedAt: string;
+  /** O1: long work waits for the advocate. "pending" until the advocate approves it; absent for a plan that needs none. */
+  approval?: "pending" | "approved";
+  approvedAt?: string;
 }
+/** O9: CUSTOM event whose value is a side thread (SideThread). */
+export const SIDE_EVENT = "openadvo.side_thread";
 /** CUSTOM event whose value is the conversation's plan (Plan or null). */
 export const PLAN_EVENT = "openadvo.plan";
 
@@ -396,6 +409,47 @@ export interface OpenAdvoApi {
   costCsv(matterId: string): Promise<string>;
   /** Human-only: clear the conversation's plan. */
   clearPlan(conversationId: string): Promise<void>;
+  // ---- Phase 1: harness and stores ----
+  /** N1, O2: the skill registry and the roles; fresh reads the skill files again. */
+  listSkills(fresh?: boolean): Promise<{ skills: SkillSummary[]; roles: RoleSummary[]; folders: { builtIn: string; advocate: string } }>;
+  /** N2: the skill runs of a matter, newest first, with their report cards. */
+  listSkillRuns(matterId: string): Promise<SkillRunRecord[]>;
+  /** I1: one recorded context package: what was included, what was left out, and why. */
+  getContextPackage(matterId: string, packageId: string): Promise<ContextPackageRecord | null>;
+  /** O7: the Jobs view of a matter: chat runs, helpers and skill runs. */
+  listRunJobs(matterId: string): Promise<JobRow[]>;
+  /** O3: resume an interrupted skill run. */
+  resumeSkillRun(matterId: string, runId: string): Promise<void>;
+  /** O1, human-only: approve the plan that waits; the agent then carries it out. */
+  approvePlan(matterId: string): Promise<void>;
+  /** O9: ask a side question in a thread, or open a new thread (threadId null). */
+  askSide(matterId: string, threadId: string | null, question: string, view: string): Promise<SideThread>;
+  /** O9: discard a side thread. */
+  discardSide(matterId: string, threadId: string): Promise<void>;
+  /** O9: the side threads of the matter's conversation. */
+  listSide(matterId: string): Promise<SideThread[]>;
+  /** N3: the records "@" can add to the context, from this matter only. */
+  contextCandidates(matterId: string, query: string): Promise<ContextCandidate[]>;
+  /** R1: the Review Inbox across matters and the advocate profile, blocking items first. */
+  inboxAll(): Promise<Array<InboxItem & { matterId: string | null; matterTitle: string }>>;
+  /** G5: the advocate's search over every open matter and the judgment index. */
+  searchAll(query: string): Promise<Array<{ matterId: string | null; matterTitle: string; kind: string; ref: string; label: string; snippet: string }>>;
+  /** Q4: the advocate profile in advocate.db. */
+  getAdvocateProfile(): Promise<AdvocateProfile>;
+  /** Q4, human-only: set one profile field; an empty value removes it. */
+  setAdvocateProfile(key: string, value: string): Promise<AdvocateProfile>;
+  /** Q4: advocate memory records. */
+  listAdvocateMemory(): Promise<MemoryRecord[]>;
+  /** Q4, human-only: decide one advocate memory record. */
+  decideAdvocateMemory(id: string, status: "confirmed" | "rejected" | "tentative" | "archived" | "deprecated"): Promise<MemoryRecord>;
+  /** Q4: the advocate's preferences. */
+  listPreferences(): Promise<PreferenceRecord[]>;
+  /** Q4, human-only: approve or reject a proposed preference. */
+  decidePreference(id: string, decision: "approved" | "rejected"): Promise<PreferenceRecord>;
+  /** Q4: the sources of intel.db with their freshness. */
+  listIntelSources(): Promise<Array<IntelSource & { freshness: Freshness }>>;
+  /** Q4: the hash chains of advocate.db and intel.db. */
+  storeChains(): Promise<StoreChains>;
   /** Compact the conversation now (Pi's compaction with the kind's summary form). */
   compactChat(conversationId: string): Promise<ContextMeter>;
   listContacts(): Promise<Contact[]>;
