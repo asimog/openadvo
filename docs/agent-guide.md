@@ -53,6 +53,7 @@ npm start
 | `npm run vendor:ulos` | The `ulos` citation validator and its court database | `C:\dev\ulosadvo`, or `ULOS_SRC` |
 | `npm run vendor:voice` | The Whisper speech model | Network; `VOICE_REVISION` pins a revision |
 | `npm run vendor:ocr` | The PP-OCR models, checked by SHA-256 | Network |
+| `npm run vendor:adapters` | The court adapters pinned in `scripts/adapters.manifest.json` (none are pinned today), checked by SHA-256 | Network or a local folder |
 
 Vendored parts go into `resources/` and are never committed. Tests that need a vendored part skip with a message when it is missing. Vendor it, and run the tests again.
 
@@ -119,6 +120,7 @@ Key files:
 | `src/main/side-questions.ts` | Side questions (O9) |
 | `src/main/harness-bridge.ts` | The bridge functions of phase 1 |
 | `src/lib/advocate-store/`, `src/lib/intel-store/`, `src/lib/store-chain/` | `advocate.db`, `intel.db` and their hash chain (Q4) |
+| `src/main/court-intel.ts`, `src/lib/court-adapters/`, `src/lib/court-directory/`, `adapters/` | The court adapter framework, the directory and the built-in adapters (phase 2) |
 | `src/main/matters.ts` | The only caller of the matter store (decision 4) |
 | `src/lib/matter-store/` | `matter.db`: schema, writes, the hash-chained event record, refusals, Find |
 | `src/main/portal.ts` | The court-portal window, its origin list and the filing guards |
@@ -179,7 +181,15 @@ Key files:
 2. Name only tools of the skill's role ([../src/lib/skills/roles.ts](../src/lib/skills/roles.ts)). The registry refuses a human-only action, a portal or filing tool, or a tool the agent does not have.
 3. Check that it loads: the test "the built-in skills load with no error" in `tests/unit/skills.test.ts` lists the built-in ids. Add the new id there.
 
-### 7.7 Add a vendored part
+### 7.7 Add or change a court adapter
+
+1. Read the official document first. Copy each item's `quote` from its text; do not write a quote from memory.
+2. Write `adapters/<id>/adapter.json` with the fields of [specs/court-adapters.md](specs/court-adapters.md) section 3. List every host the adapter fetches from.
+3. Check it: `node --test tests/unit/court-adapters.test.ts` (the built-in adapters must be valid). Build its lists once against the real document and count the quotes that are not found; each one is "advocate to verify" on screen.
+4. A change to a built-in adapter raises its version, so built lists show that a rebuild is available.
+5. An adapter from outside the repository is vendored with `npm run vendor:adapters -- --from <source>`; never copy it into `adapters/` by hand.
+
+### 7.8 Add a vendored part
 
 Follow `scripts/vendor-*.ts`:
 - pin the version;

@@ -13,11 +13,13 @@ This file owns the folders, the write boundaries, the data outside the repositor
 | `src/editor-host/` | The host page that supplies `window.AscDesktopEditor` to the Euro-Office editors. | — |
 | `src/lib/` | Plain domain libraries. No Electron import, no Pi import (decision 6). | — |
 | `src/shared/` | Types shared by main, preload and renderer. No runtime code with side effects. | — |
-| `src/lib/court-adapters/` | **Planned (S1, S12).** One adapter per court; Playwright scripts for scheduled work. | — |
+| `src/lib/court-adapters/` | The court-rule adapter library: checks of an adapter, the quote match, section extraction, format checks ([specs/court-adapters.md](specs/court-adapters.md)). **Planned (S1, S12):** the court-portal adapters and their Playwright scripts. | — |
+| `src/lib/court-directory/` | The offline directory of courts and tribunals (B1). | Engineers; the advocate's corrections come with the pack editor. |
+| `adapters/` | Built-in court adapters, one folder per adapter with `adapter.json` (data, never code). | Engineers, with every quote read in the official document. |
 | `src/main/browser/` | **Planned (S10).** The built-in browser: tabs, hidden agent pages, DevTools Protocol control. | Main-process code only. |
 | `skills/` | Built-in skills, one folder per skill with `SKILL.md` ([specs/harness-and-stores.md](specs/harness-and-stores.md) section 2). Practice packs come in phase 8. | Engineers, through a reviewed change (N6). |
 | `tests/unit/` | `node:test` tests of the plain libraries. | — |
-| `tests/e2e/` | Playwright tests against the built application. The native harness parts have one file each: `native-policy.spec.ts`, `native-helpers.spec.ts`, `native-plan.spec.ts`, `native-context.spec.ts`. Phase 1 is `phase1.spec.ts`. | — |
+| `tests/e2e/` | Playwright tests against the built application. The native harness parts have one file each: `native-policy.spec.ts`, `native-helpers.spec.ts`, `native-plan.spec.ts`, `native-context.spec.ts`. Phase 1 is `phase1.spec.ts`; phase 2 is `phase2.spec.ts`. | — |
 | `scripts/` | Node scripts. No PowerShell (decision 9). | — |
 | `spikes/` | Small proofs that settle one question. Each has a result file. Not product code. | — |
 | `docs/` | Durable documents. See [README.md](README.md). | — |
@@ -27,6 +29,7 @@ This file owns the folders, the write boundaries, the data outside the repositor
 | `resources/euro-office/` | The vendored Euro-Office parts ([engineering.md](engineering.md) section 2). Never committed, never modified. | The vendor script only. |
 | `resources/ulos/` | The vendored `ulos` validator and its court database. Never committed, never modified. | The vendor script only. |
 | `resources/models/` | The vendored speech model and, in `ppocr/`, the second OCR engine's models. Never committed, never modified. | The vendor scripts only. |
+| `resources/adapters/` | Vendored court adapters and `adapters.lock.json`. Never committed. | `npm run vendor:adapters` only. |
 | `extensions/` | The bundled Pi extensions: one Pi package per folder. Today only `placeholder/` ([specs/native-harness-parts.md](specs/native-harness-parts.md) section 6). | Code changes with tests. |
 | `resources/pi-extensions/` | Not used any more. An older checkout vendored seven Pi packages here; the folder can be deleted. | — |
 | `out/` | Build output of electron-vite. Not committed. | — |
@@ -41,6 +44,7 @@ This file owns the folders, the write boundaries, the data outside the repositor
 | User data: `firm-agent/` | The Firm Agent's conversation (feature O10): `pi/` (Pi session files), `messages.json`, `trace.jsonl`, `handoffs.json` (instructions waiting for the advocate) and `usage.jsonl`. |
 | User data: `pi-agent/` | The application's Pi folder, which is also Pi's agent folder (`PI_CODING_AGENT_DIR`, decision 22): `settings.json` (packages the advocate added, Pi settings), `npm/` and `git/` (installed packages), the added extensions' own files, and any Pi skills, prompt templates, context files or extensions placed there. |
 | User data: `tool-policy.json`, `logs/tool-policy.jsonl` | The tool policy and its review log (decision 23; [harness-build.md](harness-build.md) section 1.3). |
+| User data: `adapters/`, `intel/docs/` | The advocate's own court adapters (copies made with Edit a copy, and adapters added from a file, with `adapters.lock.json`), and the court documents downloaded or uploaded for a list, by SHA-256. |
 | User data: `advocate.db`, `intel.db`, `skills/` | `advocate.db` (profile, preferences, advocate memory; the Knowledge Library from phase 3) and `intel.db` (sources and their freshness; the court directory and packs from phase 2), each with its own hash-chained `event` table (Q4). `skills/` holds the advocate's own skills, one folder per skill (N1). |
 | Pi credentials | Pi's own credential store. The application does not read or copy it (choice EC-6). |
 

@@ -13,6 +13,7 @@ import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import type { AdvocateProfile, Freshness, InboxItem, IntelSource, MatterSummary, MemoryRecord, PreferenceRecord, RoleSummary, SkillSummary, StoreChains } from "../../shared/api.ts";
 import { Docket } from "./Practice.tsx";
+import { CourtIntelligence, CourtProfileEditor } from "./Intel.tsx";
 
 const api = window.openadvo;
 
@@ -139,8 +140,9 @@ export function CourtIntelPage() {
   return (
     <PageFrame title="Court Intelligence" testId="court-page" intro="Courts, rules, cause lists, developments and the freshness of each source.">
       <div className="notice" data-testid="not-built">
-        Not built yet: the court directory, the rule packs and their checks come in phase 2, cause lists and developments in phase 9. The store that holds them (intel.db) is built.
+        Cause lists, developments, the pack check task and the dashboard come in phase 9. The court rules below are built.
       </div>
+      <CourtIntelligence />
       <Heading level={3}>Sources</Heading>
       {rows && rows.length === 0 ? <Text type="supporting">No source is recorded yet.</Text> : null}
       <List density="compact">
@@ -233,6 +235,7 @@ export function ProfilePage(props: { onChanged: () => void }) {
       <div className="question-options">
         <Button label="Save" size="sm" clickAction={save} />
       </div>
+      <CourtProfileEditor />
       <Heading level={3}>Preferences</Heading>
       {prefs.length === 0 ? <Text type="supporting">No preference yet. The agent proposes one after you make the same correction twice; you approve each.</Text> : null}
       <List density="compact">

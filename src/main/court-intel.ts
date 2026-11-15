@@ -49,7 +49,7 @@ export interface CourtOverview {
   court: DirectoryCourt;
   route: Array<{ id: string; name: string }>;
   adapter: AdapterSummary | null;
-  lists: Array<{ key: string; kind: string; title: string; recommended: boolean; caseTypes: string[]; built: PackList | null }>;
+  lists: Array<{ key: string; kind: string; title: string; source: string; recommended: boolean; caseTypes: string[]; built: PackList | null }>;
   proceedings: AdapterDefinition["proceedings"];
   benches: BenchRow[];
 }
@@ -168,7 +168,7 @@ export class CourtIntel {
         court: c,
         route: appealRoute(id).map((r) => ({ id: r.id, name: r.name })),
         adapter: summary,
-        lists: (a?.lists ?? []).map((l) => ({ key: l.key, kind: l.kind, title: l.title, recommended: rec.includes(l.key), caseTypes: l.needs?.caseTypes ?? [], built: this.readList(a!.id, l.key) })),
+        lists: (a?.lists ?? []).map((l) => ({ key: l.key, kind: l.kind, title: l.title, source: l.source, recommended: rec.includes(l.key), caseTypes: l.needs?.caseTypes ?? [], built: this.readList(a!.id, l.key) })),
         proceedings: a?.proceedings ?? [],
         benches: this.d.intel.benches(id),
       };

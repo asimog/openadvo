@@ -5,6 +5,7 @@
  * calls a human-only bridge function (decision 5). The renderer holds no business logic.
  */
 import { useCallback, useEffect, useState } from "react";
+import { CourtChecklistView } from "./Intel.tsx";
 import { PortalResult } from "./DraftsV5.tsx";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Button } from "@astryxdesign/core/Button";
@@ -346,6 +347,7 @@ export function FilingView(props: { matterId: string; sources: SourceRecord[]; v
   return (
     <div className="work-view" data-testid="filing-view">
       {error ? <div className="notice" role="alert" data-testid="filing-error">{error}</div> : null}
+      <CourtChecklistView matterId={props.matterId} version={props.version} onChanged={() => void load()} />
 
       <section className="work-section" aria-label="Court record and email">
         <Heading level={3}>Court record and client email</Heading>

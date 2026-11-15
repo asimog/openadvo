@@ -96,7 +96,7 @@ Memory records are typed, in `matter.db` (matter scope) and `advocate.db` (advoc
 - **Per court:** a pack in `intel.db`. Every row has `source_url, owner, retrieved_at, checked_by, valid_from, valid_until, access_method, reliability`.
 - **Access methods:** an official feed or download; the advocate's own session in the visible browser; or a manual upload. Never CAPTCHA solving. Never bulk harvesting against a site's terms.
 - **Freshness rule:** a row past its check interval shows as "stale since <date>". A check that depends on a stale row shows "unconfirmed". It never shows "passed".
-- **First release:** the directory of all courts and tribunals (names, seats, benches, portals) ships with the application, so onboarding works offline. The detailed rule packs ship for the first courts (questions Q-1) and grow by phase.
+- **First release:** the directory of all courts and tribunals (names, seats, benches, appeal routes) ships with the application, so onboarding works offline. The rule packs are not shipped or downloaded in bulk (owner, 2026-11-16: "do not download the whole rules for supreme court or each high court … it should be based on lawyer profile and it should be made when needed"). A court adapter names the documents of a court; a list is built from them only when the advocate's profile or a matter needs it ([specs/court-adapters.md](specs/court-adapters.md)). Adapters ship for the first courts (questions Q-1).
 
 ## 9. Court adapters
 

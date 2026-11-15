@@ -165,7 +165,7 @@ export function findQuote(lines: readonly DocLine[], quote: string, threshold = 
     for (const w of words(l.text)) doc.push({ w, at });
   });
   const span = Math.ceil(q.length * 1.4) + 2;
-  let best: { start: number; end: number; score: number } | null = null;
+  let best: { start: number; end: number; score: number; hits: number[] } | null = null;
   for (let s = 0; s < doc.length; s++) {
     // A match starts where the first two words match (or the first was lost, or both were read as one).
     const firstTwo =
@@ -175,39 +175,47 @@ export function findQuote(lines: readonly DocLine[], quote: string, threshold = 
     let qi = 0;
     let matched = 0;
     let last = s;
+    const hits: number[] = [];
     for (let d = s; d < Math.min(doc.length, s + span) && qi < q.length; d++) {
       if (sameWord(q[qi], doc[d].w)) {
         matched++;
         qi++;
         last = d;
+        hits.push(d);
       } else if (qi + 1 < q.length && near(q[qi] + q[qi + 1], doc[d].w)) {
         // Two words read as one ("ofthe").
         matched += 2;
         qi += 2;
         last = d;
+        hits.push(d, d);
       } else if (d + 1 < doc.length && q[qi].length >= 5 && near(doc[d].w + doc[d + 1].w, q[qi])) {
         // One word read as two.
         matched++;
         qi++;
+        hits.push(d);
         last = ++d;
       } else if (qi + 1 < q.length && sameWord(q[qi + 1], doc[d].w)) {
         // A quote word lost in OCR: skip it.
         qi += 2;
         matched++;
         last = d;
+        hits.push(d);
       }
     }
     const score = matched / q.length;
     if (score >= threshold && (!best || score > best.score)) {
-      best = { start: s, end: last, score };
+      best = { start: s, end: last, score, hits };
       if (score === 1) break;
     }
   }
   if (!best) return null;
-  const first = lines[doc[best.start].at];
-  const lastLine = doc[best.end].at;
-  const found = lines.slice(doc[best.start].at, lastLine + 1).map((l) => l.text).join(" ");
-  return { page: first.page, line: first.line, score: Math.round(best.score * 100) / 100, found: found.slice(0, 600) };
+  // The anchor is the line that holds most of the matched words (the earliest on a tie).
+  const count = new Map<number, number>();
+  for (const h of best.hits) count.set(doc[h].at, (count.get(doc[h].at) ?? 0) + 1);
+  const anchorAt = [...count.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0][0];
+  const anchor = lines[anchorAt];
+  const found = lines.slice(doc[best.start].at, doc[best.end].at + 1).map((l) => l.text).join(" ");
+  return { page: anchor.page, line: anchor.line, score: Math.round(best.score * 100) / 100, found: found.slice(0, 600) };
 }
 
 /** The lines between two headings (the scope of a list), or all lines when the start is not found. */

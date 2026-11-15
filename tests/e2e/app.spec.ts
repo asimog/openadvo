@@ -219,6 +219,9 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
       // Phase 1: harness and stores (docs/specs/harness-and-stores.md).
       "listSkills", "listSkillRuns", "getContextPackage", "listRunJobs", "resumeSkillRun", "approvePlan", "askSide", "discardSide", "listSide", "contextCandidates", "inboxAll", "searchAll",
       "getAdvocateProfile", "setAdvocateProfile", "listAdvocateMemory", "decideAdvocateMemory", "listPreferences", "decidePreference", "listIntelSources", "storeChains",
+      // Phase 2: local legal intelligence and filing readiness (docs/specs/court-adapters.md).
+      "searchCourts", "appealRoute", "getCourtProfile", "setCourtProfile", "courtOverview", "listAdapters", "forkAdapter", "addAdapter", "buildList", "getList", "editList", "uploadSource", "addBench",
+      "setFilingTarget", "getChecklist", "checkItem", "formatChecks", "listDefects", "importDefects", "setDefect",
     ].sort(),
   );
   await app.close();

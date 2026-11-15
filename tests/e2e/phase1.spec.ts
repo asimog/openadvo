@@ -134,7 +134,7 @@ test("navigation, the Review Inbox across matters, Workflows & Skills, the profi
   await page.getByTestId("nav-browser").click();
   await expect(page.getByTestId("browser-page").getByTestId("not-built")).toContainText("phase 3");
   await page.getByTestId("nav-court").click();
-  await expect(page.getByTestId("court-page")).toContainText("intel.db");
+  await expect(page.getByTestId("court-page").getByTestId("not-built")).toContainText("phase 9");
 
   // Workflows & Skills: the four built-in skills and the twelve roles.
   await page.getByTestId("nav-skills").click();

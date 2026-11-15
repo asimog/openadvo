@@ -37,6 +37,9 @@ test("the quote match: OCR errors, joined and split words, a lost word; an inven
   assert.equal(findQuote(doc, "The petitioner shall file at least three spare sets of the petition")?.line, 3);
   assert.equal(findQuote(doc, "filed as Appendix to the Special Leave Petition")?.line, 4);
   assert.equal(findQuote(doc, "the petition shall be filed in quadruplicate with a court fee stamp"), null);
+  // The anchor is the line holding most of the words, not where the first two happen to match.
+  const two = lines("1. Every petition shall be supported by an affidavit of the petitioner.\n2. The petitioner shall file three spare copies of the petition.");
+  assert.equal(findQuote(two, "The petitioner shall file three spare copies of the petition")?.line, 2);
 });
 
 test("scope keeps a quote inside its part of the document; section extraction reads numbered rules", () => {

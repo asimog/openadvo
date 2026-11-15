@@ -33,6 +33,7 @@ The vendored parts are not in the repository. Each has its own script. A script 
 | `ulos` citation validator and its court database | `npm run vendor:ulos` | `ULOS_SRC`, default `C:\dev\ulosadvo` | `resources/ulos/<platform>/` |
 | Speech model (Whisper) | `npm run vendor:voice` | Hugging Face, revision in `VOICE_REVISION`; hashes written to `vendor.lock.json` | `resources/models/` |
 | Second OCR engine (PP-OCR) | `npm run vendor:ocr` | RapidOCR models at a pinned revision, checked by SHA-256 in `scripts/vendor-ocr.ts` | `resources/models/ppocr/` |
+| Court adapters from outside the repository | `npm run vendor:adapters` (`-- --from <folder, file or https address>` vendors one and pins it) | `scripts/adapters.manifest.json`: id, version, source and SHA-256; lock file `resources/adapters/adapters.lock.json` | `resources/adapters/<id>/` |
 
 **Euro-Office risk and its test.** `window.AscDesktopEditor` is not a documented interface. A new release can add or change a call. Before every release upgrade: open a DOCX and a PDF, type, run one agent edit, save and reopen. Log every `AscDesktopEditor` call and fail on a call that the host does not answer.
 

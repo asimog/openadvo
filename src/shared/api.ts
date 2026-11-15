@@ -464,7 +464,7 @@ export interface OpenAdvoApi {
   /** Human-only: set the advocate's courts and practice areas. */
   setCourtProfile(input: { courts?: string[]; practice?: string[] }): Promise<{ courts: string[]; practice: string[] }>;
   /** Court Intelligence: the advocate's courts, adapters and lists. Nothing is downloaded. */
-  courtOverview(): Promise<Array<{ court: DirectoryCourt; route: Array<{ id: string; name: string }>; adapter: AdapterSummary | null; lists: Array<{ key: string; kind: string; title: string; recommended: boolean; caseTypes: string[]; built: PackList | null }>; proceedings: AdapterProceeding[]; benches: BenchRow[] }>>;
+  courtOverview(): Promise<Array<{ court: DirectoryCourt; route: Array<{ id: string; name: string }>; adapter: AdapterSummary | null; lists: Array<{ key: string; kind: string; title: string; source: string; recommended: boolean; caseTypes: string[]; built: PackList | null }>; proceedings: AdapterProceeding[]; benches: BenchRow[] }>>;
   /** Every adapter in its tier, with its version, error or shadowing. */
   listAdapters(fresh?: boolean): Promise<AdapterSummary[]>;
   /** Human-only: copy an adapter into the advocate's folder to change it. */
