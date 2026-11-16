@@ -25,6 +25,7 @@ This report is independent of the earlier survey in [../memory-rag-assessment.md
 11. **Quote first, then reason, then verify.** Retrieval returns candidates. A quote-selection step extracts exact spans. A reasoning step sees only verified quotes and citation keys. A deterministic verifier checks the citation key, the quote, the governing date and the authority. A model never certifies its own quote.
 12. **The matter database and the session logs must become append-only.** Today `matter.db` updates and deletes rows in nine places. That is a real mismatch with the owner's instruction. The migration is a change to Phases 1 to 4, and it needs the owner's acceptance.
 13. **Plan review is native, on the Plannotator pattern.** Annotations live with the target: a plan, a research plan, a memorandum, a draft, a provision or a judgment paragraph. The agent receives one structured message. No 53 MB browser extension and no terminal assumption.
+14. **Long files are a structure problem; large datasets are a partition problem.** A 100+ page file is indexed by its parts and anchored to the page. A 1M-paragraph judgment index is partitioned by court and year. One global FTS table takes 118 ms for a phrase and 464 ms for an OR query at 1M rows; a 50,000-100,000-row partition returns a phrase query in about 10-20 ms. Page is an anchor, never a chunk.
 
 ---
 
@@ -54,6 +55,8 @@ This report is independent of the earlier survey in [../memory-rag-assessment.md
 | Flat TypeScript index (same machine) | 20,000 x 384: 10-17 ms. 50,000: 17-30 ms. 100,000: 34-43 ms. Array size 154 MB at 100,000. |
 | LadybugDB spike (Windows, `@ladybugdb/core` 0.22.3) | Embedded database opened, Cypher table created, row inserted and read. No server, no Docker. |
 | npm package sizes | `@ladybugdb/core-win32-x64` 15.6 MB unpacked. `@lancedb/lancedb-win32-x64-msvc` 355.8 MB unpacked. `sqlite-vec` wrapper 4 KB plus the native extension. |
+| FTS5 scale spike (Windows, `node:sqlite`, synthetic legal prose, 90-140 words per paragraph) | 100,000 rows: 3.3 s build, 144 MB, phrase 11 ms, OR 44 ms. 1,000,000 rows: 41.5 s build, 1.44 GB, phrase 118 ms, OR 464 ms. After `optimize`: phrase 117 ms, OR 403 ms. A SQL filter on an `UNINDEXED` column: 1,011 ms. |
+| Embedding spike (`Xenova/bge-small-en-v1.5`, 384 dims, ONNX, CPU, batch 32) | Model load 9.7 s. Throughput 165-244 paragraphs/s. |
 | `git status` | The Phase 5 files were untracked at the start; no tracked file was modified. |
 
 ### 2.3 What the tests exposed, and what I fixed
@@ -901,6 +904,111 @@ If the corpus ever needs a shared multi-user vector service, Qdrant is a good ca
 - A chamber with several machines writing the same law corpus. Then a sync service or a server; not a SQLite file on a network share.
 - A need to exchange law with another tool. Akoma Ntoso is the answer; the XML export already exists.
 
+### 9.8 Long documents and large datasets
+
+A 100+ page case file or judgment is not a vector problem. It is a structure and anchoring problem. A 100,000-1,000,000 judgment dataset is a partitioning problem. The same pipeline serves both, but the index layout changes.
+
+#### 9.8.1 A 100+ page case file
+
+Index the document at its own parts, not at page length:
+
+| Level | What it is | Use |
+|---|---|---|
+| Document | The plaint, written statement, affidavit, annexure, exhibit, deposition, order or judgment | Route the query to the right document |
+| Part | A heading, an exhibit, a numbered pleading paragraph, a deposition question | Filter and group |
+| Page and line | The exact place in the PDF or scan | Open at the page; quote |
+| Passage | The sentence or paragraph the model reads | Retrieve and quote |
+
+The page is an anchor, not a chunk. A 100-page file typically has 300 to 1,000 paragraphs. FTS5 over that file is a few milliseconds. The real cost is OCR, layout and anchoring, not search.
+
+Design rules:
+
+- Keep the document identity and its SHA-256. A file is read once; a changed file is a new source.
+- Read the text layer first. OCR only the pages without text, or the pages a critical quote depends on. Record the engine, the version and the confidence.
+- Keep the page image beside the OCR line. A quote that will be filed is confirmed against the image.
+- Index the paragraph or line, not the page. A page with three columns or two exhibits is not one passage.
+- Retrieve the passage and return its parent: the page, the document and the matter. The model gets the passage and the page context; the citation is the page and line.
+- For a query across the matter, group results by document and show "12 hits in 3 documents". Open at the page.
+- For "find in this document", use the same FTS index with a document filter. For "find similar", use vectors only if they are on.
+- For a scanned file, OCR is the bottleneck. A 100-page scan at 2-5 seconds per page is 3-8 minutes. Run it in the background, show progress, and let the advocate search the text layer while OCR continues.
+- Do not embed the whole document. Embed the paragraph only when vectors are on. A 100-page file is 300-1,000 vectors, which the flat index handles in under a millisecond.
+
+#### 9.8.2 A large judgment
+
+A judgment is a set of paragraphs, often with more than one opinion:
+
+- Each opinion has its own author, its own paragraph numbering and sometimes its own heading. A concurrence can restart at paragraph 1. The citation key must include the opinion: `judgment#opinion:<judge>#p<para>`.
+- A paragraph that is longer than the model window splits at sentence boundaries. The citation stays the paragraph; the window is a reading.
+- Headnotes, the bench, the date, the citations and the disposal are metadata. The paragraph is the unit.
+- A 100-500 page judgment is 100-1,000 paragraphs. It is small for FTS5. The long part is the reading, not the search.
+- The current `paragraphs()` function assumes one sequential numbering. It must learn an opinion id. This is a Phase 5 fix, not a later one.
+
+#### 9.8.3 A research memo
+
+A memo is editable, so index it by revision:
+
+- Split at its own headings: issue, submission, analysis, conclusion, prayer.
+- Index each paragraph with its heading path, its citations and its proposition.
+- Keep the revision hash. A memo edit creates a new revision; the old revision stays readable. Re-index only the changed paragraphs.
+- A vector row is tied to the paragraph text hash. If the text changes, the old vector is not reused.
+- Search modes: "find the proposition", "find the supporting quote", "find the adverse note", "find the paragraph I wrote on limitation".
+- A memo is a work product, not a source of law. A quote in a memo is checked against the law source, not against the memo.
+
+#### 9.8.4 A large judgment dataset
+
+The dataset is the hard case. The unit is the paragraph, the partition is the court and the year.
+
+- **Partition.** One FTS5 table per court and year (or per court and five-year bucket). A catalog table lists the partitions, their row counts, their date ranges and their build state. A query with a court or date filter opens only the matching partitions. A query without a filter searches the most recent N partitions, then reports what was not searched.
+- **Metadata first.** Court, bench, date, citation, case number, judges, disposal and source are normal columns with indexes. Do not put them in `UNINDEXED` FTS columns and filter there. The benchmark below shows a SQL filter on an `UNINDEXED` column takes about 1 second at 1M rows; an indexed metadata join or a partition is the fix.
+- **One text copy.** Use an FTS5 external-content table (`content=`) or a contentless table with a rowid map. The current `provision_fts` copies the text. At 1M paragraphs that duplication is hundreds of megabytes.
+- **Phrase search needs positions.** Keep `detail=full`. `detail=none` and `detail=column` lose the phrase queries that legal research needs.
+- **Incremental.** Append new judgments. Do not rebuild the corpus for one new decision. Run `INSERT INTO fts(fts) VALUES('optimize')` after a bulk load, not on every insert.
+- **Dedup.** Use a canonical id: court, case number, decision date and a normalized title. Keep the text hash. The same judgment from two sources is one judgment with two source rows.
+- **Vectors are a second pass.** Embed the headnote, the disposition and the paragraphs that are cited most, not every paragraph on day one. Measure the recall gain before paying the embedding and storage cost.
+- **The graph is separate.** The citation and treatment edges are built from the paragraphs. At 10M edges, keep the edge table with indexes on both directions. Use a closure table only for the hot, deep paths. Benchmark a two-hop and a three-hop query before adding LadybugDB.
+
+#### 9.8.5 Measured numbers
+
+These are local measurements on this Windows machine, Node 24.13.1, `node:sqlite`, no Docker. The text is synthetic legal prose, 90-140 words per paragraph. Real paragraphs are longer, so treat these as a lower bound on size and latency.
+
+| Rows | Build | DB size | Phrase | OR | SQL filter on an `UNINDEXED` column |
+|---:|---:|---:|---:|---:|---:|
+| 100,000 | 3.3 s | 144 MB | 11 ms | 44 ms | not measured |
+| 1,000,000 | 41.5 s | 1.44 GB | 118 ms | 464 ms | 1,011 ms |
+
+After `optimize` on the 1M table: phrase 117 ms, OR 403 ms, prefix (correct `anticip*` syntax) 190 ms. The optimize took 3.5 s and did not change the size.
+
+The lesson is not "SQLite is slow". The lesson is "one global FTS table is the wrong shape at 1M rows". A partition of 50,000-100,000 paragraphs returns a phrase query in about 10-20 ms. The design target is p95 under 150 ms for interactive search. Partitioning meets it; a single 1M-row table does not for OR queries.
+
+The vector side:
+
+| Vectors | Query | Memory |
+|---:|---:|---:|
+| 100,000 | 34-43 ms | 154 MB |
+| 1,000,000 | about 350-430 ms | about 1.5 GB |
+
+The local embedding benchmark with `bge-small-en-v1.5` (384 dimensions, ONNX, CPU) on this machine:
+
+| Batch | Throughput |
+|---:|---:|
+| 32 paragraphs | 165-244 paragraphs/s |
+| Model load | 9.7 s |
+
+At 235 paragraphs/s, 1M paragraphs take about 71 minutes. At 165/s, about 101 minutes. A 10M-paragraph corpus takes 12-20 hours. That is a batch job, not a search-time cost. It is another reason vectors are optional and off by default.
+
+#### 9.8.6 What this means for the design
+
+- The matter adapter indexes the document's parts and paragraphs. A 100-page file is small; the work is OCR and anchors.
+- The research adapter partitions `judgment_para` by court and year. The catalog and the metadata filters choose the partitions.
+- The statute adapter is small: 20-30 Acts, 10,000-30,000 provisions. One table is enough. No partition.
+- The procedure adapter is small: a few rule sets. One table is enough.
+- The firm library is medium: partition by collection if it passes 100,000 items.
+- Vectors are a second pass, per partition, after the golden set exists.
+- The graph is built from paragraphs; it scales with edges, not pages.
+- The UI always says what was searched: "searched 12 partitions, 2019-2026; not searched: 1990-2018". Coverage is part of the result.
+
+The short answer: a 100+ page file is indexed by its structure and anchored to the page; a large dataset is partitioned by court and year. Neither needs a 100-page embedding or a 100-page prompt.
+
 ---
 
 ## 10. Query agent only, adapters, or a platform?
@@ -1047,6 +1155,9 @@ The full register is [../decisions/2026-11-16-phase-5-rag.md](../decisions/2026-
 | RAG-18 | No RAG platform, no vector server, no graph server in Phase 5 |
 | RAG-19 | Build the adapters now, not a query agent alone and not a platform |
 | RAG-20 | The phase exit is a real research memorandum the owner completes |
+| RAG-21 | Large judgment indexes are partitioned by court and year; no single global table at 1M rows |
+| RAG-22 | Long files are indexed by structure; page is an anchor, not a chunk; opinions get their own paragraph namespace |
+| RAG-23 | FTS5 uses external content, indexed metadata and `detail=full`; filters never use `UNINDEXED` columns |
 
 ---
 
@@ -1123,8 +1234,16 @@ node --test tests/unit/knowledge.test.ts
 npm install sqlite-vec@0.1.9 @ladybugdb/core@0.22.3
 node spike.mjs
 
+# FTS5 scale spike (Windows, no Docker)
+# In %TEMP%\openadvo-fts-scale:
+node bench.mjs 1000000
+
+# Embedding spike (Windows, no Docker)
+# Temporary script in the repository, removed after the run:
+node embed-bench.mjs
+
 # India Code (read-only)
 # See section 2.4 for the endpoints.
 ```
 
-The spike files were in `%TEMP%\openadvo-spike-vec`. They are not in the repository. The test fixture `tests/fixtures/indiacode-contract-act.json` is in the repository.
+The spike files were in `%TEMP%\openadvo-spike-vec` and `%TEMP%\openadvo-fts-scale`. They are not in the repository. The embedding script was temporary and removed. The test fixture `tests/fixtures/indiacode-contract-act.json` is in the repository.

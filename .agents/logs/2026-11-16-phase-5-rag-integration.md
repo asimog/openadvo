@@ -505,6 +505,61 @@ export async function assemble(
 
 Compression keeps the anchors and both sides of a conflict. A summary never replaces a source.
 
+### 5.6 Scale: partitions, long documents and opinions
+
+The retrieval contract does not change with size. The index layout does.
+
+**Partitions.** `corpus.db` has a catalog:
+
+```sql
+CREATE TABLE search_partition (
+  name TEXT PRIMARY KEY,            -- "sc-2024", "dhc-2020-2024"
+  court TEXT NOT NULL,
+  year_from INTEGER NOT NULL,
+  year_to INTEGER NOT NULL,
+  rows INTEGER NOT NULL,
+  fts_table TEXT NOT NULL,          -- "judgment_para_fts_sc_2024"
+  vector_scope TEXT,                -- null when vectors are off
+  built_at TEXT NOT NULL,
+  state TEXT NOT NULL               -- ok | empty | stale | building
+) STRICT;
+```
+
+The planner:
+
+1. Reads the query's court and date filters.
+2. Selects the partitions that can match.
+3. If the query has no filter, selects the most recent N partitions and records the rest in `notSearched`.
+4. Runs the FTS and vector retrievers per partition in parallel.
+5. Fuses the partition lists with the same RRF; the partition is not part of the rank.
+
+A query result says: "searched 12 partitions, 2019-2026; not searched: 1990-2018". This is the coverage rule applied to scale.
+
+**Metadata filters.** Court, date, bench, citation and case number are normal columns with indexes. They are not `UNINDEXED` FTS columns. The benchmark in the assessment shows why: a SQL filter on an `UNINDEXED` column at 1M rows takes about 1 second; a partition or an indexed metadata join is the fix.
+
+**One text copy.** Use FTS5 external content:
+
+```sql
+CREATE VIRTUAL TABLE judgment_para_fts_sc_2024 USING fts5(
+  text,
+  content = 'judgment_para',
+  content_rowid = 'rowid',
+  tokenize = 'porter unicode61'
+);
+```
+
+The `judgment_para` table is the text. The FTS table holds the index. Triggers keep them in sync. Do not copy the paragraph text into both.
+
+**Multiple opinions.** A judgment can have a concurrence or a dissent with its own paragraph numbering. `judgment_para` gets `opinion_id` and `opinion_author`; the citation key includes the opinion: `judgment#opinion:<judge>#p<para>`. `paragraphs()` in `src/lib/legal-corpus/index.ts` must learn this before the first multi-opinion judgment is indexed.
+
+**Long matter documents.** The matter adapter uses `document_part_set` and `document_part` (section 7.3). The FTS index is per matter, over `document_part`, with external content. The parent is the document; the child is the page/line passage. A 100-page file is 300-1,000 rows; it does not need a partition.
+
+**Research memos.** Index the current revision only for normal search. Keep the old revisions readable and searchable with a version filter. The memo's paragraph is the unit; the heading path is metadata; the citation is checked against the law source, not the memo.
+
+**Vectors at scale.** Build vectors per partition, not for the whole corpus at once. A partition of 50,000-100,000 paragraphs is 77-154 MB of Float32 at 384 dimensions; the flat index handles it. A 1M-paragraph partition needs usearch or LanceDB, or smaller partitions. Embedding is a batch job; the measured rate on this machine is 165-244 paragraphs/s with `bge-small-en-v1.5`.
+
+**The graph at scale.** The edge table is not partitioned in Phase 5. It has indexes on `(from_kind, from_id, relation)` and `(to_kind, to_id, relation)`. A two-hop or three-hop query is measured before LadybugDB is considered. A closure table is added only for the hot paths.
+
 ---
 
 ## 6. The quote-first research skill
@@ -748,6 +803,8 @@ CREATE TABLE judgment_identity (
 
 CREATE TABLE judgment_para (
   judgment_id TEXT NOT NULL REFERENCES judgment_identity(id),
+  opinion_id TEXT NOT NULL DEFAULT '',   -- the judge or the opinion; '' for a single opinion
+  opinion_author TEXT NOT NULL DEFAULT '',
   para INTEGER NOT NULL,
   label TEXT NOT NULL,
   page INTEGER NOT NULL,
@@ -756,7 +813,7 @@ CREATE TABLE judgment_para (
   text_hash TEXT NOT NULL,
   role TEXT,
   role_status TEXT,
-  PRIMARY KEY (judgment_id, para)
+  PRIMARY KEY (judgment_id, opinion_id, para)
 ) STRICT;
 
 -- The legal graph. One edge shape for all graphs.
