@@ -1,0 +1,816 @@
+{
+ "act": {
+  "uuid": "0e782442-f035-4d53-aace-81b1552a8cf2",
+  "name": "The Indian Contract Act, 1872",
+  "handle": "123456789/496413",
+  "metadata": {
+   "dc.date.act_year": [
+    {
+     "value": "1872"
+    }
+   ],
+   "dc.date.enact_date": [
+    {
+     "value": "1872-04-25"
+    }
+   ],
+   "dc.date.enforcement_date": [
+    {
+     "value": "1872-09-01"
+    }
+   ],
+   "dc.identifier.act_id": [
+    {
+     "value": "AC_CEN_3_20_00035_187209_1523268996428"
+    }
+   ],
+   "dc.identifier.act_number": [
+    {
+     "value": "9"
+    }
+   ],
+   "dc.identifier.collection": [
+    {
+     "value": "ACT"
+    }
+   ],
+   "dc.identifier.repealed": [
+    {
+     "value": "false"
+    }
+   ],
+   "dc.identifier.state_name": [
+    {
+     "value": "CENTRAL"
+    }
+   ],
+   "dc.identifier.uri": [
+    {
+     "value": "http://test1.indiacode.nic.in/handle/123456789/496413"
+    }
+   ],
+   "dc.title": [
+    {
+     "value": "The Indian Contract Act, 1872"
+    }
+   ]
+  }
+ },
+ "items": [
+  {
+   "uuid": "0e8e384a-a16c-4430-bdc4-231df4527c5f",
+   "name": "Bailor entitled to increase or profit from goods bailed.",
+   "handle": "123456789/531486",
+   "metadata": {
+    "dc.date.act_year": [
+     {
+      "value": "1872"
+     }
+    ],
+    "dc.identifier.act_id": [
+     {
+      "value": "AC_CEN_3_20_00035_187209_1523268996428"
+     }
+    ],
+    "dc.identifier.act_name": [
+     {
+      "value": "The Indian Contract Act, 1872"
+     }
+    ],
+    "dc.identifier.act_number": [
+     {
+      "value": "9"
+     }
+    ],
+    "dc.identifier.act_repealed": [
+     {
+      "value": "false"
+     }
+    ],
+    "dc.identifier.collection": [
+     {
+      "value": "SECTION"
+     }
+    ],
+    "dc.identifier.order_number": [
+     {
+      "value": "164"
+     }
+    ],
+    "dc.identifier.repealed": [
+     {
+      "value": "false"
+     }
+    ],
+    "dc.identifier.section_id": [
+     {
+      "value": "38719"
+     }
+    ],
+    "dc.identifier.section_number": [
+     {
+      "value": "163"
+     }
+    ],
+    "dc.identifier.section_page_note": [
+     {
+      "value": "<span style=\"margin-left: 15px;\"></span>In the absence of any contract to the contrary, the bailee is bound to deliver to the bailor, or according to his directions, any increase or profit which may have accrued from the goods bailed.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span> <i>Illustration</i><br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span> A leaves a cow in the custody of B to be taken care of. The cow has a calf. B is bound to deliver the calf as well as the cow to A. <br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/>"
+     }
+    ],
+    "dc.identifier.state_name": [
+     {
+      "value": "CENTRAL"
+     }
+    ],
+    "dc.identifier.uri": [
+     {
+      "value": "http://test1.indiacode.nic.in/handle/123456789/531486"
+     }
+    ],
+    "dc.title": [
+     {
+      "value": "Bailor entitled to increase or profit from goods bailed."
+     }
+    ]
+   }
+  },
+  {
+   "uuid": "0c2f24c4-e7b5-4a82-9dd5-1becad9da522",
+   "name": "Repealed.",
+   "handle": "123456789/534856",
+   "metadata": {
+    "dc.date.act_year": [
+     {
+      "value": "1872"
+     }
+    ],
+    "dc.identifier.act_id": [
+     {
+      "value": "AC_CEN_3_20_00035_187209_1523268996428"
+     }
+    ],
+    "dc.identifier.act_name": [
+     {
+      "value": "The Indian Contract Act, 1872"
+     }
+    ],
+    "dc.identifier.act_number": [
+     {
+      "value": "9"
+     }
+    ],
+    "dc.identifier.act_repealed": [
+     {
+      "value": "false"
+     }
+    ],
+    "dc.identifier.collection": [
+     {
+      "value": "SECTION"
+     }
+    ],
+    "dc.identifier.order_number": [
+     {
+      "value": "100"
+     }
+    ],
+    "dc.identifier.repealed": [
+     {
+      "value": "false"
+     }
+    ],
+    "dc.identifier.section_id": [
+     {
+      "value": "43781"
+     }
+    ],
+    "dc.identifier.section_number": [
+     {
+      "value": "99"
+     }
+    ],
+    "dc.identifier.section_page_note": [
+     {
+      "value": "<i>[Power of seller to stop in transit.] Rep. by s. 65, ibid.</i>"
+     }
+    ],
+    "dc.identifier.state_name": [
+     {
+      "value": "CENTRAL"
+     }
+    ],
+    "dc.identifier.uri": [
+     {
+      "value": "http://test1.indiacode.nic.in/handle/123456789/534856"
+     }
+    ],
+    "dc.title": [
+     {
+      "value": "Repealed."
+     }
+    ]
+   }
+  },
+  {
+   "uuid": "04811ed2-5168-4dae-9e04-16a63ae51348",
+   "name": "Power to set aside contract induced by undue influence.",
+   "handle": "123456789/531400",
+   "metadata": {
+    "dc.date.act_year": [
+     {
+      "value": "1872"
+     }
+    ],
+    "dc.identifier.act_id": [
+     {
+      "value": "AC_CEN_3_20_00035_187209_1523268996428"
+     }
+    ],
+    "dc.identifier.act_name": [
+     {
+      "value": "The Indian Contract Act, 1872"
+     }
+    ],
+    "dc.identifier.act_number": [
+     {
+      "value": "9"
+     }
+    ],
+    "dc.identifier.act_repealed": [
+     {
+      "value": "false"
+     }
+    ],
+    "dc.identifier.collection": [
+     {
+      "value": "SECTION"
+     }
+    ],
+    "dc.identifier.order_number": [
+     {
+      "value": "20"
+     }
+    ],
+    "dc.identifier.repealed": [
+     {
+      "value": "false"
+     }
+    ],
+    "dc.identifier.section_footnote": [
+     {
+      "value": "<sup>1</sup>. Ins. by Act 6 of 1899, s. 3.<br/><hr style=\"border: none; margin-bottom: 3px; margin-top: 0;\"/> <br/><hr style=\"border: none; margin-bottom: 3px; margin-top: 0;\"/>"
+     }
+    ],
+    "dc.identifier.section_id": [
+     {
+      "value": "38623"
+     }
+    ],
+    "dc.identifier.section_number": [
+     {
+      "value": "19A"
+     }
+    ],
+    "dc.identifier.section_page_note": [
+     {
+      "value": "<span style=\"margin-left: 15px;\"></span><b><sup>1</sup>[19A. Power to set aside contract induced by undue influence.</b>-- When consent to an agreement is caused by undue influence, the agreement is a contract voidable at the option of the party whose consent was so caused.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>Any such contract may be set aside either absolutely or, if the party who was entitled to avoid it has received any benefit thereunder, upon such terms and conditions as to the Court may seem just.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <i>Illustrations</i><br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(a) As son has forged Bs name to a promissory note. B under threat of prosecuting As son, obtains a bond from A for the amount of the forged note. If B sues on this bond, the Court may set the bond aside.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(b) A, a money-lender, advances Rs. 100 to B, an agriculturist, and, by undue influence, induces B to execute a bond for Rs. 200 with interest at 6 per cent. per month. The Court may set the bond aside, ordering B to repay the Rs. 100 with such interest as may seem just.]"
+     }
+    ],
+    "dc.identifier.state_name": [
+     {
+      "value": "CENTRAL"
+     }
+    ],
+    "dc.identifier.uri": [
+     {
+      "value": "http://test1.indiacode.nic.in/handle/123456789/531400"
+     }
+    ],
+    "dc.title": [
+     {
+      "value": "Power to set aside contract induced by undue influence."
+     }
+    ]
+   }
+  },
+  {
+   "uuid": "5754afdd-ed69-466e-926d-bbd2508bddf9",
+   "name": "Interpretation-clause.",
+   "handle": "123456789/531382",
+   "metadata": {
+    "dc.date.act_year": [
+     {
+      "value": "1872"
+     }
+    ],
+    "dc.identifier.act_id": [
+     {
+      "value": "AC_CEN_3_20_00035_187209_1523268996428"
+     }
+    ],
+    "dc.identifier.act_name": [
+     {
+      "value": "The Indian Contract Act, 1872"
+     }
+    ],
+    "dc.identifier.act_number": [
+     {
+      "value": "9"
+     }
+    ],
+    "dc.identifier.act_repealed": [
+     {
+      "value": "false"
+     }
+    ],
+    "dc.identifier.collection": [
+     {
+      "value": "SECTION"
+     }
+    ],
+    "dc.identifier.order_number": [
+     {
+      "value": "2"
+     }
+    ],
+    "dc.identifier.repealed": [
+     {
+      "value": "false"
+     }
+    ],
+    "dc.identifier.section_id": [
+     {
+      "value": "38605"
+     }
+    ],
+    "dc.identifier.section_number": [
+     {
+      "value": "2"
+     }
+    ],
+    "dc.identifier.section_page_note": [
+     {
+      "value": "<span style=\"margin-left: 15px;\"></span>In this Act the following words and expressions are used in the following senses, unless a contrary intention appears from the context:—<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(a) When one person signifies to another his willingness to do or to abstain from doing anything, with a view to obtaining the assent of that other to such act or abstinence, he is said to make a proposal;<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(b) When the person to whom the proposal is made signifies his assent thereto, the proposal is said to be accepted. A proposal, when accepted, becomes a promise;<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(c) The person making the proposal is called the \"promisor\", and the person accepting the proposal is called the \"promisee\";<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(d) When, at the desire of the promisor, the promisee or any other person has done or abstained from doing, or does or abstains from doing, or promises to do or to abstain from doing, something, such act or abstinence or promise is called a consideration for the promise;<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(e) Every promise and every set of promises, forming the consideration for each other, is an agreement;<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(f) Promises which form the consideration or part of the consideration for each other are called reciprocal promises;<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(g) An agreement not enforceable by law is said to be void;<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(h) An agreement enforceable by law is a contract;<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(i) An agreement which is enforceable by law at the option of one or more of the parties thereto, but not at the option of the other or others, is a voidable contract;<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(j) A contract which ceases to be enforceable by law becomes void when it ceases to be enforceable."
+     }
+    ],
+    "dc.identifier.state_name": [
+     {
+      "value": "CENTRAL"
+     }
+    ],
+    "dc.identifier.uri": [
+     {
+      "value": "http://test1.indiacode.nic.in/handle/123456789/531382"
+     }
+    ],
+    "dc.title": [
+     {
+      "value": "Interpretation-clause."
+     }
+    ]
+   }
+  },
+  {
+   "uuid": "9ac3ab80-c45b-4756-a257-8e2d2a0cc8fd",
+   "name": "What agreements are contracts.",
+   "handle": "123456789/531390",
+   "metadata": {
+    "dc.date.act_year": [
+     {
+      "value": "1872"
+     }
+    ],
+    "dc.identifier.act_id": [
+     {
+      "value": "AC_CEN_3_20_00035_187209_1523268996428"
+     }
+    ],
+    "dc.identifier.act_name": [
+     {
+      "value": "The Indian Contract Act, 1872"
+     }
+    ],
+    "dc.identifier.act_number": [
+     {
+      "value": "9"
+     }
+    ],
+    "dc.identifier.act_repealed": [
+     {
+      "value": "false"
+     }
+    ],
+    "dc.identifier.collection": [
+     {
+      "value": "SECTION"
+     }
+    ],
+    "dc.identifier.order_number": [
+     {
+      "value": "10"
+     }
+    ],
+    "dc.identifier.repealed": [
+     {
+      "value": "false"
+     }
+    ],
+    "dc.identifier.section_footnote": [
+     {
+      "value": "<sup>1</sup>. Subs. by Act 3 of 1951, s. 3 and Sch., for \"Part A States and Part C States\" which had been subs. by the A.O. 1950, for the Provinces.<br/><hr style=\"border: none; margin-bottom: 3px; margin-top: 0;\"/> <sup>2</sup>. <i>See e.g</i>., s. 25, </i>infra</i>; the Copyright Act, 1957 (14 of 1957), s. 19; the Carriers Act, 1865 (3 of 1865), ss. 6 and 7; the Companies Act, 1956 (1 of 1956), ss. 12, 30, 46 and 109."
+     }
+    ],
+    "dc.identifier.section_id": [
+     {
+      "value": "38613"
+     }
+    ],
+    "dc.identifier.section_number": [
+     {
+      "value": "10"
+     }
+    ],
+    "dc.identifier.section_page_note": [
+     {
+      "value": "<span style=\"margin-left: 15px;\"></span>All agreements are contracts if they are made by the free consent of parties competent to contract, for a lawful consideration and with a lawful object, and are not hereby expressly declared to be void.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>Nothing herein contained shall affect any law in force in <sup>1</sup> India and not hereby expressly repealed by which any contract is required to be made in writing<sup>2</sup> or in the presence of witnesses, or any law relating to the registration of documents."
+     }
+    ],
+    "dc.identifier.state_name": [
+     {
+      "value": "CENTRAL"
+     }
+    ],
+    "dc.identifier.uri": [
+     {
+      "value": "http://test1.indiacode.nic.in/handle/123456789/531390"
+     }
+    ],
+    "dc.title": [
+     {
+      "value": "What agreements are contracts."
+     }
+    ]
+   }
+  },
+  {
+   "uuid": "9d3e953c-3f3b-48af-8bce-355f2b6ec706",
+   "name": "Short title.",
+   "handle": "123456789/531381",
+   "metadata": {
+    "dc.date.act_year": [
+     {
+      "value": "1872"
+     }
+    ],
+    "dc.identifier.act_id": [
+     {
+      "value": "AC_CEN_3_20_00035_187209_1523268996428"
+     }
+    ],
+    "dc.identifier.act_name": [
+     {
+      "value": "The Indian Contract Act, 1872"
+     }
+    ],
+    "dc.identifier.act_number": [
+     {
+      "value": "9"
+     }
+    ],
+    "dc.identifier.act_repealed": [
+     {
+      "value": "false"
+     }
+    ],
+    "dc.identifier.collection": [
+     {
+      "value": "SECTION"
+     }
+    ],
+    "dc.identifier.order_number": [
+     {
+      "value": "1"
+     }
+    ],
+    "dc.identifier.repealed": [
+     {
+      "value": "false"
+     }
+    ],
+    "dc.identifier.section_footnote": [
+     {
+      "value": "<sup>1</sup>. Subs. by Act 3 of 1951, s. 3 and Sch., for \"except Part B States.\"<br/><hr style=\"border: none; margin-bottom: 3px; margin-top: 0;\"/> <sup>2</sup>. The words \"except the State of Jammu and Kashmir\" omitted by Act 34 of 2019, s. 95 and the Fifth Schedule (w.e.f. 31-10- 2019).<br/><hr style=\"border: none; margin-bottom: 3px; margin-top: 0;\"/> <sup>3</sup>. The words \"The enactments mentioned in the Schedule hereto are repealed to the extent specified in the third column thereof, but\" rep. by Act 10 of 1914, s. 3 and Sch. II."
+     }
+    ],
+    "dc.identifier.section_id": [
+     {
+      "value": "38604"
+     }
+    ],
+    "dc.identifier.section_number": [
+     {
+      "value": "1"
+     }
+    ],
+    "dc.identifier.section_page_note": [
+     {
+      "value": "<span style=\"margin-left: 15px;\"></span>This Act may be called the Indian Contract Act, 1872.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span><b>Extent, Commencement</b>.--It extends to the whole of India <sup>1</sup>[<sup>2</sup>***]; and it shall come into force on the first day of September, 1872.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span><b>Saving--</b><sup>3</sup>*** Nothing herein contained shall affect the provisions of any Statute, Act or Regulation not hereby expressly repealed, nor any usage or custom of trade, nor any incident of any contract, not inconsistent with the provisions of this Act."
+     }
+    ],
+    "dc.identifier.state_name": [
+     {
+      "value": "CENTRAL"
+     }
+    ],
+    "dc.identifier.uri": [
+     {
+      "value": "http://test1.indiacode.nic.in/handle/123456789/531381"
+     }
+    ],
+    "dc.title": [
+     {
+      "value": "Short title."
+     }
+    ]
+   }
+  },
+  {
+   "uuid": "c7db8712-e6b6-4ece-893a-1937cf76bbcd",
+   "name": "Compensation for loss or damage caused by breach of contract.",
+   "handle": "123456789/531447",
+   "metadata": {
+    "dc.date.act_year": [
+     {
+      "value": "1872"
+     }
+    ],
+    "dc.identifier.act_id": [
+     {
+      "value": "AC_CEN_3_20_00035_187209_1523268996428"
+     }
+    ],
+    "dc.identifier.act_name": [
+     {
+      "value": "The Indian Contract Act, 1872"
+     }
+    ],
+    "dc.identifier.act_number": [
+     {
+      "value": "9"
+     }
+    ],
+    "dc.identifier.act_repealed": [
+     {
+      "value": "false"
+     }
+    ],
+    "dc.identifier.collection": [
+     {
+      "value": "SECTION"
+     }
+    ],
+    "dc.identifier.order_number": [
+     {
+      "value": "74"
+     }
+    ],
+    "dc.identifier.repealed": [
+     {
+      "value": "false"
+     }
+    ],
+    "dc.identifier.section_id": [
+     {
+      "value": "38677"
+     }
+    ],
+    "dc.identifier.section_number": [
+     {
+      "value": "73"
+     }
+    ],
+    "dc.identifier.section_page_note": [
+     {
+      "value": "<span style=\"margin-left: 15px;\"></span>When a contract has been broken, the party who suffers by such breach is entitled to receive, from the party who has broken the contract, compensation for any loss or damage caused to him thereby, which naturally arose in the usual course of things from such breach, or which the parties knew, when they made the contract, to be likely to result from the breach of it.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>Such compensation is not to be given for any remote and indirect loss or damage sustained by reason of the breach.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span><b>Compensation for failure to discharge obligation resembling those created by contract</b>.When an obligation resembling those created by contract has been incurred and has not been discharged, any person injured by the failure to discharge it is entitled to receive the same compensation from the party in default, as if such person had contracted to discharge it and had broken his contract.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span><i>Explanation</i>.In estimating the loss or damage arising from a breach of contract, the means which existed of remedying the inconvenience caused by the non-performance of the contract must be taken into account.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <i>Illustrations</i><br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(a) A contracts to sell and deliver 50 maunds of saltpetre to B, at a certain price to be paid on delivery. A breaks his promise. B is entitled to receive from A, by way of compensation, the sum, if any, by which the contract price falls short of the price for which B might have obtained 50 maunds of saltpetre of like quality at the time when the saltpetre ought to have been delivered.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(b) A hires Bs ship to go to Bombay, and there take on board, on the first of January, a cargo, which A is to provide, and to bring it to Calcutta, the freight to be paid when earned. Bs ship does not go to Bombay, but A has opportunities of procuring suitable conveyance for the cargo upon terms as advantageous as those on which he had chartered the ship. A avails himself of those opportunities, but is put to trouble and expense in doing so. A is entitled to receive compensation from B in respect of such trouble and expense.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(c) A contracts to buy of B, at a stated price, 50 maunds of rice, no time being fixed for delivery. A afterwards informs B that he will not accept the rice if tendered to him. B is entitled to receive from A, by way of compensation, the amount, if any, by which the contract price exceeds that which B can obtain for the rice at the time when A informs B that he will not accept it.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(d) A contracts to buy B's ship for 60,000 rupees, but breaks his promise. A must pay to B, by way of compensation, the excess, if any, of the contract price over the price which B can obtain for the ship at the time of the breach of promise.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(e) A, the owner of a boat, contracts with B to take a cargo of jute to Mirzapur, for sale at that place, starting on a specified day. The boat, owing to some avoidable cause, does not start at the time appointed, whereby the arrival of the cargo at Mirzapur is delayed beyond the time when it would have arrived if the boat had sailed according to the contract. After that date, and before the arrival of the cargo, the price of jute falls. The measure of the compensation payable to B by A is the difference between the price which B could have obtained for the cargo at Mirzapur at the time when it would have arrived if forwarded in due course, and its market price at the time when it actually arrived.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(f) A contracts to repair B's house in a certain manner, and receives payment in advance. A repairs the house, but not according to contract. B is entitled to recover from A the cost of making the repairs conform to the contract.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(g) A contracts to let his ship to B for a year, from the first of January, for a certain price. Freights rise, and, on the first of January, the hire obtainable for the ship is higher than the contract price. A breaks his promise. He must pay to B, by way of compensation, a sum equal to the difference between the contract price and the price for which B could hire a similar ship for a year on and from the first of January.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(h) A contracts to supply B with a certain quantity of iron at a fixed price, being a higher price than that for which A could procure and deliver the iron. B wrongfully refuses to receive the iron. B must pay to A, by way of compensation, the difference between the contract price of the iron and the sum for which A could have obtained and delivered it.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(i) A delivers to B, a common carrier, a machine, to be conveyed, without delay, to A's mill, informing B that his mill is stopped for want of the machine. B unreasonably delays the delivery of the machine, and A, in consequence, loses a profitable contract with the Government. A is entitled to receive from B, by way of compensation, the average amount of profit which would have been made by the working of the mill during the time that delivery of it was delayed, but not the loss sustained through the loss of the Government contract.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(j) A, having contracted with B to supply B with 1,000 tons of iron at 100 rupees a ton, to be delivered at a stated time, contracts with C for the purchase of 1,000 tons of iron at 80 rupees a ton, telling C that he does so for the purpose of performing his contract with B. C fails to perform his contract with A, who cannot procure other iron, and B, in consequence, rescinds the contract. C must pay to A 20,000 rupees, being the profit which A would have made by the performance of his contract with B.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(k) A contracts with B to make and deliver to B, by a fixed day, for a specified price, a certain piece of machinery. A does not deliver the piece of machinery at the time specified, and in consequence of this, B is obliged to procure another at a higher piece than that which he was to have paid to A, and is prevented from performing a contract which B had made with a third person at the time of his contract with A (but which had not been then communicated to A), and is compelled to make compensation for breach of that contract. A must pay to B, by way of compensation, the difference between the contract price of the price of machinery and the sum paid by B for another, but not the sum paid by B to the third person by way of compensation.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(l) A, a builder, contracts to erect and finish a house by the first of January, in order that B may give possession of it at that time to C, to whom B has contracted to let it. A is informed of the contract between B and C. A builds the house so badly that, before the first of January, it falls down and has to be re-built by B, who, in consequence, loses the rent which he was to have received from C, and is obliged to make compensation to C for the breach of his contract. A must make compensation to B for the cost of rebuilding the house, for the rent lost, and for the compensation made to C.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(m) A sells certain merchandise to B, warranting it to be of a particular quality, and B, in reliance upon this warranty, sells it to C with a similar warranty. The goods prove to be not according to the warranty, and B becomes liable to pay C a sum of money by way of compensation. B is entitled to be reimbursed this sum by A.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(n) A contracts to pay a sum of money to B on a day specified. A does not pay the money on that day, B, in consequence of not receiving the money on that day, is unable to pay his debts, and is totally ruined. A is not liable to make good to B anything except the principal sum he contracted to pay, together with interest up to the day of payment.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(o) A contracts to deliver 50 maunds of saltpetre to B on the first of January, at a certain price. B afterwards, before the first of January, contracts to sell the saltpetre to C at a price higher than the market price of the first of January. A breaks his promise. <br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> In estimating the compensation payable by A to B, the market price of the first of January, and not the profit which would have arisen to B from the sale to C, is to be taken into account.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(p) A contracts to sell and deliver 500 bales of cotton to B on a fixed day. A knows nothing of Bs mode of conducting his business. A breaks his promise, and B, having no cotton, is obliged to close his mill. A is not responsible to B for the loss caused to B by the closing of the mill.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(q) A contracts to sell and deliver to B, on the first of January, certain cloth which B intends to manufacture into caps of a particular kind, for which there is no demand, except at that season. The cloth is not delivered till after the appointed time, and too late to be used that year in making caps. B is entitled to receive from A, by way of compensation, the difference between the contract price of the cloth and its market price at the time of delivery, but not the profits which he expected to obtain by making caps, nor the expenses which he has been put to in making preparation for the manufacture.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(r) A, a ship-owner, contracts with B to convey him from Calcutta to Sydney in A's ship, sailing on the first of January, and B pays to A, by way of deposit, one-half of his passage-money. The ship does not sail on the first of January, and B, after being in consequence detained in Calcutta for some time and thereby put to some expense, proceeds to Sydney in another vessel, and, in consequence, arriving too late in Sydney, loses a sum of money. A is liable to repay to B his deposit, with interest, and the expense to which he is put by his detention in Calcutta, and the excess, if any, of the passage-money paid for the second ship over that agreed upon for the first, but not the sum of money which B lost by arriving in Sydney too late."
+     }
+    ],
+    "dc.identifier.state_name": [
+     {
+      "value": "CENTRAL"
+     }
+    ],
+    "dc.identifier.uri": [
+     {
+      "value": "http://test1.indiacode.nic.in/handle/123456789/531447"
+     }
+    ],
+    "dc.title": [
+     {
+      "value": "Compensation for loss or damage caused by breach of contract."
+     }
+    ]
+   }
+  },
+  {
+   "uuid": "b15e7389-7b4e-409d-ab4d-9804ad1449b2",
+   "name": "Agreements in restraint of legal proceeding void.",
+   "handle": "123456789/531408",
+   "metadata": {
+    "dc.date.act_year": [
+     {
+      "value": "1872"
+     }
+    ],
+    "dc.identifier.act_id": [
+     {
+      "value": "AC_CEN_3_20_00035_187209_1523268996428"
+     }
+    ],
+    "dc.identifier.act_name": [
+     {
+      "value": "The Indian Contract Act, 1872"
+     }
+    ],
+    "dc.identifier.act_number": [
+     {
+      "value": "9"
+     }
+    ],
+    "dc.identifier.act_repealed": [
+     {
+      "value": "false"
+     }
+    ],
+    "dc.identifier.collection": [
+     {
+      "value": "SECTION"
+     }
+    ],
+    "dc.identifier.order_number": [
+     {
+      "value": "29"
+     }
+    ],
+    "dc.identifier.repealed": [
+     {
+      "value": "false"
+     }
+    ],
+    "dc.identifier.section_footnote": [
+     {
+      "value": "<sup>1</sup>. Subs. by Act 1 of 1997, s. 2, for certain words (w.e.f. 8-1-1997).<br/><hr style=\"border: none; margin-bottom: 3px; margin-top: 0;\"/> <sup>2</sup>. The second clause of <i>Exception</i> 1 to section 28 rep. by Act 1 of 1877, s. 2 and Sch.<br/><hr style=\"border: none; margin-bottom: 3px; margin-top: 0;\"/> <sup>3</sup>. <i>Cf</i>. the Arbitration Act, 1940 (10 of 1940) and the Companies Act, 1956 (1 of 1956), s. 389.<br/><hr style=\"border: none; margin-bottom: 3px; margin-top: 0;\"/> <sup>4</sup>. Ins. by Act 4 of 2013, s. 17 and the Sch. (w.e.f. 18-1-2013)."
+     }
+    ],
+    "dc.identifier.section_id": [
+     {
+      "value": "38632"
+     }
+    ],
+    "dc.identifier.section_number": [
+     {
+      "value": "28"
+     }
+    ],
+    "dc.identifier.section_page_note": [
+     {
+      "value": "<span style=\"margin-left: 15px;\"></span><sup>1</sup> Every agreement,—<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(a) by which any party thereto is restricted absolutely from enforcing his rights under or in respect of any contract, by the usual legal proceedings in the ordinary tribunals, or which limits the time within which he may thus enforce his rights; or<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(b) which extinguishes the rights of any party thereto, or discharges any party thereto, from any liability, under or in respect of any contract on the expiry of a specified period so as to restrict any party from enforcing his rights, is void to the extent.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span><i>Exception 1</i>.—<b>Saving of contract to refer to arbitration dispute that may arise</b>.—This section shall not render illegal a contract, by which two or more persons agree that any dispute which may arise between them in respect of any subject or class of subjects shall be referred to arbitration, and that only the amount awarded in such arbitration shall be recoverable in respect of the dispute so referred.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <sup>2</sup> * * * * *<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span><i>Exception 2</i>.—<b>Saving of contract to refer questions that have already arisen</b>.—Nor shall this section render illegal any contract in writing, by which two or more persons agree to refer to arbitration any question between them which has already arisen, or affect any provision of any law in force for the time being as to references to arbitration<sup>3</sup>.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span><sup>4</sup> <i>Exception 3</i>.—<b>Saving of a guarantee agreement of a bank or a financial institution</b>.—This section shall not render illegal a contract in writing by which any bank or financial institution stipulate a term in a guarantee or any agreement making a provision for guarantee for extinguishment of the rights or discharge of any party thereto from any liability under or in respect of such guarantee or agreement on the expiry of a specified period which is not less than one year from the date of occurring or non-occurring of a specified event for extinguishment or discharge of such party from the said liability.<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span><i>Explanation</i>.—(i) In Exception 3, the expression \"bank\" means—<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(a) a \"banking company\" as defined in clause (c) of section 5 of the Banking Regulation Act, 1949 (10 of 1949);<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(b) \"a corresponding new bank\" as defined in clause (da) of section 5 of the Banking Regulation Act, 1949 (10 of 1949);<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(c) \"State Bank of India\" constituted under section 3 of the State Bank of India Act, 1955 (23 of 1955);<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(d) \"a subsidiary bank\" as defined in clause (k) of section 2 of the State Bank of India (Subsidiary Banks) Act, 1959 (38 of 1959);<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(e) \"a Regional Rural Bank\" established under section 3 of the Regional Rural Banks Act, 1976 (21 of 1976);<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(f) \"a Co-operative Bank\" as defrined in clause (cci) of section 5 of the Banking Regulation Act, 1949 (10 of 1949);<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(g) \"a multi-State co-operative bank\" as defined in clause (cciiia) of section 5 of the Banking Regulation Act, 1949 (10 of 1949); and<br/><hr style=\"border: none; margin-bottom: 8px; margin-top: 0;\"/> <span style=\"margin-left: 15px;\"></span>(ii) In Exception 3, the expression \"a financial institution\" means any public financial institution within the meaning of section 4A of the Companies Act, 1956 (1 of 1956)."
+     }
+    ],
+    "dc.identifier.state_name": [
+     {
+      "value": "CENTRAL"
+     }
+    ],
+    "dc.identifier.uri": [
+     {
+      "value": "http://test1.indiacode.nic.in/handle/123456789/531408"
+     }
+    ],
+    "dc.title": [
+     {
+      "value": "Agreements in restraint of legal proceeding void."
+     }
+    ]
+   }
+  },
+  {
+   "uuid": "3b084a3f-9d0d-4248-976d-2eea8ddfdfea",
+   "name": "SCHEDULE.",
+   "handle": "123456789/511029",
+   "metadata": {
+    "dc.date.act_year": [
+     {
+      "value": "1872"
+     }
+    ],
+    "dc.identifier.act_id": [
+     {
+      "value": "AC_CEN_3_20_00035_187209_1523268996428"
+     }
+    ],
+    "dc.identifier.act_name": [
+     {
+      "value": "The Indian Contract Act, 1872"
+     }
+    ],
+    "dc.identifier.act_number": [
+     {
+      "value": "9"
+     }
+    ],
+    "dc.identifier.act_repealed": [
+     {
+      "value": "false"
+     }
+    ],
+    "dc.identifier.collection": [
+     {
+      "value": "SCHEDULE"
+     }
+    ],
+    "dc.identifier.order_number": [
+     {
+      "value": "1"
+     }
+    ],
+    "dc.identifier.schedule_id": [
+     {
+      "value": "572"
+     }
+    ],
+    "dc.identifier.state_name": [
+     {
+      "value": "CENTRAL"
+     }
+    ],
+    "dc.identifier.uri": [
+     {
+      "value": "http://test1.indiacode.nic.in/handle/123456789/511029"
+     }
+    ],
+    "dc.title": [
+     {
+      "value": "SCHEDULE."
+     }
+    ]
+   }
+  },
+  {
+   "uuid": "0e782442-f035-4d53-aace-81b1552a8cf2",
+   "name": "The Indian Contract Act, 1872",
+   "handle": "123456789/496413",
+   "metadata": {
+    "dc.date.act_year": [
+     {
+      "value": "1872"
+     }
+    ],
+    "dc.date.enact_date": [
+     {
+      "value": "1872-04-25"
+     }
+    ],
+    "dc.date.enforcement_date": [
+     {
+      "value": "1872-09-01"
+     }
+    ],
+    "dc.identifier.act_id": [
+     {
+      "value": "AC_CEN_3_20_00035_187209_1523268996428"
+     }
+    ],
+    "dc.identifier.act_number": [
+     {
+      "value": "9"
+     }
+    ],
+    "dc.identifier.collection": [
+     {
+      "value": "ACT"
+     }
+    ],
+    "dc.identifier.repealed": [
+     {
+      "value": "false"
+     }
+    ],
+    "dc.identifier.state_name": [
+     {
+      "value": "CENTRAL"
+     }
+    ],
+    "dc.identifier.uri": [
+     {
+      "value": "http://test1.indiacode.nic.in/handle/123456789/496413"
+     }
+    ],
+    "dc.title": [
+     {
+      "value": "The Indian Contract Act, 1872"
+     }
+    ]
+   }
+  }
+ ]
+}
