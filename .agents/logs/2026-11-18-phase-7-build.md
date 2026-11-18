@@ -26,14 +26,15 @@ Date: 2026-11-18. Owner instruction: implement phase 7 of the build plan. The sp
 - K4: the Strategy view shows the attack that fells each `out` argument and the attack graph's dependencies, through the tested `strategyView`.
 - K6: the brief states the stage and the proceeding, and the previous hearing's recorded directions with the hearing date.
 - K9: the cross-examination plan shows each target's text and anchors: the source, page and line for a fact; the statement, witness and date for recorded evidence.
-- The phase-7 end-to-end run exercises O5: the critic and opposing-counsel passes run on a second scripted critic model.
+- The phase-7 end-to-end run exercises O5: the loop and the rehearsal run with separate scripted drafting and critic models, so the drafting model's proposing passes and bench questions and the critic model's attacks and objections are both proven. The chat script stays empty, so the run would produce nothing if the role wiring were absent.
+- O5: the loop's proposing passes and the rehearsal's bench questions now run on the drafting role model. Before this fix they always used the chat's model. A drafting model equal to the chat's model falls back to the chat's model; the critic passes are used only when the critic model differs from the proposing model.
 
 ## Commands and results
 
 | Command | Result |
 |---|---|
 | `npm run typecheck` | exit 0 |
-| `npm run test:unit` | 346 tests: 343 passed, 0 failed, 3 skipped (the live-network suites) |
+| `npm run test:unit` | 347 tests: 344 passed, 0 failed, 3 skipped (the live-network suites) |
 | `npm run build` | main, preload and renderer built (three "built in" lines) |
 | `npx playwright test tests/e2e/phase7.spec.ts --workers=1` | 1 passed |
 | `npx playwright test` (the phase-end run, once) | 47 tests: 45 passed, 2 skipped (the live-model tests need `OPENADVO_LIVE_MODEL`), 0 failed |
@@ -48,7 +49,8 @@ Date: 2026-11-18. Owner instruction: implement phase 7 of the build plan. The sp
 
 - `5f5c574`: the phase-7 spec.
 - `94ded85`: the phase-7 core (O5 and K1–K9).
-- `9706c19`: the window and the exit path completed (this session's fixes).
+- `9706c19`: the window and the exit path completed.
+- `9df37cf`: O5's drafting model for the proposing passes and the bench questions, with the test that proves it.
 
 ## Known gaps and limits
 
