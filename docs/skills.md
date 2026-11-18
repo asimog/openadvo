@@ -20,7 +20,7 @@ Each skill is one versioned file in the skills registry (feature N1). The file f
 | tests | Fixture briefs and expected properties (feature N6) |
 | author | Built in, or the advocate |
 
-A skill is reviewed before it ships (feature N6). Its review score is kept with its version.
+A skill is reviewed before it ships (feature N6). Its review score is kept with its version in `review.json` beside `SKILL.md`; a skill whose version changes without a new record cannot run. The packs are `packs/<id>.json`, checked by `src/lib/packs/` ([specs/practice-packs.md](specs/practice-packs.md)).
 
 ## 2. Skills library
 

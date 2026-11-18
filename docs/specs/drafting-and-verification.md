@@ -27,7 +27,7 @@ Everything else in the scope is new.
 - **record** — generated from confirmed records, each paragraph linked to the ids of its records (L2);
 - **slot** — a title and a `[REVIEW]` marker; the advocate writes it, or the agent proposes it as a tracked change. No generator writes legal text into a slot.
 
-Kinds: `plaint`, `written_statement`, `replication`, `application_interim`, `application_stay`, `application_exemption`, `application_early_hearing`, `condonation` (exists), `petition` (SLP, exists), `writ_petition`, `appeal_memo`, `revision_petition`, `counter_affidavit`, `rejoinder`, `affidavit`, `written_submissions`, `legal_notice`, `notice_reply`, `list_of_dates` (exists), `synopsis` (exists), `questions_of_law` (exists), `grounds` (exists), `chronology`, `briefing_note`, `case_summary`, `research_memo`, `index`, `memo_of_parties`, `vakalatnama`, `appendix_of_provisions`, `client_letter`, `hearing_update`, `conference` (exists).
+Kinds: `plaint`, `written_statement`, `replication`, `application_interim`, `application_stay`, `application_exemption`, `application_early_hearing`, `condonation` (exists), `petition` (SLP, exists), `writ_petition`, `appeal_memo`, `revision_petition`, `counter_affidavit`, `rejoinder`, `affidavit`, `written_submissions`, `legal_notice`, `notice_reply`, `list_of_dates` (exists), `synopsis` (exists), `questions_of_law` (exists), `grounds` (exists), `chronology`, `briefing_note`, `case_summary`, `research_memo`, `index`, `memo_of_parties`, `vakalatnama`, `appendix_of_provisions`, `client_letter`, `hearing_update`, `conference` (exists). Phase 8 adds `bail_application`, `anticipatory_bail_application`, `quashing_petition` and `discharge_application` for the criminal pack.
 
 Every kind is a real draft: generation builds it, the editor opens it, the checks run on it, the filing set includes it when the pack names it. Nothing is a stand-in; a slot says on screen that the advocate or the agent writes it.
 
@@ -143,7 +143,7 @@ All checks are deterministic: no model reads the draft. Each produces items with
 | Appendix of provisions | `appendix_of_provisions` |
 | Certified copy of the impugned judgment | an annexure; the compliance row says which |
 
-A part the application cannot map is a compliance row `not_checked` with the pack's words: the set says what it does not know. With no target, the Supreme Court SLP set is unchanged.
+A part the application cannot map is a compliance row `not_checked` with the pack's words: the set says what it does not know. With no target, phase 8's default SLP pack supplies the set ([practice-packs.md](practice-packs.md) section 2.1).
 
 The phase exit path: a Delhi High Court W.P.(C) matter with its target set builds — memo of parties, writ petition, affidavit, vakalatnama, the annexures, the AI-use disclosure — each approved revision rendered to PDF/A, the court's checklist and format checks joined, the `PROC` rows, the paper book and the signed manifest.
 

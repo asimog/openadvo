@@ -33,7 +33,7 @@ A skill is a folder with `SKILL.md`: Pi's skill file (name and description in th
 
 - **Where.** Built-in skills are in `skills/` of the application. The advocate's own skills are in `<userData>/skills/`. The registry lists both. When both have the same id, both versions are listed and the higher version runs.
 - **Checks at load.** A skill whose permitted tools include a tool the agent does not have, a tool outside its role's scope, a human-only action, or an unknown output type is listed with its error and cannot run.
-- **The phase 1 skills.** Four built-in skills at version 0.1.0, built on the current tools: SK-008, SK-011, SK-012 and SK-027. Each says "not reviewed" until feature N6 (phase 8) reviews it.
+- **The phase 1 skills.** Four built-in skills at version 0.1.0 (SK-008, SK-011, SK-012 and SK-027), built on the current tools. Phase 8 reviewed them with the rest of the library and they are version 1.0.0 (feature N6; [practice-packs.md](practice-packs.md) section 4).
 
 ## 3. The context package (I1)
 
