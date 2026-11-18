@@ -131,6 +131,9 @@ Key files:
 | `src/renderer/src/RightPane.tsx`, `Onboarding.tsx`, `Profile.tsx`, `Library.tsx`, `Dashboard.tsx`, `MatterProfile.tsx`, `Intake.tsx` | Phase 3's right pane and browser, setup, Practice Profile, library, Home dashboard, matter profile and intake |
 | `src/renderer/src/Phase4.tsx` | Phase 4's facts, evidence, structure, jurisdiction and typed-memory views |
 | `src/main/studio.ts`, `src/main/research.ts` | Research sources, the argument loop and rehearsal |
+| `src/lib/drafting/documents.ts`, `src/lib/drafting/parts.ts` | Phase 6's document catalogue, its parts, the court DOCX formats and the pack-part mapping (L1 to L3) |
+| `src/lib/preferences/` | The learned preference keys, the ask-once questions and the correction-driven proposals (A7) |
+| `src/lib/verification/` | The draft checks: `index.ts` (the one defect mapping), `grounding.ts` (P1), `provenance.ts` (P2), `statute.ts` (P4), `structure.ts` (P7, P8), `injection.ts` (P10), `reviewer-note.ts` (P9) |
 
 ### 6.2 Patterns to keep
 

@@ -1542,14 +1542,14 @@ app.whenReady().then(() => {
   filing.courtRules = (id) => courtIntel.compliance(id);
   // Phase 6 (L1, P5): the target's proceeding pack drives the required documents, and the pack
   // lists' freshness is the rule-currency row. With no pack, the SLP set is unchanged.
-  const targetPack = async (id: string): Promise<{ requiredParts: string[]; caseType: string } | null> => {
+  const targetPack = async (id: string): Promise<{ requiredParts: string[]; caseType: string; limitation?: { days: number; from: string; source: string } | null } | null> => {
     const store = await matters.store(id);
     const target = store.filingTarget();
     if (!target) return null;
     const adapter = courtIntel.adapterFor(target.court);
     if (!adapter) return null;
     const proceeding = (adapter.proceedings ?? []).find((p) => p.caseType === target.caseType) ?? null;
-    return proceeding ? { requiredParts: proceeding.requiredParts, caseType: proceeding.caseType } : null;
+    return proceeding ? { requiredParts: proceeding.requiredParts, caseType: proceeding.caseType, limitation: proceeding.limitation ?? null } : null;
   };
   filing.proceedingPack = (id) => targetPack(id);
   filing.packFreshness = async (id) => {

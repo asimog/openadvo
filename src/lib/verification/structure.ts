@@ -56,10 +56,15 @@ export type Marker = (typeof MARKERS)[number];
 /** The [TO BE COMPLETED: …] marker of the form parts. */
 export const TO_COMPLETE = "[TO BE COMPLETED";
 
-/** The markers of a text, including the incomplete-parts marker. */
+/**
+ * The markers of a text, including the incomplete-parts marker. A marker also appears in its
+ * parameterized form — "[REVIEW: what the advocate writes]" — which names the work to do.
+ */
 export function markersIn(text: string): string[] {
   const out: string[] = [];
-  for (const m of MARKERS) if (text.includes(m)) out.push(m);
+  for (const m of MARKERS) {
+    if (text.includes(m) || text.includes(`${m.slice(0, -1)}:`)) out.push(m);
+  }
   if (text.includes(TO_COMPLETE)) out.push(TO_COMPLETE);
   return out;
 }

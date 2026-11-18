@@ -78,7 +78,9 @@ export class Filing {
   /** B12: the court's checklist as compliance rows (phase 2). Set by the application. */
   courtRules: ((matterId: string) => Promise<ComplianceResult[]>) | null = null;
   /** Phase 6 (L1): the proceeding pack of the matter's filing target, or null when none is set. */
-  proceedingPack: ((matterId: string) => Promise<{ requiredParts: string[]; caseType: string } | null>) | null = null;
+  proceedingPack:
+    | ((matterId: string) => Promise<{ requiredParts: string[]; caseType: string; limitation?: { days: number; from: string; source: string } | null } | null>)
+    | null = null;
   /** Phase 6 (P5): the pack lists' freshness, for the rule-currency row. */
   packFreshness: ((matterId: string) => Promise<Array<{ list: string; state: "fresh" | "stale"; since: string }>>) | null = null;
 
@@ -89,7 +91,7 @@ export class Filing {
   }
 
   /** The matter's filing target's proceeding pack, or null. */
-  private async pack(matterId: string): Promise<{ requiredParts: string[]; caseType: string } | null> {
+  private async pack(matterId: string): Promise<{ requiredParts: string[]; caseType: string; limitation?: { days: number; from: string; source: string } | null } | null> {
     return (await this.proceedingPack?.(matterId)) ?? null;
   }
 
@@ -156,6 +158,9 @@ export class Filing {
     const w = await this.work(matterId);
     const drafts = await this.matters.listDrafts(matterId);
     const docs = await this.docs(matterId);
+    // Phase 6 (L1): the target's proceeding pack, read once for the parts, the procedure rows
+    // and the limitation rule.
+    const pack = await this.pack(matterId);
     const rows = [];
     for (const r of docs.documents) {
       const d = drafts.find((x) => x.kind === r.kind);
@@ -174,11 +179,24 @@ export class Filing {
       limitation: limitation ? { deadline: limitation.deadline, confirmed: limitation.confirmedAt !== null } : null,
       filingSet: filingSet ? { files: filingSet.manifest.files } : null,
     });
+    // Phase 6 (L1): a proceeding pack without a limitation rule of its own (the DHC W.P.(C))
+    // never shows the SLP limitation rule as its own: the row says what the pack states.
+    if (pack && pack.limitation == null) {
+      const at = results.findIndex((r) => r.rule === "P-4");
+      if (at >= 0) {
+        results[at] = {
+          rule: "P-4",
+          title: "Limitation computed and confirmed for the proceeding",
+          source: `the ${pack.caseType} proceeding pack`,
+          outcome: "not_checked",
+          detail: "The pack states no limitation rule of its own, so none is computed. Compute one on the Filing tab only if the proceeding has a limitation period.",
+        };
+      }
+    }
     // V5-15, V5-17: victim identity in an approved draft, the disclosure's blockers, the conversion check.
     const extra = await this.v5Rules(matterId, rows, filingSet);
     results.push(...extra);
     // Phase 6 (L1, P5): the pack's own parts, the procedure checks, and the court's checklist.
-    const pack = await this.pack(matterId);
     docs.annexureParts.forEach((part, n) => {
       results.push({
         rule: `PACK-A${n + 1}`,

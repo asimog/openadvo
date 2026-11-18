@@ -78,6 +78,8 @@ test("the recorded relief must be prayed", () => {
 
 test("the open markers are found, each with its paragraph (P8)", () => {
   assert.deepEqual(markersIn("A [CITE] is needed here; a [REVIEW] too."), ["[CITE]", "[REVIEW]"]);
+  assert.deepEqual(markersIn("The grounds. [REVIEW: the advocate writes them]"), ["[REVIEW]"]);
+  assert.deepEqual(markersIn("The provision. [CITE: the section relied on]"), ["[CITE]"]);
   const result = checkStructure({
     paragraphs: [
       { anchor: "oa-1", text: "The proposition holds. [CITE]" },

@@ -216,6 +216,9 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
       "quickCheckCitations", "benchTrends", "assessAuthority", "addTreatment", "runRehearsal", "decideChallenge",
       "listRevisions", "compareRevisions", "openInWord", "importFromWord", "filingResult", "reconcileFiling",
       "listHearings", "addHearing", "listReminders", "addReminder", "doneReminder", "getPolicy", "setPolicy", "stopChat", "answerExtensionQuestion", "closeFirmHandoff", "clearPlan", "compactChat", "getToolPolicy", "setToolPolicy", "stopHelper", "steerHelper", "useHelperResults", "getPlanStrength", "setPlanStrength", "costCsv", "listContacts", "addContact", "removeContact", "listParties", "addParty", "getDocket", "generateQuestions", "previewDiagnostics", "writeDiagnostics", "onReminderDue",
+      // Phase 5: the Studio law library (docs/specs/law-research-authority.md). Added to the exact
+      // list after they were found missing from it (phase 6's full-suite run caught the gap).
+      "knowledgeHealth", "knowledgeIndexJudgment", "knowledgeLoadFirstWave", "knowledgePlans", "knowledgeSaveProvision", "knowledgeSearch", "decideResearchPlan",
       // Phase 1: harness and stores (docs/specs/harness-and-stores.md).
       "listSkills", "listSkillRuns", "getContextPackage", "listRunJobs", "resumeSkillRun", "approvePlan", "askSide", "discardSide", "listSide", "contextCandidates", "inboxAll", "searchAll",
       "getAdvocateProfile", "setAdvocateProfile", "listAdvocateMemory", "decideAdvocateMemory", "listPreferences", "decidePreference", "listIntelSources", "storeChains",
@@ -283,6 +286,16 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
     "read_judgment",
     "search_statutes",
     "read_statute_section",
+    // Phase 5: the Studio knowledge search and research tools (law-research-authority.md).
+    // Added to the exact list after they were found missing from it (the phase 6 full-suite run
+    // caught the gap).
+    "search_knowledge",
+    "verify_quote",
+    "find_adverse_authority",
+    "propose_research_plan",
+    "list_research_plans",
+    "set_research_step",
+    "write_research_memo",
     "web_search",
     "web_fetch",
     "save_judgment",

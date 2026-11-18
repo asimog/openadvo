@@ -83,9 +83,13 @@ test("the procedure rows read the target, the report and the pack lists (P5)", a
   assert.match(byRule.get("PROC-forum")?.detail ?? "", /No jurisdiction report/);
   assert.equal(byRule.get("PROC-route")?.outcome, "not_checked");
 
-  // The W.P.(C) pack states no limitation rule of its own; the row says so.
+  // The W.P.(C) pack states no limitation rule of its own; the row says so, and the SLP
+  // limitation rule never shows as this proceeding's own (P-4 overridden, not checked).
   assert.equal(byRule.get("PROC-limitation")?.outcome, "not_checked");
   assert.match(byRule.get("PROC-limitation")?.detail ?? "", /no limitation rule/);
+  const p4 = st.compliance.results.find((r) => r.rule === "P-4");
+  assert.equal(p4?.outcome, "not_checked");
+  assert.match(p4?.detail ?? "", /no limitation rule of its own/);
 
   // With a fresh list built, the rule-currency row passes; a stale list is unconfirmed.
   assert.equal(byRule.get("PROC-rules")?.outcome, "not_checked");

@@ -18,7 +18,10 @@ This file owns the folders, the write boundaries, the data outside the repositor
 | `src/lib/library/` | The Knowledge Library's kind proposal, title and folder scope (M1). | — |
 | `src/lib/classification/` | The classification proposal from the title, files, parties and profile (C3). | — |
 | `src/lib/stages/` | The stage list of each proceeding (C4). | — |
-| `src/lib/evidence/` | Phase 4's plain rules: facts, structure, layout, relations, contradictions, timelines, templates, jurisdiction and related matters. | — |
+| `src/lib/evidence/` | Phase 4's plain rules: facts, structure, layout, relations, contradictions, timelines, templates, jurisdiction and related matters. |
+| `src/lib/drafting/` | Phase 6's plain drafting rules: the document catalogue (`documents.ts`), the part library (`parts.ts`), the DOCX builder and the SLP blocks. |
+| `src/lib/preferences/` | The learned preferences (A7): the keys, the ask-once questions, the correction-driven proposals. |
+| `src/lib/verification/` | The draft checks of phase 6 (P1 to P10): the one defect mapping, grounding, provenance, statutes, structure, markers, injection and the reviewer note. | — |
 | `src/lib/court-directory/` | The offline directory of courts and tribunals (B1). | Engineers; the advocate's corrections come with the pack editor. |
 | `adapters/` | Built-in court adapters, one folder per adapter with `adapter.json` (data, never code). | Engineers, with every quote read in the official document. |
 | `src/main/browser.ts` | The built-in browser (S10): tabs, bookmarks, recent pages, hidden agent pages, DevTools Protocol control and downloads into the matter. | Main-process code only. |
@@ -28,7 +31,7 @@ This file owns the folders, the write boundaries, the data outside the repositor
 | `src/main/document-ops.ts` | PDF extract, split, merge, reorder, annotate, highlight and redact, each writing a new source (H13). | Main-process code only. |
 | `skills/` | Built-in skills, one folder per skill with `SKILL.md` ([specs/harness-and-stores.md](specs/harness-and-stores.md) section 2). Practice packs come in phase 8. | Engineers, through a reviewed change (N6). |
 | `tests/unit/` | `node:test` tests of the plain libraries. | — |
-| `tests/e2e/` | Playwright tests against the built application. The native harness parts have one file each: `native-policy.spec.ts`, `native-helpers.spec.ts`, `native-plan.spec.ts`, `native-context.spec.ts`. Phase 1 is `phase1.spec.ts`; phase 2 is `phase2.spec.ts`; phase 3 is `phase3.spec.ts`; phase 4 is `phase4.spec.ts`. | — |
+| `tests/e2e/` | Playwright tests against the built application. The native harness parts have one file each: `native-policy.spec.ts`, `native-helpers.spec.ts`, `native-plan.spec.ts`, `native-context.spec.ts`. Phase 1 is `phase1.spec.ts`; phase 2 is `phase2.spec.ts`; phase 3 is `phase3.spec.ts`; phase 4 is `phase4.spec.ts`; phase 6 is `phase6.spec.ts`. | — |
 | `scripts/` | Node scripts. No PowerShell (decision 9). | — |
 | `spikes/` | Small proofs that settle one question. Each has a result file. Not product code. | — |
 | `docs/` | Durable documents. See [README.md](README.md). | — |

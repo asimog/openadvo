@@ -4,6 +4,7 @@
  * lib/studio for one issue. Every write goes through the matter store. Spec: docs/archive/2026-11-15/specs/v4.md.
  */
 import { createHash } from "node:crypto";
+import { mkdirSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -65,7 +66,9 @@ export class ResearchHub {
   constructor(matters: Matters, corpusFolder: string, settings: () => ResearchSettings, onProgress: (text: string) => void = () => undefined) {
     this.matters = matters;
     // One owner for the corpus file. The judgment metadata and the law rows share the same
-    // connection; no second module opens corpus.db.
+    // connection; no second module opens corpus.db. The folder is created here: a fresh user
+    // data folder has no corpus/ yet, and sqlite does not create folders.
+    mkdirSync(corpusFolder, { recursive: true });
     const db = new DatabaseSync(path.join(corpusFolder, "corpus.db"));
     db.exec("PRAGMA journal_mode = WAL;");
     this.corpus = new Corpus(corpusFolder, db);

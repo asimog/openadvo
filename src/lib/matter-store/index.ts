@@ -26,6 +26,7 @@ import type { ContextPackageRecord, ReportCard, RunState, SkillRunRecord } from 
 import { AUDIT_SCHEMA, addRefusal, eventHash, find, findIndexSeq, inspect, listRefusals, replaceFindIndex, verifyChain, type ChainCheck, type FindHit, type FindRow, type Inspection, type Refusal } from "./audit.ts";
 import { ACCEPTED_TEXT, detectMediaType } from "../document-intelligence/formats.ts";
 import type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus, DraftKind, RevisionAuthor, DraftRecord, RevisionRecord, ParagraphLinkRecord, ParagraphLinkInput } from "../../shared/records.ts";
+import { DRAFT_KINDS } from "../../shared/records.ts";
 
 export type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus, DraftKind, RevisionAuthor, DraftRecord, RevisionRecord, ParagraphLinkRecord, ParagraphLinkInput };
 
@@ -192,9 +193,10 @@ CREATE TRIGGER IF NOT EXISTS decision_no_delete BEFORE DELETE ON event_decision 
 CREATE TRIGGER IF NOT EXISTS conflict_no_delete BEFORE DELETE ON date_conflict BEGIN SELECT RAISE(ABORT, 'conflicts are marked, never deleted'); END;
 
 -- Step 4: drafts and revisions (work products). A revision is append-only; an approval is its own row.
+-- Phase 6 (L3): every kind of the catalogue.
 CREATE TABLE IF NOT EXISTS draft (
   id TEXT PRIMARY KEY,
-  kind TEXT NOT NULL CHECK (kind IN ('list_of_dates', 'synopsis', 'questions_of_law', 'grounds', 'petition', 'conference', 'condonation')),
+  kind TEXT NOT NULL CHECK (kind IN (${DRAFT_KINDS.map((k) => `'${k}'`).join(", ")})),
   title TEXT NOT NULL,
   created_at TEXT NOT NULL
 ) STRICT;
@@ -430,14 +432,17 @@ ALTER TABLE document_part_layout RENAME TO document_part;`);
     const items = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'review_item'").get() as { sql?: string } | undefined;
     if (items?.sql && !items.sql.includes("draft_id")) db.exec("ALTER TABLE review_item ADD COLUMN draft_id TEXT;");
     // Step 6: drafts of the kinds questions_of_law and grounds. V1: petition and conference.
+    // Phase 6 (L3): a matter made before the catalogue rebuilds once, and the kinds of the
+    // current DRAFT_KINDS apply from then on.
     const draft = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'draft'").get() as { sql?: string } | undefined;
-    if (draft?.sql && !draft.sql.includes("'condonation'")) {
+    const draftKinds = DRAFT_KINDS.map((k) => `'${k}'`).join(", ");
+    if (draft?.sql && !draft.sql.includes("'writ_petition'")) {
       db.exec("PRAGMA foreign_keys = OFF;");
       db.exec("BEGIN");
       try {
         db.exec(`CREATE TABLE draft_step6 (
   id TEXT PRIMARY KEY,
-  kind TEXT NOT NULL CHECK (kind IN ('list_of_dates', 'synopsis', 'questions_of_law', 'grounds', 'petition', 'conference', 'condonation')),
+  kind TEXT NOT NULL CHECK (kind IN (${draftKinds})),
   title TEXT NOT NULL,
   created_at TEXT NOT NULL
 ) STRICT;

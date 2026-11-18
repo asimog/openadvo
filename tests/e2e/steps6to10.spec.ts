@@ -193,6 +193,11 @@ test("steps 6 to 10: research, citations, grounds, filing set, capture, agent fi
     await authorityRow.getByLabel("Voice of the authority").selectOption("holding");
     await authorityRow.getByRole("button", { name: "Set voice" }).click();
     await expect(authorityRow).toContainText("Voice confirmed");
+    // Phase 6 (P3): whether the passage supports the whole proposition must be confirmed too.
+    await expect(call("approveRevision", matterId, kept.id)).rejects.toThrow(/1950 INSC 1: whether the passage supports/);
+    await authorityRow.getByLabel("Support of the authority").selectOption("supports");
+    await authorityRow.getByRole("button", { name: "Set support" }).click();
+    await expect(authorityRow).toContainText("Support confirmed");
     await call("approveRevision", matterId, kept.id);
 
     // ---- The other petition documents, approved by the advocate ----
