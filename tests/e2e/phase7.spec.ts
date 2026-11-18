@@ -60,6 +60,7 @@ test("phase 7: issue ties, the element chart, the theory, the tasks, the cross-e
     dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [p] })) as typeof dialog.showOpenDialog;
   }, file);
   await page.getByRole("button", { name: "Add files" }).click();
+  await expect(page.getByText("brief.pdf")).toBeVisible({ timeout: 120_000 });
   await app.evaluate(() => (globalThis as any).__openadvoTest.ingestIdle());
   const notebook = await call<{ events: Array<{ id: string }> }>("getNotebook", matterId);
   for (const event of notebook.events) await call("confirmEvent", matterId, event.id);
@@ -77,8 +78,8 @@ test("phase 7: issue ties, the element chart, the theory, the tasks, the cross-e
   const issue = issues.find((i) => i.status === "candidate")!;
   expect(issue.factIds).toEqual(facts.slice(0, 2).map((f) => f.id));
   await call("decideIssue", matterId, issue.id, "accepted", "the record raises it");
-  await page.getByRole("tab", { name: "Filing" }).click().catch(() => undefined);
-  await page.getByRole("tab", { name: "Matter", exact: true }).click();
+  // The issues and their fact ties are shown in the Studio's Conference part.
+  await page.getByRole("tab", { name: "Studio" }).click();
   await expect(page.getByTestId("issue-facts")).toContainText("brief.pdf", { timeout: 15_000 });
 
   // ---- K3: the interim-relief element chart; a gap closed by an anchored cell; a proposed element confirmed ----
@@ -132,18 +133,23 @@ test("phase 7: issue ties, the element chart, the theory, the tasks, the cross-e
   await expect(page.getByTestId("record-gaps")).toContainText("Balance of convenience");
 
   // ---- K2: the argument loop, then the standing on the Strategy view ----
+  const acceptedIssue = (await call<{ issues: Array<{ id: string; status: string }> }>("getResearch", matterId)).issues.find((i) => i.status === "accepted")!;
   await app.evaluate(
-    (_e, id) => (globalThis as any).__openadvoTest.runStudioScripted(id, [
+    (_e, input) => (globalThis as any).__openadvoTest.runStudioScripted(input.matterId, input.issueId, [
       { match: "TASK: Propose", answer: JSON.stringify({ arguments: [{ claim: "The order was passed without hearing the petitioner.", reasoning: "E1 records the order and E2 records the petition; the record holds no notice.", events: [{ ref: "E1", quote: "without hearing the petitioner" }] }] }) },
       { match: "critical questions", answer: '{"questions":["Was any notice issued before the order?"]}' },
       { match: "counsel for the respondent", answer: JSON.stringify({ arguments: [{ kind: "undercut", claim: "The record's silence on notice does not prove none was issued.", reasoning: "E1 records only that the order does not mention a hearing.", events: [{ ref: "E1", quote: "without hearing the petitioner" }] }] }) },
       { match: "better", answer: '{"better":"A"}' },
     ]),
-    matterId,
+    { matterId, issueId: acceptedIssue.id },
   );
-  const studio = await call<{ arguments: Array<{ id: string; status: string }> }>("getStudio", matterId);  const argument = studio.arguments.find((a) => a.status === "candidate")!;
+  const studio = await call<{ arguments: Array<{ id: string; status: string; attacks: string | null }> }>("getStudio", matterId);
+  const argument = studio.arguments.find((a) => a.status === "candidate" && !a.attacks)!;
   await call("decideArgument", matterId, argument.id, "accepted");
   await expect(page.getByTestId("standing-list")).toContainText("The order was passed without hearing", { timeout: 15_000 });
+  // The advocate rejects the opponent's standing attack, so the argument stands for the outline.
+  const attack = studio.arguments.find((a) => a.status === "candidate" && a.attacks)!;
+  await call("decideArgument", matterId, attack.id, "rejected");
 
   // ---- The rehearsal, with a scripted model, and one bench question accepted ----
   await app.evaluate(
@@ -156,6 +162,8 @@ test("phase 7: issue ties, the element chart, the theory, the tasks, the cross-e
   const challenges = (await call<{ challenges: Array<{ id: string; kind: string; status: string }> }>("getStudio", matterId)).challenges;
   const benchQuestion = challenges.find((c) => c.kind === "bench_question")!;
   await call("decideChallenge", matterId, benchQuestion.id, "accepted");
+  const objection = challenges.find((c) => c.kind === "objection")!;
+  await call("decideChallenge", matterId, objection.id, "accepted");
 
   // ---- K8: the hearing with directions; the compliance tasks proposed and accepted ----
   const hearing = await call<{ id: string }>("addHearing", matterId, { date: "2026-11-10", bench: "Justice X", directions: "Reply affidavit within four weeks; list after four weeks.", nextDate: "2026-12-15", nextDateStatus: "confirmed" });
@@ -174,13 +182,15 @@ test("phase 7: issue ties, the element chart, the theory, the tasks, the cross-e
   expect(reminders.some((r) => r.text.includes("File the reply affidavit"))).toBe(true);
 
   // ---- K9: the cross-examination question, from a recorded statement ----
+  const sourcesForEvidence = await call<Array<{ id: string; name: string }>>("listSources", matterId);
+  const statement = await call<{ id: string }>("evidenceAdd", matterId, { sourceId: sourcesForEvidence[0].id, statement: "I received no notice of the order before it was passed.", givenBy: "W1", givenAt: "2024-03-13" });
   const evidence = await call<Array<{ id: string; statement: string }>>("evidenceList", matterId);
   expect(evidence.length).toBeGreaterThan(0);
   const crossAnswer = await app.evaluate(
     (_e, input) => (globalThis as any).__openadvoTest.callAgentTool(input.matterId, "propose_cross_questions", {
       questions: [{ question: "Your statement records no notice of the order, does it?", witness: "W1", target_kind: "evidence", target_id: input.evidenceId }],
     }),
-    { matterId, evidenceId: evidence[0].id },
+    { matterId, evidenceId: statement.id },
   );
   expect(String(crossAnswer)).toContain("Cross-examination plan");
   const cross = await call<Array<{ id: string; status: string }>>("listCrossQuestions", matterId);
@@ -200,8 +210,9 @@ test("phase 7: issue ties, the element chart, the theory, the tasks, the cross-e
   expect(briefText).toContain("HEARING BRIEF");
   expect(briefText).toContain("Notice issued");
   expect(briefText).toContain("2026-12-15");
-  expect(briefText).toContain("brief.pdf, p. 1, l. 2");
+  expect(briefText).toContain("brief.pdf, p. 1, l. 4");
   expect(briefText).toContain("Was the petitioner heard before the order?");
+  expect(briefText).toContain("The petition is late.");
   expect(briefText).toContain("No outcome is predicted");
 
   const outline = await call<{ draft: { id: string } }>("generateDraft", matterId, "oral_outline");
@@ -212,7 +223,8 @@ test("phase 7: issue ties, the element chart, the theory, the tasks, the cross-e
   expect(outlineText).toContain("Rebuttal notes");
   expect(outlineText).toContain("Compilation of authorities");
 
-  // The window shows the hearing prep group in the picker.
+  // The window shows the hearing prep group in the picker on the Matter tab.
+  await page.getByRole("tab", { name: "Matter", exact: true }).click();
   await expect(page.getByTestId("new-draft").getByLabel("Document group")).toContainText("Hearing preparation");
   await page.screenshot({ path: path.join(repo, "test-results", "phase7-strategy.png") });
   await app.close();

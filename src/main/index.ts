@@ -298,7 +298,10 @@ function registerBridge(): void {
   handle("studio:start", (matterId: string, issueId: string, opts: Record<string, unknown>) => studio.start(matterId, String(issueId), { rounds: Number(opts?.rounds) || undefined, generators: Number(opts?.generators) || undefined }));
   handle("studio:decideArgument", async (matterId: string, id: string, decision: string) => {
     if (decision !== "accepted" && decision !== "rejected") throw new Error("BAD_DECISION: accepted or rejected");
-    return (await matters.store(matterId)).studio.decideArgument(String(id), decision, { actor: "advocate" });
+    const out = (await matters.store(matterId)).studio.decideArgument(String(id), decision, { actor: "advocate" });
+    // The write goes through the store, so the Studio views hear about it here.
+    window?.webContents.send("studio:changed", matterId);
+    return out;
   });
   handle("studio:toGrounds", async (matterId: string, id: string) => {
     const a = (await matters.store(matterId)).studio.argument(String(id));
@@ -309,8 +312,8 @@ function registerBridge(): void {
   });
   handle("studio:weakPoints", (matterId: string) => studio.weakPoints(matterId));
   // Phase 7 (K4, K5): the case theories and the dissent panel. Decisions are the advocate's.
-  handle("studio:addTheory", async (matterId: string, input: Record<string, unknown>) =>
-    (await matters.store(matterId)).studio.addTheory(
+  handle("studio:addTheory", async (matterId: string, input: Record<string, unknown>) => {
+    const out = await (await matters.store(matterId)).studio.addTheory(
       {
         title: String(input?.title ?? ""),
         statement: String(input?.statement ?? ""),
@@ -319,11 +322,15 @@ function registerBridge(): void {
         standard: String(input?.standard ?? ""),
       },
       { actor: "advocate" },
-    ),
-  );
+    );
+    window?.webContents.send("studio:changed", matterId);
+    return out;
+  });
   handle("studio:decideTheory", async (matterId: string, id: string, decision: string, reason: string) => {
     if (decision !== "primary" && decision !== "alternative" && decision !== "rejected") throw new Error("BAD_DECISION: primary, alternative or rejected");
-    return (await matters.store(matterId)).studio.decideTheory(String(id), decision, String(reason ?? ""), { actor: "advocate" });
+    const out = await (await matters.store(matterId)).studio.decideTheory(String(id), decision, String(reason ?? ""), { actor: "advocate" });
+    window?.webContents.send("studio:changed", matterId);
+    return out;
   });
   handle("studio:askDissent", (matterId: string, question: string) => studio.askDissent(matterId, String(question ?? "")));
   handle("knowledge:search", (matterId: string, query: string, opts: Record<string, unknown>) => hub.searchKnowledge(matterId || null, String(query ?? ""), (opts ?? {}) as RetrieveOptions));
