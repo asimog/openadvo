@@ -5,7 +5,7 @@ Phase 7 of the build plan (argument and hearings: K1–K9, O5) is built and comm
 ## Verified now
 
 - `npm run typecheck` exit 0.
-- `npm run test:unit`: 347 tests, 344 passed, 0 failed, 3 skipped (live-network suites).
+- `npm run test:unit`: 348 tests, 345 passed, 0 failed, 3 skipped (live-network suites).
 - `npm run build`: main, preload and renderer built (three "built in" lines).
 - `npx playwright test` (the phase-end run, once): 47 tests, 45 passed, 2 skipped (the live-model tests need `OPENADVO_LIVE_MODEL`), 0 failed.
 - `npx playwright test tests/e2e/phase7.spec.ts --workers=1` passes. The exit path covers the issue ties, the interim-relief chart and a closed gap, the theory decided, the loop on a second scripted critic model, the rehearsal, the hearing and its compliance tasks, the cross-examination question with its target's anchors, the dissent panel, the hearing brief and the oral outline. Screenshot: `test-results/phase7-strategy.png`.
@@ -14,6 +14,7 @@ Phase 7 of the build plan (argument and hearings: K1–K9, O5) is built and comm
 
 - Commit `9706c19`: the Drafts picker reads the group labels from the catalogue (the Hearing preparation group now appears); the issue view shows the matter's recorded relief; `src/lib/studio/strategy.ts` assembles the standing, the felled-by attack, the dependencies and the weaknesses; the brief states the proceeding and the previous hearing's recorded directions; a cross-question resolves its target's anchors; the spec's test table names the files that carry each check.
 - Commit `9df37cf`: O5's drafting model runs the loop's proposing passes and the rehearsal's bench questions; the critic passes stay on the critic model. The phase-7 e2e drives the loop and the rehearsal with separate scripted drafting and critic models.
+- Commit `15fc092`: the advocate's Facts-tab link writes the issue row's one column; the standing is read per issue; the dissent panel keeps each run's split and shows the run's answers together; Settings says when a saved role model is no longer signed in.
 - The phase-7 core is `94ded85` (O5 and K1–K9); the spec is `5f5c574`.
 
 ## Broken or not verified
@@ -38,7 +39,7 @@ Phase 7 of the build plan (argument and hearings: K1–K9, O5) is built and comm
 
 ## Clean state at hand-over
 
-- [x] `npm run session:start -- --unit` exits 0 (347 unit tests: 344 passed, 3 skipped)
+- [x] `npm run session:start -- --unit` exits 0 (348 unit tests: 345 passed, 3 skipped)
 - [x] Everything is committed; `scratchpad/` content is not in the diff
 - [x] The session record is in `.agents/logs/2026-11-18-phase-7-build.md`
 - [ ] The owner's phase 7 exit (the only open item)

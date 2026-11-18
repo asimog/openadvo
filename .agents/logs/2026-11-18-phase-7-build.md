@@ -22,8 +22,10 @@ Date: 2026-11-18. Owner instruction: implement phase 7 of the build plan. The sp
 
 - The phase-7 exit path passes in the window. The test now waits for the ingest row, reads the issue ties on the Studio Conference part, runs the loop on the accepted issue with a second scripted critic model, rejects the opponent's attack, accepts the bench question and the objection, records the hearing and the compliance tasks, records the witness statement, asks the dissent panel, and generates the hearing brief and the oral outline.
 - The Drafts picker took its group list from a hardcoded copy that lacked the new Hearing preparation group. The catalogue now returns each group's label and the picker builds its list from the catalogue, so the new group appears and the labels have one owner.
-- K1: the issue view shows the matter's recorded relief beside the facts' own relief.
-- K4: the Strategy view shows the attack that fells each `out` argument and the attack graph's dependencies, through the tested `strategyView`.
+- K1: the issue view shows the matter's recorded relief beside the facts' own relief. The advocate's Facts-tab link and unlink now writes the issue row's `fact_ids` too, so both link paths write the one column the issues view reads.
+- K4: the Strategy view shows the attack that fells each `out` argument and the attack graph's dependencies, through the tested `strategyView`, and each standing row names its issue.
+- K5: each dissent answer keeps its run and the run's split; the Strategy view shows one run's answers together and marks Split or No split, and never resolves it.
+- O5: Settings says when a saved role model is no longer signed in and the chat's model runs that role.
 - K6: the brief states the stage and the proceeding, and the previous hearing's recorded directions with the hearing date.
 - K9: the cross-examination plan shows each target's text and anchors: the source, page and line for a fact; the statement, witness and date for recorded evidence.
 - The phase-7 end-to-end run exercises O5: the loop and the rehearsal run with separate scripted drafting and critic models, so the drafting model's proposing passes and bench questions and the critic model's attacks and objections are both proven. The chat script stays empty, so the run would produce nothing if the role wiring were absent.
@@ -34,7 +36,7 @@ Date: 2026-11-18. Owner instruction: implement phase 7 of the build plan. The sp
 | Command | Result |
 |---|---|
 | `npm run typecheck` | exit 0 |
-| `npm run test:unit` | 347 tests: 344 passed, 0 failed, 3 skipped (the live-network suites) |
+| `npm run test:unit` | 348 tests: 345 passed, 0 failed, 3 skipped (the live-network suites) |
 | `npm run build` | main, preload and renderer built (three "built in" lines) |
 | `npx playwright test tests/e2e/phase7.spec.ts --workers=1` | 1 passed |
 | `npx playwright test` (the phase-end run, once) | 47 tests: 45 passed, 2 skipped (the live-model tests need `OPENADVO_LIVE_MODEL`), 0 failed |
@@ -51,6 +53,7 @@ Date: 2026-11-18. Owner instruction: implement phase 7 of the build plan. The sp
 - `94ded85`: the phase-7 core (O5 and K1–K9).
 - `9706c19`: the window and the exit path completed.
 - `9df37cf`: O5's drafting model for the proposing passes and the bench questions, with the test that proves it.
+- `15fc092`: one issue link column, the standing per issue, the dissent panel grouped with its split, and the Settings fallback notice.
 
 ## Known gaps and limits
 
