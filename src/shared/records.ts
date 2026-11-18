@@ -189,6 +189,11 @@ export const DRAFT_KINDS = [
   "replication",
   "appeal_memo",
   "revision_petition",
+  // Phase 8: the criminal pack's applications and petitions.
+  "bail_application",
+  "anticipatory_bail_application",
+  "quashing_petition",
+  "discharge_application",
   "counter_affidavit",
   "rejoinder",
   "memo_of_parties",
