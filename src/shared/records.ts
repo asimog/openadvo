@@ -213,6 +213,9 @@ export const DRAFT_KINDS = [
   "research_memo",
   "index",
   "conference",
+  // Hearing preparation (phase 7: K6, K7).
+  "hearing_brief",
+  "oral_outline",
   // Letters to the client; the advocate sends them (L3).
   "client_letter",
   "hearing_update",

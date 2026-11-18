@@ -16,7 +16,7 @@ import { STUDIO_SCHEMA, StudioStore } from "./studio.ts";
 import { RESEARCH_PLAN_SCHEMA, ResearchPlanStore } from "./research-plan.ts";
 import { NOTEBOOK2_SCHEMA, addCorrection, dateAnchor, decideDispute, insertDispute, listCorrections, listDisputes, type EventCorrection, type OcrDispute } from "./notebook2.ts";
 import { AUTHORITY2_SCHEMA } from "./authority2.ts";
-import { PRACTICE_SCHEMA, addHearing, addParty, addRelatedMatter, addReminder, hearings, markImpactChecked, matterProfile, parties, policy, relatedMatters, reminders, removeRelatedMatter, setMatterProfile, setPolicy, setReminderStatus, type Hearing, type Party, type Policy, type Reminder } from "./practice.ts";
+import { PRACTICE_SCHEMA, addHearing, addParty, addRelatedMatter, addReminder, crossQuestions, decideCrossQuestion, decideTask, hearings, markImpactChecked, matterProfile, parties, policy, proposeCrossQuestion, proposeTask, relatedMatters, reminders, removeRelatedMatter, setMatterProfile, setPolicy, setReminderStatus, taskProposals, type CrossQuestion, type Hearing, type Party, type Policy, type Reminder, type TaskProposal } from "./practice.ts";
 import { EVIDENCE_SCHEMA, EvidenceStore } from "./evidence.ts";
 import type { MatterProfile, MatterRelation, RelatedMatter } from "../../shared/work.ts";
 import { FILING_CHECKS_SCHEMA, checkStates, defects as listDefects, setCheck, setTarget, target as filingTarget } from "./filing-checks.ts";
@@ -28,7 +28,7 @@ import { ACCEPTED_TEXT, detectMediaType } from "../document-intelligence/formats
 import type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus, DraftKind, RevisionAuthor, DraftRecord, RevisionRecord, ParagraphLinkRecord, ParagraphLinkInput } from "../../shared/records.ts";
 import { DRAFT_KINDS } from "../../shared/records.ts";
 
-export type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus, DraftKind, RevisionAuthor, DraftRecord, RevisionRecord, ParagraphLinkRecord, ParagraphLinkInput };
+export type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus, DraftKind, RevisionAuthor, DraftRecord, RevisionRecord, ParagraphLinkRecord, ParagraphLinkInput, CrossQuestion, TaskProposal };
 
 /** An anchor id: the source's SHA-256, the page and the line. It survives a rename. */
 export function anchorId(sha256: string, page: number, line: number): string {
@@ -420,6 +420,17 @@ ALTER TABLE document_part_layout RENAME TO document_part;`);
       db.exec("ALTER TABLE paragraph_link ADD COLUMN fact_ids TEXT NOT NULL DEFAULT '[]';");
       db.exec("ALTER TABLE paragraph_link ADD COLUMN evidence_ids TEXT NOT NULL DEFAULT '[]';");
     }
+    // Phase 7 (K1): an issue names the facts it rests on.
+    const issue = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'legal_issue'").get() as { sql?: string } | undefined;
+    if (issue?.sql && !issue.sql.includes("fact_ids")) db.exec("ALTER TABLE legal_issue ADD COLUMN fact_ids TEXT NOT NULL DEFAULT '[]';");
+    // Phase 7 (K3): an element column the agent proposes is a candidate until confirmed.
+    const rc = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'record_column'").get() as { sql?: string } | undefined;
+    if (rc?.sql && !rc.sql.includes("issue_id")) {
+      db.exec("ALTER TABLE record_column ADD COLUMN author TEXT NOT NULL DEFAULT 'advocate';");
+      db.exec("ALTER TABLE record_column ADD COLUMN status TEXT NOT NULL DEFAULT 'confirmed';");
+      db.exec("ALTER TABLE record_column ADD COLUMN issue_id TEXT;");
+      db.exec("ALTER TABLE record_column ADD COLUMN decided_at TEXT NOT NULL DEFAULT '';");
+    }
     return db;
   }
 
@@ -432,11 +443,11 @@ ALTER TABLE document_part_layout RENAME TO document_part;`);
     const items = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'review_item'").get() as { sql?: string } | undefined;
     if (items?.sql && !items.sql.includes("draft_id")) db.exec("ALTER TABLE review_item ADD COLUMN draft_id TEXT;");
     // Step 6: drafts of the kinds questions_of_law and grounds. V1: petition and conference.
-    // Phase 6 (L3): a matter made before the catalogue rebuilds once, and the kinds of the
-    // current DRAFT_KINDS apply from then on.
+    // Phase 6 (L3) and phase 7 (K6, K7): a matter made before the current catalogue rebuilds
+    // once, and the kinds of the current DRAFT_KINDS apply from then on.
     const draft = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'draft'").get() as { sql?: string } | undefined;
     const draftKinds = DRAFT_KINDS.map((k) => `'${k}'`).join(", ");
-    if (draft?.sql && !draft.sql.includes("'writ_petition'")) {
+    if (draft?.sql && !draft.sql.includes("'hearing_brief'")) {
       db.exec("PRAGMA foreign_keys = OFF;");
       db.exec("BEGIN");
       try {
@@ -739,6 +750,66 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
     if (r.status === "done" || (status === "notified" && r.status !== "open") || status === "open") throw new MatterStoreError("BAD_REMINDER_STATUS", `the reminder is ${r.status}`);
     setReminderStatus(this.db, id, status);
     this.appendEvent(ctx, `reminder.${status}`, id, null);
+  }
+
+  // ---- Phase 7 (K8, K9): the compliance tasks and the cross-examination plan ----
+
+  taskProposals(): TaskProposal[] {
+    return taskProposals(this.db);
+  }
+
+  /** A compliance task proposed from a hearing's directions: the agent's waits, the advocate's is a reminder at once. */
+  proposeTask(input: { hearingId: string; text: string; dueAt?: string }, ctx: WriteContext): TaskProposal {
+    let p: TaskProposal;
+    try {
+      p = proposeTask(this.db, { ...input, ctx: { actor: ctx.actor === "agent" ? "agent" : "advocate" } });
+    } catch (e) {
+      throw new MatterStoreError("BAD_TASK", (e as Error).message);
+    }
+    this.appendEvent(ctx, "task.proposed", p.id, { hearing: p.hearingId, author: p.author, dueAt: p.dueAt });
+    return p;
+  }
+
+  /** Human-only (decision 5): an accepted task becomes a reminder. */
+  decideTask(id: string, accept: boolean, ctx: WriteContext): { task: TaskProposal; reminder: Reminder | null } {
+    this.human(ctx, "decides a compliance task");
+    let out: { task: TaskProposal; reminder: Reminder | null };
+    try {
+      out = decideTask(this.db, id, accept);
+    } catch (e) {
+      throw new MatterStoreError("BAD_TASK", (e as Error).message);
+    }
+    this.appendEvent(ctx, accept ? "task.accepted" : "task.rejected", id, { reminder: out.reminder?.id ?? null });
+    return out;
+  }
+
+  crossQuestions(): CrossQuestion[] {
+    return crossQuestions(this.db);
+  }
+
+  /** A cross-examination question from the record: it names its contradiction or statement. */
+  proposeCrossQuestion(input: { witness?: string; question: string; targetKind: "contradiction" | "evidence"; targetId: string }, ctx: WriteContext): CrossQuestion {
+    let q: CrossQuestion;
+    try {
+      q = proposeCrossQuestion(this.db, { ...input, ctx: { actor: ctx.actor === "agent" ? "agent" : "advocate" } });
+    } catch (e) {
+      throw new MatterStoreError("BAD_CROSS_QUESTION", (e as Error).message);
+    }
+    this.appendEvent(ctx, "cross_question.proposed", q.id, { target: `${q.targetKind}:${q.targetId}`, author: q.author });
+    return q;
+  }
+
+  /** Human-only (decision 5): the advocate accepts or rejects a proposed question. */
+  decideCrossQuestion(id: string, decision: "accepted" | "rejected", ctx: WriteContext): CrossQuestion {
+    this.human(ctx, "decides a cross-examination question");
+    let q: CrossQuestion;
+    try {
+      q = decideCrossQuestion(this.db, id, decision);
+    } catch (e) {
+      throw new MatterStoreError("BAD_CROSS_QUESTION", (e as Error).message);
+    }
+    this.appendEvent(ctx, `cross_question.${decision}`, id, null);
+    return q;
   }
 
   policy(): Policy {

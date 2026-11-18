@@ -36,6 +36,8 @@ export async function agentFixture(opts: { host?: Partial<AgentHost>; inlineExte
     saveModelKey: () => undefined,
     loadEffort: () => null,
     saveEffort: () => undefined,
+    // Phase 7 (O5): no role model in tests; skill runs use the chat's model, as before.
+    roleModel: () => null,
     policy: async () => ({ budgetTokens: null, usedTokens: 0 }),
     planStrength: () => "long",
     partyRule: () => true,

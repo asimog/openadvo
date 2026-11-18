@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { MatterStoreError, type MatterStore } from "./index.ts";
 import type { WriteContext } from "../../shared/records.ts";
-import type { ArgumentRecord, ArgumentRejection, ArgumentRun, ProvisionRecord } from "../../shared/studio.ts";
+import type { ArgumentRecord, ArgumentRejection, ArgumentRun, DissentRecord, ProvisionRecord, TheoryRecord } from "../../shared/studio.ts";
 
 export const STUDIO_SCHEMA = `
 CREATE TABLE IF NOT EXISTS provision (
@@ -69,6 +69,29 @@ CREATE TABLE IF NOT EXISTS argument_rejection (
 ) STRICT;
 CREATE TRIGGER IF NOT EXISTS argument_no_delete BEFORE DELETE ON argument BEGIN SELECT RAISE(ABORT, 'arguments are marked, never deleted'); END;
 CREATE TRIGGER IF NOT EXISTS rejection_no_update BEFORE UPDATE ON argument_rejection BEGIN SELECT RAISE(ABORT, 'rejections are append-only'); END;
+CREATE TABLE IF NOT EXISTS theory (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  statement TEXT NOT NULL,
+  issue_ids TEXT NOT NULL DEFAULT '[]',
+  burden TEXT NOT NULL DEFAULT '',
+  standard TEXT NOT NULL DEFAULT '',
+  author TEXT NOT NULL CHECK (author IN ('advocate', 'agent')),
+  status TEXT NOT NULL CHECK (status IN ('primary', 'alternative', 'rejected')),
+  reason TEXT,
+  created_at TEXT NOT NULL,
+  decided_at TEXT
+) STRICT;
+CREATE TABLE IF NOT EXISTS dissent (
+  id TEXT PRIMARY KEY,
+  question TEXT NOT NULL,
+  model TEXT NOT NULL,
+  role TEXT NOT NULL,
+  answer TEXT NOT NULL,
+  refused TEXT NOT NULL DEFAULT '',
+  at TEXT NOT NULL
+) STRICT;
+CREATE TRIGGER IF NOT EXISTS dissent_no_delete BEFORE DELETE ON dissent BEGIN SELECT RAISE(ABORT, 'every answer is kept: a split is shown, never hidden'); END;
 `;
 
 const now = () => new Date().toISOString();
@@ -292,6 +315,80 @@ export class StudioStore {
     this.db
       .prepare("INSERT INTO argument_rejection VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
       .run(randomUUID(), input.runId, input.round, input.ground, input.stance, input.reason, clean(input.detail, 600), clean(input.claim, 600), now());
+  }
+
+  // ---- Phase 7: case theory (K4) and the dissent panel (K5) ----
+
+  theories(): TheoryRecord[] {
+    return (this.db.prepare("SELECT * FROM theory ORDER BY created_at").all() as Array<Record<string, unknown>>).map((r) => ({
+      id: String(r.id),
+      title: String(r.title),
+      statement: String(r.statement),
+      issueIds: JSON.parse(String(r.issue_ids ?? "[]")) as string[],
+      burden: String(r.burden ?? ""),
+      standard: String(r.standard ?? ""),
+      author: r.author as "advocate" | "agent",
+      status: r.status as TheoryRecord["status"],
+      reason: r.reason == null ? null : String(r.reason),
+      createdAt: String(r.created_at),
+      decidedAt: r.decided_at == null ? null : String(r.decided_at),
+    }));
+  }
+
+  /**
+   * K4: a theory is proposed — the advocate's enters as primary at once, the agent's waits as an
+   * alternative. Every issue it rests on must exist.
+   */
+  addTheory(input: { title: string; statement: string; issueIds?: string[]; burden?: string; standard?: string }, ctx: WriteContext): TheoryRecord {
+    const author = who(ctx);
+    const title = clean(input.title, 200);
+    const statement = clean(input.statement, 4000);
+    if (!title || !statement) throw new MatterStoreError("THEORY_TEXT_REQUIRED", "a theory needs its title and its statement");
+    const issueIds = [...new Set((input.issueIds ?? []).map(String))];
+    for (const iid of issueIds) {
+      if (!this.db.prepare("SELECT 1 FROM legal_issue WHERE id = ?").get(iid)) throw new MatterStoreError("ISSUE_NOT_FOUND", iid);
+    }
+    const id = randomUUID();
+    const status = author === "advocate" ? "primary" : "alternative";
+    this.db
+      .prepare("INSERT INTO theory (id, title, statement, issue_ids, burden, standard, author, status, created_at, decided_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(id, title, statement, JSON.stringify(issueIds), clean(input.burden, 300), clean(input.standard, 300), author, status, now(), author === "advocate" ? now() : null);
+    this.store.appendEvent(ctx, "theory.added", id, { author, title, status });
+    return this.theories().find((t) => t.id === id)!;
+  }
+
+  /** Human-only (decision 5): the advocate sets a theory's place, or rejects it. */
+  decideTheory(id: string, decision: "primary" | "alternative" | "rejected", reason: string, ctx: WriteContext): TheoryRecord {
+    human(ctx, "decides a theory");
+    const r = clean(reason, 1000);
+    if (!r) throw new MatterStoreError("REASON_REQUIRED", "a theory decision needs a reason");
+    const res = this.db.prepare("UPDATE theory SET status = ?, reason = ?, decided_at = ? WHERE id = ?").run(decision, r, now(), id);
+    if (Number(res.changes) === 0) throw new MatterStoreError("THEORY_NOT_FOUND", id);
+    this.store.appendEvent(ctx, `theory.${decision === "rejected" ? "rejected" : "decided"}`, id, { reason: r, status: decision });
+    return this.theories().find((t) => t.id === id)!;
+  }
+
+  /**
+   * K5: one model's answer to a hard question, kept whatever it says. A refused answer (no
+   * anchor, or a model error) is stored with its reason, never dropped silently.
+   */
+  addDissent(input: { question: string; model: string; role: string; answer: string; refused?: string }): DissentRecord {
+    const id = randomUUID();
+    this.db.prepare("INSERT INTO dissent (id, question, model, role, answer, refused, at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(id, clean(input.question, 2000), clean(input.model, 200), clean(input.role, 40), clean(input.answer, 12000), clean(input.refused ?? "", 600), now());
+    return { id, question: clean(input.question, 2000), model: clean(input.model, 200), role: clean(input.role, 40), answer: clean(input.answer, 12000), refused: clean(input.refused ?? "", 600), at: now() };
+  }
+
+  /** The panel's answers, newest first. Every answer is kept (K5: a split is shown, never hidden). */
+  dissents(): DissentRecord[] {
+    return (this.db.prepare("SELECT * FROM dissent ORDER BY at DESC, rowid DESC").all() as Array<Record<string, unknown>>).map((r) => ({
+      id: String(r.id),
+      question: String(r.question),
+      model: String(r.model),
+      role: String(r.role),
+      answer: String(r.answer),
+      refused: String(r.refused ?? ""),
+      at: String(r.at),
+    }));
   }
 
   /** The last `n` rejections of one cell of the archive, newest first (the loop's typed memory). */

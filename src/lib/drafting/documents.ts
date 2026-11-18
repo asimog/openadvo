@@ -19,10 +19,12 @@ import {
   causeTitle,
   chronologyPart,
   factsPart,
+  hearingBriefPart,
   interimPrayers,
   letterFrame,
   memoOfParties,
   noticeFrame,
+  oralOutlinePart,
   paraWiseReply,
   prayers,
   provisionsAppendix,
@@ -35,7 +37,7 @@ import {
   writtenSubmissionsPart,
 } from "./parts.ts";
 
-export type DocumentGroup = "records" | "pleadings" | "petitions" | "applications" | "evidence" | "submissions" | "notices" | "notes" | "letters";
+export type DocumentGroup = "records" | "pleadings" | "petitions" | "applications" | "evidence" | "submissions" | "notices" | "notes" | "letters" | "hearing";
 
 export const GROUP_LABEL: Record<DocumentGroup, string> = {
   records: "Records",
@@ -47,6 +49,7 @@ export const GROUP_LABEL: Record<DocumentGroup, string> = {
   notices: "Notices",
   notes: "Notes and summaries",
   letters: "Client letters",
+  hearing: "Hearing preparation",
 };
 
 export interface DocumentTemplate {
@@ -364,6 +367,21 @@ export const CATALOGUE: DocumentTemplate[] = [
     group: "letters",
     note: "The frame of a hearing update; the events of the date are yours to state. The advocate sends it.",
     build: (i) => letterFrame(i, `Update on the hearing of ${i.details.title || "the matter"}`),
+  },
+  // Hearing preparation (phase 7: K6, K7).
+  {
+    kind: "hearing_brief",
+    title: "HEARING BRIEF",
+    group: "hearing",
+    note: "One page from the records: posture, what is listed, the last order's directions with anchors, open items, the bench questions, the objections, the register. No outcome is predicted.",
+    build: (i) => hearingBriefPart(i),
+  },
+  {
+    kind: "oral_outline",
+    title: "ORAL OUTLINE",
+    group: "hearing",
+    note: "Three or four points, strongest first, from the accepted arguments; the rebuttal notes from the register; the compilation with the paragraphs relied on.",
+    build: (i) => oralOutlinePart(i),
   },
 ];
 

@@ -8,6 +8,7 @@ import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Text } from "@astryxdesign/core/Text";
 import type { MatterSummary, RecordTable, SourceRecord } from "../../shared/api.ts";
+import { recordGaps } from "../../lib/evidence/templates.ts";
 import { MemoryProposals } from "./V2.tsx";
 
 const api = window.openadvo;
@@ -171,6 +172,31 @@ export function RecordTableView(props: { matterId: string; sources: SourceRecord
         <Button label="Add the template columns" size="sm" isDisabled={!templateKey} clickAction={() => run(async () => { await api.applyRecordTemplate(props.matterId, templateKey); setTemplateKey(""); })} />
       </div>
       {error ? <div className="notice" role="alert">{error}</div> : null}
+      {t.columns.some((c) => c.status === "candidate") ? (
+        <div className="notice" data-testid="proposed-columns">
+          <Text weight="semibold">The agent proposed these elements. Confirm a column before its cells count for the gaps; reject it to drop it.</Text>
+          <ul className="plain-list">
+            {t.columns.filter((c) => c.status === "candidate").map((c) => (
+              <li key={c.id} data-testid="proposed-column">
+                <Text>{c.question}</Text>
+                <Button label="Confirm column" size="sm" clickAction={() => run(() => api.decideRecordColumn(props.matterId, c.id, "confirmed"))} />
+                <Button label="Reject" size="sm" variant="ghost" clickAction={() => run(() => api.decideRecordColumn(props.matterId, c.id, "rejected"))} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {recordGaps(t.columns, t.cells).length > 0 ? (
+        <div className="notice" data-testid="record-gaps">
+          <Text weight="semibold">Gaps: these elements have no confirmed cell in any source.</Text>
+          <ul className="plain-list">
+            {recordGaps(t.columns, t.cells).map((g) => (
+              <li key={g.columnId} data-testid="record-gap">{g.question}</li>
+            ))}
+          </ul>
+          <Text type="supporting">Fill the cell from a source, or drop the element. A gap is never guessed at.</Text>
+        </div>
+      ) : null}
       {t.columns.length === 0 ? (
         <Text type="supporting">No columns yet.</Text>
       ) : (
@@ -180,7 +206,9 @@ export function RecordTableView(props: { matterId: string; sources: SourceRecord
               <tr>
                 <th>Source</th>
                 {t.columns.map((c) => (
-                  <th key={c.id}>{c.question}</th>
+                  <th key={c.id}>
+                    {c.question} {c.status === "candidate" ? <Badge variant="warning" label="proposed" /> : null}
+                  </th>
                 ))}
               </tr>
             </thead>

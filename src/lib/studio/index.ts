@@ -320,6 +320,12 @@ export interface ArchivedArgument {
 
 export interface LoopDeps {
   complete: Complete;
+  /**
+   * O5 (K2): the attacking passes — the critic's questions and the opposing counsel's attacks —
+   * run on this completer when the advocate set a critic model. Absent: the proposing model
+   * runs everything, as before. The attacked side's replies stay on the proposing completer.
+   */
+  criticComplete?: Complete;
   context: LoopContext;
   rounds: number;
   generators: number;
@@ -361,6 +367,11 @@ export async function runLoop(d: LoopDeps): Promise<LoopStats> {
     if (d.shouldStop?.()) throw new Error("STOPPED: the advocate stopped the run");
     stats.calls++;
     return d.complete(SYSTEM, user, label);
+  };
+  const attackCall = async (user: string, label: string) => {
+    if (d.shouldStop?.()) throw new Error("STOPPED: the advocate stopped the run");
+    stats.calls++;
+    return (d.criticComplete ?? d.complete)(SYSTEM, user, label);
   };
   const reject = (round: number, cell: Cell, reason: string, detail: string, claim: string) => {
     stats.rejected[reason] = (stats.rejected[reason] ?? 0) + 1;
@@ -423,13 +434,14 @@ export async function runLoop(d: LoopDeps): Promise<LoopStats> {
         stats.accepted++;
       }
     }
-    // 3. Critique: critical questions and attacks.
+    // 3. Critique: critical questions and attacks. The attacking passes take the critic's
+    // completer (K2): a second model family attacks the arguments, when the advocate set one.
     d.onProgress?.(`Round ${round}: critique of ${fresh.length} argument(s)`);
     await Promise.all(
       fresh.map(async (a) => {
         const [q, opp] = await Promise.all([
-          call(criticPrompt(context, a.claim, a.reasoning), `r${round}-critic-${a.id.slice(0, 8)}`).catch(() => ""),
-          call(opponentPrompt(context, a.claim, a.reasoning, a.stance), `r${round}-opponent-${a.id.slice(0, 8)}`).catch(() => ""),
+          attackCall(criticPrompt(context, a.claim, a.reasoning), `r${round}-critic-${a.id.slice(0, 8)}`).catch(() => ""),
+          attackCall(opponentPrompt(context, a.claim, a.reasoning, a.stance), `r${round}-opponent-${a.id.slice(0, 8)}`).catch(() => ""),
         ]);
         d.setQuestions(a.id, parseQuestions(q).map((x) => labelAliases(x, al)));
         const cell: Cell = { ground: a.ground as Ground, stance: a.stance === "petitioner" ? "respondent" : "petitioner" };

@@ -27,10 +27,10 @@ export type {
 } from "./law.ts";
 export type * from "./audit.ts";
 export type * from "./practice.ts";
-import type { Contact, Hearing, Reminder } from "./practice.ts";
+import type { Contact, CrossQuestion, Hearing, Reminder, TaskProposal } from "./practice.ts";
 export type { Entity, OcrDispute } from "./audit.ts";
 import type { ChainCheck, Refusal, Inspection, FindHit, Entity, OcrDispute } from "./audit.ts";
-import type { Assessment, Challenge, QuickCheck, Treatment, ArgumentRun, ArgumentRecord, CorpusPart, ProvisionRecord, ResearchDocument, ResearchHit, ResearchSettings, StudioState } from "./studio.ts";
+import type { Assessment, Challenge, QuickCheck, Treatment, ArgumentRun, ArgumentRecord, CorpusPart, ProvisionRecord, ResearchDocument, ResearchHit, ResearchSettings, StudioState, TheoryRecord } from "./studio.ts";
 import type { KnowledgeHealthView, KnowledgeScope, LawCounts, ResearchPlan, RetrievalResult, SearchMode } from "./law.ts";
 
 import type { AGUIEvent } from "@ag-ui/core";
@@ -350,6 +350,8 @@ export interface OpenAdvoApi {
   getRecordTable(matterId: string): Promise<RecordTable>;
   /** Human-only (V1-5). */
   addRecordColumn(matterId: string, question: string): Promise<RecordColumn>;
+  /** Phase 7 (K3): the advocate confirms a proposed element column, or rejects it. */
+  decideRecordColumn(matterId: string, columnId: string, decision: "confirmed" | "rejected"): Promise<RecordColumn>;
   /** Human-only (V1-5). */
   decideRecordCell(matterId: string, sourceId: string, columnId: string, decision: "confirm" | "clear"): Promise<RecordTable>;
   // V2 (docs/archive/2026-11-15/specs/v2.md). Human-only where marked.
@@ -383,6 +385,9 @@ export interface OpenAdvoApi {
   getChat(matterId: string): Promise<ChatState>;
   listModels(): Promise<ModelChoice[]>;
   getModel(): Promise<string | null>;
+  /** Phase 7 (O5): the model per role (drafting, extraction, critic); null means the chat's model. */
+  getRoleModels(): Promise<{ drafting: string | null; extraction: string | null; critic: string | null }>;
+  setRoleModel(role: "drafting" | "extraction" | "critic", key: string | null): Promise<{ drafting: string | null; extraction: string | null; critic: string | null }>;
   // Actions
   createMatter(title: string): Promise<MatterSummary>;
   addFiles(matterId: string, paths: string[]): Promise<AddFileResult[]>;
@@ -467,6 +472,14 @@ export interface OpenAdvoApi {
   listJobsOverview(matterId: string): Promise<{ reading: Array<IngestJob & { name: string }>; runs: ArgumentRun[]; running: string | null; indexing: string | null }>;
   stopArgumentLoop(matterId: string): Promise<boolean>;
   listHearings(matterId: string): Promise<Hearing[]>;
+  /** Phase 7 (K8): the compliance tasks proposed from a hearing's directions. */
+  listTasks(matterId: string): Promise<TaskProposal[]>;
+  addTask(matterId: string, hearingId: string, text: string, dueAt: string): Promise<TaskProposal>;
+  decideTask(matterId: string, id: string, accept: boolean): Promise<{ task: TaskProposal; reminder: Reminder | null }>;
+  /** Phase 7 (K9): the cross-examination plan. */
+  listCrossQuestions(matterId: string): Promise<CrossQuestion[]>;
+  proposeCrossQuestion(matterId: string, input: { witness?: string; question: string; targetKind: "contradiction" | "evidence"; targetId: string }): Promise<CrossQuestion>;
+  decideCrossQuestion(matterId: string, id: string, decision: "accepted" | "rejected"): Promise<CrossQuestion>;
   /** Human-only (V5-19). */
   addHearing(matterId: string, h: { date: string; bench?: string; directions?: string; nextDate?: string; nextDateStatus?: "confirmed" | "inferred"; notes?: string }): Promise<Hearing>;
   listReminders(matterId: string): Promise<Reminder[]>;
@@ -651,6 +664,10 @@ export interface OpenAdvoApi {
   /** Proposes an accepted argument as a tracked insertion in the Grounds. */
   argumentToGrounds(matterId: string, id: string): Promise<string>;
   getWeakPoints(matterId: string): Promise<Array<{ claim: string; questions: string[]; attacks: Array<{ kind: string; claim: string }> }>>;
+  /** Phase 7 (K4, K5): the case theories and the dissent panel. */
+  addTheory(matterId: string, input: { title: string; statement: string; issueIds?: string[]; burden?: string; standard?: string }): Promise<TheoryRecord>;
+  decideTheory(matterId: string, id: string, decision: "primary" | "alternative" | "rejected", reason: string): Promise<TheoryRecord>;
+  askDissent(matterId: string, question: string): Promise<{ answers: Array<{ role: string; model: string; answer: string; refused: string }>; split: boolean; splitPair: Array<{ role: string; model: string }> | null }>;
   /** Phase 5: one search over the law library, judgment paragraphs and the bound matter. */
   knowledgeSearch(matterId: string, query: string, opts?: { mode?: SearchMode; scopes?: KnowledgeScope[]; date?: string | null; court?: string | null; limit?: number }): Promise<RetrievalResult>;
   /** Phase 5: law counts, the set manifest and one health row per scope. */

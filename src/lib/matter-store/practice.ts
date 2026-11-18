@@ -67,6 +67,27 @@ CREATE TABLE IF NOT EXISTS impact_check (
   source_id TEXT PRIMARY KEY,
   at TEXT NOT NULL
 ) STRICT;
+CREATE TABLE IF NOT EXISTS task_proposal (
+  id TEXT PRIMARY KEY,
+  hearing_id TEXT NOT NULL,
+  text TEXT NOT NULL,
+  due_at TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL CHECK (status IN ('open', 'accepted', 'rejected')),
+  author TEXT NOT NULL CHECK (author IN ('advocate', 'agent')),
+  created_at TEXT NOT NULL,
+  decided_at TEXT NOT NULL
+) STRICT;
+CREATE TABLE IF NOT EXISTS cross_question (
+  id TEXT PRIMARY KEY,
+  witness TEXT NOT NULL DEFAULT '',
+  question TEXT NOT NULL,
+  target_kind TEXT NOT NULL CHECK (target_kind IN ('contradiction', 'evidence')),
+  target_id TEXT NOT NULL,
+  author TEXT NOT NULL CHECK (author IN ('advocate', 'agent')),
+  status TEXT NOT NULL CHECK (status IN ('candidate', 'accepted', 'rejected')),
+  created_at TEXT NOT NULL,
+  decided_at TEXT NOT NULL
+) STRICT;
 `;
 
 export interface Hearing {
@@ -86,6 +107,32 @@ export interface Reminder {
   dueAt: string;
   status: "open" | "notified" | "done";
   createdAt: string;
+}
+
+/** Phase 7 (K8): one compliance task proposed from a hearing's directions. */
+export interface TaskProposal {
+  id: string;
+  hearingId: string;
+  text: string;
+  /** "" or YYYY-MM-DD. */
+  dueAt: string;
+  status: "open" | "accepted" | "rejected";
+  author: "advocate" | "agent";
+  createdAt: string;
+  decidedAt: string;
+}
+
+/** Phase 7 (K9): one cross-examination question, tied to a contradiction or a recorded statement. */
+export interface CrossQuestion {
+  id: string;
+  witness: string;
+  question: string;
+  targetKind: "contradiction" | "evidence";
+  targetId: string;
+  author: "advocate" | "agent";
+  status: "candidate" | "accepted" | "rejected";
+  createdAt: string;
+  decidedAt: string;
 }
 
 export interface Policy {
@@ -146,6 +193,133 @@ export function addReminder(db: DatabaseSync, text: string, dueAt: string): Remi
 
 export function setReminderStatus(db: DatabaseSync, id: string, status: Reminder["status"]): void {
   db.prepare("UPDATE reminder SET status = ? WHERE id = ?").run(status, id);
+}
+
+// ---- Phase 7 (K8): the compliance tasks of a hearing's directions ----
+
+export function taskProposals(db: DatabaseSync): TaskProposal[] {
+  return (db.prepare("SELECT * FROM task_proposal ORDER BY created_at, rowid").all() as Array<Record<string, unknown>>).map(taskRow);
+}
+
+function taskRow(r: Record<string, unknown>): TaskProposal {
+  return {
+    id: String(r.id),
+    hearingId: String(r.hearing_id),
+    text: String(r.text),
+    dueAt: String(r.due_at ?? ""),
+    status: r.status as TaskProposal["status"],
+    author: r.author as "advocate" | "agent",
+    createdAt: String(r.created_at),
+    decidedAt: String(r.decided_at ?? ""),
+  };
+}
+
+/**
+ * A task is proposed from a hearing's directions — the agent's as a proposal, the advocate's
+ * recorded at once. The hearing must exist.
+ */
+export function proposeTask(db: DatabaseSync, input: { hearingId: string; text: string; dueAt?: string; ctx: { actor: "advocate" | "agent" } }): TaskProposal {
+  const t = input.text.trim().slice(0, 500);
+  if (!t) throw new Error("TEXT_REQUIRED: a compliance task needs its text");
+  if (!db.prepare("SELECT 1 FROM hearing WHERE id = ?").get(input.hearingId)) throw new Error("HEARING_NOT_FOUND: the compliance task names its hearing");
+  const due = input.dueAt?.trim() ?? "";
+  if (due && !ISO_DATE.test(due)) throw new Error("BAD_DATE: the due date is YYYY-MM-DD or empty");
+  const id = randomUUID();
+  const at = new Date().toISOString();
+  const decided = input.ctx.actor === "advocate" ? at : "";
+  db.prepare("INSERT INTO task_proposal (id, hearing_id, text, due_at, status, author, created_at, decided_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(
+    id,
+    input.hearingId,
+    t,
+    due,
+    input.ctx.actor === "advocate" ? "accepted" : "open",
+    input.ctx.actor,
+    at,
+    decided,
+  );
+  // The advocate's own task becomes its reminder at once; the agent's waits for the decision.
+  if (input.ctx.actor === "advocate") acceptTaskReminder(db, { ...taskRow(db.prepare("SELECT * FROM task_proposal WHERE id = ?").get(id) as Record<string, unknown>) });
+  return taskProposals(db).find((x) => x.id === id)!;
+}
+
+/** The reminder an accepted task becomes. */
+function acceptTaskReminder(db: DatabaseSync, p: TaskProposal): Reminder {
+  const due = p.dueAt ? new Date(`${p.dueAt}T09:00:00`).toISOString() : new Date().toISOString();
+  return addReminder(db, `Compliance (${p.hearingId.slice(0, 8)}): ${p.text}`, due);
+}
+
+/** Human-only (decision 5): the advocate accepts a proposed task — it becomes a reminder — or rejects it. */
+export function decideTask(db: DatabaseSync, id: string, accept: boolean): { task: TaskProposal; reminder: Reminder | null } {
+  const r = db.prepare("SELECT * FROM task_proposal WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  if (!r) throw new Error("TASK_NOT_FOUND: no such compliance task");
+  const task = taskRow(r);
+  if (task.status !== "open") throw new Error("ALREADY_DECIDED: the compliance task is " + task.status);
+  if (task.author !== "agent") throw new Error("HUMAN_ONLY_PROPOSAL: the advocate's own task stands decided at once");
+  const at = new Date().toISOString();
+  db.prepare("UPDATE task_proposal SET status = ?, decided_at = ? WHERE id = ?").run(accept ? "accepted" : "rejected", at, id);
+  let reminder: Reminder | null = null;
+  if (accept) reminder = acceptTaskReminder(db, { ...task, status: "accepted" });
+  return { task: taskProposals(db).find((x) => x.id === id)!, reminder };
+}
+
+// ---- Phase 7 (K9): the cross-examination plan ----
+
+export function crossQuestions(db: DatabaseSync): CrossQuestion[] {
+  return (db.prepare("SELECT * FROM cross_question ORDER BY created_at, rowid").all() as Array<Record<string, unknown>>).map((r) => ({
+    id: String(r.id),
+    witness: String(r.witness ?? ""),
+    question: String(r.question),
+    targetKind: r.target_kind as CrossQuestion["targetKind"],
+    targetId: String(r.target_id),
+    author: r.author as "advocate" | "agent",
+    status: r.status as CrossQuestion["status"],
+    createdAt: String(r.created_at),
+    decidedAt: String(r.decided_at ?? ""),
+  }));
+}
+
+/**
+ * A cross-examination question is proposed from the record: it names the contradiction or the
+ * recorded statement it springs from. The target must exist; a question with no target is
+ * refused.
+ */
+export function proposeCrossQuestion(db: DatabaseSync, input: { witness?: string; question: string; targetKind: "contradiction" | "evidence"; targetId: string; ctx: { actor: "advocate" | "agent" } }): CrossQuestion {
+  const q = input.question.trim().slice(0, 1000);
+  if (!q) throw new Error("QUESTION_REQUIRED: a cross-examination question needs its text");
+  if (!q.trim().endsWith("?")) throw new Error("QUESTION_FORM: a cross-examination question ends with a question mark");
+  const known =
+    input.targetKind === "evidence"
+      ? db.prepare("SELECT 1 FROM evidence WHERE id = ?").get(input.targetId)
+      : // A contradiction is keyed by its values' fact ids: the review items carry it as detail
+        // text, so the target is the fact the contradiction joins.
+        db.prepare("SELECT 1 FROM fact WHERE id = ?").get(input.targetId);
+  if (!known) throw new Error(`TARGET_NOT_FOUND: ${input.targetKind} ${input.targetId} is not in the record`);
+  const id = randomUUID();
+  const at = new Date().toISOString();
+  const advocate = input.ctx.actor === "advocate";
+  db.prepare("INSERT INTO cross_question (id, witness, question, target_kind, target_id, author, status, created_at, decided_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(
+    id,
+    (input.witness ?? "").trim().slice(0, 200),
+    q,
+    input.targetKind,
+    input.targetId,
+    input.ctx.actor,
+    advocate ? "accepted" : "candidate",
+    at,
+    advocate ? at : "",
+  );
+  return crossQuestions(db).find((x) => x.id === id)!;
+}
+
+/** Human-only (decision 5): the advocate accepts or rejects a proposed question. */
+export function decideCrossQuestion(db: DatabaseSync, id: string, decision: "accepted" | "rejected"): CrossQuestion {
+  const r = db.prepare("SELECT * FROM cross_question WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  if (!r) throw new Error("QUESTION_NOT_FOUND: no such cross-examination question");
+  const q = crossQuestions(db).find((x) => x.id === id)!;
+  if (q.status !== "candidate") throw new Error("ALREADY_DECIDED: the question is " + q.status);
+  const at = new Date().toISOString();
+  db.prepare("UPDATE cross_question SET status = ?, decided_at = ? WHERE id = ?").run(decision, at, id);
+  return crossQuestions(db).find((x) => x.id === id)!;
 }
 
 export function policy(db: DatabaseSync): Policy {

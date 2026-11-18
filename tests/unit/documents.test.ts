@@ -38,6 +38,23 @@ const INPUT: DraftingInput = {
   memorandum: { title: "Limitation", body: "The delay is explained by illness.", unresolved: [] },
   proceeding: { caseType: "W.P.(C)", provisions: [] },
   approved: { questions: [], grounds: [] },
+  stage: "Drafting",
+  hearings: [
+    { date: "2026-11-10", bench: "Justice X", directions: "Reply affidavit within four weeks.", nextDate: "2026-12-15", nextDateStatus: "confirmed" },
+  ],
+  orderDirections: [
+    { text: "Reply to be filed within four weeks.", sourceName: "order.pdf", page: 2, line: 4 },
+  ],
+  openItems: [{ kind: "draft_defect.marker_review", detail: "Writ petition, paragraph 9 holds an open marker." }],
+  challenges: [
+    { kind: "bench_question", text: "Was the authority's order served on the petitioner?", answer: "Yes; the receipt is at E1.", status: "accepted" },
+    { kind: "objection", text: "The petition is premature: the alternative remedy was not used.", answer: "The remedy is inefficacious; see A1.", status: "accepted" },
+    { kind: "objection", text: "The delay of two days is unexplained.", answer: "", status: "open" },
+  ],
+  arguments: [
+    { claim: "The order was passed without hearing the petitioner.", reasoning: "No notice was issued before the order; the record holds none.", computed: "in", elo: 1012 },
+    { claim: "The alternative remedy is inefficacious.", reasoning: "The statutory appeal decides only accounts; the right asserted is constitutional.", computed: "undecided", elo: 998 },
+  ],
 };
 
 test("every kind of the catalogue builds, and every DraftKind is covered", () => {

@@ -112,6 +112,8 @@ export interface IssueRecord {
   author: "advocate" | "agent";
   status: "candidate" | "accepted" | "rejected";
   reason: string | null;
+  /** Phase 7 (K1): the facts the issue rests on. */
+  factIds: string[];
   createdAt: string;
   decidedAt: string | null;
 }
@@ -300,6 +302,11 @@ export interface Workflow {
 export interface RecordColumn {
   id: string;
   question: string;
+  /** Phase 7 (K3): the advocate's column is confirmed at once; the agent's (a proposed element) is a candidate. */
+  author: "advocate" | "agent";
+  status: "candidate" | "confirmed" | "rejected";
+  /** The issue a proposed element belongs to. */
+  issueId: string | null;
   createdAt: string;
 }
 

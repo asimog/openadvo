@@ -11,7 +11,7 @@ import { Badge } from "@astryxdesign/core/Badge";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Text } from "@astryxdesign/core/Text";
-import type { FilingState, ManifestCheck, MatterDetails, Notebook, ResearchState, SourceRecord } from "../../shared/api.ts";
+import type { FactRecord, FilingState, ManifestCheck, MatterDetails, Notebook, ResearchState, SourceRecord } from "../../shared/api.ts";
 
 const api = window.openadvo;
 
@@ -170,7 +170,12 @@ const ROLES = ["supporting", "adverse", "distinguishable", "other"] as const;
 
 export function ResearchView(props: { matterId: string; version: number }) {
   const [s, setS] = useState<ResearchState | null>(null);
-  const load = useCallback(async () => setS(await api.getResearch(props.matterId)), [props.matterId]);
+  const [facts, setFacts] = useState<FactRecord[]>([]);
+  const load = useCallback(async () => {
+    const [research, factRows] = await Promise.all([api.getResearch(props.matterId), api.evidenceFacts(props.matterId)]);
+    setS(research);
+    setFacts(factRows);
+  }, [props.matterId]);
   useEffect(() => {
     void load();
   }, [load, props.version]);
@@ -191,7 +196,10 @@ export function ResearchView(props: { matterId: string; version: number }) {
         <Heading level={3}>Legal issues (case conference)</Heading>
         <Text type="supporting">The agent proposes candidates. You accept or reject each one with a reason. Your own issues are accepted when you add them.</Text>
         <ul className="work-list">
-          {s.issues.map((i) => (
+          {s.issues.map((i) => {
+            const tied = facts.filter((f) => i.factIds?.includes(f.id));
+            const relief = tied.map((f) => f.relief).filter((r) => r.trim() !== "");
+            return (
             <li key={i.id} data-testid="issue" data-status={i.status}>
               <Badge variant={i.status === "accepted" ? "success" : i.status === "rejected" ? "neutral" : "warning"} label={i.status} /> {i.text}{" "}
               <Text type="supporting">({i.author}{i.reason ? `; reason: ${i.reason}` : ""})</Text>
@@ -202,8 +210,23 @@ export function ResearchView(props: { matterId: string; version: number }) {
                   <Button label="Reject" size="sm" variant="ghost" isDisabled={busy} clickAction={() => run(() => api.decideIssue(props.matterId, i.id, "rejected", reasons[i.id] ?? ""))} />
                 </span>
               ) : null}
+              {i.factIds?.length ? (
+                <div data-testid="issue-facts" className="issue-facts">
+                  <Text type="supporting">Rests on {tied.length} fact(s):</Text>
+                  <ul className="plain-list">
+                    {tied.map((f) => (
+                      <li key={f.id} data-testid="issue-fact">
+                        {f.sourceName ? <Text type="supporting">{f.sourceName}{f.page != null ? `, p. ${f.page}` : ""}{f.line != null ? `, l. ${f.line}` : ""} — </Text> : null}
+                        {f.text}
+                      </li>
+                    ))}
+                  </ul>
+                  {relief.length ? <Text type="supporting">Relief sought through these facts: {relief.join("; ")}.</Text> : null}
+                </div>
+              ) : null}
             </li>
-          ))}
+            );
+          })}
         </ul>
         <div className="row-actions">
           <input placeholder="A legal issue" aria-label="New legal issue" value={issue} onChange={(e) => setIssue(e.target.value)} />

@@ -148,5 +148,69 @@ export function agentWorkHost(deps: { matters: Matters; research: Research; draf
       );
       return `Advocate memory proposed [${proposed.memoryId}]: ${proposed.subject} ${proposed.relation} ${proposed.object}. The advocate confirms or rejects it on the profile. It holds no fact of any client's matter.`;
     },
+    async proposeIssueWithFacts(matterId, text, factIds, sessionId) {
+      const store = await matters.store(matterId);
+      const known = new Set(store.evidence.facts().map((f) => f.id));
+      const valid = factIds.filter((id) => known.has(id));
+      const missing = factIds.filter((id) => !known.has(id));
+      const i = store.work.addIssue(text, agent(sessionId), valid);
+      return `Recorded as a candidate issue [issue:${i.id}]${valid.length ? ` resting on ${valid.length} fact(s)` : ""}${missing.length ? `. These ids are not facts of this matter: ${missing.join(", ")}.` : ""}. The advocate decides it at the case conference.`;
+    },
+    async proposeTheory(matterId, input, sessionId) {
+      const store = await matters.store(matterId);
+      const t = store.studio.addTheory(input, agent(sessionId));
+      return `Theory proposed [theory:${t.id}]: ${t.title}. It waits as an alternative; the advocate sets its place on the Strategy view. No theory states a probability of success.`;
+    },
+    async proposeElements(matterId, issueId, elements, sessionId) {
+      const store = await matters.store(matterId);
+      const issues = store.work.listIssues();
+      if (!issues.some((i) => i.id === issueId)) return `Issue ${issueId} does not exist. list_research shows the issue ids.`;
+      const added: string[] = [];
+      const refused: string[] = [];
+      for (const e of elements) {
+        try {
+          const c = store.work.addRecordColumn(e, agent(sessionId), issueId);
+          added.push(c.question);
+        } catch (err) {
+          refused.push(`${e}: ${(err as Error).message}`);
+        }
+      }
+      return `Element chart for issue ${issueId}: ${added.length} column(s) proposed (${added.join("; ")}). Each is a candidate until the advocate confirms it on the Record table view; only confirmed columns count for the gaps.${refused.length ? ` Refused: ${refused.join("; ")}.` : ""}`;
+    },
+    async proposeCrossQuestions(matterId, input, sessionId) {
+      const store = await matters.store(matterId);
+      const added: string[] = [];
+      const refused: string[] = [];
+      for (const q of input) {
+        try {
+          const row = store.proposeCrossQuestion({ witness: q.witness, question: q.question, targetKind: q.targetKind, targetId: q.targetId }, agent(sessionId));
+          added.push(row.question);
+        } catch (err) {
+          refused.push(`${q.question}: ${(err as Error).message}`);
+        }
+      }
+      return `Cross-examination plan: ${added.length} question(s) proposed${added.length ? ` (${added.map((q) => q.slice(0, 60)).join("; ")})` : ""}. Each names its contradiction or statement and is a candidate until the advocate decides it.${refused.length ? ` Refused: ${refused.join("; ")}.` : ""}`;
+    },
+    async proposeComplianceTasks(matterId, hearingId, tasks, sessionId) {
+      const store = await matters.store(matterId);
+      if (!store.hearings().some((h) => h.id === hearingId)) return `Hearing ${hearingId} does not exist. list_hearings shows the ids.`;
+      const added: string[] = [];
+      const refused: string[] = [];
+      for (const t of tasks) {
+        try {
+          const p = store.proposeTask({ hearingId, text: t.text, dueAt: t.dueAt }, agent(sessionId));
+          added.push(p.text);
+        } catch (err) {
+          refused.push(`${t.text}: ${(err as Error).message}`);
+        }
+      }
+      return `Compliance tasks proposed for the hearing: ${added.length} task(s)${added.length ? ` (${added.join("; ")})` : ""}. Each waits on the Proceedings view; an accepted task becomes a reminder.${refused.length ? ` Refused: ${refused.join("; ")}.` : ""}`;
+    },
+    async listHearings(matterId) {
+      const store = await matters.store(matterId);
+      const rows = store.hearings();
+      if (rows.length === 0) return "No hearing is recorded yet.";
+      return rows.map((h) => `- [hearing:${h.id}] ${h.date}${h.bench ? ` before ${h.bench}` : ""}${h.directions ? ` — directions: ${h.directions}` : ""}${h.nextDate ? ` — next: ${h.nextDate} (${h.nextDateStatus})` : ""}`).join("\n");
+    },
   };
 }

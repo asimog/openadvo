@@ -11,6 +11,7 @@ import { TabList, Tab } from "@astryxdesign/core/TabList";
 import type { ArgumentRecord, ArgumentStatus, CorpusPart, EventRecord, IssueRecord, KnowledgeHealthView, KnowledgeHit, ResearchDocument, ResearchHit, ResearchPlan, RetrievalResult, SearchMode, StudioState } from "../../shared/api.ts";
 import { GROUNDS, STANCES } from "../../shared/studio.ts";
 import { citationKeyText, summariseVerification } from "../../shared/law.ts";
+import { recordGaps } from "../../lib/evidence/templates.ts";
 import { InspectButton } from "./V5.tsx";
 import { AuthorityReview, RehearsalPart } from "./StudioV5.tsx";
 
@@ -35,6 +36,7 @@ export function StudioView(props: { matterId: string; version: number; conferenc
     <div className="studio" data-testid="studio">
       <TabList value={part} onChange={setPart} size="sm" role="tablist" aria-label="Studio parts">
         <Tab value="conference" label="Conference" />
+        <Tab value="strategy" label="Strategy" />
         <Tab value="law" label="Law library" />
         <Tab value="sources" label="Search" />
         <Tab value="arguments" label="Arguments" />
@@ -48,6 +50,7 @@ export function StudioView(props: { matterId: string; version: number; conferenc
             <AuthorityReview matterId={props.matterId} version={props.version + changed} />
           </>
         ) : null}
+        {part === "strategy" ? <StrategyPart matterId={props.matterId} version={props.version + changed} /> : null}
         {part === "rehearsal" ? <RehearsalPart matterId={props.matterId} version={props.version + changed} /> : null}
         {part === "law" ? <LawPart matterId={props.matterId} version={props.version + changed} /> : null}
         {part === "sources" ? <SourcesPart matterId={props.matterId} /> : null}
@@ -55,6 +58,184 @@ export function StudioView(props: { matterId: string; version: number; conferenc
         {part === "log" ? <LogPart matterId={props.matterId} version={props.version + changed} /> : null}
       </div>
     </div>
+  );
+}
+
+// ---- Phase 7 (K4, K5): the Strategy view ----
+
+function StrategyPart(props: { matterId: string; version: number }) {
+  const [s, setS] = useState<StudioState | null>(null);
+  const [issues, setIssues] = useState<IssueRecord[]>([]);
+  const [weak, setWeak] = useState<Awaited<ReturnType<typeof api.getWeakPoints>>>([]);
+  const [gaps, setGaps] = useState<Array<{ columnId: string; question: string }>>([]);
+  const [form, setForm] = useState({ title: "", statement: "", burden: "", standard: "", issueIds: "" });
+  const [question, setQuestion] = useState("");
+  const [asking, setAsking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    try {
+      setError(null);
+      const [studio, research, weakPoints, table] = await Promise.all([
+        api.getStudio(props.matterId),
+        api.getResearch(props.matterId),
+        api.getWeakPoints(props.matterId),
+        api.getRecordTable(props.matterId),
+      ]);
+      setS(studio);
+      setIssues(research.issues);
+      setWeak(weakPoints);
+      setGaps(recordGaps(table.columns, table.cells));
+    } catch (e) {
+      setError(errorText(e));
+    }
+  }, [props.matterId]);
+  useEffect(() => {
+    void load();
+  }, [load, props.version]);
+  const add = async () => {
+    try {
+      setError(null);
+      await api.addTheory(props.matterId, {
+        title: form.title,
+        statement: form.statement,
+        issueIds: form.issueIds.split(",").map((x) => x.trim()).filter(Boolean),
+        burden: form.burden,
+        standard: form.standard,
+      });
+      setForm({ title: "", statement: "", burden: "", standard: "", issueIds: "" });
+      await load();
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  const decide = async (id: string, decision: "primary" | "alternative" | "rejected", reason: string) => {
+    try {
+      setError(null);
+      await api.decideTheory(props.matterId, id, decision, reason);
+      await load();
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  const ask = async () => {
+    if (!question.trim()) return;
+    setAsking(true);
+    try {
+      setError(null);
+      await api.askDissent(props.matterId, question.trim());
+      setQuestion("");
+      await load();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setAsking(false);
+    }
+  };
+  if (!s) return null;
+  const live = s.theories.filter((t) => t.status !== "rejected");
+  const accepted = s.arguments.filter((a) => a.status === "accepted" && !a.attacks);
+  return (
+    <section className="work-section" aria-label="Case strategy" data-testid="strategy-panel">
+      <Heading level={3}>Case theory</Heading>
+      <Text type="supporting">
+        A theory is what the case is really about: the issues it rests on, the burden it says your side bears, the standard it faces. The agent may propose one; you set its place. No theory states a probability of success.
+      </Text>
+      {error ? <div className="notice" role="alert">{error}</div> : null}
+      {live.length === 0 ? <Text type="supporting">No theory yet. Add yours, or ask the agent to propose one in the chat.</Text> : null}
+      <ul className="plain-list" data-testid="theory-list">
+        {live.map((t) => (
+          <li key={t.id} className="phase4-row" data-testid="theory-row" data-status={t.status}>
+            <div className="phase4-main">
+              <div className="phase4-head">
+                <Badge variant={t.status === "primary" ? "success" : "neutral"} label={t.status} />
+                <Text weight="semibold">{t.title}</Text>
+                {t.author === "agent" ? <Badge variant="info" label="proposed" /> : null}
+              </div>
+              <Text>{t.statement}</Text>
+              {t.burden || t.standard ? (
+                <Text type="supporting">{[t.burden ? `Burden: ${t.burden}` : "", t.standard ? `Standard: ${t.standard}` : ""].filter(Boolean).join(" · ")}</Text>
+              ) : null}
+            </div>
+            <div className="row-actions">
+              {t.status !== "primary" ? <Button label="Set primary" size="sm" onClick={() => void decide(t.id, "primary", "the advocate set it primary")} /> : null}
+              {t.status !== "alternative" ? <Button label="Set alternative" size="sm" variant="ghost" onClick={() => void decide(t.id, "alternative", "the advocate set it alternative")} /> : null}
+              <Button label="Reject" size="sm" variant="ghost" onClick={() => void decide(t.id, "rejected", "the advocate rejected the theory")} />
+            </div>
+          </li>
+        ))}
+      </ul>
+      <details className="strategy-form">
+        <summary>Add a theory</summary>
+        <div className="phase4-edit">
+          <input aria-label="Theory title" placeholder="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+          <textarea aria-label="The theory" placeholder="The theory, in your terms" value={form.statement} onChange={(e) => setForm({ ...form, statement: e.target.value })} />
+          <input aria-label="Burden" placeholder="Who bears the burden (optional)" value={form.burden} onChange={(e) => setForm({ ...form, burden: e.target.value })} />
+          <input aria-label="Standard" placeholder="The standard of proof (optional)" value={form.standard} onChange={(e) => setForm({ ...form, standard: e.target.value })} />
+          <input aria-label="Issue ids" placeholder="Issue ids (comma-separated, optional)" value={form.issueIds} onChange={(e) => setForm({ ...form, issueIds: e.target.value })} />
+          <Button label="Add the theory" size="sm" isDisabled={!form.title.trim() || !form.statement.trim()} clickAction={() => void add()} />
+        </div>
+      </details>
+
+      <Heading level={3}>Standing and weaknesses</Heading>
+      <Text type="supporting">
+        The accepted arguments with their standing from the attack graph, the weak points the loop found, and the elements of the record-table chart that have no confirmed evidence.
+      </Text>
+      <ul className="plain-list" data-testid="standing-list">
+        {accepted.length === 0 ? <Text type="supporting">No accepted argument yet. Run the loop on the Arguments tab and accept the arguments that hold.</Text> : null}
+        {accepted.slice(0, 12).map((a) => (
+          <li key={a.id} data-testid="standing-row" data-standing={a.computed}>
+            <Badge variant={a.computed === "in" ? "success" : a.computed === "out" ? "error" : "warning"} label={a.computed === "in" ? "stands" : a.computed === "out" ? "felled" : "undecided"} /> {a.claim}
+          </li>
+        ))}
+      </ul>
+      {weak.length > 0 ? (
+        <div className="notice" data-testid="weak-points">
+          <Text weight="semibold">Weak points of the accepted arguments:</Text>
+          <ul className="plain-list">
+            {weak.map((w, i) => (
+              <li key={i}>{w.claim}: {w.questions.length ? ` open question: ${w.questions[0]}` : ""}{w.attacks.length ? ` standing attack (${w.attacks[0].kind}): ${w.attacks[0].claim}` : ""}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {gaps.length > 0 ? (
+        <div className="notice" data-testid="record-gaps">
+          <Text weight="semibold">{gaps.length} element(s) of the record-table chart have no confirmed evidence:</Text>
+          <ul className="plain-list">
+            {gaps.map((g) => (
+              <li key={g.columnId}>{g.question}</li>
+            ))}
+          </ul>
+          <Text type="supporting">Fill the cell from a source on the Record table tab, or drop the element. A gap is never guessed at.</Text>
+        </div>
+      ) : null}
+
+      <Heading level={3}>Dissent panel</Heading>
+      <Text type="supporting">
+        Ask one hard question. Every model you configured for a role answers it, anchored to the record; the answers are shown side by side. When they disagree, a review item names every answer. The panel shows a split; it never resolves it, and no answer predicts an outcome.
+      </Text>
+      <div className="row-actions">
+        <input
+          aria-label="The hard question"
+          placeholder="The hard question, as you would put it to counsel"
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && void ask()}
+          data-testid="dissent-question"
+        />
+        <Button label={asking ? "Asking…" : "Ask the panel"} size="sm" isDisabled={asking || !question.trim()} clickAction={() => void ask()} />
+      </div>
+      {s.dissents.length > 0 ? (
+        <ul className="plain-list" data-testid="dissent-list">
+          {s.dissents.slice(0, 12).map((d) => (
+            <li key={d.id} data-testid="dissent-answer" data-refused={d.refused ? "yes" : "no"}>
+              <Badge variant={d.refused ? "warning" : "neutral"} label={d.role} /> <Text type="supporting">{d.model} · {d.at.slice(0, 10)}</Text>
+              {d.refused ? <Text>Refused: {d.refused}</Text> : <Text>{d.answer}</Text>}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
   );
 }
 

@@ -308,6 +308,24 @@ function registerBridge(): void {
     return r.text;
   });
   handle("studio:weakPoints", (matterId: string) => studio.weakPoints(matterId));
+  // Phase 7 (K4, K5): the case theories and the dissent panel. Decisions are the advocate's.
+  handle("studio:addTheory", async (matterId: string, input: Record<string, unknown>) =>
+    (await matters.store(matterId)).studio.addTheory(
+      {
+        title: String(input?.title ?? ""),
+        statement: String(input?.statement ?? ""),
+        issueIds: Array.isArray(input?.issueIds) ? (input.issueIds as unknown[]).map(String) : [],
+        burden: String(input?.burden ?? ""),
+        standard: String(input?.standard ?? ""),
+      },
+      { actor: "advocate" },
+    ),
+  );
+  handle("studio:decideTheory", async (matterId: string, id: string, decision: string, reason: string) => {
+    if (decision !== "primary" && decision !== "alternative" && decision !== "rejected") throw new Error("BAD_DECISION: primary, alternative or rejected");
+    return (await matters.store(matterId)).studio.decideTheory(String(id), decision, String(reason ?? ""), { actor: "advocate" });
+  });
+  handle("studio:askDissent", (matterId: string, question: string) => studio.askDissent(matterId, String(question ?? "")));
   handle("knowledge:search", (matterId: string, query: string, opts: Record<string, unknown>) => hub.searchKnowledge(matterId || null, String(query ?? ""), (opts ?? {}) as RetrieveOptions));
   handle("knowledge:health", (matterId: string) => hub.knowledgeHealth(matterId || null));
   handle("knowledge:loadFirstWave", () => hub.loadLawFirstWave());
@@ -365,6 +383,29 @@ function registerBridge(): void {
   handle("reminders:done", async (matterId: string, id: string) => {
     (await matters.store(matterId)).setReminderStatus(String(id), "done", { actor: "advocate" });
     return (await matters.store(matterId)).reminders();
+  });
+  // Phase 7 (K8): the compliance tasks a hearing's directions need.
+  handle("tasks:list", async (matterId: string) => (await matters.store(matterId)).taskProposals());
+  handle("tasks:add", async (matterId: string, hearingId: string, text: string, dueAt: string) =>
+    (await matters.store(matterId)).proposeTask({ hearingId: String(hearingId ?? ""), text: String(text ?? ""), dueAt: dueAt ? String(dueAt) : undefined }, { actor: "advocate" }),
+  );
+  handle("tasks:decide", async (matterId: string, id: string, accept: boolean) => (await matters.store(matterId)).decideTask(String(id ?? ""), accept === true, { actor: "advocate" }));
+  // Phase 7 (K9): the cross-examination plan.
+  handle("cross:list", async (matterId: string) => (await matters.store(matterId)).crossQuestions());
+  handle("cross:propose", async (matterId: string, input: Record<string, unknown>) =>
+    (await matters.store(matterId)).proposeCrossQuestion(
+      {
+        witness: String(input?.witness ?? ""),
+        question: String(input?.question ?? ""),
+        targetKind: input?.targetKind === "contradiction" ? "contradiction" : "evidence",
+        targetId: String(input?.targetId ?? ""),
+      },
+      { actor: "advocate" },
+    ),
+  );
+  handle("cross:decide", async (matterId: string, id: string, decision: string) => {
+    if (decision !== "accepted" && decision !== "rejected") throw new Error("BAD_DECISION: accepted or rejected");
+    return (await matters.store(matterId)).decideCrossQuestion(String(id ?? ""), decision, { actor: "advocate" });
   });
   handle("policy:get", async (matterId: string) => {
     const store = await matters.store(matterId);
@@ -908,6 +949,11 @@ function registerBridge(): void {
     for (const q of t.columns) store.work.addRecordColumn(q, { actor: "advocate" });
     return { columns: t.columns.length };
   });
+  // Phase 7 (K3): the advocate confirms a proposed element column, or rejects it.
+  handle("records:decideColumn", async (matterId: string, columnId: string, decision: string) => {
+    if (decision !== "confirmed" && decision !== "rejected") throw new Error("BAD_DECISION: confirmed or rejected");
+    return (await matters.store(String(matterId))).work.decideRecordColumn(String(columnId ?? ""), decision, { actor: "advocate" });
+  });
   handle("mail:importEml", async (matterId: string) => {
     if (!window) return { messages: 0, attachments: [] };
     const r = await dialog.showOpenDialog(window, { title: "Import saved email messages", properties: ["openFile", "multiSelections"], filters: [{ name: "Email message", extensions: ["eml"] }] });
@@ -1118,6 +1164,20 @@ function registerBridge(): void {
   handle("models:list", () => agent.listModels());
   handle("models:get", () => agent.currentModel());
   handle("models:set", (key: string) => agent.setModel(String(key ?? "")));
+  // Phase 7 (O5): the model per role — drafting, extraction, critic — saved in settings.json.
+  // Each key must name a model with credentials; an absent key falls back to the chat's model.
+  handle("models:roles", () => roleModels());
+  handle("models:setRole", async (role: string, key: string | null) => {
+    if (!MODEL_ROLES.includes(role as ModelRole)) throw new Error(`BAD_ROLE: ${MODEL_ROLES.join(", ")}`);
+    if (key == null || key === "") {
+      writeSetting("roleModels", { ...roleModels(), [role]: null });
+      return roleModels();
+    }
+    const models = await agent.listModels();
+    if (!models.some((m) => m.key === key)) throw new Error(`BAD_MODEL: ${key} is not a model with credentials`);
+    writeSetting("roleModels", { ...roleModels(), [role]: key });
+    return roleModels();
+  });
   handle("effort:get", () => agent.getEffort());
   handle("effort:set", (level: string) => agent.setEffort(String(level ?? "")));
   handle("chat:send", (matterId: string, text: string) => {
@@ -1222,6 +1282,26 @@ function readSettings(): Record<string, unknown> {
   } catch {
     return {};
   }
+}
+
+/** O5: the model keys by role (drafting, extraction, critic), saved in settings.json. */
+const MODEL_ROLES = ["drafting", "extraction", "critic"] as const;
+export type ModelRole = (typeof MODEL_ROLES)[number];
+
+function roleModels(): Record<ModelRole, string | null> {
+  const rm = readSettings().roleModels;
+  const out = { drafting: null, extraction: null, critic: null } as Record<ModelRole, string | null>;
+  if (rm && typeof rm === "object") {
+    for (const role of MODEL_ROLES) {
+      const key = (rm as Record<string, unknown>)[role];
+      if (typeof key === "string" && key.trim()) out[role] = key.trim();
+    }
+  }
+  return out;
+}
+
+function roleModelKey(role: ModelRole): string | null {
+  return roleModels()[role];
 }
 
 function writeSetting(key: string, value: unknown): void {
@@ -1502,7 +1582,7 @@ app.whenReady().then(() => {
   workHost = agentWorkHost({ matters, research, drafts, portal, ulos, advocate: advocateStore });
   // V4: the Research and Argument Studio.
   hub = new ResearchHub(matters, path.join(app.getPath("userData"), "corpus"), researchSettings, (text) => window?.webContents.send("studio:progress", text));
-  studio = new ArgumentStudio(matters, () => agent.completer(), (id) => window?.webContents.send("studio:changed", id));
+  studio = new ArgumentStudio(matters, () => agent.completer(), (id) => window?.webContents.send("studio:changed", id), (role) => agent.completerFor(roleModelKey(role)));
   // Phase 6 (P3): the shared verification record of public law and the indexed judgment
   // paragraphs, reached through the one corpus owner.
   research.sharedCheck = (input) => {
@@ -1601,6 +1681,13 @@ app.whenReady().then(() => {
       readMemory: (id) => matters.memory(id),
       // Phase 6 (A7): the approved preferences with their reasons, for a skill's context package.
       listApprovedPreferences: () => advocateStore.preferences().filter((p) => p.status === "approved").map((p) => ({ key: p.key, value: p.value, reason: p.reason })),
+      // Phase 7 (O5): a skill's role maps to a model role — drafting (drafting), intake and
+      // evidence (extraction), review and strategy (critic) — and the role's model runs it.
+      roleModel: (role) => {
+        const mapped: Record<string, ModelRole> = { drafting: "drafting", intake: "extraction", evidence: "extraction", review: "critic", strategy: "critic" };
+        const modelRole = mapped[role];
+        return modelRole ? roleModelKey(modelRole) : null;
+      },
       proposeMemory: async (id, text, reason, sessionId) => (await matters.proposeMemory(id, text, reason, sessionId)).id,
       recordTable: (id) => recordTables.describe(id),
       fillRecordCell: (id, input, sessionId) => recordTables.fillByAgent(id, input, sessionId, findSource),

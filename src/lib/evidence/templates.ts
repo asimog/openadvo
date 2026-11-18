@@ -50,10 +50,17 @@ export const RECORD_TEMPLATES: RecordTemplate[] = [
     proceeding: "any",
     columns: ["Starting event", "Date", "Days allowed", "Exclusions", "Last day", "Source of the rule"],
   },
+  {
+    key: "interim_relief",
+    title: "Conditions for interim relief",
+    proceeding: "interim",
+    columns: ["Prima facie case", "Balance of convenience", "Irreparable injury"],
+  },
 ];
 
 export function templatesFor(proceeding: string): RecordTemplate[] {
   const p = proceeding.toLowerCase();
+  if (/interim|injunction|stay/.test(p)) return RECORD_TEMPLATES.filter((t) => t.proceeding === "interim");
   if (/bail/.test(p)) return RECORD_TEMPLATES.filter((t) => t.proceeding === "bail" || t.proceeding === "any");
   if (/writ|article 226|article 32/.test(p)) return RECORD_TEMPLATES.filter((t) => t.proceeding === "writ" || t.proceeding === "any");
   if (/appeal|slp|special leave/.test(p)) return RECORD_TEMPLATES.filter((t) => t.proceeding === "appeal" || t.proceeding === "any");
@@ -65,4 +72,13 @@ export function templatesFor(proceeding: string): RecordTemplate[] {
 
 export function template(key: string): RecordTemplate | undefined {
   return RECORD_TEMPLATES.find((t) => t.key === key);
+}
+
+/**
+ * Phase 7 (K3): the gaps of a record-table chart. A column with no confirmed cell across the
+ * record is a gap: the element has no anchored evidence. A gap is named, never guessed at.
+ */
+export function recordGaps(columns: Array<{ id: string; question: string }>, cells: Array<{ columnId: string; status: string }>): Array<{ columnId: string; question: string }> {
+  const confirmed = new Set(cells.filter((c) => c.status === "confirmed").map((c) => c.columnId));
+  return columns.filter((c) => !confirmed.has(c.id)).map((c) => ({ columnId: c.id, question: c.question }));
 }

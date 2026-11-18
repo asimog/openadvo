@@ -171,6 +171,12 @@ export const AGENT_TOOLS = [
   "list_preferences",
   "propose_preference",
   "propose_advocate_memory",
+  // Phase 7 (K1, K3, K4, K8, K9): issue fact ties, element charts, theories, hearing work.
+  "propose_theory",
+  "propose_elements",
+  "propose_cross_questions",
+  "propose_compliance_tasks",
+  "list_hearings",
 ] as const;
 
 /** At most this many pages per read_source_text call, so one result never crowds the model out. */
@@ -215,6 +221,8 @@ export interface AgentHost {
   readMemory(matterId: string): Promise<string>;
   /** Phase 6 (A7): the approved preferences with their reasons, for a skill's context package. */
   listApprovedPreferences?(): Array<{ key: string; value: string; reason: string }>;
+  /** Phase 7 (O5): the model key a skill's role runs on, or null for the chat's model. */
+  roleModel?(role: string): string | null;
   /** The parties of the open matter, for the party rule of the tool policy. */
   parties?(matterId: string): Promise<string[]>;
   /** The party rule is on unless the advocate turned it off (Settings → Tool permissions). */
@@ -288,10 +296,45 @@ export interface AgentWorkHost {
   proposePreference(input: { key: string; value: string; reason: string }, sessionId: string): Promise<string>;
   /** Phase 6 (F2): propose an advocate-scope memory record. The advocate decides it. */
   proposeAdvocateMemory(input: { type: "preference" | "approved_precedent" | "lesson" | "court_practice"; subject: string; relation: string; object: string; confidence?: number }, sessionId: string): Promise<string>;
+  /** Phase 7 (K1): propose an issue, naming the facts it rests on. */
+  proposeIssueWithFacts(matterId: string, text: string, factIds: string[], sessionId: string): Promise<string>;
+  /** Phase 7 (K4): propose a case theory. The advocate decides it. */
+  proposeTheory(matterId: string, input: { title: string; statement: string; issueIds?: string[]; burden?: string; standard?: string }, sessionId: string): Promise<string>;
+  /** Phase 7 (K3): propose the element columns of one issue, as candidate record columns. */
+  proposeElements(matterId: string, issueId: string, elements: string[], sessionId: string): Promise<string>;
+  /** Phase 7 (K9): propose cross-examination questions from the contradictions and the statements. */
+  proposeCrossQuestions(matterId: string, input: Array<{ witness?: string; question: string; targetKind: "contradiction" | "evidence"; targetId: string }>, sessionId: string): Promise<string>;
+  /** Phase 7 (K8): propose the compliance tasks a hearing's directions need. */
+  proposeComplianceTasks(matterId: string, hearingId: string, tasks: Array<{ text: string; dueAt?: string }>, sessionId: string): Promise<string>;
+  /** Phase 7 (K8): the hearings with their directions and next dates. */
+  listHearings(matterId: string): Promise<string>;
 }
 
 /** The application's default model (owner, 2026-11-14; engineering.md EC-7). Used when it has credentials. */
 export const DEFAULT_MODEL = "opencode-go/deepseek-v4.1-flash";
+
+/** One plain model call with no tool: what the Studio's loops and panels run on (V4-3, O5). */
+export interface PlainCompleter {
+  model: string;
+  local: boolean;
+  complete: (system: string, user: string, sessionId?: string, onUsage?: (u: ModelUsage) => void) => Promise<string>;
+}
+
+/** Build the plain completer for one model of the runtime (V4-3). */
+function makeCompleter(model: Model<Api>, runtime: ModelRuntime): PlainCompleter {
+  return {
+    model: keyOf(model),
+    local: isLocalModel(model),
+    complete: async (system, user, sessionId, onUsage) => {
+      // Some providers route by session (opencode sends x-opencode-session): one id per loop run.
+      const msg = await runtime.completeSimple(model, { systemPrompt: system, messages: [{ role: "user", content: user, timestamp: Date.now() }] }, { sessionId });
+      const u = (msg as { usage?: { input?: number; output?: number; totalTokens?: number; cost?: { total?: number } } }).usage;
+      if (u && onUsage) onUsage({ input: u.input ?? 0, output: u.output ?? 0, totalTokens: u.totalTokens ?? 0, cost: u.cost?.total ?? 0 });
+      if (msg.stopReason === "error" || msg.stopReason === "aborted") throw new Error(msg.errorMessage || `the model stopped: ${msg.stopReason}`);
+      return msg.content.map((b) => (b.type === "text" ? b.text : "")).join("");
+    },
+  };
+}
 
 export interface AgentOptions {
   /**
@@ -328,6 +371,7 @@ function systemPrompt(title: string, skills: string | null): string {
     "insert_citation inserts a citation from a saved authority at the end of a draft paragraph, as a tracked change, in the advocate's citation_format preference. Read list_preferences once before your first citation: if the citation format is not approved yet, ask the advocate in the chat (once, inside this task), then propose the answer with propose_preference. Every preference you apply is shown with its applied-because reason.",
     "The witness and deponent rule (phase 6): for an affidavit, you prepare questions and organize the deponent's own recorded words (list_evidence shows them); you never compose the evidence. An affidavit paragraph that is not the deponent's recorded words is a defect the checks find.",
     "The learned preferences (phase 6): citation format, drafting style, pleading structure, paragraph length, research depth, output format, languages, briefing other counsel. list_preferences reads the approved ones with their applied-because reasons. Ask each one once, inside the first task where it matters, and record the answer with propose_preference; the advocate approves every proposal. propose_advocate_memory proposes a record of the advocate's own ways (a preference, an approved precedent, a lesson, a court practice) — never a fact of any client's matter.",
+    "Argument and hearings (phase 7): propose_issue names the facts a proposed issue rests on (their ids come from list_facts). propose_theory proposes what the case is really about — the issues it rests on, the burden, the standard — never a probability of success. propose_elements proposes the element columns of an issue for the record-table chart; each is a candidate until the advocate confirms it, and a gap is named, never guessed at. The witness rule holds in cross-examination: propose_cross_questions puts the record to the witness (a contradiction it joins, or the witness's own recorded statement, by id); you never compose the witness's answer. After a hearing, list_hearings reads the directions, and propose_compliance_tasks proposes what each direction needs; an accepted task becomes a reminder.",
     "Research (Notebook E and F): list_research shows issues, authorities, memoranda and citation checks. propose_issue and add_authority record candidates; the advocate accepts or rejects them at the case conference. search_citation_index searches the court's released list of neutral citations by party or citation: a finding aid, never verification. write_memorandum stores a memorandum; ground each proposition with references the matter resolves: [event:<id>], [issue:<id>], [authority:<id>] or [source name, p. N, l. M]. Separate established facts, disputed facts, propositions, assumptions and open questions.",
     "propose_paragraph adds a new Question of Law or Ground to that draft as a tracked insertion; the advocate keeps or undoes it. check_citations runs the independent validator on the neutral citations in the drafts; you never state that a citation is verified unless the validator said so. Attestation is the advocate's alone.",
     "The court portal opens in a visible window: open_court_portal, portal_read, portal_navigate, portal_fill, portal_click. The advocate signs in and solves any CAPTCHA; never try to. PDFs downloaded there become sources with their provenance. Filing: upload_filing_file needs the advocate's first confirmation, submit_filing needs both, each bound to the filing set's payload hash. Then save_portal_receipt.",
@@ -699,13 +743,14 @@ function choice<const T extends readonly string[]>(values: T) {
 /** Reading tools: no change to any store (A4: annotations.readOnlyHint). */
 const READ_ONLY_TOOLS = new Set([
   "list_sources", "read_source_text", "search_sources", "list_events", "get_chronology", "read_draft",
-  "get_paragraph_source", "list_arguments", "list_research", "list_record_table", "read_matter_memory", "search_citation_index", "list_preferences",
+  "get_paragraph_source", "list_arguments", "list_research", "list_record_table", "read_matter_memory", "search_citation_index", "list_preferences", "list_hearings",
 ]);
 /** Tools that write a draft or a record: one at a time (A4: executionMode "sequential"). */
 const SEQUENTIAL_TOOLS = new Set([
   "propose_correction", "propose_paragraph", "fill_record_cell", "propose_issue", "add_authority", "write_memorandum", "write_research_memo", "propose_research_plan", "set_research_step",
   "save_judgment", "save_provision", "assess_authority", "record_treatment", "propose_memory_note", "propose_matter_instruction", "plan_set", "plan_update",
   "insert_citation", "propose_preference", "propose_advocate_memory",
+  "propose_theory", "propose_elements", "propose_cross_questions", "propose_compliance_tasks",
 ]);
 
 /**
@@ -873,22 +918,26 @@ export class Agent {
    * V4-3: one plain model call with no tool, for the argument loop. The same model and
    * credentials as the chat. Returns null when no model is available.
    */
-  async completer(): Promise<{ model: string; local: boolean; complete: (system: string, user: string, sessionId?: string, onUsage?: (u: ModelUsage) => void) => Promise<string> } | null> {
+  async completer(): Promise<PlainCompleter | null> {
     const model = await this.model();
     if (!model) return null;
     const runtime = await this.modelRuntime();
-    return {
-      model: keyOf(model),
-      local: isLocalModel(model),
-      complete: async (system, user, sessionId, onUsage) => {
-        // Some providers route by session (opencode sends x-opencode-session): one id per loop run.
-        const msg = await runtime.completeSimple(model, { systemPrompt: system, messages: [{ role: "user", content: user, timestamp: Date.now() }] }, { sessionId });
-        const u = (msg as { usage?: { input?: number; output?: number; totalTokens?: number; cost?: { total?: number } } }).usage;
-        if (u && onUsage) onUsage({ input: u.input ?? 0, output: u.output ?? 0, totalTokens: u.totalTokens ?? 0, cost: u.cost?.total ?? 0 });
-        if (msg.stopReason === "error" || msg.stopReason === "aborted") throw new Error(msg.errorMessage || `the model stopped: ${msg.stopReason}`);
-        return msg.content.map((b) => (b.type === "text" ? b.text : "")).join("");
-      },
-    };
+    return makeCompleter(model, runtime);
+  }
+
+  /**
+   * O5: a completer for one chosen model key — a role's model (drafting, extraction, critic).
+   * The key names a model of the same runtime and credentials. Returns null when no key is
+   * given, or when the key names no model that has credentials today; the caller then falls
+   * back to the chat's model and says so.
+   */
+  async completerFor(modelKey: string | null): Promise<PlainCompleter | null> {
+    if (!modelKey) return null;
+    const runtime = await this.modelRuntime();
+    const available = await runtime.getAvailable();
+    const model = available.find((m) => keyOf(m) === modelKey) ?? null;
+    if (!model) return null;
+    return makeCompleter(model, runtime);
   }
 
   /** pi-ai's list of models that have credentials. */
@@ -1378,9 +1427,12 @@ export class Agent {
       defineTool({
         name: "propose_issue",
         label: "Propose issue",
-        description: "Record a legal issue as a candidate for the case conference.",
-        parameters: Type.Object({ text: Type.String() }),
-        execute: async (_id, p) => text(await work.proposeIssue(matterId, p.text, await actor(_id))),
+        description: "Record a legal issue as a candidate for the case conference, naming the facts it rests on (their ids come from list_facts).",
+        parameters: Type.Object({
+          text: Type.String(),
+          fact_ids: Type.Optional(Type.Array(Type.String(), { description: "The ids of the facts the issue rests on." })),
+        }),
+        execute: async (_id, p) => text(await work.proposeIssueWithFacts(matterId, p.text, p.fact_ids ?? [], await actor(_id))),
       }),
       defineTool({
         name: "add_authority",
@@ -1498,6 +1550,89 @@ export class Agent {
         }),
         execute: async (_id, p) =>
           text(await work.proposeAdvocateMemory({ type: p.type, subject: p.subject, relation: p.relation, object: p.object, confidence: p.confidence }, await actor(_id))),
+      }),
+      defineTool({
+        name: "propose_theory",
+        label: "Propose case theory",
+        description:
+          "Propose a case theory: what the case is really about, the issues it rests on, the burden it says the party bears and the standard of proof it faces. It waits as an alternative; the advocate sets its place on the Strategy view. Never state a probability of success.",
+        parameters: Type.Object({
+          title: Type.String({ description: "A short name for the theory." }),
+          statement: Type.String({ description: "The theory in the advocate's terms, from the accepted records." }),
+          issue_ids: Type.Optional(Type.Array(Type.String(), { description: "The issues the theory rests on (list_research shows the ids)." })),
+          burden: Type.Optional(Type.String({ description: "Who bears the burden on this theory." })),
+          standard: Type.Optional(Type.String({ description: "The standard of proof this theory faces." })),
+        }),
+        execute: async (_id, p) =>
+          text(await work.proposeTheory(matterId, { title: p.title, statement: p.statement, issueIds: p.issue_ids ?? [], burden: p.burden, standard: p.standard }, await actor(_id))),
+      }),
+      defineTool({
+        name: "propose_elements",
+        label: "Propose element chart",
+        description:
+          "Propose the element columns of one issue for the record-table chart: the ingredients of the offence, the elements of the cause of action, or the conditions for relief. Each column is a candidate until the advocate confirms it; only confirmed columns count for the gaps. The cells are filled with fill_record_cell, each anchored to a line.",
+        parameters: Type.Object({
+          issue_id: Type.String({ description: "The issue the elements belong to." }),
+          elements: Type.Array(Type.String(), { description: "The elements, each one a column: short and factual." }),
+        }),
+        execute: async (_id, p) => text(await work.proposeElements(matterId, p.issue_id, p.elements, await actor(_id))),
+      }),
+      defineTool({
+        name: "propose_cross_questions",
+        label: "Propose cross-examination questions",
+        description:
+          "Propose cross-examination questions from the record. Each question names its target: a contradiction (get_contradictions shows them; give the fact id the contradiction joins) or a recorded statement (list_evidence shows the ids). A question with no target is refused. The witness rule holds: you put the record to the witness; you never compose the witness's answer.",
+        parameters: Type.Object({
+          questions: Type.Array(
+            Type.Object({
+              question: Type.String({ description: "The question put to the witness; it ends with a question mark." }),
+              witness: Type.Optional(Type.String({ description: "The witness it is put to." })),
+              target_kind: choice(["contradiction", "evidence"]),
+              target_id: Type.String({ description: "The fact id of the contradiction, or the evidence statement id." }),
+            }),
+            { maxItems: 12 },
+          ),
+        }),
+        execute: async (_id, p) =>
+          text(
+            await work.proposeCrossQuestions(
+              matterId,
+              p.questions.map((q) => ({ question: q.question, witness: q.witness, targetKind: q.target_kind as "contradiction" | "evidence", targetId: q.target_id })),
+              await actor(_id),
+            ),
+          ),
+      }),
+      defineTool({
+        name: "propose_compliance_tasks",
+        label: "Propose compliance tasks",
+        description:
+          "Propose the compliance tasks a hearing's directions need: what must be filed, replied to or done before the next date. Each task waits on the Proceedings view; an accepted task becomes a reminder with its due date.",
+        parameters: Type.Object({
+          hearing_id: Type.String({ description: "The hearing whose directions the tasks come from (list_hearings shows the ids)." }),
+          tasks: Type.Array(
+            Type.Object({
+              text: Type.String({ description: "The task, from the directions' own words." }),
+              due_at: Type.Optional(Type.String({ description: "YYYY-MM-DD, when the direction names a date." })),
+            }),
+            { maxItems: 8 },
+          ),
+        }),
+        execute: async (_id, p) =>
+          text(
+            await work.proposeComplianceTasks(
+              matterId,
+              p.hearing_id,
+              p.tasks.map((t) => ({ text: t.text, dueAt: t.due_at })),
+              await actor(_id),
+            ),
+          ),
+      }),
+      defineTool({
+        name: "list_hearings",
+        label: "List hearings",
+        description: "The hearings of the matter: date, bench, the directions given, the next date and whether it is confirmed or inferred.",
+        parameters: Type.Object({}),
+        execute: async (_id, _p) => text(await work.listHearings(matterId)),
       }),
       ...(["open_court_portal", "portal_read", "portal_navigate", "portal_fill", "portal_click", "upload_filing_file", "submit_filing", "save_portal_receipt"] as const).map((name) =>
         defineTool({
@@ -1822,15 +1957,18 @@ export class Agent {
    * extensions (its calls run through the Matter Agent's hooks), Pi's compaction, and its own
    * session file under `chat/skills/<run id>/`, so a resume continues it (O3).
    */
-  private async skillSession(parent: AgentSession | undefined, input: { prompt: string; tools: ToolDefinition[]; sessionDir: string; resume: boolean }): Promise<AgentSession> {
+  private async skillSession(parent: AgentSession | undefined, input: { prompt: string; tools: ToolDefinition[]; sessionDir: string; resume: boolean; role?: string }): Promise<AgentSession> {
     const settingsManager = SettingsManager.inMemory();
     settingsManager.applyOverrides({ compaction: { enabled: true } });
     await mkdir(input.sessionDir, { recursive: true });
+    // O5: a skill whose role has a model runs on it. A role model that no longer resolves falls
+    // back to the chat's model, as before.
+    const roleModel = input.role ? await this.roleModelForSession(input.role) : null;
     const { session } = await createAgentSession({
       cwd: this.options.agentDir,
       agentDir: this.options.agentDir,
       modelRuntime: await this.modelRuntime(),
-      model: (parent && sessionModel(parent)) ?? (await this.model()),
+      model: roleModel ?? (parent && sessionModel(parent)) ?? (await this.model()),
       thinkingLevel: "medium",
       resourceLoader: resourceLoader(input.prompt),
       settingsManager,
@@ -1840,6 +1978,15 @@ export class Agent {
       customTools: input.tools as never,
     });
     return session;
+  }
+
+  /** O5: the Model a skill's role runs on, resolved from the host's role-model key. Null when the role has none. */
+  private async roleModelForSession(role: string): Promise<Model<Api> | null> {
+    const key = this.host.roleModel?.(role);
+    if (!key) return null;
+    const runtime = await this.modelRuntime();
+    const available = await runtime.getAvailable();
+    return available.find((m) => keyOf(m) === key) ?? null;
   }
 
   /** O9: a side question's session: in memory, the chat's model, reading tools only. */
@@ -2192,6 +2339,8 @@ export class Agent {
             const m = sessionRef.s ? sessionModel(sessionRef.s) : undefined;
             return m ? keyOf(m) : "unknown";
           },
+          // O5: a skill whose role has a model runs on it; the usage is attributed to it.
+          modelForRole: (role) => host.roleModel?.(role) ?? null,
         })
       : undefined;
     const runSkillTool = harness && runner

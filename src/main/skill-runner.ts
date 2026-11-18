@@ -47,7 +47,9 @@ export interface SkillRunnerDeps {
   /** D5: why a skill naming these courts may not run in this matter, or null. */
   forumRefusal?(courts: readonly string[]): Promise<string | null>;
   /** A session in `sessionDir` with this prompt and these tools; `resume` continues the newest file there. */
-  createSession(input: { prompt: string; tools: ToolDefinition[]; sessionDir: string; resume: boolean }): Promise<AgentSession>;
+  createSession(input: { prompt: string; tools: ToolDefinition[]; sessionDir: string; resume: boolean; role: string }): Promise<AgentSession>;
+  /** O5: the model key a skill's role runs on (the role models), or null for the chat's model. */
+  modelForRole?(role: string): string | null;
   /** An approval card (O8). True when the advocate allows. */
   ask(title: string, signal?: AbortSignal): Promise<boolean>;
   notice(line: string): void;
@@ -230,7 +232,7 @@ export class SkillRunner {
       if (missing.length) this.deps.notice(`Skill ${skill.id}: the conversation has no tool ${missing.join(", ")}, so the run does not have it.`);
 
       const prompt = `${SYSTEM(skill)}\n\n${renderPackage(earlier ? { record, items: pkg.items } : pkg)}`;
-      const session = await this.deps.createSession({ prompt, tools, sessionDir: path.join(this.deps.chatDir, "skills", runId), resume: !!resumed });
+      const session = await this.deps.createSession({ prompt, tools, sessionDir: path.join(this.deps.chatDir, "skills", runId), resume: !!resumed, role: skill.role });
       store.updateSkillRun(runId, { sessionId: session.sessionId }, { actor: "system" });
       const halt: { why: string | null } = { why: null };
       const stop = (why: string) => {
@@ -306,7 +308,7 @@ export class SkillRunner {
         unsubscribe();
         card.toolsUsed = [...used.entries()].map(([name, u]) => ({ name, ...u }));
         await this.deps
-          .recordUsage({ model: this.deps.model(), input: card.tokens.input, output: card.tokens.output, cacheRead: usage.cacheRead, cacheWrite: usage.cacheWrite, totalTokens: card.tokens.total, cost: card.cost }, session.sessionId)
+          .recordUsage({ model: this.deps.modelForRole?.(skill.role) ?? this.deps.model(), input: card.tokens.input, output: card.tokens.output, cacheRead: usage.cacheRead, cacheWrite: usage.cacheWrite, totalTokens: card.tokens.total, cost: card.cost }, session.sessionId)
           .catch(() => undefined);
         session.dispose();
       }

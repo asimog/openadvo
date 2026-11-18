@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS legal_issue (
   author TEXT NOT NULL CHECK (author IN ('advocate', 'agent')),
   status TEXT NOT NULL CHECK (status IN ('candidate', 'accepted', 'rejected')),
   reason TEXT,
+  fact_ids TEXT NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL,
   decided_at TEXT
 ) STRICT;
@@ -187,7 +188,11 @@ CREATE TRIGGER IF NOT EXISTS filing_set_no_update BEFORE UPDATE ON filing_set BE
 CREATE TABLE IF NOT EXISTS record_column (
   id TEXT PRIMARY KEY,
   question TEXT NOT NULL,
-  created_at TEXT NOT NULL
+  author TEXT NOT NULL DEFAULT 'advocate' CHECK (author IN ('advocate', 'agent')),
+  status TEXT NOT NULL DEFAULT 'confirmed' CHECK (status IN ('candidate', 'confirmed', 'rejected')),
+  issue_id TEXT,
+  created_at TEXT NOT NULL,
+  decided_at TEXT NOT NULL DEFAULT ''
 ) STRICT;
 CREATE TABLE IF NOT EXISTS record_cell (
   source_id TEXT NOT NULL,
@@ -233,8 +238,15 @@ export class WorkStore {
   // ---- V1-5: the record table (v1 spec; after Mike's tabular review) ----
 
   recordTable(): RecordTable {
-    const columns = (this.db.prepare("SELECT * FROM record_column ORDER BY created_at, rowid").all() as Array<Record<string, unknown>>).map(
-      (r): RecordColumn => ({ id: String(r.id), question: String(r.question), createdAt: String(r.created_at) }),
+    const columns = (this.db.prepare("SELECT * FROM record_column WHERE status != 'rejected' ORDER BY created_at, rowid").all() as Array<Record<string, unknown>>).map(
+      (r): RecordColumn => ({
+        id: String(r.id),
+        question: String(r.question),
+        author: r.author as RecordColumn["author"],
+        status: r.status as RecordColumn["status"],
+        issueId: r.issue_id == null ? null : String(r.issue_id),
+        createdAt: String(r.created_at),
+      }),
     );
     const cells = (this.db.prepare("SELECT * FROM record_cell").all() as Array<Record<string, unknown>>).map(
       (r): RecordCell => ({
@@ -253,14 +265,38 @@ export class WorkStore {
     return { columns, cells };
   }
 
-  /** Human-only: the advocate asks a question of every source. */
-  addRecordColumn(question: string, ctx: WriteContext): RecordColumn {
-    human(ctx, "adds a record table column");
+  /**
+   * K3: a record-table column. The advocate's is confirmed at once; the agent's (an element the
+   * agent proposes for one issue) is a candidate until the advocate confirms it.
+   */
+  addRecordColumn(question: string, ctx: WriteContext, issueId: string | null = null): RecordColumn {
+    const who = author(ctx);
     const q = clean(question, 300);
     if (!q) throw new MatterStoreError("COLUMN_TEXT_REQUIRED", "a column needs its question");
+    if (issueId && !this.db.prepare("SELECT 1 FROM legal_issue WHERE id = ?").get(issueId)) throw new MatterStoreError("ISSUE_NOT_FOUND", issueId);
     const id = randomUUID();
-    this.db.prepare("INSERT INTO record_column (id, question, created_at) VALUES (?, ?, ?)").run(id, q, now());
-    this.event(ctx, "record_column.added", id, { question: q });
+    const status = who === "advocate" ? "confirmed" : "candidate";
+    this.db.prepare("INSERT INTO record_column (id, question, author, status, issue_id, created_at, decided_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+      id,
+      q,
+      who,
+      status,
+      issueId,
+      now(),
+      who === "advocate" ? now() : "",
+    );
+    this.event(ctx, "record_column.added", id, { author: who, question: q, status, issueId });
+    return this.recordTable().columns.find((c) => c.id === id)!;
+  }
+
+  /** Human-only (decision 5): the advocate confirms a proposed element column, or rejects it. */
+  decideRecordColumn(id: string, decision: "confirmed" | "rejected", ctx: WriteContext): RecordColumn {
+    human(ctx, "decides a proposed record column");
+    const row = this.db.prepare("SELECT * FROM record_column WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+    if (!row) throw new MatterStoreError("COLUMN_NOT_FOUND", id);
+    if (String(row.status) !== "candidate") throw new MatterStoreError("ALREADY_DECIDED", `the column is ${String(row.status)}`);
+    this.db.prepare("UPDATE record_column SET status = ?, decided_at = ? WHERE id = ?").run(decision, now(), id);
+    this.event(ctx, `record_column.${decision === "confirmed" ? "confirmed" : "rejected"}`, id, null);
     return this.recordTable().columns.find((c) => c.id === id)!;
   }
 
@@ -471,20 +507,26 @@ export class WorkStore {
       author: r.author as "advocate" | "agent",
       status: r.status as IssueRecord["status"],
       reason: r.reason == null ? null : String(r.reason),
+      factIds: JSON.parse(String(r.fact_ids ?? "[]")) as string[],
       createdAt: String(r.created_at),
       decidedAt: r.decided_at == null ? null : String(r.decided_at),
     }));
   }
 
   /** The advocate's issue is accepted at once; the agent's is a candidate for the conference. */
-  addIssue(text: string, ctx: WriteContext): IssueRecord {
+  addIssue(text: string, ctx: WriteContext, factIds: string[] = []): IssueRecord {
     const who = author(ctx);
     const t = clean(text, 1000);
     if (!t) throw new MatterStoreError("ISSUE_TEXT_REQUIRED", "an issue needs its text");
+    // K1: an issue names the facts it rests on. Every named fact must exist.
+    const ids = [...new Set(factIds.map(String))];
+    for (const fid of ids) {
+      if (!this.db.prepare("SELECT 1 FROM fact WHERE id = ?").get(fid)) throw new MatterStoreError("FACT_NOT_FOUND", fid);
+    }
     const id = randomUUID();
     const status = who === "advocate" ? "accepted" : "candidate";
-    this.db.prepare("INSERT INTO legal_issue (id, text, author, status, created_at, decided_at) VALUES (?, ?, ?, ?, ?, ?)").run(id, t, who, status, now(), who === "advocate" ? now() : null);
-    this.event(ctx, "issue.added", id, { author: who, status });
+    this.db.prepare("INSERT INTO legal_issue (id, text, author, status, fact_ids, created_at, decided_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(id, t, who, status, JSON.stringify(ids), now(), who === "advocate" ? now() : null);
+    this.event(ctx, "issue.added", id, { author: who, status, facts: ids.length });
     return this.listIssues().find((i) => i.id === id)!;
   }
 

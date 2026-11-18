@@ -61,6 +61,18 @@ export interface DraftingInput {
   proceeding: { caseType: string; provisions: string[] } | null;
   /** Approved Questions of Law and Grounds, as the SLP petition generator uses them. */
   approved: { questions: string[]; grounds: string[] };
+  /** Phase 7 (K6): the matter's stage, from the matter profile. */
+  stage: string;
+  /** Phase 7 (K6): the hearings, newest last. */
+  hearings: Array<{ date: string; bench: string; directions: string; nextDate: string; nextDateStatus: string }>;
+  /** Phase 7 (K6): the directions the last orders carry, with their anchors, newest first. */
+  orderDirections: Array<{ text: string; sourceName: string; page: number; line: number }>;
+  /** Phase 7 (K6): the open review items, the first ten. */
+  openItems: Array<{ kind: string; detail: string }>;
+  /** Phase 7 (K6, K7): the challenges of the register, with each row's status. */
+  challenges: Array<{ kind: string; text: string; answer: string; status: string }>;
+  /** Phase 7 (K7): the accepted arguments that stand, with their computed standing. */
+  arguments: Array<{ claim: string; reasoning: string; computed: string; elo: number }>;
 }
 
 const eventLine = (e: DraftEvent): string => `${e.sourceName}, p. ${e.page}, l. ${e.line}`;
@@ -385,4 +397,75 @@ export function slot(title: string, what: string): Block[] {
     { text: title, style: "heading" },
     { text: `[REVIEW: ${what}]` },
   ];
+}
+
+// ---- Phase 7 (K6): the hearing brief ----
+
+/** The brief is one page: every section is capped, and no outcome is predicted anywhere in it. */
+const BRIEF_ROWS = 5;
+
+export function hearingBriefPart(i: DraftingInput): Block[] {
+  const listed = [...i.hearings].reverse().find((h) => h.nextDate) ?? [...i.hearings].reverse()[0];
+  const benchQuestions = i.challenges.filter((c) => c.kind === "bench_question" && c.status === "accepted");
+  const objections = i.challenges.filter((c) => c.kind === "objection" && c.status === "accepted");
+  const out: Block[] = [
+    { text: "HEARING BRIEF", style: "center" },
+    { text: `Posture: ${i.stage || "[TO BE COMPLETED: the stage of the matter]"}. ${i.details.petitioner || "…"} versus ${i.details.respondent || "…"}.` },
+  ];
+  if (listed) {
+    out.push({ text: "What is listed", style: "heading" });
+    out.push({ text: `Next: ${listed.nextDate || "[TO BE COMPLETED: the next date]"}${listed.bench ? `, before ${listed.bench}` : ""}.` });
+  } else {
+    out.push({ text: "What is listed", style: "heading" });
+    out.push({ text: "[TO BE COMPLETED: no hearing is recorded yet]" });
+  }
+  out.push({ text: "The last order's directions", style: "heading" });
+  if (i.orderDirections.length === 0) out.push({ text: "No direction of a recorded order is extracted yet." });
+  for (const d of i.orderDirections.slice(0, BRIEF_ROWS)) out.push({ text: `- ${d.text} [${d.sourceName}, p. ${d.page}, l. ${d.line}]` });
+  out.push({ text: "Open items", style: "heading" });
+  if (i.openItems.length === 0) out.push({ text: "None open." });
+  for (const o of i.openItems.slice(0, BRIEF_ROWS)) out.push({ text: `- [${o.kind}] ${o.detail}` });
+  out.push({ text: "Bench questions and answers", style: "heading" });
+  if (benchQuestions.length === 0) out.push({ text: "None accepted in the register yet. Prepare them with the rehearsal." });
+  for (const q of benchQuestions.slice(0, BRIEF_ROWS)) out.push({ text: `- Q: ${q.text}\n  A: ${q.answer || "[REVIEW: the answer is yours to write]"}` });
+  out.push({ text: "Objections of opposing counsel", style: "heading" });
+  if (objections.length === 0) out.push({ text: "None accepted in the register yet." });
+  for (const o of objections.slice(0, BRIEF_ROWS)) out.push({ text: `- ${o.text}\n  Response: ${o.answer || "[REVIEW: the response is yours to write]"}` });
+  out.push({ text: "Challenge register", style: "heading" });
+  if (i.challenges.length === 0) out.push({ text: "The register is empty." });
+  for (const c of i.challenges.slice(0, BRIEF_ROWS)) out.push({ text: `- [${c.status}] ${c.kind === "bench_question" ? "Bench question" : "Objection"}: ${c.text}` });
+  out.push({ text: "No outcome is predicted in this brief. The advocate argues; the court decides." });
+  return out;
+}
+
+// ---- Phase 7 (K7): the oral outline ----
+
+/** At most four points, strongest first: the standing orders them, then the Elo. */
+const OUTLINE_POINTS = 4;
+
+export function oralOutlinePart(i: DraftingInput): Block[] {
+  const standing: Record<string, number> = { in: 0, undecided: 1, out: 2 };
+  const points = [...i.arguments]
+    .filter((a) => a.computed !== "out")
+    .sort((a, b) => (standing[a.computed] ?? 3) - (standing[b.computed] ?? 3) || b.elo - a.elo)
+    .slice(0, OUTLINE_POINTS);
+  const objections = i.challenges.filter((c) => c.kind === "objection" && c.status === "accepted");
+  const out: Block[] = [
+    { text: "ORAL OUTLINE", style: "center" },
+    { text: "Three or four points, strongest first. The order is the advocate's to change." },
+    { text: "The points", style: "heading" },
+  ];
+  if (points.length === 0) out.push({ text: "No accepted argument stands in the Studio yet. Run the loop, and accept the arguments that hold." });
+  points.forEach((p, n) => {
+    out.push({ text: `${n + 1}. ${p.claim} (${p.computed === "in" ? "stands" : p.computed === "undecided" ? "undecided" : "weakest"})` });
+    out.push({ text: `   Note: ${p.reasoning.slice(0, 400)}` });
+  });
+  out.push({ text: "Rebuttal notes", style: "heading" });
+  if (objections.length === 0) out.push({ text: "None accepted in the register yet." });
+  for (const o of objections.slice(0, BRIEF_ROWS)) out.push({ text: `- If "${o.text}": ${o.answer || "[REVIEW: the response is yours to write]"}` });
+  out.push({ text: "Compilation of authorities, with the paragraphs relied on", style: "heading" });
+  const rows = i.authorities;
+  if (rows.length === 0) out.push({ text: "No authority is recorded. Save the authorities relied on, on the Research tab." });
+  for (const a of rows.slice(0, 10)) out.push({ text: `- ${a.citation}${a.paragraph ? `, paragraph ${a.paragraph}` : ""}${a.parties ? `, ${a.parties}` : ""}` });
+  return out;
 }

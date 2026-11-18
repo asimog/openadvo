@@ -22,6 +22,8 @@ export const READ_MATTER_TOOLS = [
   "list_arguments",
   // Phase 6 (A7): the advocate's approved preferences and the proposals waiting.
   "list_preferences",
+  // Phase 7 (K8): the hearings with their directions.
+  "list_hearings",
 ] as const;
 
 /** Tools that read public law and the web. */
@@ -81,9 +83,9 @@ export const ROLE_TABLE: Record<Role, { description: string; tools: string[] }> 
   chronology: { description: "Builds and tests the chronology: dates, conflicts and contradictions.", tools: [...R] },
   drafting: { description: "Proposes text as tracked changes from confirmed records.", tools: [...R, "propose_correction", "propose_paragraph", "insert_citation", "propose_preference"] },
   review: { description: "Checks drafts, citations and grounding, and reports defects. It never approves its own run.", tools: [...R, "check_draft", "check_citations", "quick_check_citations", "search_knowledge", "read_judgment", "read_statute_section", "search_citation_index", "propose_preference"] },
-  strategy: { description: "Proposes issues and arguments and tests them with a critic.", tools: [...R, ...L, "propose_issue", "run_argument_loop"] },
+  strategy: { description: "Proposes issues and arguments and tests them with a critic.", tools: [...R, ...L, "propose_issue", "run_argument_loop", "propose_theory", "propose_elements"] },
   filing: { description: "Checks a filing-ready set against the court's checklist. It never files.", tools: [...R, "check_draft", "check_citations", "quick_check_citations"] },
-  hearing: { description: "Prepares the hearing brief, bench questions and the oral outline.", tools: [...R, ...L, "run_rehearsal"] },
+  hearing: { description: "Prepares the hearing brief, bench questions and the oral outline.", tools: [...R, ...L, "run_rehearsal", "propose_cross_questions", "propose_compliance_tasks"] },
   monitoring: { description: "Reads new orders, cause lists and developments and proposes their impact.", tools: [...R, ...L] },
   memory: { description: "Proposes memory records after a run. The advocate decides each one.", tools: [...R, "propose_memory_note", "propose_advocate_memory"] },
 };

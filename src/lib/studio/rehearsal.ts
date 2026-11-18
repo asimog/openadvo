@@ -3,6 +3,9 @@
  * one-line answer, and opposing counsel's objections with a response; code keeps only those
  * whose answer is anchored to the record or an authority, by the same checks as the argument
  * loop. No outcome is predicted. Plain library. Spec: docs/archive/2026-11-15/specs/v5.md.
+ *
+ * O5 (K2): the objections pass — the critic role — takes the critic's completer when the
+ * advocate set one; the bench questions stay on the proposing model.
  */
 import { aliases, contextText, extractJson, labelAliases, SYSTEM, type Aliases, type Complete, type LoopContext } from "./index.ts";
 
@@ -26,7 +29,12 @@ export interface RehearsalResult {
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
-function ground(o: Record<string, unknown>, al: Aliases): { refs: string[] } | { reason: string } {
+/**
+ * The grounding check of one answer's anchors: each event ref must be a confirmed event and its
+ * quote must occur in the event's text; each authority ref must exist and not be citation-failed;
+ * at least one anchor. Shared by the rehearsal and the dissent panel (phase 7).
+ */
+export function ground(o: Record<string, unknown>, al: Aliases): { refs: string[] } | { reason: string } {
   const refs: string[] = [];
   for (const e of Array.isArray(o.events) ? (o.events as Array<Record<string, unknown>>) : []) {
     const ref = str(e?.ref).toUpperCase();
@@ -57,10 +65,15 @@ export function objectionsPrompt(context: string): string {
   return `${context}\n\nTASK: As counsel for the respondent at the admission hearing, raise the strongest objections (categories: ${OBJECTION_CATEGORIES.join(", ")}). For each, give the petitioner's one-line response anchored to the record or an authority above. At most five. Return JSON: {"objections":[{"category":"limitation","objection":"...","response":"...","events":[{"ref":"E1","quote":"exact words"}],"authorities":[]}]}`;
 }
 
-export async function rehearse(complete: Complete, ctx: LoopContext): Promise<RehearsalResult> {
+export async function rehearse(complete: Complete, ctx: LoopContext, criticComplete?: Complete): Promise<RehearsalResult> {
   const al = aliases(ctx);
   const context = contextText(ctx, al);
-  const [q, o] = await Promise.all([complete(SYSTEM, questionsPrompt(context), "rehearsal-questions"), complete(SYSTEM, objectionsPrompt(context), "rehearsal-objections")]);
+  // The objections pass is the critic role: a second model family attacks the matter when the
+  // advocate set one (K2). The bench questions stay on the proposing model.
+  const [q, o] = await Promise.all([
+    complete(SYSTEM, questionsPrompt(context), "rehearsal-questions"),
+    (criticComplete ?? complete)(SYSTEM, objectionsPrompt(context), "rehearsal-objections"),
+  ]);
   const items: RehearsalItem[] = [];
   const rejected: RehearsalResult["rejected"] = [];
   const qj = extractJson(q) as { questions?: unknown } | null;

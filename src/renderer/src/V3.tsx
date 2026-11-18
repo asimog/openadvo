@@ -172,6 +172,7 @@ export function SettingsPage(props: { mailbox: ReactNode; research?: ReactNode; 
   };
   const sections = [
     { id: "appearance", label: "Appearance" },
+    { id: "role-models", label: "Role models" },
     { id: "extensions", label: "Pi extensions" },
     { id: "permissions", label: "Tool permissions" },
     { id: "plan", label: "Plan" },
@@ -220,6 +221,13 @@ export function SettingsPage(props: { mailbox: ReactNode; research?: ReactNode; 
                   </label>
                 ))}
               </div>
+            </section>
+            <section className="work-section" id="settings-role-models" aria-label="Role models">
+              <Heading level={3}>Role models</Heading>
+              <Text type="supporting">
+                A model for each role the agent works in, local or remote. With none set, the chat's model runs everything. A role model that no longer has credentials falls back to the chat's model, and the run says so.
+              </Text>
+              <RoleModelSettings />
             </section>
             <section className="work-section" id="settings-extensions" aria-label="Pi extensions">
               <Heading level={3}>Pi extensions</Heading>
@@ -448,9 +456,59 @@ export function ToolPermissionsSettings() {
   );
 }
 
+/** Phase 7 (O5): Settings → Role models. Each role picks one model of the signed-in list. */
+function RoleModelSettings() {
+  const [models, setModels] = useState<Array<{ key: string; name: string; provider: string; id: string }>>([]);
+  const [roles, setRoles] = useState<{ drafting: string | null; extraction: string | null; critic: string | null } | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  useEffect(() => {
+    void api.listModels().then(setModels, (e: Error) => setMessage(e.message));
+    void api.getRoleModels().then(setRoles);
+  }, []);
+  const set = async (role: "drafting" | "extraction" | "critic", key: string) => {
+    try {
+      setMessage(null);
+      setRoles(await api.setRoleModel(role, key === "" ? null : key));
+    } catch (e) {
+      setMessage(`Not saved: ${(e as Error).message}`);
+    }
+  };
+  if (!roles) return null;
+  const rows: Array<{ role: "drafting" | "extraction" | "critic"; title: string; applies: string }> = [
+    { role: "drafting", title: "Drafting", applies: "The argument loop's proposing passes; the rehearsal's bench questions; the skill runs of the drafting role." },
+    { role: "extraction", title: "Extraction", applies: "The skill runs of the intake and evidence roles. The fact extraction itself is rule-based today; this choice is kept for the extraction model calls when they exist." },
+    { role: "critic", title: "Critic", applies: "The loop's critic and opposing-counsel passes; the rehearsal's objections; the skill runs of the review and strategy roles. A second model family here attacks the arguments with a different mind." },
+  ];
+  return (
+    <div data-testid="role-models">
+      <ul className="plain-list">
+        {rows.map((r) => (
+          <li key={r.role} data-testid="role-model-row" data-role={r.role}>
+            <div className="phase4-main">
+              <div className="phase4-head">
+                <Text weight="semibold">{r.title}</Text>
+              </div>
+              <Text type="supporting">{r.applies}</Text>
+            </div>
+            <div className="row-actions">
+              <select aria-label={`${r.title} model`} value={roles[r.role] ?? ""} onChange={(e) => void set(r.role, e.target.value)}>
+                <option value="">The chat's model</option>
+                {models.map((m) => (
+                  <option key={m.key} value={m.key}>{m.name || m.id} ({m.key})</option>
+                ))}
+              </select>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {message ? <div className="notice" role="alert">{message}</div> : null}
+      {models.length === 0 ? <Text type="supporting">No model is signed in. Sign in with Pi first, then pick a role's model.</Text> : null}
+    </div>
+  );
+}
+
 /** Settings: how strongly the agent is asked to keep a plan (native-harness-parts section 4). */
-export function PlanStrengthSettings() {
-  const [value, setValue] = useState<"long" | "most" | null>(null);
+export function PlanStrengthSettings() {  const [value, setValue] = useState<"long" | "most" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   useEffect(() => {
     void api.getPlanStrength().then(setValue, (e: Error) => setMessage(e.message));

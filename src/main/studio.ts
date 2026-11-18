@@ -16,6 +16,7 @@ import { getBytes, SourceError } from "../lib/research-sources/http.ts";
 import { processPdf } from "../lib/document-intelligence/index.ts";
 import { groundedStatus, runLoop, type ArchivedArgument, type LoopContext } from "../lib/studio/index.ts";
 import { rehearse } from "../lib/studio/rehearsal.ts";
+import { runDissent, type PanelMember } from "../lib/studio/dissent.ts";
 import { disposalClass, quickCheck } from "../lib/matter-store/authority2.ts";
 import { findCitations } from "../lib/ulos/index.ts";
 import { readParagraphs } from "../lib/drafting/index.ts";
@@ -639,6 +640,12 @@ class Meter {
 export class ArgumentStudio {
   private matters: Matters;
   private completer: Completer;
+  /**
+   * O5: the role models' completers. The attacking passes (the critic's questions and the
+   * opposing counsel's attacks and objections) run on the critic model; the dissent panel asks
+   * every role's model. Absent or unresolved: the proposing model runs everything, as before.
+   */
+  private roleCompleter: ((role: "drafting" | "extraction" | "critic") => Promise<Awaited<ReturnType<Completer>>>) | null;
   private running = new Map<string, string>();
   private progress = new Map<string, string>();
   private stopping = new Set<string>();
@@ -670,10 +677,19 @@ export class ArgumentStudio {
   }
   private onChange: (matterId: string) => void;
 
-  constructor(matters: Matters, completer: Completer, onChange: (matterId: string) => void = () => undefined) {
+  constructor(matters: Matters, completer: Completer, onChange: (matterId: string) => void = () => undefined, roleCompleter: ((role: "drafting" | "extraction" | "critic") => Promise<Awaited<ReturnType<Completer>>>) | null = null) {
     this.matters = matters;
     this.completer = completer;
+    this.roleCompleter = roleCompleter;
     this.onChange = onChange;
+  }
+
+  /**
+   * O5: the model of one role, or null. A role model that no longer resolves (removed or
+   * without credentials) falls back to the proposing model, and the run says so in its event.
+   */
+  private async roleModel(role: "drafting" | "extraction" | "critic"): Promise<Awaited<ReturnType<Completer>>> {
+    return this.roleCompleter ? await this.roleCompleter(role) : null;
   }
 
   /** The records the loop may use: confirmed events, live authorities and provisions. */
@@ -725,6 +741,8 @@ export class ArgumentStudio {
       runs: store.studio.runs(),
       arguments: args.map((a) => ({ ...a, computed: status.get(a.id) ?? "undecided" })),
       rejections: store.studio.rejections({}, 200),
+      theories: store.studio.theories(),
+      dissents: store.studio.dissents(),
       loop: {
         available: !!c && !running,
         detail: running ? `Running: ${this.progress.get(matterId) ?? "starting"}` : c ? `Model: ${c.model}` : "No model is available. Set up a model in Pi, then try again.",
@@ -740,6 +758,7 @@ export class ArgumentStudio {
     if (!c) throw new MatterStoreError("NO_MODEL", "no model is available. Set up a model in Pi, then try again");
     const allowance = await this.admit(matterId, c);
     const meter = new Meter();
+    const criticMeter = new Meter();
     const context = await this.context(matterId, issueId);
     if (context.events.length === 0 && context.authorities.length === 0) throw new MatterStoreError("NO_RECORDS", "confirm Notebook events or add authorities first: the loop uses records only");
     const rounds = Math.min(Math.max(Math.trunc(opts.rounds ?? 2), 1), 4);
@@ -760,6 +779,20 @@ export class ArgumentStudio {
       await writeFile(path.join(folder, `${String(i).padStart(3, "0")}-${label.replace(/[^\w-]+/g, "_")}.json`), JSON.stringify(record, null, 2));
       return response;
     };
+    // O5 (K2): the critic's completer. When the advocate set a critic model that resolves, the
+    // attacking passes run on it; the calls are recorded beside the proposing model's.
+    const critic = await this.roleModel("critic");
+    const criticComplete =
+      critic && critic.model !== c.model
+        ? async (system: string, user: string, label: string) => {
+            const response = await critic.complete(system, user, `openadvo-studio-${run.id}`, criticMeter.add);
+            const i = ++n;
+            const record = { label, model: critic.model, system, user, response };
+            calls.push({ label: `${label} (critic ${critic.model})`, request: createHash("sha256").update(JSON.stringify({ system, user })).digest("hex"), response: createHash("sha256").update(response).digest("hex") });
+            await writeFile(path.join(folder, `${String(i).padStart(3, "0")}-${label.replace(/[^\w-]+/g, "_")}.json`), JSON.stringify(record, null, 2));
+            return response;
+          }
+        : undefined;
     const archive: ArchivedArgument[] = store.studio
       .arguments(issueId)
       .filter((a) => a.status !== "rejected")
@@ -768,6 +801,7 @@ export class ArgumentStudio {
       try {
         const stats = await runLoop({
           complete,
+          criticComplete,
           context,
           rounds,
           generators,
@@ -782,7 +816,7 @@ export class ArgumentStudio {
           setQuestions: (id, q) => store.studio.setQuestions(id, q),
           setElo: (id, elo) => store.studio.setElo(id, elo),
           // The loop also stops between steps once the run has used the rest of the budget.
-          shouldStop: () => this.stopping.has(matterId) || (allowance.budget != null && allowance.used + meter.totalTokens >= allowance.budget),
+          shouldStop: () => this.stopping.has(matterId) || (allowance.budget != null && allowance.used + meter.totalTokens + criticMeter.totalTokens >= allowance.budget),
           onProgress: (t) => {
             this.progress.set(matterId, t);
             this.onChange(matterId);
@@ -794,6 +828,7 @@ export class ArgumentStudio {
         store.studio.finishRun(run.id, "failed", { calls: n }, (e as Error).message);
       } finally {
         await this.recordUsage(matterId, c.model, meter, `openadvo-studio-${run.id}`).catch((e) => console.error(`studio usage: ${(e as Error).message}`));
+        if (criticComplete && critic) await this.recordUsage(matterId, critic.model, criticMeter, `openadvo-studio-${run.id}`).catch((e) => console.error(`studio usage: ${(e as Error).message}`));
         this.running.delete(matterId);
         this.stopping.delete(matterId);
         this.progress.delete(matterId);
@@ -824,14 +859,31 @@ export class ArgumentStudio {
     await mkdir(folder, { recursive: true });
     let n = 0;
     let r: Awaited<ReturnType<typeof rehearse>>;
+    // O5 (K2): the objections pass takes the critic's model, with its calls recorded beside the
+    // proposing model's, and its usage attributed to it.
+    const critic = await this.roleModel("critic");
+    const criticMeter = new Meter();
+    const criticComplete =
+      critic && critic.model !== c.model
+        ? async (system: string, user: string, label: string) => {
+            const response = await critic.complete(system, user, `openadvo-rehearsal-${runId}`, criticMeter.add);
+            await writeFile(path.join(folder, `${String(++n).padStart(3, "0")}-${label}.json`), JSON.stringify({ label, model: critic.model, system, user, response }, null, 2));
+            return response;
+          }
+        : undefined;
     try {
-      r = await rehearse(async (system, user, label) => {
-        const response = await c.complete(system, user, `openadvo-rehearsal-${runId}`, meter.add);
-        await writeFile(path.join(folder, `${String(++n).padStart(3, "0")}-${label}.json`), JSON.stringify({ label, model: c.model, system, user, response }, null, 2));
-        return response;
-      }, context);
+      r = await rehearse(
+        async (system, user, label) => {
+          const response = await c.complete(system, user, `openadvo-rehearsal-${runId}`, meter.add);
+          await writeFile(path.join(folder, `${String(++n).padStart(3, "0")}-${label}.json`), JSON.stringify({ label, model: c.model, system, user, response }, null, 2));
+          return response;
+        },
+        context,
+        criticComplete,
+      );
     } finally {
       await this.recordUsage(matterId, c.model, meter, `openadvo-rehearsal-${runId}`);
+      if (criticComplete && critic && criticMeter.totalTokens > 0) await this.recordUsage(matterId, critic.model, criticMeter, `openadvo-rehearsal-${runId}`);
     }
     for (const it of r.items) store.studio.addChallenge({ runId, kind: it.kind, category: it.category, text: it.text, answer: it.answer, refs: it.refs, origin: "generated" });
     for (const item of store.listReviewItems().filter((x) => x.status === "open" && x.draftId)) {
@@ -855,5 +907,62 @@ export class ArgumentStudio {
         questions: a.questions,
         attacks: args.filter((x) => x.attacks === a.id && x.status !== "rejected" && status.get(x.id) !== "out").map((x) => ({ kind: x.attackKind ?? "attack", claim: x.claim })),
       }));
+  }
+
+  /**
+   * Phase 7 (K5): the dissent panel. One hard question to every configured model — the drafting,
+   * extraction and critic models and the chat's, the distinct ones only. Every answer or refusal
+   * is kept. A split opens one review item naming every answer; the advocate weighs them.
+   */
+  async askDissent(matterId: string, question: string, ctx: WriteContext = { actor: "advocate" }): Promise<{ answers: Array<{ role: string; model: string; answer: string; refused: string }>; split: boolean; splitPair: Array<{ role: string; model: string }> | null }> {
+    const c = await this.completer();
+    if (!c) throw new MatterStoreError("NO_MODEL", "no model is available. Set up a model in Pi, then try again");
+    await this.admit(matterId, c);
+    const store = await this.matters.store(matterId);
+    const context = await this.context(matterId, null);
+    const runId = randomUUID();
+    const folder = path.join(store.folder, "studio", `dissent-${runId}`);
+    await mkdir(folder, { recursive: true });
+    // The panel: the chat model and each role model that resolves, one member per distinct model.
+    const meters = new Map<string, Meter>();
+    const member = (role: string, model: string, complete: (system: string, user: string, sessionId?: string, onUsage?: (u: { input: number; output: number; totalTokens: number; cost: number }) => void) => Promise<string>): PanelMember => {
+      const meter = new Meter();
+      meters.set(`${role}:${model}`, meter);
+      return {
+        role,
+        model,
+        complete: async (system, user, label) => {
+          const response = await complete(system, user, `openadvo-dissent-${runId}`, meter.add);
+          await writeFile(path.join(folder, `${label}.json`), JSON.stringify({ label, model, system, user, response }, null, 2));
+          return response;
+        },
+      };
+    };
+    const panel: PanelMember[] = [member("chat", c.model, c.complete)];
+    for (const role of ["drafting", "extraction", "critic"] as const) {
+      const r = await this.roleModel(role);
+      if (r && !panel.some((m) => m.model === r.model)) panel.push(member(role, r.model, r.complete));
+    }
+    const result = await runDissent(question, context, panel);
+    for (const a of result.answers) {
+      store.studio.addDissent({ question, model: a.model, role: a.role, answer: a.answer, refused: a.refused });
+    }
+    if (result.split && result.splitPair) {
+      const [a, b] = result.splitPair;
+      const answers = result.answers.map((x) => `${x.role} (${x.model}): ${x.answer || `refused — ${x.refused}`}`).join("\n");
+      store.openReviewItem(
+        "dissent_split",
+        null,
+        null,
+        `The dissent panel split on: "${question.slice(0, 300)}". ${a.role} (${a.model}) and ${b.role} (${b.model}) answer differently. Read every answer on the Strategy view; the advocate decides.\n${answers.slice(0, 3000)}`,
+      );
+    }
+    store.appendEvent(ctx, "dissent.run", runId, { question: question.slice(0, 500), models: result.answers.map((x) => x.model), split: result.split });
+    for (const [key, meter] of meters) {
+      const model = key.slice(key.indexOf(":") + 1);
+      if (meter.totalTokens > 0) await this.recordUsage(matterId, model, meter, `openadvo-dissent-${runId}`).catch(() => undefined);
+    }
+    this.onChange(matterId);
+    return { answers: result.answers, split: result.split, splitPair: result.splitPair };
   }
 }

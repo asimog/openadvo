@@ -217,7 +217,13 @@ export class Drafts {
     const notebook = await this.matters.notebook(matterId);
     const events = notebook.events.filter((e) => e.status === "confirmed" && !e.excluded).map(toDraftEvent);
     const target = store.filingTarget();
+    // The matter profile holds the stage; the advocate's own details (the signature blocks)
+    // come from the advocate store through the phase 6 option.
+    const matterProfile = store.profile();
     const profile = this.options.profile?.() ?? null;
+    const hearings = store.hearings();
+    const arguments_ = store.studio.arguments();
+    const standing = groundedStatus(arguments_);
     const drafts = await this.matters.listDrafts(matterId);
     const approvedText = async (k: DraftKind, re: RegExp) => {
       const d = drafts.find((x) => x.kind === k);
@@ -283,6 +289,22 @@ export class Drafts {
         questions: await approvedText("questions_of_law", TITLES.questionsOfLaw),
         grounds: await approvedText("grounds", TITLES.grounds),
       },
+      stage: matterProfile.stage ?? "",
+      hearings: hearings.map((h) => ({ date: h.date, bench: h.bench, directions: h.directions, nextDate: h.nextDate, nextDateStatus: h.nextDateStatus })),
+      orderDirections: store.evidence
+        .parts()
+        .filter((p) => p.kind === "direction")
+        .reverse()
+        .slice(0, 8)
+        .map((p) => ({ text: p.text, sourceName: p.sourceName, page: p.page, line: p.line })),
+      openItems: (await this.matters.listReviewItemsOf(matterId))
+        .filter((r) => r.status === "open")
+        .slice(0, 10)
+        .map((r) => ({ kind: r.kind, detail: r.detail })),
+      challenges: store.studio.challenges().map((c) => ({ kind: c.kind, text: c.text, answer: c.answer, status: c.status })),
+      arguments: arguments_
+        .filter((a) => a.status === "accepted" && !a.attacks)
+        .map((a) => ({ claim: a.claim, reasoning: a.reasoning, computed: standing.get(a.id) ?? "undecided", elo: a.elo })),
     };
   }
 

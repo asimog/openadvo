@@ -184,3 +184,38 @@ test("round 2 replies to the standing attacks; a grounded reply defeats its atta
   const reply = ids.find((x) => x.attacks === attack.id)!;
   assert.deepEqual([status.get(reply.id), status.get(attack.id), status.get(main.id)], ["in", "out", "in"]);
 });
+
+test("K2 (O5): the critic and the opposing counsel run on the second completer; the rest stay on the first", async () => {
+  const first: string[] = [];
+  const second: string[] = [];
+  const complete = async (_s: string, _u: string, label: string) => {
+    first.push(label);
+    if (label.includes("-gen")) return JSON.stringify({ arguments: [good] });
+    if (label.includes("-judge")) return '{"better":"A"}';
+    return "";
+  };
+  const criticComplete = async (_s: string, _u: string, label: string) => {
+    second.push(label);
+    if (label.includes("-critic")) return '{"questions":["Was the delay attributable to the accused?"]}';
+    if (label.includes("-opponent")) return JSON.stringify({ arguments: [{ kind: "undercut", claim: "Custody length alone does not entitle the accused to bail here.", reasoning: "A1 at para 12 makes custody one factor among others, and E1 records the order itself.", events: [{ ref: "E1", quote: "refused regular bail" }], authorities: [{ ref: "A1", paragraph: "12" }], provisions: [] }] });
+    return "";
+  };
+  await runLoop({
+    complete,
+    criticComplete,
+    context: ctx,
+    rounds: 1,
+    generators: 1,
+    archive: [],
+    rejections: () => [],
+    addArgument: (_r, v, attack) => ({ id: `a${Math.random().toString(36).slice(2, 8)}`, ground: v.ground, stance: v.stance, claim: v.claim, reasoning: v.reasoning, elo: 1000, attacks: attack?.target ?? null }),
+    addRejection: () => undefined,
+    setQuestions: () => undefined,
+    setElo: () => undefined,
+  });
+  // The proposing model generates and compares; the critic model asks the questions and attacks.
+  assert.ok(first.some((l) => l.includes("-gen")), "the generator ran on the first completer");
+  assert.ok(second.some((l) => l.includes("-critic")), "the critic ran on the second completer");
+  assert.ok(second.some((l) => l.includes("-opponent")), "the opposing counsel ran on the second completer");
+  assert.ok(!first.some((l) => l.includes("-critic") || l.includes("-opponent")), "no attacking pass ran on the first completer");
+});

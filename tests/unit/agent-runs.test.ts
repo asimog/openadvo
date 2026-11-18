@@ -42,6 +42,11 @@ async function fixture() {
         actors.push(actor);
         return "Recorded.";
       },
+      // Phase 7 (K1): propose_issue now names the facts it rests on.
+      proposeIssueWithFacts: async (_m: string, _t: string, _factIds: string[], actor: string) => {
+        actors.push(actor);
+        return "Recorded.";
+      },
     } as never,
   };
   const f = await agentFixture({ host, inlineExtensions: [nestedCaller], provider: "faux-runs" });

@@ -7,7 +7,7 @@ import { Badge } from "@astryxdesign/core/Badge";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Text } from "@astryxdesign/core/Text";
-import type { Contact, Hearing, Reminder } from "../../shared/api.ts";
+import type { Contact, CrossQuestion, Hearing, Reminder, TaskProposal } from "../../shared/api.ts";
 import { dmy } from "../../shared/dates.ts";
 
 const api = window.openadvo;
@@ -21,17 +21,22 @@ function errorText(e: unknown): string {
 export function PracticeSection(props: { matterId: string; version: number }) {
   const [hearings, setHearings] = useState<Hearing[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [tasks, setTasks] = useState<TaskProposal[]>([]);
+  const [cross, setCross] = useState<CrossQuestion[]>([]);
   const [policy, setPolicy] = useState<Awaited<ReturnType<typeof api.getPolicy>> | null>(null);
   const [parties, setParties] = useState<Awaited<ReturnType<typeof api.listParties>>>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [h, setH] = useState({ date: "", bench: "", directions: "", nextDate: "", nextDateStatus: "confirmed" as "confirmed" | "inferred" });
   const [r, setR] = useState({ text: "", dueAt: "" });
+  const [task, setTask] = useState({ hearingId: "", text: "", dueAt: "" });
   const [party, setParty] = useState({ contactId: "", role: "petitioner", nameInRecord: "", counsel: "" });
   const [budget, setBudget] = useState("");
   const [note, setNote] = useState<string | null>(null);
   const load = useCallback(async () => {
     setHearings(await api.listHearings(props.matterId));
     setReminders(await api.listReminders(props.matterId));
+    setTasks(await api.listTasks(props.matterId));
+    setCross(await api.listCrossQuestions(props.matterId));
     const p = await api.getPolicy(props.matterId);
     setPolicy(p);
     setBudget(p.budgetTokens ? String(p.budgetTokens) : "");
@@ -92,6 +97,56 @@ export function PracticeSection(props: { matterId: string; version: number }) {
           <input type="datetime-local" aria-label="Remind at" value={r.dueAt} onChange={(e) => setR({ ...r, dueAt: e.target.value })} />
           <Button label="Add reminder" size="sm" isDisabled={!r.text.trim() || !r.dueAt} clickAction={() => act(() => api.addReminder(props.matterId, r.text, new Date(r.dueAt).toISOString())).then(() => setR({ text: "", dueAt: "" }))} />
         </div>
+      </section>
+      <section className="work-section" aria-label="Compliance tasks" data-testid="compliance-tasks">
+        <Heading level={3}>Compliance tasks</Heading>
+        <Text type="supporting">What the last directions need, before the next date. The agent proposes tasks from the directions you record; an accepted task becomes a reminder.</Text>
+        <ul className="plain-list">
+          {tasks.map((t) => (
+            <li key={t.id} data-testid="task" data-status={t.status}>
+              <Badge variant={t.status === "accepted" ? "success" : t.status === "rejected" ? "neutral" : "warning"} label={t.status} /> {t.text}
+              {t.dueAt ? <Text type="supporting"> (due {dmy(t.dueAt)})</Text> : null}
+              {t.author === "agent" ? <Text type="supporting"> (proposed by the agent)</Text> : null}
+              {t.status === "open" && t.author === "agent" ? (
+                <span className="row-actions">
+                  <Button label="Accept" size="sm" clickAction={() => act(() => api.decideTask(props.matterId, t.id, true))} />
+                  <Button label="Reject" size="sm" variant="ghost" clickAction={() => act(() => api.decideTask(props.matterId, t.id, false))} />
+                </span>
+              ) : null}
+            </li>
+          ))}
+          {tasks.length === 0 ? <li><Text type="supporting">No task yet. Record a hearing with directions, then add the tasks or ask the agent to propose them.</Text></li> : null}
+        </ul>
+        <div className="row-actions practice-form">
+          <select aria-label="Of the hearing" value={task.hearingId} onChange={(e) => setTask({ ...task, hearingId: e.target.value })}>
+            <option value="">Of which hearing?</option>
+            {hearings.map((x) => <option key={x.id} value={x.id}>{dmy(x.date)}{x.directions ? `: ${x.directions.slice(0, 40)}` : ""}</option>)}
+          </select>
+          <input aria-label="Task" placeholder="What the direction needs" className="grow" value={task.text} onChange={(e) => setTask({ ...task, text: e.target.value })} />
+          <input type="date" aria-label="Due on" value={task.dueAt} onChange={(e) => setTask({ ...task, dueAt: e.target.value })} />
+          <Button label="Add task" size="sm" isDisabled={!task.hearingId || !task.text.trim()} clickAction={() => act(() => api.addTask(props.matterId, task.hearingId, task.text, task.dueAt)).then(() => setTask({ hearingId: "", text: "", dueAt: "" }))} />
+        </div>
+      </section>
+      <section className="work-section" aria-label="Cross-examination" data-testid="cross-examination">
+        <Heading level={3}>Cross-examination plan</Heading>
+        <Text type="supporting">
+          Questions from the record: each names the contradiction it joins or the witness's own recorded statement. The witness rule holds: the agent puts the record to the witness; it never composes the witness's answer. Ask the agent to propose the questions in the chat.
+        </Text>
+        <ul className="plain-list">
+          {cross.map((q) => (
+            <li key={q.id} data-testid="cross-question" data-status={q.status}>
+              <Badge variant={q.status === "accepted" ? "success" : q.status === "rejected" ? "neutral" : "warning"} label={q.status} /> {q.witness ? <Text weight="semibold">{q.witness}: </Text> : null}
+              <Text>{q.question}</Text> <Text type="supporting">(from {q.targetKind === "contradiction" ? "a contradiction" : "a recorded statement"})</Text>
+              {q.status === "candidate" ? (
+                <span className="row-actions">
+                  <Button label="Accept" size="sm" clickAction={() => act(() => api.decideCrossQuestion(props.matterId, q.id, "accepted"))} />
+                  <Button label="Reject" size="sm" variant="ghost" clickAction={() => act(() => api.decideCrossQuestion(props.matterId, q.id, "rejected"))} />
+                </span>
+              ) : null}
+            </li>
+          ))}
+          {cross.length === 0 ? <li><Text type="supporting">No question yet. The agent proposes them from get_contradictions and list_evidence.</Text></li> : null}
+        </ul>
       </section>
       <section className="work-section" aria-label="Parties" data-testid="parties">
         <Heading level={3}>Parties</Heading>

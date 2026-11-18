@@ -19,6 +19,32 @@ export interface Reminder {
   createdAt: string;
 }
 
+/** Phase 7 (K8): one compliance task proposed from a hearing's directions. */
+export interface TaskProposal {
+  id: string;
+  hearingId: string;
+  text: string;
+  /** "" or YYYY-MM-DD. */
+  dueAt: string;
+  status: "open" | "accepted" | "rejected";
+  author: "advocate" | "agent";
+  createdAt: string;
+  decidedAt: string;
+}
+
+/** Phase 7 (K9): one cross-examination question, tied to a contradiction or a recorded statement. */
+export interface CrossQuestion {
+  id: string;
+  witness: string;
+  question: string;
+  targetKind: "contradiction" | "evidence";
+  targetId: string;
+  author: "advocate" | "agent";
+  status: "candidate" | "accepted" | "rejected";
+  createdAt: string;
+  decidedAt: string;
+}
+
 export interface Contact {
   id: string;
   name: string;

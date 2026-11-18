@@ -242,6 +242,9 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
       "jurisdictionGet", "jurisdictionSet", "forumClauses", "timeline", "relatedSuggestions", "recordTemplates", "applyRecordTemplate",
       // Phase 6: drafting and verification (docs/specs/drafting-and-verification.md).
       "draftCatalogue", "compareRevisionWithPdf", "setPreference",
+      // Phase 7: argument and hearings (docs/specs/argument-and-hearings.md).
+      "getRoleModels", "setRoleModel", "decideRecordColumn", "listTasks", "addTask", "decideTask",
+      "listCrossQuestions", "proposeCrossQuestion", "decideCrossQuestion", "addTheory", "decideTheory", "askDissent",
     ].sort(),
   );
 
@@ -347,6 +350,12 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
     "list_preferences",
     "propose_preference",
     "propose_advocate_memory",
+    // Phase 7 (K1, K3, K4, K8, K9): issue fact ties, element charts, theories, hearing work.
+    "propose_theory",
+    "propose_elements",
+    "propose_cross_questions",
+    "propose_compliance_tasks",
+    "list_hearings",
   ].sort());
   const sessionId = await app.evaluate((_e, m) => (globalThis as any).__openadvoTest.agentSessionId(m), id);
   const events = await page.evaluate((m) => (globalThis as any).openadvo.listEvents(m), id);

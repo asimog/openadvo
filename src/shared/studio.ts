@@ -122,6 +122,37 @@ export interface Challenge {
   createdAt: string;
 }
 
+/** Phase 7 (K4): a case theory — proposed, and decided by the advocate. */
+export interface TheoryRecord {
+  id: string;
+  title: string;
+  statement: string;
+  /** The issues the theory rests on. */
+  issueIds: string[];
+  /** Who bears the burden on this theory, in the advocate's words. */
+  burden: string;
+  /** The standard of proof this theory faces, in the advocate's words. */
+  standard: string;
+  author: "advocate" | "agent";
+  status: "primary" | "alternative" | "rejected";
+  reason: string | null;
+  createdAt: string;
+  decidedAt: string | null;
+}
+
+/** Phase 7 (K5): one model's answer to a hard question. Refused answers are kept, never dropped. */
+export interface DissentRecord {
+  id: string;
+  question: string;
+  model: string;
+  /** The role whose model answered: drafting, extraction, critic, or chat. */
+  role: string;
+  answer: string;
+  /** Empty when the model answered; the refusal's reason when it did not. */
+  refused: string;
+  at: string;
+}
+
 /** V5-9. Never a verification: labelled "Quick check, not verified". */
 export interface QuickCheck {
   citation: string;
@@ -138,6 +169,9 @@ export interface StudioState {
   runs: ArgumentRun[];
   arguments: Array<ArgumentRecord & { computed: ArgumentStatus }>;
   rejections: ArgumentRejection[];
+  /** Phase 7: the case theories (K4) and the dissent panel's answers (K5). */
+  theories: TheoryRecord[];
+  dissents: DissentRecord[];
   /** Whether the loop can run now, and why not. */
   loop: { available: boolean; detail: string; running: string | null };
 }
