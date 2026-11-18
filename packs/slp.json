@@ -1,0 +1,144 @@
+{
+  "id": "slp",
+  "version": "1.0.0",
+  "title": "Supreme Court SLP",
+  "practice": ["constitutional", "civil", "criminal"],
+  "courts": ["in.sc"],
+  "default": true,
+  "acts": [
+    {
+      "act": "Constitution of India, Article 136",
+      "version": "not recorded",
+      "source": "the Constitution of India; no version is recorded for this pack"
+    },
+    {
+      "act": "Supreme Court Rules, 2013, Order XXI",
+      "version": "2013",
+      "source": "the in-sc adapter, source sc.rules.2013; the quotes are in its checklist and limitation lists"
+    },
+    {
+      "act": "Limitation Act, 1963",
+      "version": "not recorded",
+      "source": "the Act; no version is recorded for this pack"
+    }
+  ],
+  "templates": [
+    { "kind": "petition", "title": "Petition for special leave", "note": "The SLP generator of the pack, from confirmed records." },
+    { "kind": "condonation", "title": "Application for condonation of delay", "note": "The SLP generator of the pack, when limitation has run." },
+    { "kind": "list_of_dates", "title": "List of Dates", "note": "From the confirmed chronology." },
+    { "kind": "synopsis", "title": "Synopsis", "note": "From the confirmed events." },
+    { "kind": "questions_of_law", "title": "Questions of Law", "note": "The advocate's, or the agent's proposal." },
+    { "kind": "grounds", "title": "Grounds", "note": "The advocate's, or the agent's proposal." },
+    { "kind": "appendix_of_provisions", "title": "Appendix of Provisions", "note": "From the provisions saved to the matter." }
+  ],
+  "proceedings": [
+    {
+      "key": "slp_civil",
+      "title": "Special leave petition (civil)",
+      "caseType": "SLP(C)",
+      "courts": ["in.sc"],
+      "provisions": ["Article 136 of the Constitution", "Supreme Court Rules, 2013, Order XXI"],
+      "limitation": {
+        "id": "slp-90-days",
+        "title": "Petition for special leave to appeal: 90 days from the date of the judgment or order",
+        "days": 90,
+        "from": "the date of the judgment or order appealed from",
+        "source": "Supreme Court Rules, 2013, Order XXI rule 1, as recorded in the in-sc adapter's limitation list; the advocate confirms each working",
+        "ref": "Order XXI rule 1"
+      },
+      "requiredParts": [
+        "List of dates",
+        "Certified copy of the impugned judgment",
+        "Special leave petition (Form No. 28)",
+        "Appendix of provisions",
+        "Annexures",
+        "Affidavit"
+      ],
+      "documents": [
+        { "kind": "synopsis", "title": "Synopsis" },
+        { "kind": "list_of_dates", "title": "List of Dates" },
+        { "kind": "petition", "title": "Petition" },
+        { "kind": "questions_of_law", "title": "Questions of Law" },
+        { "kind": "grounds", "title": "Grounds" }
+      ],
+      "annexureParts": ["Certified copy of the impugned judgment", "Annexures"],
+      "unmappedParts": [],
+      "lateDocuments": [{ "kind": "condonation", "title": "Application for Condonation of Delay" }],
+      "workflow": [
+        { "text": "Analyse the impugned judgment and report its findings with anchors.", "skill": "SK-008" },
+        { "text": "Check the chronology for contradictions and confirm the dates.", "skill": "SK-011" },
+        { "text": "Generate the List of Dates from the confirmed events." },
+        { "text": "Propose the issues and decide them at the case conference.", "skill": "SK-012" },
+        { "text": "Work out the limitation from the impugned judgment; confirm the working.", "skill": "SK-005" },
+        { "text": "Draft the petition from the approved Questions of Law and Grounds.", "skill": "SK-308" },
+        { "text": "Review the drafts, their citations and their grounding.", "skill": "SK-027" },
+        { "text": "Run the filing checklist and the format checks.", "skill": "SK-023" },
+        { "text": "Approve for filing; the filing set and its signed manifest are made." }
+      ],
+      "stages": ["Instruction", "Drafting", "Filed", "Defects cured", "Listed", "Notice issued", "Leave granted or dismissed"],
+      "intakeQuestions": [
+        "What is the date of the impugned judgment?",
+        "Was a certificate of fitness refused by the High Court?",
+        "Was an earlier SLP filed against the same judgment?",
+        "Does a letters patent or writ appeal lie, and was it availed?",
+        "Is interim relief needed?"
+      ],
+      "skills": ["SK-005", "SK-008", "SK-011", "SK-012", "SK-023", "SK-027", "SK-030", "SK-031", "SK-308"],
+      "recordColumns": ["Date", "Event", "Source", "Page", "Line", "Proceeding"],
+      "evidence": [
+        "The impugned judgment or order",
+        "The record of the court below",
+        "The certified copy of the impugned judgment",
+        "The affidavit of the petitioner"
+      ],
+      "terms": [
+        { "term": "SLP", "meaning": "A petition under Article 136 of the Constitution for special leave to appeal to the Supreme Court." },
+        { "term": "Leave", "meaning": "The Supreme Court's permission to appeal." },
+        { "term": "Impugned judgment", "meaning": "The judgment or order from which the SLP arises." }
+      ]
+    },
+    {
+      "key": "slp_criminal",
+      "title": "Special leave petition (criminal)",
+      "caseType": "SLP(Cr)",
+      "courts": ["in.sc"],
+      "provisions": ["Article 136 of the Constitution", "Supreme Court Rules, 2013"],
+      "limitation": null,
+      "requiredParts": ["List of dates", "Certified copy of the impugned judgment", "Special leave petition", "Annexures", "Affidavit"],
+      "documents": [
+        { "kind": "synopsis", "title": "Synopsis" },
+        { "kind": "list_of_dates", "title": "List of Dates" },
+        { "kind": "petition", "title": "Petition" },
+        { "kind": "questions_of_law", "title": "Questions of Law" },
+        { "kind": "grounds", "title": "Grounds" }
+      ],
+      "annexureParts": ["Certified copy of the impugned judgment", "Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Analyse the impugned judgment and report its findings with anchors.", "skill": "SK-008" },
+        { "text": "Check the chronology for contradictions and confirm the dates.", "skill": "SK-011" },
+        { "text": "Draft the petition from the approved Questions of Law and Grounds.", "skill": "SK-308" },
+        { "text": "Review the drafts, their citations and their grounding.", "skill": "SK-027" },
+        { "text": "Run the filing checklist and the format checks.", "skill": "SK-023" }
+      ],
+      "stages": ["Instruction", "Drafting", "Filed", "Defects cured", "Listed", "Notice issued", "Leave granted or dismissed"],
+      "intakeQuestions": [
+        "What is the date of the impugned judgment?",
+        "What sentence or order is challenged?",
+        "Is the petitioner in custody?",
+        "Is interim relief sought?"
+      ],
+      "skills": ["SK-008", "SK-011", "SK-027", "SK-113", "SK-114", "SK-308"],
+      "recordColumns": ["Date", "Event", "Source", "Page", "Line", "Proceeding"],
+      "evidence": ["The impugned judgment or order", "The record of the trial court", "The certified copy of the impugned judgment"],
+      "terms": [
+        { "term": "SLP (Cr)", "meaning": "A petition for special leave to appeal in a criminal matter." },
+        { "term": "Suspension of sentence", "meaning": "A prayer that the sentence not run while the appeal is heard." }
+      ]
+    }
+  ],
+  "terms": [
+    { "term": "Pack", "meaning": "Content for one practice: its proceedings, acts, templates, stages, skills and terms." },
+    { "term": "Filing set", "meaning": "The documents the pack requires at filing, each from an approved revision." }
+  ]
+}

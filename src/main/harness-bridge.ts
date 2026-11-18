@@ -8,6 +8,7 @@ import { readTrace } from "./agent.ts";
 import type { Matters } from "./matters.ts";
 import type { Progress } from "./progress.ts";
 import type { SkillRegistry } from "./skills.ts";
+import type { PracticePacks } from "./packs.ts";
 import type { AdvocateStore } from "../lib/advocate-store/index.ts";
 import type { IntelStore } from "../lib/intel-store/index.ts";
 import { freshness } from "../lib/intel-store/index.ts";
@@ -25,6 +26,7 @@ export interface HarnessBridgeDeps {
   agent: Agent;
   progress: Progress;
   skills: SkillRegistry;
+  packs: PracticePacks;
   advocate: AdvocateStore;
   intel: IntelStore;
   corpus: () => Corpus | null;
@@ -36,7 +38,7 @@ export function registerHarnessBridge(handle: Handle, d: HarnessBridgeDeps): voi
   // N1, O2: the registry and the roles.
   handle("skills:list", (fresh?: boolean) => {
     const registry = d.skills.get(fresh === true);
-    return { skills: registry.all, roles: roleSummaries(registry), folders: d.skills.folders() };
+    return { skills: registry.all, roles: roleSummaries(registry), folders: d.skills.folders(), practicePacks: d.packs.get(fresh === true).summaries };
   });
   // N2, O7: runs, their packages and the Jobs rows of one matter.
   handle("skills:runs", async (matterId: string) => (await d.matters.store(str(matterId))).skillRuns());

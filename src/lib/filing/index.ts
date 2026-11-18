@@ -10,27 +10,27 @@
 import { createPublicKey, verify as cryptoVerify } from "node:crypto";
 import type { ComplianceResult } from "../../shared/work.ts";
 
-export const RULES_VERSION = "slp-package-v0";
+export const RULES_VERSION = "filing-package-v1";
 
-/** The limitation rule v0 computes. The owner confirms its source (questions.md Q-7). */
-export const LIMITATION_RULE = {
-  id: "slp-90-days",
-  title: "Petition for special leave to appeal: 90 days from the date of the judgment or order",
-  source: "Supreme Court Rules, 2013, Order XXII, Rule 2(1), as recorded by the engineer; to be confirmed by the owner (questions.md Q-7)",
-  days: 90,
-};
+/** The limitation rule a filing pack states. The pack owns it; the advocate confirms each working. */
+export interface LimitationRule {
+  id: string;
+  title: string;
+  source: string;
+  days: number;
+}
 
-/** Day 1 is the day after the start date. Calendar days; no exclusion is computed. */
-export function computeLimitation(startIso: string, days: number = LIMITATION_RULE.days): { deadline: string; working: string } {
+/** Day 1 is the day after the start date. Calendar days; no exclusion is computed here. */
+export function computeLimitation(startIso: string, rule: LimitationRule): { deadline: string; working: string } {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(startIso);
   if (!m) throw new Error(`LIMITATION_BAD_DATE: ${startIso}`);
   const start = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  const deadline = new Date(start + days * 86_400_000).toISOString().slice(0, 10);
+  const deadline = new Date(start + rule.days * 86_400_000).toISOString().slice(0, 10);
   const show = (iso: string) => iso.split("-").reverse().join(".");
   const working = [
     `Start: the impugned judgment dated ${show(startIso)}.`,
-    `Rule: ${LIMITATION_RULE.title}. Source: ${LIMITATION_RULE.source}.`,
-    `Day 1 is ${show(new Date(start + 86_400_000).toISOString().slice(0, 10))}. Day ${days} is ${show(deadline)}.`,
+    `Rule: ${rule.title}. Source: ${rule.source}.`,
+    `Day 1 is ${show(new Date(start + 86_400_000).toISOString().slice(0, 10))}. Day ${rule.days} is ${show(deadline)}.`,
     "Not computed: time spent obtaining a certified copy, court vacations and holidays, and condonation of delay. The advocate confirms or corrects the computation.",
   ].join(" ");
   return { deadline, working };
@@ -66,21 +66,23 @@ export interface ComplianceInput {
   drafts: Array<{ kind: string; title: string; approvedSeq: number | null; text: string | null }>;
   annexureLabels: string[];
   limitation: { deadline: string; confirmed: boolean } | null;
+  /** The pack's limitation rule source, for the P-4 row. */
+  limitationSource: string;
   /** The newest filing set, when one exists. */
   filingSet: { files: Array<{ name: string; pdfa: boolean; role: string }> } | null;
 }
 
-/** The v0 package rules, in a fixed order. */
+/** The v1 package rules, in a fixed order. */
 export function checkCompliance(input: ComplianceInput): ComplianceResult[] {
   const out: ComplianceResult[] = [];
   const add = (rule: string, title: string, source: string, outcome: ComplianceResult["outcome"], detail: string) => out.push({ rule, title, source, outcome, detail });
   const missing = input.drafts.filter((d) => d.approvedSeq === null).map((d) => d.title);
   add(
     "P-1",
-    "Required documents: Synopsis, List of Dates, Petition, Questions of Law and Grounds, and the application for condonation of delay when limitation has run, each with an approved revision",
-    "Workflow section 8 (petition structure)",
+    "Every required document of the filing pack has an approved revision",
+    "the filing pack's required documents",
     missing.length ? "defect" : "pass",
-    missing.length ? `Not approved: ${missing.join(", ")}.` : "Every required document has an approved revision.",
+    missing.length ? `Not approved: ${missing.join(", ")}.` : `Every required document has an approved revision (${input.drafts.map((d) => d.title).join(", ")}).`,
   );
   const absent = [input.details.petitioner ? "" : "petitioner", input.details.respondent ? "" : "respondent", input.details.impugnedEventId ? "" : "impugned judgment"].filter(Boolean);
   add("P-2", "Parties and the impugned judgment are recorded", "Workflow section 2 (matter identity)", absent.length ? "defect" : "pass", absent.length ? `Not recorded: ${absent.join(", ")}.` : "Recorded.");
@@ -98,7 +100,7 @@ export function checkCompliance(input: ComplianceInput): ComplianceResult[] {
   add(
     "P-4",
     "Limitation is computed and confirmed by the advocate",
-    `${LIMITATION_RULE.source}`,
+    `${input.limitationSource}`,
     !input.limitation ? "defect" : input.limitation.confirmed ? "pass" : "defect",
     !input.limitation ? "Not computed. Choose the impugned judgment on the Matter tab, then compute." : input.limitation.confirmed ? `Last day ${input.limitation.deadline}, confirmed.` : `Last day ${input.limitation.deadline}, not confirmed.`,
   );

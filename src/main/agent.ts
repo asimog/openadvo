@@ -277,6 +277,8 @@ export interface HarnessHost {
   rules?(matterId: string): Promise<Array<{ id: string; label: string; text: string; anchors: string[]; stale: boolean; verified: boolean }>>;
   /** D5: why a skill naming these courts may not run in this matter, or null. */
   forumRefusal?(matterId: string, courts: readonly string[]): Promise<string | null>;
+  /** D5: why a skill naming these packs may not run in this matter, or null, with a notice. */
+  packRefusal?(matterId: string, packs: readonly string[]): Promise<{ refusal: string | null; notice: string | null }>;
 }
 
 export interface AgentWorkHost {
@@ -363,7 +365,7 @@ function systemPrompt(title: string, skills: string | null): string {
     `The open matter is: ${title}.`,
     "Most of your tools read the matter. The tools that write make only proposals, records or filing steps, as described below. The reading tools: list_sources (the source files), read_source_text (the text of pages of one source, line by line) and search_sources (find a phrase; returns source, page and line).",
     "The Notebook holds dated events extracted by fixed rules: list_events (every field, with filters) and get_chronology (the events the advocate has not excluded, by date). Events are candidates until the advocate confirms them. You cannot confirm, reject or exclude anything.",
-    "The drafts are built from the matter's records: the List of Dates, the Synopsis, the Questions of Law, the Grounds, the SLP petition, the condonation application, and the phase 6 catalogue (a writ petition, a plaint, a written statement, an affidavit, the memo of parties, a vakalatnama, and the rest). read_draft reads the live text of the latest revision of each draft, with the anchor of every paragraph; get_paragraph_source follows one anchor to its events, its facts and its evidence statements, with their source lines. No model writes the generated text: a form part is fixed text with recorded details, a record part is generated from confirmed records with the ids kept, and a slot part is yours to propose or the advocate's to write.",
+    "The drafts are built from the matter's records: the List of Dates, the Synopsis, the Questions of Law, the Grounds, the petition of the matter's pack (the SLP pack for a special leave petition), the condonation application, and the phase 6 catalogue (a writ petition, a plaint, a written statement, an affidavit, the memo of parties, a vakalatnama, and the rest). read_draft reads the live text of the latest revision of each draft, with the anchor of every paragraph; get_paragraph_source follows one anchor to its events, its facts and its evidence statements, with their source lines. No model writes the generated text: a form part is fixed text with recorded details, a record part is generated from confirmed records with the ids kept, and a slot part is yours to propose or the advocate's to write.",
     "check_draft runs the fixed checks on the latest stored revision of one draft and lists each defect with its evidence: the source links, the dates, the facts, the grounding of every quote, the statutory references against the law library, the structure of the template, and the open markers. Its reviewer note says what was read, the items for judgment by severity, the currency of every rule used, and what to do before relying.",
     "propose_correction proposes new text for one paragraph. It becomes a tracked change by you in a new revision. Nothing is kept until the advocate keeps or undoes it; you cannot keep or undo. Give the paragraph's exact current text as expected_text. Propose only what the sources or the Notebook support, and give the reason with its source line.",
     "When you state a fact from a source, cite it as [source name, p. N, l. M]. OCR text is a single reading, not cross-checked: say so when you rely on it.",
@@ -2322,6 +2324,7 @@ export class Agent {
           // reason each one applies, so every use carries its applied-because note.
           preferences: () => host.listApprovedPreferences?.() ?? [],
           forumRefusal: harness.forumRefusal ? (courts) => harness.forumRefusal!(matterId, courts) : undefined,
+          packRefusal: harness.packRefusal ? (packs) => harness.packRefusal!(matterId, packs) : undefined,
           createSession: (input) => this.skillSession(sessionRef.s, input),
           ask: askAdvocate,
           notice: (line) => notice(line),

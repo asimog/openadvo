@@ -10,7 +10,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { readFileSync } from "node:fs";
 import { Matters } from "../../src/main/matters.ts";
-import { Filing } from "../../src/main/filing.ts";
+import { Filing, type FilingPack } from "../../src/main/filing.ts";
+import { buildPacks, filingPlan, packForMatter } from "../../src/lib/packs/index.ts";
 import type { AdapterDefinition } from "../../src/shared/intel.ts";
 
 const DHC_PACK: Array<{ key: string; caseType: string; requiredParts: string[] }> = (() => {
@@ -18,14 +19,37 @@ const DHC_PACK: Array<{ key: string; caseType: string; requiredParts: string[] }
   return (adapter.proceedings ?? []).map((p) => ({ key: p.key, caseType: p.caseType, requiredParts: p.requiredParts }));
 })();
 
+/** Phase 8 (Q3): the SLP pack, as main/index.ts builds it from packs/slp.json. */
+const SLP_PACK: FilingPack = (() => {
+  const { packs } = buildPacks([JSON.parse(readFileSync(path.join("packs", "slp.json"), "utf8"))]);
+  const choice = packForMatter(packs, { practiceArea: "", caseType: "", proceeding: "", court: "" })!;
+  const plan = filingPlan(choice)!;
+  return {
+    requiredParts: plan.documents.map((d) => d.title),
+    caseType: plan.caseType,
+    limitation: plan.limitation,
+    packId: plan.packId,
+    packTitle: plan.packTitle,
+    proceeding: plan.proceedingKey,
+    proceedingTitle: plan.proceedingTitle,
+    source: plan.source,
+    documents: plan.documents as FilingPack["documents"],
+    annexureParts: plan.annexureParts,
+    unmappedParts: plan.unmappedParts,
+    lateDocuments: choice.proceeding?.lateDocuments as FilingPack["lateDocuments"],
+    workflow: plan.workflow,
+  };
+})();
+
 async function filing(): Promise<{ f: Filing; matters: Matters; matterId: string }> {
   const matters = new Matters(mkdtempSync(path.join(tmpdir(), "filing-")));
   const matter = await matters.create("X v Y");
   const f = new Filing(matters, "");
+  f.proceedingPack = async () => SLP_PACK;
   return { f, matters, matterId: matter.id };
 }
 
-test("with no target, the Supreme Court SLP set is unchanged", async () => {
+test("with no target, the default SLP pack supplies the set and the limitation", async () => {
   const { f, matterId } = await filing();
   const st = await f.state(matterId);
   assert.deepEqual(
@@ -33,6 +57,9 @@ test("with no target, the Supreme Court SLP set is unchanged", async () => {
     ["synopsis", "list_of_dates", "petition", "questions_of_law", "grounds"],
   );
   assert.deepEqual(st.unmapped, []);
+  assert.equal(st.pack?.id, "slp");
+  assert.equal(st.pack?.source, "default");
+  assert.equal(st.pack?.limitation?.days, 90);
 });
 
 test("the DHC W.P.(C) pack drives the required documents, from the adapter's own words", async () => {

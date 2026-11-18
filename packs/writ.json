@@ -1,0 +1,174 @@
+{
+  "id": "writ",
+  "version": "1.0.0",
+  "title": "Constitutional and writ",
+  "practice": ["constitutional", "writ"],
+  "courts": ["in.hc.delhi", "in.sc"],
+  "acts": [
+    {
+      "act": "Constitution of India, Article 226",
+      "version": "not recorded",
+      "source": "the Constitution of India; no version is recorded for this pack"
+    },
+    {
+      "act": "Constitution of India, Article 32",
+      "version": "not recorded",
+      "source": "the Constitution of India; no version is recorded for this pack"
+    },
+    {
+      "act": "Constitution of India, Articles 14, 19 and 21",
+      "version": "not recorded",
+      "source": "the Constitution of India; no version is recorded for this pack"
+    }
+  ],
+  "templates": [
+    { "kind": "writ_petition", "title": "Writ petition", "note": "Cause title, facts, grounds, prayer and verification." },
+    { "kind": "memo_of_parties", "title": "Memo of parties", "note": "The parties and counsel, with addresses as markers until recorded." },
+    { "kind": "affidavit", "title": "Affidavit", "note": "The deponent's own recorded statements, organized." },
+    { "kind": "vakalatnama", "title": "Vakalatnama", "note": "The appointment form, with the advocate's recorded details." },
+    { "kind": "counter_affidavit", "title": "Counter affidavit", "note": "The respondent's recorded statements, organized." },
+    { "kind": "rejoinder", "title": "Rejoinder affidavit", "note": "The petitioner's recorded statements in reply, organized." }
+  ],
+  "proceedings": [
+    {
+      "key": "writ_226",
+      "title": "Writ petition under Article 226",
+      "caseType": "W.P.(C)",
+      "courts": ["in.hc.delhi"],
+      "provisions": ["Article 226 of the Constitution"],
+      "limitation": null,
+      "requiredParts": ["Writ petition", "Memo of parties", "Affidavit", "Vakalatnama", "Annexures"],
+      "documents": [
+        { "kind": "memo_of_parties", "title": "Memo of Parties" },
+        { "kind": "writ_petition", "title": "Writ Petition" },
+        { "kind": "affidavit", "title": "Affidavit" },
+        { "kind": "vakalatnama", "title": "Vakalatnama" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Answer the maintainability questions: the forum, the alternative remedy, the delay and the parties.", "skill": "SK-301" },
+        { "text": "Analyse the alternative remedy and why it is not adequate.", "skill": "SK-302" },
+        { "text": "Set out the fundamental rights and the judicial review grounds.", "skill": "SK-303" },
+        { "text": "Draft the writ petition from the record.", "skill": "SK-304" },
+        { "text": "Review the draft, citations and grounding.", "skill": "SK-027" },
+        { "text": "Run the filing checklist.", "skill": "SK-023" }
+      ],
+      "stages": ["Instruction", "Drafting", "Filed", "Notice", "Counter affidavit", "Rejoinder", "Hearing", "Order"],
+      "intakeQuestions": [
+        "Which fundamental or legal right is violated, and by which act?",
+        "Is there an alternative statutory remedy? Why is it not adequate?",
+        "Is the petition within a reasonable time of the impugned act?",
+        "Is the impugned act administrative, quasi-judicial or legislative?",
+        "Are the parties and the authority correctly named?"
+      ],
+      "skills": ["SK-301", "SK-302", "SK-303", "SK-304", "SK-305", "SK-307", "SK-309"],
+      "recordColumns": ["Question", "Answer", "Record", "Source", "Page", "Line"],
+      "evidence": [
+        "The impugned order or act",
+        "The representation and its reply, if any",
+        "The statutory remedy and the order under it",
+        "The record of the authority"
+      ],
+      "terms": [
+        { "term": "Maintainability", "meaning": "Whether the court can hear the petition at all: the forum, the remedy, the delay and the parties." },
+        { "term": "Alternative remedy", "meaning": "A statutory route the petitioner could use instead of the writ." },
+        { "term": "Judicial review", "meaning": "The court's review of an act for legality, reasonableness and procedure, not its merits." }
+      ]
+    },
+    {
+      "key": "writ_32",
+      "title": "Writ petition under Article 32",
+      "caseType": "W.P.(C)",
+      "courts": ["in.sc"],
+      "provisions": ["Article 32 of the Constitution"],
+      "limitation": null,
+      "requiredParts": ["Writ petition", "Memo of parties", "Affidavit", "Vakalatnama", "Annexures"],
+      "documents": [
+        { "kind": "memo_of_parties", "title": "Memo of Parties" },
+        { "kind": "writ_petition", "title": "Writ Petition" },
+        { "kind": "affidavit", "title": "Affidavit" },
+        { "kind": "vakalatnama", "title": "Vakalatnama" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Answer the maintainability questions for Article 32.", "skill": "SK-301" },
+        { "text": "Set out the fundamental rights and the judicial review grounds.", "skill": "SK-303" },
+        { "text": "Draft the writ petition from the record.", "skill": "SK-304" },
+        { "text": "Review the draft, citations and grounding.", "skill": "SK-027" }
+      ],
+      "stages": ["Instruction", "Drafting", "Filed", "Notice", "Counter affidavit", "Hearing", "Order"],
+      "intakeQuestions": [
+        "Which fundamental right is violated?",
+        "Is the respondent a State or an instrumentality?",
+        "Is there a disputed question of fact?",
+        "Is an alternative remedy adequate?"
+      ],
+      "skills": ["SK-301", "SK-302", "SK-303", "SK-304", "SK-305"],
+      "recordColumns": ["Question", "Answer", "Record", "Source", "Page", "Line"],
+      "evidence": ["The impugned order or act", "The record of the authority", "The representation and its reply"],
+      "terms": [{ "term": "Article 32", "meaning": "The Supreme Court's writ jurisdiction for the enforcement of fundamental rights." }]
+    },
+    {
+      "key": "review",
+      "title": "Review and curative petition",
+      "caseType": "Review petition",
+      "courts": ["in.sc", "in.hc.delhi"],
+      "provisions": ["Article 137 of the Constitution", "Order XLVII of the Code of Civil Procedure, 1908"],
+      "limitation": null,
+      "requiredParts": ["Review petition", "Vakalatnama"],
+      "documents": [],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": ["Review petition (the document catalogue has no review petition template yet)"],
+      "workflow": [
+        { "text": "Analyse the judgment and the ground of review.", "skill": "SK-008" },
+        { "text": "Draft the review petition from the record.", "skill": "SK-307" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Judgment", "Review petition", "Order", "Curative petition"],
+      "intakeQuestions": [
+        "What is the error apparent on the face of the record?",
+        "Was the point raised and decided?",
+        "What is the date of the judgment?",
+        "Is a curative petition the next step?"
+      ],
+      "skills": ["SK-008", "SK-307"],
+      "recordColumns": ["Ground", "Judgment paragraph", "Record", "Source", "Page", "Line"],
+      "evidence": ["The judgment", "The pleadings and the order", "The earlier review order, if any"],
+      "terms": [{ "term": "Review", "meaning": "A petition to the same court to correct an error apparent on the face of the record." }]
+    },
+    {
+      "key": "transfer",
+      "title": "Transfer petition",
+      "caseType": "Transfer petition",
+      "courts": ["in.sc"],
+      "provisions": ["Article 139A of the Constitution", "Section 25 of the Code of Civil Procedure, 1908"],
+      "limitation": null,
+      "requiredParts": ["Transfer petition", "Vakalatnama"],
+      "documents": [],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": ["Transfer petition (the document catalogue has no transfer petition template yet)"],
+      "workflow": [
+        { "text": "Analyse the two proceedings and the ground for transfer.", "skill": "SK-008" },
+        { "text": "Draft the transfer petition from the record.", "skill": "SK-309" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Application", "Notice", "Hearing", "Order"],
+      "intakeQuestions": [
+        "Where are the two proceedings pending?",
+        "What is the common question?",
+        "Why should the transfer be allowed?",
+        "Is the transfer opposed?"
+      ],
+      "skills": ["SK-008", "SK-309"],
+      "recordColumns": ["Date", "Event", "Source", "Page", "Line", "Proceeding"],
+      "evidence": ["The two proceedings and their pleadings", "The orders passed", "The grounds for transfer"],
+      "terms": [{ "term": "Transfer petition", "meaning": "A petition to move a case from one court to another." }]
+    }
+  ],
+  "terms": [
+    { "term": "Writ", "meaning": "A constitutional order of the High Court or the Supreme Court." },
+    { "term": "PIL", "meaning": "Public interest litigation, where the petitioner's standing rests on the public interest." }
+  ]
+}

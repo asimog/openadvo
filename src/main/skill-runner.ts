@@ -46,6 +46,8 @@ export interface SkillRunnerDeps {
   preferences?(): Array<{ key: string; value: string; reason: string }>;
   /** D5: why a skill naming these courts may not run in this matter, or null. */
   forumRefusal?(courts: readonly string[]): Promise<string | null>;
+  /** D5: why a skill naming these packs may not run in this matter, or null, with a notice. */
+  packRefusal?(packs: readonly string[]): Promise<{ refusal: string | null; notice: string | null }>;
   /** A session in `sessionDir` with this prompt and these tools; `resume` continues the newest file there. */
   createSession(input: { prompt: string; tools: ToolDefinition[]; sessionDir: string; resume: boolean; role: string }): Promise<AgentSession>;
   /** O5: the model key a skill's role runs on (the role models), or null for the chat's model. */
@@ -167,6 +169,11 @@ export class SkillRunner {
       // D5: a skill for named courts stops when the matter's court is not one of them or has no adapter.
       const wrongForum = skill.courts.length ? ((await this.deps.forumRefusal?.(skill.courts)) ?? null) : null;
       if (wrongForum) return await end("refused", `Wrong jurisdiction: ${wrongForum}`);
+      // D5: a skill whose pack is not the matter's pack stops with the reason. An unknown pack
+      // is a notice, never a guess.
+      const packCheck = skill.packs.length ? ((await this.deps.packRefusal?.(skill.packs)) ?? { refusal: null, notice: null }) : { refusal: null, notice: null };
+      if (packCheck.refusal) return await end("refused", `Outside the matter's practice pack: ${packCheck.refusal}`);
+      if (packCheck.notice) this.deps.notice(`Skill ${skill.id}: ${packCheck.notice}`);
       const pol = await this.deps.budget();
       if (pol.budgetTokens != null && pol.usedTokens >= pol.budgetTokens) return await end("refused", `The matter's budget of ${pol.budgetTokens} tokens is used (${pol.usedTokens}).`);
       if (!resumed && skill.approvalPoints.includes("before_start")) {

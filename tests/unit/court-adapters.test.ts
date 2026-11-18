@@ -74,9 +74,9 @@ test("format checks on a PDF's facts", () => {
 test("the profile decides what is recommended; a case type decides what a matter needs; defects are matched", () => {
   const sc = checkAdapter(JSON.parse(readFileSync(path.join(repo, "adapters", "in-sc", "adapter.json"), "utf8"))).adapter!;
   assert.deepEqual(recommended(sc, ["criminal"]), []);
-  assert.deepEqual(recommended(sc, ["civil"]).sort(), ["filing.slp_civil", "limitation.slp_civil", "rules.order_xxi", "workflow.slp_civil"]);
+  assert.deepEqual(recommended(sc, ["civil"]).sort(), ["filing.slp_civil", "limitation.slp_civil", "rules.order_xxi"]);
   assert.deepEqual(caseTypes(sc), ["SLP(C)"]);
-  assert.equal(listsForCaseType(sc, "slp (c)").length, 4);
+  assert.equal(listsForCaseType(sc, "slp (c)").length, 3);
   assert.equal(listsForCaseType(sc, "W.P.(C)").length, 0);
   const dhc = checkAdapter(JSON.parse(readFileSync(path.join(repo, "adapters", "in-hc-delhi", "adapter.json"), "utf8"))).adapter!;
   assert.deepEqual(listsForCaseType(dhc, "W.P.(C)").map((l) => l.key), ["filing.efiling_format", "filing.paper"]);

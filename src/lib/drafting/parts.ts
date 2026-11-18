@@ -59,7 +59,7 @@ export interface DraftingInput {
   memorandum: { title: string; body: string; unresolved: string[] } | null;
   /** The proceeding pack of the filing target, when one is set. */
   proceeding: { caseType: string; provisions: string[] } | null;
-  /** Approved Questions of Law and Grounds, as the SLP petition generator uses them. */
+  /** Approved Questions of Law and Grounds, as the petition generator of the matter's pack uses them. */
   approved: { questions: string[]; grounds: string[] };
   /** Phase 7 (K6): the matter's stage and proceeding, from the matter profile. */
   stage: string;

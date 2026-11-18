@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readParagraphs } from "../../src/lib/drafting/index.ts";
-import { bodyParagraphs, conferenceBlocks, generateStructured, petitionBlocks, prayerDefect, TITLES, TO_COMPLETE } from "../../src/lib/drafting/structured.ts";
+import { bodyParagraphs, conferenceBlocks, generateStructured, TITLES, TO_COMPLETE } from "../../src/lib/drafting/structured.ts";
+import { petitionBlocks, prayerDefect } from "../../src/lib/packs/slp.ts";
 
 const base = {
   petitioner: "Ram Kumar",

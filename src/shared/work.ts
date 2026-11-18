@@ -261,6 +261,16 @@ export interface ComplianceResult {
   detail: string;
 }
 
+/** The pack the filing reads, as the Filing tab shows it. */
+export interface FilingPackInfo {
+  id: string;
+  title: string;
+  proceeding: string;
+  source: "court-target" | "proceeding" | "practice" | "court" | "default";
+  limitation: { id: string; title: string; days: number; source: string } | null;
+  workflow: Array<{ text: string; skill?: string }>;
+}
+
 export interface FilingState {
   details: MatterDetails;
   annexures: AnnexureRecord[];
@@ -269,10 +279,12 @@ export interface FilingState {
   /** What still blocks the filing approval. Empty when the filing set can be made. */
   blockers: string[];
   filingSet: FilingSetRecord | null;
-  /** Phase 6: the required documents of the target, from its proceeding pack or the SLP set. */
+  /** Phase 6: the required documents of the pack. */
   required: Array<{ kind: string; title: string }>;
   /** Phase 6: the pack parts the application cannot map to a document, as the pack names them. */
   unmapped: string[];
+  /** Phase 8: the court target's pack or the practice pack, with its limitation and workflow. */
+  pack: FilingPackInfo | null;
 }
 
 export interface ResearchState {

@@ -8,7 +8,7 @@ import path from "node:path";
 import { classifyDocument } from "../../src/lib/document-intelligence/classify.ts";
 import { overlap, possibleDuplicates } from "../../src/lib/document-intelligence/similar.ts";
 import { extractRelative } from "../../src/lib/notebook/index.ts";
-import { condonationBlocks, petitionBlocks } from "../../src/lib/drafting/structured.ts";
+import { condonationBlocks, petitionBlocks } from "../../src/lib/packs/slp.ts";
 import { delayDays, manifestDigest, verifyManifest } from "../../src/lib/filing/index.ts";
 import { MatterStore } from "../../src/lib/matter-store/index.ts";
 

@@ -44,6 +44,9 @@ import { SkillRegistry } from "./skills.ts";
 import { registerHarnessBridge } from "./harness-bridge.ts";
 import { registerIntelBridge } from "./intel-bridge.ts";
 import { CourtIntel } from "./court-intel.ts";
+import { PracticePacks } from "./packs.ts";
+import { filingPlan, skillPackRefusal } from "../lib/packs/index.ts";
+import type { FilingPack } from "./filing.ts";
 import { listsForCaseType } from "../lib/court-adapters/index.ts";
 import { AdvocateStore } from "../lib/advocate-store/index.ts";
 import { IntelStore } from "../lib/intel-store/index.ts";
@@ -97,6 +100,7 @@ let studio: ArgumentStudio;
 let advocateStore: AdvocateStore;
 let intelStore: IntelStore;
 let skillRegistry: SkillRegistry;
+let practicePacks: PracticePacks;
 /** Phase 2: the court adapter framework. */
 let courtIntel: CourtIntel;
 /** Phase 3: the built-in browser (S10). */
@@ -1657,16 +1661,57 @@ app.whenReady().then(() => {
     docsDir: path.join(app.getPath("userData"), "intel", "docs"),
   });
   filing.courtRules = (id) => courtIntel.compliance(id);
-  // Phase 6 (L1, P5): the target's proceeding pack drives the required documents, and the pack
-  // lists' freshness is the rule-currency row. With no pack, the SLP set is unchanged.
-  const targetPack = async (id: string): Promise<{ requiredParts: string[]; caseType: string; limitation?: { days: number; from: string; source: string } | null } | null> => {
+  // Phase 8 (Q3): the practice packs are read from `packs/`. The matter's pack is chosen from its
+  // proceeding, its practice area, its court, or the default pack. The filing set, limitation and
+  // workflow come from the pack; the core holds no SLP constant.
+  practicePacks = new PracticePacks(path.join(app.getAppPath(), "packs"));
+  const practiceChoice = async (id: string, target?: { court: string; caseType: string } | null) => {
+    const store = await matters.store(id);
+    const profile = store.profile();
+    const details = store.work.details();
+    return practicePacks.choiceFor({ ...profile, court: target?.court ?? profile.court, caseType: target?.caseType ?? profile.caseType }, details.court, courtIntel.profile().practice);
+  };
+  // Phase 6 (L1, P5) and phase 8: the target's proceeding pack drives the required documents, and
+  // the pack lists' freshness is the rule-currency row. A court target wins; with none, the
+  // matter's practice pack supplies the plan.
+  const targetPack = async (id: string): Promise<FilingPack | null> => {
     const store = await matters.store(id);
     const target = store.filingTarget();
-    if (!target) return null;
-    const adapter = courtIntel.adapterFor(target.court);
-    if (!adapter) return null;
-    const proceeding = (adapter.proceedings ?? []).find((p) => p.caseType === target.caseType) ?? null;
-    return proceeding ? { requiredParts: proceeding.requiredParts, caseType: proceeding.caseType, limitation: proceeding.limitation ?? null } : null;
+    if (target) {
+      const adapter = courtIntel.adapterFor(target.court);
+      const proceeding = (adapter?.proceedings ?? []).find((p) => p.caseType === target.caseType) ?? null;
+      if (adapter && proceeding && proceeding.requiredParts.length > 0) {
+        return {
+          requiredParts: proceeding.requiredParts,
+          caseType: proceeding.caseType,
+          limitation: proceeding.limitation ?? null,
+          packId: adapter.id,
+          packTitle: adapter.title,
+          proceeding: proceeding.key,
+          proceedingTitle: proceeding.title,
+          source: "court-target",
+          workflow: [],
+        };
+      }
+    }
+    const choice = await practiceChoice(id, target);
+    const plan = choice ? filingPlan(choice) : null;
+    if (!plan) return null;
+    return {
+      requiredParts: plan.documents.map((d) => d.title),
+      caseType: plan.caseType,
+      limitation: plan.limitation,
+      packId: plan.packId,
+      packTitle: plan.packTitle,
+      proceeding: plan.proceedingKey,
+      proceedingTitle: plan.proceedingTitle,
+      source: plan.source,
+      documents: plan.documents as FilingPack["documents"],
+      annexureParts: plan.annexureParts,
+      unmappedParts: plan.unmappedParts,
+      lateDocuments: choice?.proceeding?.lateDocuments as FilingPack["lateDocuments"],
+      workflow: plan.workflow,
+    };
   };
   filing.proceedingPack = (id) => targetPack(id);
   filing.packFreshness = async (id) => {
@@ -1759,6 +1804,7 @@ app.whenReady().then(() => {
         ensureFind: (id) => ensureFindIndex(matters, id),
         rules: (id) => courtIntel.rulesContext(id),
         forumRefusal: (id, courts) => courtIntel.forumRefusal(id, courts),
+        packRefusal: async (id, packs) => skillPackRefusal(packs, await practiceChoice(id)),
       },
       browser: {
         open: async ({ url, visible }) => {
@@ -1895,7 +1941,7 @@ app.whenReady().then(() => {
   });
   registerBridge();
   registerIntelBridge(handle, { intel: courtIntel, matters });
-  registerHarnessBridge(handle, { matters, agent, progress, skills: skillRegistry, advocate: advocateStore, intel: intelStore, corpus: () => hub?.corpus ?? null });
+  registerHarnessBridge(handle, { matters, agent, progress, skills: skillRegistry, packs: practicePacks, advocate: advocateStore, intel: intelStore, corpus: () => hub?.corpus ?? null });
   exposeTestHooks();
   createWindow();
 });

@@ -70,23 +70,6 @@
       "needs": { "caseTypes": ["SLP(C)"], "practice": ["civil", "constitutional"] },
       "source": "sc.rules.2013",
       "extract": { "start": "SPECIAL LEAVE PETITIONS (CIVIL)", "end": "SPECIAL LEAVE PETITIONS (CRIMINAL)" }
-    },
-    {
-      "key": "workflow.slp_civil",
-      "kind": "workflow",
-      "title": "From instruction to filing: special leave petition (civil)",
-      "needs": { "caseTypes": ["SLP(C)"], "practice": ["civil", "constitutional"] },
-      "source": "sc.rules.2013",
-      "items": [
-        { "text": "Analyse the impugned judgment.", "skill": "SK-008" },
-        { "text": "Check the chronology for contradictions and confirm the dates.", "skill": "SK-011" },
-        { "text": "Generate the list of dates from the confirmed events." },
-        { "text": "Propose the issues and decide them at the case conference.", "skill": "SK-012" },
-        { "text": "Work out the limitation from the date of the impugned judgment; confirm it." },
-        { "text": "Review the drafts, their citations and their grounding.", "skill": "SK-027" },
-        { "text": "Tick the filing checklist and run the format checks." },
-        { "text": "Approve for filing; the filing set and its signed manifest are made." }
-      ]
     }
   ],
   "formatChecks": [],
@@ -98,13 +81,11 @@
       "court": "in.sc",
       "caseType": "SLP(C)",
       "provisions": ["Article 136 of the Constitution", "Supreme Court Rules, 2013, Order XXI"],
-      "limitation": { "days": 90, "from": "the date of the judgment or order appealed from", "source": "sc.rules.2013", "quote": "in any other case within ninety days from the date of the judgment or order sought to be appealed from", "ref": "Order XXI rule 1" },
-      "requiredParts": ["List of dates", "Certified copy of the impugned judgment", "Special leave petition (Form No. 28)", "Appendix of provisions", "Annexures", "Affidavit"],
+      "requiredParts": [],
       "checklist": "filing.slp_civil",
-      "workflow": "workflow.slp_civil",
-      "stages": ["Instruction", "Drafting", "Filed", "Defects cured", "Listed", "Notice issued", "Leave granted or dismissed"],
-      "intakeQuestions": ["What is the date of the impugned judgment?", "Was a certificate of fitness refused by the High Court?", "Was an earlier SLP filed against the same judgment?", "Does a letters patent or writ appeal lie, and was it availed?", "Is interim relief needed?"],
-      "skills": ["SK-008", "SK-011", "SK-012", "SK-027"]
+      "stages": [],
+      "intakeQuestions": [],
+      "skills": []
     }
   ]
 }

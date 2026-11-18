@@ -17,7 +17,7 @@ import { conversionCheck, copyExclusion, disclosureBlockers, disclosureBlocks, e
 import { generateStructured } from "../lib/drafting/structured.ts";
 import { packToDocuments } from "../lib/drafting/documents.ts";
 import { extractText } from "../lib/document-intelligence/index.ts";
-import { checkCompliance, computeLimitation, delayDays, isPdfA, LIMITATION_RULE, manifestDigest, RULES_VERSION, verifyManifest } from "../lib/filing/index.ts";
+import { checkCompliance, computeLimitation, delayDays, isPdfA, manifestDigest, RULES_VERSION, verifyManifest } from "../lib/filing/index.ts";
 import { readParagraphs } from "../lib/drafting/index.ts";
 import { MatterStoreError } from "../lib/matter-store/index.ts";
 import { court as directoryCourt } from "../lib/court-directory/index.ts";import type { DraftKind } from "../shared/records.ts";
@@ -27,19 +27,33 @@ const sha256 = (text: string | Uint8Array) => createHash("sha256").update(text).
 
 const advocate = { actor: "advocate" as const };
 
-/** The petition documents in filing order. */
-const REQUIRED: Array<{ kind: DraftKind; title: string }> = [
-  { kind: "synopsis", title: "Synopsis" },
-  { kind: "list_of_dates", title: "List of Dates" },
-  { kind: "petition", title: "Petition" },
-  { kind: "questions_of_law", title: "Questions of Law" },
-  { kind: "grounds", title: "Grounds" },
-];
+/**
+ * The filing pack of a matter: the court adapter's proceeding (phase 6) or a practice pack's
+ * proceeding (phase 8). The pack owns the required documents, the limitation rule and the
+ * workflow. This module holds no SLP (or other pack's) constant.
+ */
+export interface FilingPack {
+  requiredParts: string[];
+  caseType: string;
+  limitation?: { id?: string; title?: string; days: number; from: string; source: string; ref?: string } | null;
+  /** The practice pack, when one supplies the plan. */
+  packId?: string;
+  packTitle?: string;
+  /** The proceeding key and title of the pack. */
+  proceeding?: string;
+  proceedingTitle?: string;
+  /** Where the plan came from: a court target or a practice pack. */
+  source?: "court-target" | "proceeding" | "practice" | "court" | "default";
+  /** The explicit filing set of a practice pack. */
+  documents?: Array<{ kind: DraftKind; title: string }>;
+  annexureParts?: string[];
+  unmappedParts?: string[];
+  /** The pack's late documents, when limitation has run (the condonation application). */
+  lateDocuments?: Array<{ kind: DraftKind; title: string }>;
+  workflow?: Array<{ text: string; skill?: string }>;
+}
 
-/** V2-6: the condonation application is required when the confirmed limitation shows a delay today. */
-export const CONDONATION = { kind: "condonation" as DraftKind, title: "Application for Condonation of Delay" };
-
-/** The required documents of a filing target: the pack's parts mapped to documents, or the SLP set. */
+/** The required documents of a filing target: the pack's parts mapped to documents, or its set. */
 export interface RequiredDocuments {
   documents: Array<{ kind: DraftKind; title: string }>;
   /** Pack parts the annexure manager owns (the compliance row says which). */
@@ -51,17 +65,21 @@ export interface RequiredDocuments {
 }
 
 /**
- * Phase 6 (L1, L3): the required documents. With no filing target, the Supreme Court SLP set is
- * unchanged. With a target whose proceeding pack names its parts, each part maps to the document
- * it names; a part with no mapping is reported, never dropped silently.
+ * Phase 8 (Q3): the required documents. A practice pack names its set; an adapter pack names its
+ * parts and each part maps to a document. With no pack, the set is empty and the Filing tab says
+ * that no pack is chosen. Nothing is assumed.
  */
-export function requiredDocuments(limitation: { deadline: string; confirmedAt: string | null } | null, pack: { requiredParts: string[]; caseType: string } | null): RequiredDocuments {
+export function requiredDocuments(limitation: { deadline: string; confirmedAt: string | null } | null, pack: FilingPack | null): RequiredDocuments {
+  if (pack?.documents && pack.documents.length > 0) {
+    const late = limitation?.confirmedAt && delayDays(limitation.deadline, new Date().toISOString()) > 0;
+    const documents = late && pack.lateDocuments?.length ? [...pack.documents, ...pack.lateDocuments] : [...pack.documents];
+    return { documents, annexureParts: pack.annexureParts ?? [], unmapped: pack.unmappedParts ?? [], caseType: pack.caseType };
+  }
   if (pack) {
     const mapped = packToDocuments(pack.requiredParts);
     return { documents: mapped.documents, annexureParts: mapped.annexures, unmapped: mapped.unmapped, caseType: pack.caseType };
   }
-  const late = limitation?.confirmedAt && delayDays(limitation.deadline, new Date().toISOString()) > 0;
-  return { documents: late ? [...REQUIRED, CONDONATION] : [...REQUIRED], annexureParts: [], unmapped: [], caseType: null };
+  return { documents: [], annexureParts: [], unmapped: [], caseType: null };
 }
 
 /** The text of a PDF, every line of every page. */
@@ -77,10 +95,8 @@ export class Filing {
 
   /** B12: the court's checklist as compliance rows (phase 2). Set by the application. */
   courtRules: ((matterId: string) => Promise<ComplianceResult[]>) | null = null;
-  /** Phase 6 (L1): the proceeding pack of the matter's filing target, or null when none is set. */
-  proceedingPack:
-    | ((matterId: string) => Promise<{ requiredParts: string[]; caseType: string; limitation?: { days: number; from: string; source: string } | null } | null>)
-    | null = null;
+  /** Phase 6 (L1): the court target's proceeding pack, or phase 8: the practice pack's, or null. */
+  proceedingPack: ((matterId: string) => Promise<FilingPack | null>) | null = null;
   /** Phase 6 (P5): the pack lists' freshness, for the rule-currency row. */
   packFreshness: ((matterId: string) => Promise<Array<{ list: string; state: "fresh" | "stale"; since: string }>>) | null = null;
 
@@ -90,12 +106,12 @@ export class Filing {
     this.signer = signer;
   }
 
-  /** The matter's filing target's proceeding pack, or null. */
-  private async pack(matterId: string): Promise<{ requiredParts: string[]; caseType: string; limitation?: { days: number; from: string; source: string } | null } | null> {
+  /** The matter's filing pack, or null. */
+  private async pack(matterId: string): Promise<FilingPack | null> {
     return (await this.proceedingPack?.(matterId)) ?? null;
   }
 
-  /** The required documents of the matter, from its pack or the SLP set. */
+  /** The required documents of the matter, from its pack. */
   private async docs(matterId: string): Promise<RequiredDocuments> {
     return requiredDocuments((await this.work(matterId)).limitation(), await this.pack(matterId));
   }
@@ -133,18 +149,21 @@ export class Filing {
     const w = await this.work(matterId);
     const d = w.details();
     if (!d.impugnedEventId) throw new MatterStoreError("IMPUGNED_NOT_RECORDED", "choose the impugned judgment on the Matter tab first");
+    const pack = await this.pack(matterId);
+    const rule = pack?.limitation;
+    if (!rule) throw new MatterStoreError("NO_LIMITATION_RULE", `${pack ? `the ${pack.packTitle ?? pack.caseType} pack` : "no filing pack"} states no limitation rule for this proceeding; compute one only if the proceeding has a limitation period`);
     const e = (await this.matters.notebook(matterId)).events.find((x) => x.id === d.impugnedEventId);
     if (!e) throw new MatterStoreError("EVENT_NOT_FOUND", d.impugnedEventId);
-    const base = computeLimitation(e.dateStart);
+    const base = computeLimitation(e.dateStart, { id: rule.id ?? "pack-limitation", title: rule.title ?? "The pack's limitation rule", source: rule.source, days: rule.days });
     // V5-16: the time taken to obtain the certified copy is excluded, with its working shown.
-    const ex = copyExclusion(e.dateStart, d.copyApplied || null, d.copyReceived || null, LIMITATION_RULE.days);
+    const ex = copyExclusion(e.dateStart, d.copyApplied || null, d.copyReceived || null, rule.days);
     const deadline = ex.days ? extendDeadline(base.deadline, ex.days) : base.deadline;
     const working = `${base.working} ${ex.working}${ex.days ? ` Last day after the exclusion: ${deadline.split("-").reverse().join(".")}.` : ""}`;
     return w.addLimitation({
-      rule: LIMITATION_RULE.id,
+      rule: rule.id ?? "pack-limitation",
       startEventId: e.id,
       startDate: e.dateStart,
-      days: LIMITATION_RULE.days + ex.days,
+      days: rule.days + ex.days,
       deadline,
       working: `${working} Source line: ${e.sourceName}, p. ${e.page}, l. ${e.line}.`,
     });
@@ -158,9 +177,10 @@ export class Filing {
     const w = await this.work(matterId);
     const drafts = await this.matters.listDrafts(matterId);
     const docs = await this.docs(matterId);
-    // Phase 6 (L1): the target's proceeding pack, read once for the parts, the procedure rows
-    // and the limitation rule.
+    // Phase 6 (L1): the target's proceeding pack or phase 8: the practice pack, read once for the
+    // parts, the procedure rows and the limitation rule.
     const pack = await this.pack(matterId);
+    const packName = pack?.packTitle ?? pack?.caseType ?? "the filing pack";
     const rows = [];
     for (const r of docs.documents) {
       const d = drafts.find((x) => x.kind === r.kind);
@@ -177,17 +197,18 @@ export class Filing {
       drafts: rows,
       annexureLabels: annexures.map((a) => a.label),
       limitation: limitation ? { deadline: limitation.deadline, confirmed: limitation.confirmedAt !== null } : null,
+      limitationSource: pack?.limitation?.source ?? "the filing pack",
       filingSet: filingSet ? { files: filingSet.manifest.files } : null,
     });
     // Phase 6 (L1): a proceeding pack without a limitation rule of its own (the DHC W.P.(C))
-    // never shows the SLP limitation rule as its own: the row says what the pack states.
+    // never shows another pack's limitation rule as its own: the row says what the pack states.
     if (pack && pack.limitation == null) {
       const at = results.findIndex((r) => r.rule === "P-4");
       if (at >= 0) {
         results[at] = {
           rule: "P-4",
           title: "Limitation computed and confirmed for the proceeding",
-          source: `the ${pack.caseType} proceeding pack`,
+          source: packName,
           outcome: "not_checked",
           detail: "The pack states no limitation rule of its own, so none is computed. Compute one on the Filing tab only if the proceeding has a limitation period.",
         };
@@ -201,7 +222,7 @@ export class Filing {
       results.push({
         rule: `PACK-A${n + 1}`,
         title: `${part} is recorded as an annexure`,
-        source: pack ? `the ${pack.caseType} proceeding pack` : "the pack",
+        source: packName,
         outcome: annexures.length > 0 ? "pass" : "not_checked",
         detail:
           annexures.length > 0
@@ -213,7 +234,7 @@ export class Filing {
       results.push({
         rule: `PACK-U${n + 1}`,
         title: `${part} is not checked`,
-        source: pack ? `the ${pack.caseType} proceeding pack` : "the pack",
+        source: packName,
         outcome: "not_checked",
         detail: `The pack names "${part}", and the application maps it to no document of its catalogue. Check it by hand before filing.`,
       });
@@ -228,11 +249,21 @@ export class Filing {
       details,
       annexures,
       limitation,
-      compliance: { version: pack ? `${RULES_VERSION} + ${pack.caseType} pack` : RULES_VERSION, results },
+      compliance: { version: pack ? `${RULES_VERSION} + ${packName} (${pack.caseType})` : RULES_VERSION, results },
       blockers,
       filingSet,
       required: docs.documents.map((d) => ({ kind: d.kind, title: d.title })),
       unmapped: docs.unmapped,
+      pack: pack
+        ? {
+            id: pack.packId ?? "court",
+            title: pack.packTitle ?? packName,
+            proceeding: pack.proceedingTitle ?? pack.proceeding ?? pack.caseType,
+            source: pack.source ?? "court-target",
+            limitation: pack.limitation ? { id: pack.limitation.id ?? "", title: pack.limitation.title ?? "", days: pack.limitation.days, source: pack.limitation.source } : null,
+            workflow: pack.workflow ?? [],
+          }
+        : null,
     };
   }
 
@@ -244,8 +275,21 @@ export class Filing {
     const store = await this.matters.store(matterId);
     const target = store.filingTarget();
     const out: ComplianceResult[] = [];
+    const pack = await this.pack(matterId);
     if (!target) {
-      out.push({ rule: "PROC-forum", title: "The forum of the filing", source: "the filing target", outcome: "not_checked", detail: "Choose the court and the case type of the filing on the Court Intelligence tab." });
+      out.push({ rule: "PROC-forum", title: "The forum of the filing", source: "the filing target", outcome: "not_checked", detail: "No court target is set. Choose the court and the case type of the filing on the Court Intelligence tab." });
+      const limitation = store.work.limitation();
+      out.push({
+        rule: "PROC-limitation",
+        title: "Limitation computed and confirmed for the proceeding",
+        source: pack?.limitation?.source ?? (pack ? (pack.packTitle ?? pack.caseType) : "the filing pack"),
+        outcome: limitation?.confirmedAt ? "pass" : "not_checked",
+        detail: limitation?.confirmedAt
+          ? `The last day is ${limitation.deadline}, confirmed by the advocate. ${limitation.working}`
+          : pack?.limitation
+            ? `The ${pack.packTitle ?? pack.caseType} pack states ${pack.limitation.days} days from ${pack.limitation.from ?? "the date the pack names"}. Compute and confirm the working on the Filing tab.`
+            : "No pack states a limitation rule, and no limitation working is confirmed.",
+      });
       return out;
     }
     const courtName = directoryCourt(target.court)?.name ?? target.court;
@@ -270,18 +314,17 @@ export class Filing {
       outcome: !report ? "not_checked" : report.appealRoute.trim() ? "pass" : "not_checked",
       detail: !report ? "No jurisdiction report is recorded." : report.appealRoute.trim() ? `The report names the route: ${report.appealRoute}` : "The report names no appeal route. Record one, or mark the field undetermined.",
     });
-    const pack = await this.pack(matterId);
     const limitation = store.work.limitation();
     out.push({
       rule: "PROC-limitation",
       title: "Limitation computed and confirmed for the proceeding",
-      source: pack ? `the ${pack.caseType} proceeding pack` : "the SLP pack",
+      source: pack?.limitation?.source ?? (pack ? (pack.packTitle ?? pack.caseType) : "the filing pack"),
       outcome: limitation?.confirmedAt ? "pass" : "not_checked",
       detail: limitation?.confirmedAt
         ? `The last day is ${limitation.deadline}, confirmed by the advocate. ${limitation.working}`
-        : pack
-          ? "The pack states no limitation rule of its own, and no limitation working is confirmed. Compute it on the Filing tab when the proceeding has one."
-          : "Compute and confirm limitation on the Filing tab first.",
+        : pack?.limitation
+          ? `The ${pack.packTitle ?? pack.caseType} pack states ${pack.limitation.days} days from ${pack.limitation.from ?? "the date the pack names"}. Compute and confirm the working on the Filing tab.`
+          : "The pack states no limitation rule of its own, and no limitation working is confirmed. Compute it on the Filing tab when the proceeding has one.",
     });
     const freshness = (await this.packFreshness?.(matterId)) ?? [];
     const stale = freshness.filter((f) => f.state === "stale");
@@ -438,6 +481,8 @@ export class Filing {
       rules: st.compliance.version,
       requiredDocuments: docs.documents.map((d) => `${d.kind}: ${d.title}`),
       packCaseType: (await this.pack(matterId))?.caseType ?? null,
+      practicePack: (await this.pack(matterId))?.packId ?? null,
+      packProceeding: (await this.pack(matterId))?.proceeding ?? null,
       limitation: lim ? `${lim.deadline} (confirmed ${lim.confirmedAt})` : null,
       approvals,
       // V5-1: the head of the matter's event chain when the set was made.

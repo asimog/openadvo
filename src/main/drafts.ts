@@ -25,7 +25,8 @@ import type { AgentChanges } from "../shared/records.ts";
 import { delayDays } from "../lib/filing/index.ts";
 import { protectedNamesIn, reporterOnlyCitations } from "../lib/filing/v5.ts";
 import { groundedStatus } from "../lib/studio/index.ts";
-import { bodyParagraphs, conferenceBlocks, condonationBlocks, generateStructured, petitionBlocks, prayerDefect, TITLES, TO_COMPLETE } from "../lib/drafting/structured.ts";
+import { bodyParagraphs, conferenceBlocks, generateStructured, TITLES, TO_COMPLETE } from "../lib/drafting/structured.ts";
+import { condonationBlocks, petitionBlocks, prayerDefect, SLP_TITLES } from "../lib/packs/slp.ts";
 import { CATALOGUE, COURT_FORMATS, courtFormat, GROUP_LABEL, templateOf, type DocumentTemplate } from "../lib/drafting/documents.ts";
 import type { DraftingInput } from "../lib/drafting/parts.ts";
 import { appliedBecause, defaultUsed, formatCitation, normaliseReason, correctionPreference } from "../lib/preferences/index.ts";
@@ -433,7 +434,7 @@ export class Drafts {
     let title: string;
     let blocks;
     if (kind === "petition") {
-      title = "PETITION FOR SPECIAL LEAVE TO APPEAL";
+      title = SLP_TITLES.petition;
       const approvedText = async (k: DraftKind, re: RegExp) => {
         const d = drafts.find((x) => x.kind === k);
         if (!d?.approved) return [];
@@ -453,7 +454,7 @@ export class Drafts {
         interimRelief: details.interimRelief,
       });
     } else if (kind === "condonation") {
-      title = "APPLICATION FOR CONDONATION OF DELAY";
+      title = SLP_TITLES.condonation;
       const lim = w.limitation();
       if (!lim?.confirmedAt) throw new MatterStoreError("LIMITATION_NOT_CONFIRMED", "compute and confirm limitation on the Filing tab first");
       const delay = delayDays(lim.deadline, generatedAt);

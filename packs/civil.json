@@ -1,0 +1,156 @@
+{
+  "id": "civil",
+  "version": "1.0.0",
+  "title": "Civil",
+  "practice": ["civil"],
+  "courts": ["in.dj.delhi", "in.hc.delhi", "in.sc"],
+  "acts": [
+    {
+      "act": "Code of Civil Procedure, 1908",
+      "version": "1908",
+      "source": "the Act as amended; the law store records the version when it is imported"
+    },
+    {
+      "act": "Specific Relief Act, 1963",
+      "version": "1963",
+      "source": "the Act as amended; the law store records the version when it is imported"
+    },
+    {
+      "act": "Limitation Act, 1963",
+      "version": "1963",
+      "source": "the Act; the law store records the version when it is imported"
+    },
+    {
+      "act": "Indian Contract Act, 1872",
+      "version": "1872",
+      "source": "the Act as amended; the law store records the version when it is imported"
+    }
+  ],
+  "templates": [
+    { "kind": "plaint", "title": "Plaint", "note": "Cause title, facts, valuation, prayer and verification." },
+    { "kind": "written_statement", "title": "Written statement", "note": "Para-wise reply to the plaint, with the reply left to the advocate." },
+    { "kind": "replication", "title": "Replication", "note": "The reply to the written statement, left to the advocate." },
+    { "kind": "application_interim", "title": "Application for interim relief", "note": "The facts, the grounds and the interim prayer." },
+    { "kind": "affidavit", "title": "Affidavit", "note": "The deponent's own recorded statements, organized." },
+    { "kind": "written_submissions", "title": "Written submissions", "note": "From the accepted arguments and the record." },
+    { "kind": "appeal_memo", "title": "Memorandum of appeal", "note": "The grounds and the prayer against the decree." }
+  ],
+  "proceedings": [
+    {
+      "key": "civil_suit",
+      "title": "Civil suit",
+      "caseType": "Civil suit",
+      "courts": ["in.dj.delhi", "in.hc.delhi"],
+      "provisions": ["Code of Civil Procedure, 1908", "Specific Relief Act, 1963"],
+      "limitation": null,
+      "requiredParts": ["Plaint", "Vakalatnama", "Memo of parties", "Annexures"],
+      "documents": [
+        { "kind": "plaint", "title": "Plaint" },
+        { "kind": "vakalatnama", "title": "Vakalatnama" },
+        { "kind": "memo_of_parties", "title": "Memo of Parties" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Review the plaint against the record and the court's template.", "skill": "SK-201" },
+        { "text": "Propose the issues for determination.", "skill": "SK-207" },
+        { "text": "Draft the interim injunction application with its conditions chart.", "skill": "SK-204" },
+        { "text": "Build the evidence matrix: issue, burden, evidence and witness.", "skill": "SK-208" },
+        { "text": "Review the drafts, citations and grounding.", "skill": "SK-027" },
+        { "text": "Run the filing checklist.", "skill": "SK-023" }
+      ],
+      "stages": ["Institution", "Notice", "Written statement", "Framing of issues", "Evidence", "Arguments", "Judgment", "Decree"],
+      "intakeQuestions": [
+        "What is the cause of action and its date?",
+        "What is the valuation of the suit for jurisdiction and court fee?",
+        "Which relief is sought: injunction, declaration, possession, recovery or specific performance?",
+        "Is the suit within limitation?",
+        "Which documents prove the plaintiff's title or the contract?"
+      ],
+      "skills": ["SK-201", "SK-202", "SK-203", "SK-204", "SK-205", "SK-206", "SK-207", "SK-208", "SK-210"],
+      "recordColumns": ["Issue", "Burden", "Evidence", "Witness", "Source", "Page", "Line"],
+      "evidence": [
+        "The contract, title deeds or the instrument the suit rests on",
+        "The notice and the reply",
+        "The documents of the cause of action",
+        "The affidavits and the witnesses"
+      ],
+      "terms": [
+        { "term": "Plaint", "meaning": "The document by which a plaintiff starts a civil suit." },
+        { "term": "Conditions chart", "meaning": "One column per condition of interim relief: prima facie case, balance of convenience and irreparable injury." },
+        { "term": "Issue", "meaning": "A question of fact or law that the court decides in the suit." }
+      ]
+    },
+    {
+      "key": "injunction",
+      "title": "Interim injunction application",
+      "caseType": "Injunction application",
+      "courts": ["in.dj.delhi", "in.hc.delhi"],
+      "provisions": ["Order XXXIX rules 1 and 2 of the Code of Civil Procedure, 1908", "Section 37 of the Specific Relief Act, 1963"],
+      "limitation": null,
+      "requiredParts": ["Application for interim relief", "Vakalatnama"],
+      "documents": [
+        { "kind": "application_interim", "title": "Application for Interim Relief" },
+        { "kind": "vakalatnama", "title": "Vakalatnama" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Build the conditions chart for interim relief from the record.", "skill": "SK-204" },
+        { "text": "Draft the application from the chart.", "skill": "SK-204" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Application", "Notice", "Affidavit in reply", "Hearing", "Order", "Compliance"],
+      "intakeQuestions": [
+        "What is the threatened act?",
+        "What is the prima facie case, and which document shows it?",
+        "What harm cannot be repaired by money?",
+        "Why does the balance of convenience favour the applicant?",
+        "Is an ex parte injunction sought, and why?"
+      ],
+      "skills": ["SK-204", "SK-208"],
+      "recordColumns": ["Condition", "Record", "Source", "Page", "Line"],
+      "evidence": ["The document that shows the right", "The evidence of the threatened act", "The evidence of the harm"],
+      "terms": [
+        { "term": "Prima facie case", "meaning": "A case that shows a serious question and a likelihood of success at the interim stage." },
+        { "term": "Irreparable injury", "meaning": "A harm that money cannot repair." },
+        { "term": "Balance of convenience", "meaning": "Which party suffers more if the relief is or is not granted before the trial." }
+      ]
+    },
+    {
+      "key": "first_appeal",
+      "title": "First appeal",
+      "caseType": "First appeal",
+      "courts": ["in.hc.delhi", "in.sc"],
+      "provisions": ["Section 96 of the Code of Civil Procedure, 1908"],
+      "limitation": null,
+      "requiredParts": ["Memorandum of appeal", "Vakalatnama", "Certified copy of the decree"],
+      "documents": [
+        { "kind": "appeal_memo", "title": "Memorandum of Appeal" },
+        { "kind": "vakalatnama", "title": "Vakalatnama" }
+      ],
+      "annexureParts": ["Certified copy of the decree", "Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Analyse the judgment and its findings.", "skill": "SK-008" },
+        { "text": "Draft the appeal.", "skill": "SK-210" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Decree", "Appeal", "Notice", "Hearing", "Judgment"],
+      "intakeQuestions": [
+        "What does the decree decide?",
+        "What is the date of the decree?",
+        "Which findings are challenged?",
+        "Is a stay of execution sought?"
+      ],
+      "skills": ["SK-008", "SK-210"],
+      "recordColumns": ["Date", "Event", "Source", "Page", "Line", "Proceeding"],
+      "evidence": ["The decree and judgment", "The record of the trial court", "The application for a certified copy"],
+      "terms": [{ "term": "Decree", "meaning": "The formal expression of the court's adjudication of a civil suit." }]
+    }
+  ],
+  "terms": [
+    { "term": "Written statement", "meaning": "The defendant's reply to the plaint." },
+    { "term": "Evidence matrix", "meaning": "One row per issue: the burden, the evidence and the witness." }
+  ]
+}
