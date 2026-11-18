@@ -201,7 +201,7 @@ export function ProfilePage(props: { onChanged: () => void; onOnboarding?: () =>
           <List density="compact" data-testid="profile-practice-packs">
             {packs.map((p) => {
               const enabled = p.practice.some((x) => practice.some((y) => y.toLowerCase() === x.toLowerCase())) || (p.id === "writ" && practice.some((y) => /constitutional/i.test(y)));
-              return <ListItem key={p.id} startContent={<StatusDot variant={p.error ? "error" : enabled ? "success" : "neutral"} label={p.error ? "Cannot read" : enabled ? "Enabled" : "Not chosen"} />} label={`${p.title} v${p.version}${p.isDefault ? " (default)" : ""}`} description={`${p.proceedings.map((x) => `${x.title} (${x.caseType})`).join(", ")}. ${p.acts.length} act(s). ${p.skills.length} skill(s).`} />;
+              return <ListItem key={p.id} startContent={<StatusDot variant={p.error ? "error" : enabled ? "success" : "neutral"} label={p.error ? "Cannot read" : enabled ? "Enabled" : "Not chosen"} />} label={`${p.title} v${p.version}${p.isDefault ? " (default)" : ""}`} description={`${p.proceedings.map((x) => `${x.title} (${x.caseType})`).join(", ")}. ${p.acts.length} act(s). ${p.skills.length} pack skill(s); the every-proceeding skills apply too.`} />;
             })}
           </List>
           {packs.length === 0 ? <Text type="supporting">No practice pack is installed.</Text> : null}

@@ -108,12 +108,11 @@
       "documents": [
         { "kind": "synopsis", "title": "Synopsis" },
         { "kind": "list_of_dates", "title": "List of Dates" },
-        { "kind": "petition", "title": "Petition" },
         { "kind": "questions_of_law", "title": "Questions of Law" },
         { "kind": "grounds", "title": "Grounds" }
       ],
       "annexureParts": ["Certified copy of the impugned judgment", "Annexures"],
-      "unmappedParts": [],
+      "unmappedParts": ["Criminal special leave petition (the generator writes the civil form today; the substance is drafted by SK-308)"],
       "workflow": [
         { "text": "Analyse the impugned judgment and report its findings with anchors.", "skill": "SK-008" },
         { "text": "Check the chronology for contradictions and confirm the dates.", "skill": "SK-011" },

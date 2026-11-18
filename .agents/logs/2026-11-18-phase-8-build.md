@@ -50,4 +50,5 @@ Date: 2026-11-18. Owner instruction: implement phase 8 of the build plan. The sp
 - A matter with a practice area but no proceeding gets the pack's first proceeding. The Filing tab names the proceeding, and the advocate can set the right one on the matter profile.
 - The packs record an act's version only where a source records it; other rows say "not recorded". They do not verify the version in the law store.
 - The SLP pack is the default when no proceeding, practice area or court chooses a pack. The Filing tab says so; it never hides the default.
+- The SLP pack's generator writes the civil form. A criminal SLP is named as an unmapped part in `packs/slp.json`; the substance is drafted by SK-308. The criminal form generator is not built.
 - Not run: the live-model e2e tests (`OPENADVO_LIVE_MODEL`), `npm run dist`.

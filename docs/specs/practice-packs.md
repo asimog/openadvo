@@ -152,6 +152,7 @@ Between the steps of the phase: the type check and the unit tests. The end-to-en
 - SK-028 (Matter Change Report) is phase 9. SK-034, SK-035, SK-111, SK-112, SK-115, SK-209, SK-211 and SK-306 are phase 11. Their rows stay in the library and say their phase.
 - The skill tests run fixture briefs, not a gold set (questions Q-3). A model is not called by the test.
 - The packs hold no court rule quote. The court adapter owns the quote; the pack names the source.
+- The SLP generator writes the civil form. A criminal special leave petition is named as unmapped in `packs/slp.json`; SK-308 drafts its substance, and the form is not generated yet.
 - A pack's act version is recorded only where the law store or an adapter records it. A missing version says "not recorded", never a guess.
 
 ## 8. Done

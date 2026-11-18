@@ -432,6 +432,7 @@ export function FilingView(props: { matterId: string; sources: SourceRecord[]; v
             <Text type="supporting">
               {f.pack.limitation ? `Limitation: ${f.pack.limitation.days} days. ${f.pack.limitation.source}` : "The pack states no limitation rule of its own."}
               {f.pack.source === "default" ? " No court target or practice pack is chosen, so the default pack applies. Choose the court and case type on the Court Intelligence tab, or set the practice area in your profile." : ""}
+              {f.pack.source === "practice" ? " The pack is suggested from your practice area; set the proceeding on the Matter tab if this one is not right." : ""}
             </Text>
             {f.pack.workflow.length > 0 ? (
               <ol className="work-list" data-testid="pack-workflow">

@@ -191,7 +191,7 @@ export function SkillsPage() {
               data-testid={`pack-${p.id}`}
               startContent={<StatusDot variant={p.error ? "error" : "success"} label={p.error ? "Cannot read" : p.isDefault ? "Default" : "Ready"} />}
               label={`${p.title} v${p.version}${p.isDefault ? " (default)" : ""}`}
-              description={p.error ? p.error : `${p.proceedings.length} proceeding${p.proceedings.length === 1 ? "" : "s"}: ${p.proceedings.map((x) => `${x.title} (${x.caseType})`).join(", ")}. Acts: ${p.acts.map((a) => `${a.act} (${a.version})`).join("; ")}. Skills: ${p.skills.length}.`}
+              description={p.error ? p.error : `${p.proceedings.length} proceeding${p.proceedings.length === 1 ? "" : "s"}: ${p.proceedings.map((x) => `${x.title} (${x.caseType})`).join(", ")}. Acts: ${p.acts.map((a) => `${a.act} (${a.version})`).join("; ")}. Pack skills: ${p.skills.length}; the every-proceeding skills apply too.`}
             />
           ))}
         </List>
