@@ -8,6 +8,8 @@ import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { AdvocateStore } from "../lib/advocate-store/index.ts";
 import { classifyLibraryFile, libraryScope, libraryTitle } from "../lib/library/index.ts";
+import { libraryRoles, topPrecedents } from "../lib/library/positions.ts";
+import type { LibraryRoleGroup, PrecedentOffer, PrecedentSubject } from "../shared/knowledge.ts";
 import type { LibraryItem } from "../shared/stores.ts";
 
 export interface LibraryImportResult {
@@ -32,6 +34,16 @@ export class Library {
 
   list(filter: { q?: string; kind?: string; status?: string } = {}): LibraryItem[] {
     return this.store.library(filter);
+  }
+
+  /** M2: the library grouped by role: positions, playbooks, styles, common errors, precedents. */
+  roles(): LibraryRoleGroup[] {
+    return libraryRoles(this.store.library());
+  }
+
+  /** M2: the approved precedents for a drafting task, best first. */
+  precedents(subject: PrecedentSubject, n = 3): PrecedentOffer[] {
+    return topPrecedents(this.store.library(), subject, n);
   }
 
   /** The file behind one item, or null. */

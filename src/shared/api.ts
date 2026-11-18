@@ -38,12 +38,15 @@ import type { ContextCandidate, ContextPackageRecord, JobRow, ReportCard, RoleSu
 import type { AdvocateProfile, IntelSource, Freshness, LibraryImportResult, LibraryItem, LibraryStatus, MemoryRecord, PreferenceRecord, StoreChains } from "./stores.ts";
 import type { BrowserBookmark, BrowserBounds, BrowserShortcut, BrowserState, BrowserVisit, CaseListProposal, CaseListResult } from "./browser.ts";
 import type { PackSummary } from "./packs.ts";
+import type { LibraryRoleGroup, MemoryAnswer, OutcomeInput, OutcomeRecord, PrecedentOffer } from "./knowledge.ts";
+import type { AdvocateGraphView, GraphNodeKind } from "./knowledge.ts";
 export type * from "./packs.ts";
 export type * from "./browser.ts";
 import type { Contradiction, DocumentOperation, DocumentPart, EvidenceRecord, FactRecord, ForumClause, JurisdictionReport, MatterEdge, PageMark, RecordTemplate, RelatedProposal, SourceRelation, TimelineEntry } from "./evidence.ts";
 export type * from "./evidence.ts";
 export type * from "./skills.ts";
 export type * from "./stores.ts";
+export type * from "./knowledge.ts";
 export type * from "./intel.ts";
 import type { AdapterSummary, BenchRow, DefectRow, FormatCheckResult, MatterChecklist, PackList, AdapterProceeding } from "./intel.ts";
 import type { DirectoryCourt } from "../lib/court-directory/index.ts";
@@ -796,4 +799,21 @@ export interface OpenAdvoApi {
     baseRevisionId: string,
     decisions: Array<{ anchor: string; decision: "keep" | "undo"; reason?: string }>,
   ): Promise<RevisionRecord>;
+  // ---- Phase 10: memory and knowledge ----
+  /** F5: the deterministic answer to one memory question, with its record links. */
+  answerMemory(matterId: string, question: string): Promise<MemoryAnswer>;
+  /** M3: the matter's outcome records, newest first. */
+  listOutcomes(matterId: string): Promise<OutcomeRecord[]>;
+  /** M3, human-only: enter what the court did. A correction supersedes. */
+  recordOutcome(matterId: string, input: OutcomeInput): Promise<OutcomeRecord>;
+  /** M2: the library grouped by its four roles, the precedents and the rest. */
+  libraryRoles(): Promise<LibraryRoleGroup[]>;
+  /** M2: the approved precedents for the matter, best first, with the reason of each. */
+  listPrecedents(matterId: string, limit?: number): Promise<PrecedentOffer[]>;
+  /** G3: the advocate memory graph's edges and counts. */
+  advocateGraph(): Promise<AdvocateGraphView>;
+  /** G3, human-only: rebuild the derived advocate graph from the stores. */
+  rebuildAdvocateGraph(): Promise<AdvocateGraphView>;
+  /** G3: one node's neighbours, one to three steps out. */
+  walkAdvocateGraph(kind: GraphNodeKind, id: string, depth: number): Promise<AdvocateGraphView["edges"]>;
 }

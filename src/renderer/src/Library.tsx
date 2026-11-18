@@ -10,6 +10,7 @@ import { Heading } from "@astryxdesign/core/Heading";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
 import { LIBRARY_KINDS, LIBRARY_STATUSES, type LibraryImportResult, type LibraryItem, type LibraryKind, type LibraryStatus } from "../../shared/stores.ts";
+import type { AdvocateGraphView, LibraryRoleGroup } from "../../shared/knowledge.ts";
 import type { MatterSummary } from "../../shared/records.ts";
 
 const api = window.openadvo;
@@ -91,11 +92,15 @@ export function LibraryPage() {
   const [result, setResult] = useState<LibraryImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  const [roles, setRoles] = useState<LibraryRoleGroup[]>([]);
+  const [graph, setGraph] = useState<AdvocateGraphView | null>(null);
+  const [graphError, setGraphError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
       setError(null);
       setItems(await api.libraryList({ q, kind: kind || undefined, status: status || undefined }));
+      setRoles(await api.libraryRoles());
     } catch (e) {
       setError(errorText(e));
       setItems([]);
@@ -108,7 +113,17 @@ export function LibraryPage() {
 
   useEffect(() => {
     void api.listMatters().then(setMatters, () => setMatters([]));
+    void api.advocateGraph().then(setGraph, () => setGraph(null));
   }, []);
+
+  const rebuildGraph = async () => {
+    try {
+      setGraphError(null);
+      setGraph(await api.rebuildAdvocateGraph());
+    } catch (e) {
+      setGraphError(errorText(e));
+    }
+  };
 
   const importFiles = async () => {
     try {
@@ -171,6 +186,47 @@ export function LibraryPage() {
         {items && items.length === 0 ? (
           <div className="notice" data-testid="library-empty">No item yet. Import a folder of past work; every file enters as unreviewed.</div>
         ) : null}
+        <Heading level={3}>In use</Heading>
+        <Text type="supporting">A positive status puts an item to work: a proposition is a position, a checklist a playbook, a note tagged common-error a check, and an approved pleading, submission or template a precedent. A rejected item is never offered.</Text>
+        {roles.filter((r) => r.items.length > 0).map((group) => (
+          <div key={group.role} data-testid={`library-role-${group.role}`}>
+            <Heading level={4}>{group.title} ({group.items.length})</Heading>
+            <ul className="plain-list">
+              {group.items.slice(0, 20).map((item) => (
+                <li key={item.id} className="phase4-row" data-testid="library-role-item">
+                  <Text weight="semibold">{item.title}</Text>
+                  <Text type="supporting">{[item.status, item.kind.replace(/_/g, " "), item.court || null, item.scope || null, item.itemDate || null].filter(Boolean).join(" · ")}</Text>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+        {roles.every((r) => r.items.length === 0) ? <Text type="supporting">No item has a role yet. Approve an imported precedent, or tag a note common-error.</Text> : null}
+        <Heading level={3}>Advocate memory graph</Heading>
+        <Text type="supporting">The graph is rebuilt from your preferences, your memory, the library and the outcome records. It holds no client fact. {graph?.builtAt ? `Last built ${graph.builtAt.slice(0, 16).replace("T", " ")}.` : "Not built yet."}</Text>
+        <div className="row-actions">
+          <Button label="Rebuild the graph" size="sm" variant="ghost" clickAction={rebuildGraph} data-testid="graph-rebuild" />
+        </div>
+        {graphError ? <div className="notice" role="alert">{graphError}</div> : null}
+        <div data-testid="advocate-graph">
+          {graph && graph.counts.length === 0 ? <Text type="supporting">No edge yet. Approve a preference, confirm a memory record, approve a precedent, or record an outcome.</Text> : null}
+          <ul className="plain-list">
+            {(graph?.counts ?? []).map((c) => (
+              <li key={`${c.fromKind}:${c.relation}:${c.toKind}`} className="phase4-row" data-testid="graph-count">
+                <Text>{c.fromKind.replace(/_/g, " ")} → {c.relation.replace(/_/g, " ")} → {c.toKind.replace(/_/g, " ")}: {c.n}</Text>
+              </li>
+            ))}
+          </ul>
+          {graph && graph.edges.length > 0 ? (
+            <ul className="plain-list">
+              {graph.edges.slice(0, 12).map((e) => (
+                <li key={`${e.fromKind}:${e.fromId}:${e.relation}:${e.toKind}:${e.toId}`} className="phase4-row" data-testid="graph-edge">
+                  <Text type="supporting">{e.fromKind} {e.fromId} · {e.relation.replace(/_/g, " ")} · {e.toKind} {e.toId.slice(0, 24)}</Text>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
         <ul className="plain-list library-list" data-testid="library-list">
           {(items ?? []).map((item) => (
             <li key={item.id} className="library-item" data-testid="library-item" data-status={item.status}>

@@ -10,6 +10,8 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { zipSync } from "fflate";
 import { ARCHIVED_FILE, MatterStore, MatterStoreError, listMatters } from "../lib/matter-store/index.ts";
+import { answerMemoryQuestion } from "../lib/memory-answers/index.ts";
+import type { MemoryAnswer, OutcomeInput, OutcomeRecord } from "../shared/knowledge.ts";
 import type {
   AddFileResult,
   EventRecord,
@@ -208,6 +210,39 @@ export class Matters {
 
   async notebook(matterId: string): Promise<Notebook> {
     return (await this.store(matterId)).notebook();
+  }
+
+  // ---- Phase 10: memory answers and outcome records ----
+
+  /** F5: a deterministic answer over the matter's memory and record, with its record links. */
+  async answerMemory(matterId: string, question: string): Promise<MemoryAnswer> {
+    const q = String(question ?? "").trim();
+    if (!q) throw new MatterStoreError("QUESTION_REQUIRED", "ask one of the six questions, or name a subject");
+    return answerMemoryQuestion((await this.store(matterId)).memorySnapshot(), q.slice(0, 500));
+  }
+
+  /** M3: the matter's outcome records. */
+  async outcomes(matterId: string): Promise<OutcomeRecord[]> {
+    return (await this.store(matterId)).outcomes();
+  }
+
+  /** M3, human-only: the advocate enters what the court did. */
+  async recordOutcome(matterId: string, input: OutcomeInput): Promise<OutcomeRecord> {
+    return (await this.store(matterId)).recordOutcome(input, { actor: "advocate" });
+  }
+
+  /** G3: every outcome of every matter, with its matter's title, for the advocate graph. */
+  async allOutcomes(): Promise<Array<OutcomeRecord & { matterTitle: string }>> {
+    const out: Array<OutcomeRecord & { matterTitle: string }> = [];
+    for (const summary of await this.list()) {
+      try {
+        const store = await this.store(summary.id);
+        for (const o of store.outcomes()) out.push({ ...o, matterTitle: summary.title });
+      } catch {
+        // a matter that cannot be opened is not part of the graph
+      }
+    }
+    return out;
   }
 
   /** Human-only (decision 5). */

@@ -4,6 +4,7 @@ import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Text } from "@astryxdesign/core/Text";
 import type { CatalogueEntry, DraftRecord, RevisionRecord } from "../../shared/api.ts";
+import type { PrecedentOffer } from "../../shared/knowledge.ts";
 import { ListOfDatesRows } from "./V2.tsx";
 import { InspectButton } from "./V5.tsx";
 import { DraftTools } from "./DraftsV5.tsx";
@@ -73,6 +74,10 @@ export function DraftsSection(props: {
 }) {
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [precedents, setPrecedents] = useState<PrecedentOffer[]>([]);
+  useEffect(() => {
+    void api.listPrecedents(props.matterId, 3).then(setPrecedents, () => setPrecedents([]));
+  }, [props.matterId, props.drafts.length]);
 
   const generate = async (kind: DraftRecord["kind"]) => {
     setWorking(true);
@@ -109,6 +114,20 @@ export function DraftsSection(props: {
         </div>
       </div>
       <NewDraft matterId={props.matterId} onGenerate={generate} disabled={working} />
+      {precedents.length > 0 ? (
+        <div className="notice" data-testid="precedent-offers">
+          <Text weight="semibold">Approved precedents offered first</Text>
+          <Text type="supporting">From the Knowledge Library. A rejected precedent is never offered. You decide what the new draft says.</Text>
+          <ul className="plain-list">
+            {precedents.map((p) => (
+              <li key={p.id} className="phase4-row" data-testid="precedent-offer">
+                <Text weight="semibold">{p.title}</Text>
+                <Text type="supporting">{[p.status, p.court || null, p.scope || null, p.itemDate || null].filter(Boolean).join(" · ")}. {p.reason}.</Text>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <ListOfDatesRows matterId={props.matterId} version={props.drafts.length} />
       {error ? (
         <div className="notice" role="alert" data-testid="drafts-error">

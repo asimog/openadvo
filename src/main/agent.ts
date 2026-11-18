@@ -43,6 +43,7 @@ import { SkillRunner, cardText, type ToolContext as SkillToolContext } from "./s
 import { SideQuestions } from "./side-questions.ts";
 import { skillCommand, skillsForPrompt, type Registry } from "../lib/skills/index.ts";
 import { injectionNotice, scanText } from "../lib/verification/injection.ts";
+import { answerMemoryQuestion } from "../lib/memory-answers/index.ts";
 import type { MatterStore } from "../lib/matter-store/index.ts";
 import type { ReportCard, SideThread } from "../shared/skills.ts";
 import { FIRM_READ_ONLY, FIRM_TOOLS, firmSystemPrompt, firmTools, type FirmHost } from "./firm-agent.ts";
@@ -279,6 +280,8 @@ export interface HarnessHost {
   forumRefusal?(matterId: string, courts: readonly string[]): Promise<string | null>;
   /** D5: why a skill naming these packs may not run in this matter, or null, with a notice. */
   packRefusal?(matterId: string, packs: readonly string[]): Promise<{ refusal: string | null; notice: string | null }>;
+  /** Phase 10 (M2): the approved precedents for this matter, best first. */
+  precedents?(matterId: string): Promise<import("../shared/knowledge.ts").PrecedentOffer[]>;
 }
 
 export interface AgentWorkHost {
@@ -372,7 +375,8 @@ function systemPrompt(title: string, skills: string | null): string {
     "Markers (phase 6): write [CITE] where a citation is still needed, [VERIFY] where a statement still needs its source checked, and [REVIEW] where the advocate must review a passage. An open marker blocks approval; remove it only when the work it names is done.",
     "insert_citation inserts a citation from a saved authority at the end of a draft paragraph, as a tracked change, in the advocate's citation_format preference. Read list_preferences once before your first citation: if the citation format is not approved yet, ask the advocate in the chat (once, inside this task), then propose the answer with propose_preference. Every preference you apply is shown with its applied-because reason.",
     "The witness and deponent rule (phase 6): for an affidavit, you prepare questions and organize the deponent's own recorded words (list_evidence shows them); you never compose the evidence. An affidavit paragraph that is not the deponent's recorded words is a defect the checks find.",
-    "The learned preferences (phase 6): citation format, drafting style, pleading structure, paragraph length, research depth, output format, briefing other counsel. list_preferences reads the approved ones with their applied-because reasons. Ask each one once, inside the first task where it matters, and record the answer with propose_preference; the advocate approves every proposal. propose_advocate_memory proposes a record of the advocate's own ways (a preference, an approved precedent, a lesson, a court practice) — never a fact of any client's matter.",
+    "The learned preferences (phase 6): citation format, drafting style, pleading structure, paragraph length, research depth, output format, briefing other counsel. list_preferences reads the approved ones with their applied-because reasons. Ask each one once, inside the first task where it matters, and record the answer with propose_preference; the advocate approves every proposal. propose_advocate_memory proposes a record of the advocate's own ways (a preference, an approved precedent, a lesson, a court practice) - never a fact of any client's matter.",
+    "Phase 10: answer_memory_question answers the six memory questions (what was decided, why an argument was rejected, which facts are disputed, which instructions were given, what changed since the last hearing, which assumptions expired) from the matter's memory and record, with the record links. Its answer is deterministic; do not add a fact it did not name. list_precedents reads the approved precedents of the Knowledge Library, best first, with the reason each is offered; an approved precedent is offered first for a draft.",
     "Argument and hearings (phase 7): propose_issue names the facts a proposed issue rests on (their ids come from list_facts). propose_theory proposes what the case is really about — the issues it rests on, the burden, the standard — never a probability of success. propose_elements proposes the element columns of an issue for the record-table chart; each is a candidate until the advocate confirms it, and a gap is named, never guessed at. The witness rule holds in cross-examination: propose_cross_questions puts the record to the witness (a contradiction it joins, or the witness's own recorded statement, by id); you never compose the witness's answer. After a hearing, list_hearings reads the directions, and propose_compliance_tasks proposes what each direction needs; an accepted task becomes a reminder.",
     "Research (Notebook E and F): list_research shows issues, authorities, memoranda and citation checks. propose_issue and add_authority record candidates; the advocate accepts or rejects them at the case conference. search_citation_index searches the court's released list of neutral citations by party or citation: a finding aid, never verification. write_memorandum stores a memorandum; ground each proposition with references the matter resolves: [event:<id>], [issue:<id>], [authority:<id>] or [source name, p. N, l. M]. Separate established facts, disputed facts, propositions, assumptions and open questions.",
     "propose_paragraph adds a new Question of Law or Ground to that draft as a tracked insertion; the advocate keeps or undoes it. check_citations runs the independent validator on the neutral citations in the drafts; you never state that a citation is verified unless the validator said so. Attestation is the advocate's alone.",
@@ -2323,6 +2327,7 @@ export class Agent {
           // Phase 6 (A7): the approved preferences enter a skill's context package with the
           // reason each one applies, so every use carries its applied-because note.
           preferences: () => host.listApprovedPreferences?.() ?? [],
+          precedents: harness.precedents ? () => harness.precedents!(matterId) : undefined,
           forumRefusal: harness.forumRefusal ? (courts) => harness.forumRefusal!(matterId, courts) : undefined,
           packRefusal: harness.packRefusal ? (packs) => harness.packRefusal!(matterId, packs) : undefined,
           createSession: (input) => this.skillSession(sessionRef.s, input),
@@ -2373,6 +2378,32 @@ export class Agent {
           },
         })
       : null;
+    const phase10Tools = harness
+      ? [
+          defineTool({
+            name: "answer_memory_question",
+            label: "Answer a memory question",
+            description:
+              "Answer one of the six memory questions from the matter's memory and record: what was decided, why an argument was rejected, which facts are disputed, which instructions were given, what changed since the last hearing, or which assumptions expired. Every line names its records; a missing record is a gap. It writes nothing and decides nothing.",
+            parameters: Type.Object({ question: Type.String({ description: "The advocate's question, in the advocate's words." }) }),
+            execute: async (_id, p) => {
+              const store = await harness.store(matterId);
+              return { content: [{ type: "text" as const, text: JSON.stringify(answerMemoryQuestion(store.memorySnapshot(), p.question)) }], details: {} };
+            },
+          }),
+          defineTool({
+            name: "list_precedents",
+            label: "List the precedents",
+            description:
+              "The approved precedents of the Knowledge Library for this matter, best first, with the court, the scope, the date and the reason each is offered. A rejected precedent is never offered. Use one as the form of a new draft; the advocate decides what the draft says.",
+            parameters: Type.Object({ limit: Type.Optional(Type.Number({ description: "How many offers to read, 1 to 10; default 3." })) }),
+            execute: async (_id, p) => ({
+              content: [{ type: "text" as const, text: JSON.stringify((await harness.precedents?.(matterId))?.slice(0, Math.max(1, Math.min(10, p.limit ?? 3))) ?? []) }],
+              details: {},
+            }),
+          }),
+        ]
+      : [];
     const labels = new Map(spec.tools.map((t) => [t.name, (t as { label?: string }).label ?? t.name]));
     const policy = policyExtension({
       store: this.policyStore(),
@@ -2435,7 +2466,7 @@ export class Agent {
       // Decision 2: Pi's built-in file and shell tools are off; our tools and extension tools are on.
       noTools: "builtin",
       excludeTools: [...BUILTIN_TOOL_NAMES],
-      customTools: [...spec.tools.map(harden), ...plan.map(harden), ...helperSessionTools, ...(recall ? [harden(recall)] : []), ...(runSkillTool ? [harden(runSkillTool)] : [])] as never,
+      customTools: [...spec.tools.map(harden), ...plan.map(harden), ...helperSessionTools, ...(recall ? [harden(recall)] : []), ...(runSkillTool ? [harden(runSkillTool)] : []), ...phase10Tools.map(harden)] as never,
     });
     sessionRef.s = session;
     const active = session.getActiveToolNames();

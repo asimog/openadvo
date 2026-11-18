@@ -84,3 +84,10 @@ test("retrieval helpers: the request's main words, and the records pinned with @
     { kind: "issue", id: "xyz", matterId: "other" },
   ]);
 });
+
+test("M2: an approved precedent is carried in a drafting package and ranked before the record", () => {
+  const items = [item({ id: "l1", kind: "line" }), item({ id: "pr1", kind: "precedent", matterId: null, text: "Precedent Bail application (pleading, approved, in.hc.delhi). Offered first: approved, for in.hc.delhi.", relevance: 0.9, verification: "confirmed" })];
+  const p = buildPackage({ ...base, questionType: "happened", budget: 5000, items });
+  assert.deepEqual(p.items.map((i) => i.id), ["pr1", "l1"]);
+  assert.equal(p.record.included.find((i) => i.id === "pr1")!.kind, "precedent");
+});

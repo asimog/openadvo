@@ -43,6 +43,8 @@ export interface RetrievalDeps {
   rules?(): Promise<Array<{ id: string; label: string; text: string; anchors: string[]; stale: boolean; verified: boolean }>>;
   /** Phase 6 (A7): the advocate's approved preferences, each with the reason it applies. */
   preferences?(): Array<{ key: string; value: string; reason: string }>;
+  /** Phase 10 (M2): the approved precedents for this matter, best first. */
+  precedents?(): Promise<import("../shared/knowledge.ts").PrecedentOffer[]> | import("../shared/knowledge.ts").PrecedentOffer[];
 }
 
 export async function retrieve(deps: RetrievalDeps, kinds: readonly ContextKind[], request: string, pinned: string[]): Promise<ContextItem[]> {
@@ -182,6 +184,25 @@ export async function retrieve(deps: RetrievalDeps, kinds: readonly ContextKind[
         relevance: 1,
         verification: "confirmed",
         provenance: "the advocate's approved preference (advocate scope, not a matter fact)",
+      });
+    }
+  }
+  // Phase 10 (M2): the approved precedents for this matter, best first. They are advocate scope
+  // (the library belongs to the advocate, not to a client), and their reason says why each is
+  // offered: approved, for this court, or covering this proceeding.
+  if (want.has("drafts") && deps.precedents) {
+    for (const p of (await deps.precedents()).slice(0, 3)) {
+      items.push({
+        id: p.id,
+        kind: "precedent",
+        label: `precedent ${p.title}`,
+        text: `Precedent ${p.title} (${p.kind}, ${p.status}${p.court ? `, ${p.court}` : ""}${p.scope ? `, scope ${p.scope}` : ""}${p.itemDate ? `, ${p.itemDate}` : ""}). Offered first: ${p.reason}.`,
+        anchors: [],
+        matterId: null,
+        relevance: p.rank / 1200,
+        date: p.itemDate || null,
+        verification: p.status === "approved" || p.status === "filed" ? "confirmed" : "proposed",
+        provenance: "the Knowledge Library (advocate scope, not a matter fact)",
       });
     }
   }

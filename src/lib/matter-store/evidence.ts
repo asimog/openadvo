@@ -266,6 +266,7 @@ function memoryRow(r: Record<string, unknown>): MemoryRecord {
     relation: String(r.relation),
     object: String(r.object),
     sourceId: r.source_id == null ? null : String(r.source_id),
+    anchorId: r.anchor_id == null ? null : String(r.anchor_id),
     matterId: null,
     recordedAt: String(r.recorded_at),
     validFrom: r.valid_from == null ? null : String(r.valid_from),

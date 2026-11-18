@@ -9,6 +9,8 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { CHAIN_SCHEMA, StoreError, appendChained, checkChain, humanOnly, inTransaction, type ChainCheck } from "../store-chain/index.ts";
+import { GRAPH_SCHEMA, buildAdvocateEdges } from "./graph.ts";
+import type { AdvocateGraphEdge, AdvocateGraphView, GraphNodeKind } from "../../shared/knowledge.ts";
 import { ADVOCATE_SCOPE_TYPES, LIBRARY_KINDS, LIBRARY_STATUSES, MEMORY_STATUSES, MEMORY_TYPES, type AdvocateProfile, type LibraryItem, type LibraryKind, type LibraryStatus, type MemoryRecord, type MemoryStatus, type MemoryType, type PreferenceRecord } from "../../shared/stores.ts";
 import type { WriteContext } from "../../shared/records.ts";
 
@@ -78,6 +80,7 @@ function memoryRow(r: Record<string, unknown>): MemoryRecord {
     relation: String(r.relation),
     object: String(r.object),
     sourceId: r.source_id == null ? null : String(r.source_id),
+    anchorId: null,
     matterId: r.matter_id == null ? null : String(r.matter_id),
     recordedAt: String(r.recorded_at),
     validFrom: r.valid_from == null ? null : String(r.valid_from),
@@ -143,6 +146,7 @@ export class AdvocateStore {
     db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
     db.exec(CHAIN_SCHEMA);
     db.exec(SCHEMA);
+    db.exec(GRAPH_SCHEMA);
     const store = new AdvocateStore(file, db);
     if (!db.prepare("SELECT 1 FROM event LIMIT 1").get()) appendChained(db, { actor: "system" }, "advocate_store.created", null, null);
     return store;
@@ -347,5 +351,80 @@ export class AdvocateStore {
     humanOnly(ctx, "changes a library item's status");
     if (!(LIBRARY_STATUSES as readonly string[]).includes(status)) throw new StoreError("BAD_STATUS", `unknown library status ${status}`);
     return this.updateLibraryItem(id, { status }, ctx);
+  }
+
+  // ---- G3: the advocate memory graph ----
+
+  /**
+   * Rebuild the edge table from the advocate's own records and the matter outcomes. The graph is
+   * derived (decision 13): the edges own nothing and are written again from the canonical rows.
+   */
+  rebuildGraph(outcomes: Array<{ id: string; matterId: string; result: string; subject: string; court: string; decidedOn: string }>, ctx: WriteContext): AdvocateGraphView {
+    const at = new Date().toISOString();
+    const edges = buildAdvocateEdges({ memory: this.memory(), preferences: this.preferences(), library: this.library(), outcomes, now: at });
+    inTransaction(this.db, () => {
+      this.db.prepare("DELETE FROM edge").run();
+      const insert = this.db.prepare("INSERT INTO edge (from_kind, from_id, relation, to_kind, to_id, evidence_ref, built_from, built_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+      for (const e of edges) insert.run(e.fromKind, e.fromId, e.relation, e.toKind, e.toId, e.evidenceRef, e.builtFrom, e.builtAt);
+      this.db.prepare("INSERT INTO graph_build (id, built_at, edges) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET built_at = excluded.built_at, edges = excluded.edges").run(at, edges.length);
+      appendChained(this.db, ctx, "advocate.graph_rebuilt", null, { edges: edges.length });
+    });
+    return this.graph();
+  }
+
+  /** The edges, their counts and the last build's date. */
+  graph(): AdvocateGraphView {
+    const edges = (this.db.prepare("SELECT * FROM edge ORDER BY from_kind, from_id, relation, to_kind, to_id").all() as Array<Record<string, unknown>>).map((r) => ({
+      fromKind: String(r.from_kind) as GraphNodeKind,
+      fromId: String(r.from_id),
+      relation: String(r.relation) as AdvocateGraphEdge["relation"],
+      toKind: String(r.to_kind) as GraphNodeKind,
+      toId: String(r.to_id),
+      evidenceRef: String(r.evidence_ref),
+      builtFrom: String(r.built_from),
+      builtAt: String(r.built_at),
+    }));
+    const counts = (this.db.prepare("SELECT from_kind, relation, to_kind, COUNT(*) AS n FROM edge GROUP BY from_kind, relation, to_kind ORDER BY from_kind, relation, to_kind").all() as Array<Record<string, unknown>>).map((r) => ({
+      fromKind: String(r.from_kind) as GraphNodeKind,
+      relation: String(r.relation) as AdvocateGraphEdge["relation"],
+      toKind: String(r.to_kind) as GraphNodeKind,
+      n: Number(r.n),
+    }));
+    const build = this.db.prepare("SELECT built_at FROM graph_build WHERE id = 1").get() as { built_at: string } | undefined;
+    return { edges, counts, builtAt: build?.built_at ?? null };
+  }
+
+  /** One node's neighbours, one or two steps out. It reads the edge table only. */
+  graphWalk(kind: GraphNodeKind, id: string, depth = 1): AdvocateGraphEdge[] {
+    let frontier = [{ kind, id }];
+    const seen = new Set<string>();
+    const out: AdvocateGraphEdge[] = [];
+    const d = Math.max(1, Math.min(3, Math.floor(depth)));
+    for (let step = 0; step < d; step++) {
+      const next: Array<{ kind: GraphNodeKind; id: string }> = [];
+      for (const node of frontier) {
+        const rows = this.db.prepare("SELECT * FROM edge WHERE (from_kind = ? AND from_id = ?) OR (to_kind = ? AND to_id = ?) ORDER BY relation, from_id, to_id").all(node.kind, node.id, node.kind, node.id) as Array<Record<string, unknown>>;
+        for (const r of rows) {
+          const key = `${r.from_kind}:${r.from_id}:${r.relation}:${r.to_kind}:${r.to_id}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          out.push({
+            fromKind: String(r.from_kind) as GraphNodeKind,
+            fromId: String(r.from_id),
+            relation: String(r.relation) as AdvocateGraphEdge["relation"],
+            toKind: String(r.to_kind) as GraphNodeKind,
+            toId: String(r.to_id),
+            evidenceRef: String(r.evidence_ref),
+            builtFrom: String(r.built_from),
+            builtAt: String(r.built_at),
+          });
+          const other = String(r.from_kind) === node.kind && String(r.from_id) === node.id ? { kind: String(r.to_kind) as GraphNodeKind, id: String(r.to_id) } : { kind: String(r.from_kind) as GraphNodeKind, id: String(r.from_id) };
+          if (!next.some((x) => x.kind === other.kind && x.id === other.id)) next.push(other);
+        }
+      }
+      frontier = next;
+      if (frontier.length === 0) break;
+    }
+    return out;
   }
 }

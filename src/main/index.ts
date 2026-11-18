@@ -1162,6 +1162,31 @@ function registerBridge(): void {
     }, { actor: "advocate" }),
   );
   handle("library:setStatus", (id: string, status: string) => advocateStore.setLibraryStatus(String(id), String(status), { actor: "advocate" }));
+  // Phase 10 (F5, G3, M2, M3).
+  handle("memory:answer", (matterId: string, question: string) => matters.answerMemory(String(matterId), String(question ?? "")));
+  handle("outcomes:list", (matterId: string) => matters.outcomes(String(matterId)));
+  handle("outcomes:record", (matterId: string, input: Record<string, unknown>) => {
+    if (!input || typeof input !== "object") throw new Error("BAD_OUTCOME: an outcome record is needed");
+    return matters.recordOutcome(String(matterId), {
+      result: String(input.result ?? "") as never,
+      subject: String(input.subject ?? ""),
+      court: input.court === undefined ? undefined : String(input.court),
+      decidedOn: String(input.decidedOn ?? ""),
+      sourceId: input.sourceId === undefined || input.sourceId === null ? null : String(input.sourceId),
+      summary: input.summary === undefined ? undefined : String(input.summary),
+      supersedes: input.supersedes === undefined || input.supersedes === null ? null : String(input.supersedes),
+    });
+  });
+  handle("library:roles", () => library.roles());
+  handle("precedents:list", async (matterId: string, limit?: number) => {
+    const store = await matters.store(String(matterId));
+    const profile = store.profile();
+    const details = store.work.details();
+    return library.precedents({ court: details.court || profile.court, proceeding: profile.proceeding, practiceArea: profile.practiceArea }, Number(limit) || 3);
+  });
+  handle("advocate:graph", () => advocateStore.graph());
+  handle("advocate:rebuild-graph", async () => advocateStore.rebuildGraph(await matters.allOutcomes(), { actor: "advocate" }));
+  handle("advocate:graph-walk", (kind: string, id: string, depth: number) => advocateStore.graphWalk(String(kind) as never, String(id), Number(depth) || 1));
   handle("library:open", async (id: string) => {
     const f = library.fileFor(String(id));
     if (!f) throw new Error(`NOT_FOUND: no library item ${String(id)}`);
@@ -1805,6 +1830,13 @@ app.whenReady().then(() => {
         rules: (id) => courtIntel.rulesContext(id),
         forumRefusal: (id, courts) => courtIntel.forumRefusal(id, courts),
         packRefusal: async (id, packs) => skillPackRefusal(packs, await practiceChoice(id)),
+        // Phase 10 (M2): the approved precedents of the Knowledge Library, best first.
+        precedents: async (id) => {
+          const store = await matters.store(id);
+          const profile = store.profile();
+          const details = store.work.details();
+          return library.precedents({ court: details.court || profile.court, proceeding: profile.proceeding, practiceArea: profile.practiceArea });
+        },
       },
       browser: {
         open: async ({ url, visible }) => {

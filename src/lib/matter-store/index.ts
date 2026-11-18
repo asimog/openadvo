@@ -18,6 +18,8 @@ import { NOTEBOOK2_SCHEMA, addCorrection, dateAnchor, decideDispute, insertDispu
 import { AUTHORITY2_SCHEMA } from "./authority2.ts";
 import { PRACTICE_SCHEMA, addHearing, addParty, addRelatedMatter, addReminder, crossQuestions, decideCrossQuestion, decideTask, hearings, markImpactChecked, matterProfile, parties, policy, proposeCrossQuestion, proposeTask, relatedMatters, reminders, removeRelatedMatter, setMatterProfile, setPolicy, setReminderStatus, taskProposals, type CrossQuestion, type Hearing, type Party, type Policy, type Reminder, type TaskProposal } from "./practice.ts";
 import { EVIDENCE_SCHEMA, EvidenceStore } from "./evidence.ts";
+import { OUTCOME_SCHEMA, insertOutcome, outcomes } from "./outcomes.ts";
+import type { MemorySnapshot, OutcomeInput, OutcomeRecord } from "../../shared/knowledge.ts";
 import type { MatterProfile, MatterRelation, RelatedMatter } from "../../shared/work.ts";
 import { FILING_CHECKS_SCHEMA, checkStates, defects as listDefects, setCheck, setTarget, target as filingTarget } from "./filing-checks.ts";
 import type { CheckState, DefectRow, FilingTarget } from "../../shared/intel.ts";
@@ -362,6 +364,7 @@ ALTER TABLE capture_browser RENAME TO capture;`);
     db.exec(AUTHORITY2_SCHEMA);
     db.exec(PRACTICE_SCHEMA);
     db.exec(EVIDENCE_SCHEMA);
+    db.exec(OUTCOME_SCHEMA);
     // Phase 4: the document part kinds grew with layout (header, footer, footnote, table, paragraph).
     const dp = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'document_part'").get() as { sql?: string } | undefined;
     if (dp?.sql && !dp.sql.includes("'header'")) {
@@ -1496,6 +1499,44 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
 
   notebook(): Notebook {
     return { events: this.listNotebookEvents(), conflicts: this.listConflicts(), readiness: this.readiness() };
+  }
+
+  // ---- Phase 10: outcome records (M3) and the memory snapshot (F5) ----
+
+  /** The matter's outcome records, newest decision first. The superseded rows stay. */
+  outcomes(): OutcomeRecord[] {
+    return outcomes(this.db, this.matter().id);
+  }
+
+  /** Human-only: the advocate records what the court did. A correction supersedes, never deletes. */
+  recordOutcome(input: OutcomeInput, ctx: WriteContext): OutcomeRecord {
+    if (ctx.actor !== "advocate") throw new MatterStoreError("HUMAN_ONLY", "only the advocate records an outcome");
+    const at = now();
+    const record = insertOutcome(this.db, this.matter().id, input, at, ctx.actor);
+    this.appendEvent(ctx, "matter.outcome_recorded", record.id, { result: record.result, subject: record.subject, supersedes: record.supersedes });
+    return record;
+  }
+
+  /** F5: the records the memory answerer reads. It writes nothing. */
+  memorySnapshot(): MemorySnapshot {
+    const events = this.listNotebookEvents();
+    return {
+      asOf: now(),
+      matterTitle: this.matter().title,
+      memory: this.evidence.memory(),
+      issues: this.work.listIssues().map((i) => ({ id: i.id, text: i.text, status: i.status, reason: i.reason, factIds: i.factIds, createdAt: i.createdAt, decidedAt: i.decidedAt })),
+      facts: this.evidence.facts().map((f) => ({ id: f.id, text: f.text, status: f.status, anchorId: f.anchorId, sourceId: f.sourceId, date: f.date, type: f.type })),
+      events: events.map((e) => ({ id: e.id, sourceId: e.sourceId, sourceName: e.sourceName, anchorId: e.anchorId, dateStart: e.dateStart, description: e.description, kind: e.kind, status: e.status, excluded: e.excluded, conflicts: e.conflicts })),
+      hearings: this.hearings().map((h) => ({ id: h.id, date: h.date, bench: h.bench, directions: h.directions, nextDate: h.nextDate, notes: h.notes, createdAt: h.createdAt })),
+      arguments: this.studio.arguments().map((a) => ({ id: a.id, issueId: a.issueId, claim: a.claim, stance: a.stance, status: a.status, decidedAt: a.decidedAt, createdAt: a.createdAt })),
+      sources: this.listSources().map((s) => ({ id: s.id, name: s.name, addedAt: s.addedAt })),
+      drafts: this.listDrafts().map((d) => ({ id: d.id, title: d.title, createdAt: d.createdAt })),
+      limitation: (() => {
+        const l = this.work.limitation();
+        return l ? { id: l.id, rule: l.rule, deadline: l.deadline, working: l.working, confirmedAt: l.confirmedAt } : null;
+      })(),
+      conflicts: this.listConflicts().map((c) => ({ id: c.id, status: c.status, eventIds: [c.eventA, c.eventB] })),
+    };
   }
 
   // ---- Drafts and revisions (step 4). Computed by lib/drafting; written only here. ----

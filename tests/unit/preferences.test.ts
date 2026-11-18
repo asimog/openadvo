@@ -24,7 +24,7 @@ function store(): AdvocateStore {
 }
 
 test("the keys: each asks once, inside the task where it matters, and names its default", () => {
-  assert.equal(PREFERENCE_KEYS.length, 8);
+  assert.equal(PREFERENCE_KEYS.length, 7);
   const citation = preferenceKeyOf("citation_format");
   assert.ok(citation);
   assert.equal(citation.default, "neutral_first");

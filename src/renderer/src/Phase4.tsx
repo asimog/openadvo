@@ -12,6 +12,7 @@ import { Text } from "@astryxdesign/core/Text";
 import type { Contradiction, DocumentOperation, DocumentPart, EvidenceRecord, FactRecord, ForumClause, JurisdictionReport, MatterEdge, PageMark, SourceRelation, TimelineEntry } from "../../shared/api.ts";
 import type { SourceRecord } from "../../shared/records.ts";
 import { FACT_STATUSES, FACT_TYPES } from "../../shared/evidence.ts";
+import { MEMORY_QUESTIONS, OUTCOME_RESULTS, type MemoryAnswer, type OutcomeRecord, type OutcomeResult } from "../../shared/knowledge.ts";
 import { dmy } from "../../shared/dates.ts";
 import { factProvenance } from "../../lib/verification/provenance.ts";
 import type { SourceLink } from "./Notebook.tsx";
@@ -461,10 +462,16 @@ export function MemoryPanel(props: { matterId: string; version: number; onChange
   const [q, setQ] = useState("");
   const [form, setForm] = useState({ type: "fact_from_document", subject: "", relation: "is", object: "" });
   const [error, setError] = useState<string | null>(null);
+  const [question, setQuestion] = useState(MEMORY_QUESTIONS[0].question);
+  const [answer, setAnswer] = useState<MemoryAnswer | null>(null);
+  const [asking, setAsking] = useState(false);
+  const [outcomes, setOutcomes] = useState<OutcomeRecord[]>([]);
+  const [outcomeForm, setOutcomeForm] = useState({ result: "disposed" as OutcomeResult, subject: "", court: "", decidedOn: new Date().toISOString().slice(0, 10), summary: "" });
   const load = useCallback(async () => {
     try {
       setError(null);
       setItems(await api.matterMemory(props.matterId, { status: status || undefined, type: type || undefined, q: q || undefined }));
+      setOutcomes(await api.listOutcomes(props.matterId));
     } catch (e) {
       setError(errorText(e));
     }
@@ -487,11 +494,67 @@ export function MemoryPanel(props: { matterId: string; version: number; onChange
     await load();
     props.onChanged();
   };
+  const ask = async (text: string) => {
+    try {
+      setAsking(true);
+      setError(null);
+      setQuestion(text);
+      setAnswer(await api.answerMemory(props.matterId, text));
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setAsking(false);
+    }
+  };
+  const recordOutcome = async () => {
+    try {
+      setError(null);
+      await api.recordOutcome(props.matterId, {
+        result: outcomeForm.result,
+        subject: outcomeForm.subject,
+        court: outcomeForm.court,
+        decidedOn: outcomeForm.decidedOn,
+        summary: outcomeForm.summary,
+      });
+      setOutcomeForm({ ...outcomeForm, subject: "", summary: "" });
+      await load();
+      props.onChanged();
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
   return (
     <section className="work-section" aria-label="Matter memory" data-testid="memory-panel">
       <Heading level={3}>Typed matter memory</Heading>
       <Text type="supporting">Facts, admissions, disputes, missing facts, decisions, orders, open questions and case-theory changes. Only you confirm. A correction supersedes the old record; the history stays.</Text>
       {error ? <div className="notice" role="alert">{error}</div> : null}
+      <Heading level={4}>Ask the memory</Heading>
+      <Text type="supporting">Six questions answered from the typed memory and the record. Every line names its records; a missing record is a gap, never an invention.</Text>
+      <div className="row-actions">
+        {MEMORY_QUESTIONS.map((item) => (
+          <Button key={item.kind} label={item.title} size="sm" variant="ghost" isDisabled={asking} clickAction={() => ask(item.question)} data-testid={`memory-question-${item.kind}`} />
+        ))}
+      </div>
+      <div className="row-actions">
+        <input aria-label="Ask the matter's memory" placeholder="Or search the memory" value={question} onChange={(e) => setQuestion(e.target.value)} />
+        <Button label="Ask" size="sm" isDisabled={asking || !question.trim()} clickAction={() => ask(question)} data-testid="memory-ask" />
+      </div>
+      {answer ? (
+        <div className="notice" data-testid="memory-answer" data-kind={answer.kind}>
+          <Text weight="semibold">{answer.title}</Text>
+          <Text type="supporting">As of {answer.asOf.slice(0, 10)}. {answer.records.length} record{answer.records.length === 1 ? "" : "s"}.</Text>
+          <ul className="plain-list">
+            {answer.answer.map((line, i) => (
+              <li key={`${answer.kind}:${i}`} className="phase4-row" data-testid="memory-answer-line">
+                <Text>{line.text}</Text>
+                {line.recordIds.length ? <Text type="supporting" className="mono">records: {line.recordIds.join(", ")}{line.anchors.length ? ` · anchors: ${line.anchors.join(", ")}` : ""}</Text> : null}
+              </li>
+            ))}
+          </ul>
+          {answer.gaps.length ? <Text type="supporting" data-testid="memory-answer-gaps">Gaps: {answer.gaps.join(" ")}</Text> : null}
+          {answer.notRead.length ? <Text type="supporting">Not read: {answer.notRead.join(" ")}</Text> : null}
+        </div>
+      ) : null}
       <div className="row-actions">
         <select aria-label="Filter memory by status" value={status} onChange={(e) => setStatus(e.target.value)}><option value="">Every status</option>{["proposed", "tentative", "confirmed", "rejected", "superseded", "expired", "deprecated", "archived"].map((s) => <option key={s} value={s}>{s}</option>)}</select>
         <select aria-label="Filter memory by type" value={type} onChange={(e) => setType(e.target.value)}><option value="">Every type</option>{["fact_from_document", "fact_from_party", "admission", "disputed_fact", "missing_fact", "client_instruction", "advocate_decision", "accepted_argument", "rejected_argument", "procedural_event"].map((t) => <option key={t} value={t}>{t}</option>)}</select>
@@ -521,6 +584,30 @@ export function MemoryPanel(props: { matterId: string; version: number; onChange
           </li>
         ))}
         {items.length === 0 ? <li><Text type="supporting">No typed memory yet.</Text></li> : null}
+      </ul>
+      <Heading level={4}>Outcome records</Heading>
+      <Text type="supporting">What the court did, in your words. Only you enter it. A correction supersedes the old record; the history stays. The advocate memory graph reads the result and the legal subject, never a party or a piece of evidence.</Text>
+      <div className="phase4-form">
+        <select aria-label="Outcome result" value={outcomeForm.result} onChange={(e) => setOutcomeForm({ ...outcomeForm, result: e.target.value as OutcomeResult })}>
+          {OUTCOME_RESULTS.map((r) => <option key={r} value={r}>{r.replace(/_/g, " ")}</option>)}
+        </select>
+        <input aria-label="Outcome subject" placeholder="The legal question or the relief" value={outcomeForm.subject} onChange={(e) => setOutcomeForm({ ...outcomeForm, subject: e.target.value })} />
+        <input aria-label="Outcome court" placeholder="Court (optional)" value={outcomeForm.court} onChange={(e) => setOutcomeForm({ ...outcomeForm, court: e.target.value })} />
+        <input aria-label="Outcome date" type="date" value={outcomeForm.decidedOn} onChange={(e) => setOutcomeForm({ ...outcomeForm, decidedOn: e.target.value })} />
+        <input aria-label="Outcome summary" placeholder="One line of the order (optional)" value={outcomeForm.summary} onChange={(e) => setOutcomeForm({ ...outcomeForm, summary: e.target.value })} />
+        <Button label="Record the outcome" size="sm" isDisabled={!outcomeForm.subject.trim()} clickAction={recordOutcome} data-testid="outcome-record" />
+      </div>
+      <ul className="plain-list" data-testid="outcome-list">
+        {outcomes.map((o) => (
+          <li key={o.id} className="phase4-row" data-status={o.status}>
+            <div className="phase4-main">
+              <div className="phase4-head"><Badge variant={o.status === "active" ? "success" : "neutral"} label={o.status} /><Badge variant="neutral" label={o.result.replace(/_/g, " ")} /></div>
+              <Text weight="semibold">{o.subject}</Text>
+              <Text type="supporting">{[o.court || null, o.decidedOn, o.summary || null, `entered ${o.enteredAt.slice(0, 10)}`].filter(Boolean).join(" · ")}</Text>
+            </div>
+          </li>
+        ))}
+        {outcomes.length === 0 ? <li><Text type="supporting">No outcome recorded yet.</Text></li> : null}
       </ul>
       <MemoryEditor matterId={props.matterId} />
     </section>

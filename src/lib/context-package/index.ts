@@ -8,7 +8,7 @@
 import { createHash } from "node:crypto";
 import type { ContextPackageRecord, PackageExclusion, PackageItemRecord, PackageType, QuestionType } from "../../shared/skills.ts";
 
-export type ItemKind = "source" | "line" | "event" | "conflict" | "issue" | "authority" | "draft" | "memory" | "pinned" | "rule" | "preference";
+export type ItemKind = "source" | "line" | "event" | "conflict" | "issue" | "authority" | "draft" | "memory" | "pinned" | "rule" | "preference" | "precedent";
 
 export interface ContextItem {
   id: string;
@@ -43,11 +43,11 @@ export interface ContextItem {
  * events, then the parties' statements. What the client wants: the dated instructions.
  */
 export const RANK_POLICY: Record<QuestionType, ItemKind[]> = {
-  law: ["pinned", "authority", "rule", "issue", "memory", "draft", "line", "event", "conflict", "source", "preference"],
-  happened: ["pinned", "line", "source", "event", "conflict", "issue", "draft", "rule", "authority", "memory", "preference"],
-  agreed: ["pinned", "line", "source", "event", "memory", "conflict", "issue", "draft", "rule", "authority", "preference"],
-  client_wants: ["pinned", "memory", "line", "event", "issue", "draft", "source", "conflict", "rule", "authority", "preference"],
-  court_directed: ["pinned", "rule", "line", "source", "event", "issue", "draft", "conflict", "memory", "authority", "preference"],
+  law: ["pinned", "authority", "rule", "issue", "precedent", "memory", "draft", "line", "event", "conflict", "source", "preference"],
+  happened: ["pinned", "precedent", "line", "source", "event", "conflict", "issue", "draft", "rule", "authority", "memory", "preference"],
+  agreed: ["pinned", "precedent", "line", "source", "event", "memory", "conflict", "issue", "draft", "rule", "authority", "preference"],
+  client_wants: ["pinned", "memory", "line", "event", "issue", "precedent", "draft", "source", "conflict", "rule", "authority", "preference"],
+  court_directed: ["pinned", "rule", "precedent", "line", "source", "event", "issue", "draft", "conflict", "memory", "authority", "preference"],
 };
 
 const QUESTION_WORDS: Array<[QuestionType, RegExp]> = [

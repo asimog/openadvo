@@ -32,6 +32,8 @@ export interface MemoryRecord {
   relation: string;
   object: string;
   sourceId: string | null;
+  /** The anchored line the record rests on, when it has one (matter memory only). */
+  anchorId?: string | null;
   matterId: string | null;
   recordedAt: string;
   validFrom: string | null;
