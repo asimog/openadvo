@@ -13,6 +13,7 @@ import path from "node:path";
 
 import { WORK_SCHEMA, WorkStore } from "./work.ts";
 import { STUDIO_SCHEMA, StudioStore } from "./studio.ts";
+import { RESEARCH_PLAN_SCHEMA, ResearchPlanStore } from "./research-plan.ts";
 import { NOTEBOOK2_SCHEMA, addCorrection, dateAnchor, decideDispute, insertDispute, listCorrections, listDisputes, type EventCorrection, type OcrDispute } from "./notebook2.ts";
 import { AUTHORITY2_SCHEMA } from "./authority2.ts";
 import { PRACTICE_SCHEMA, addHearing, addParty, addRelatedMatter, addReminder, hearings, markImpactChecked, matterProfile, parties, policy, relatedMatters, reminders, removeRelatedMatter, setMatterProfile, setPolicy, setReminderStatus, type Hearing, type Party, type Policy, type Reminder } from "./practice.ts";
@@ -351,6 +352,7 @@ ALTER TABLE capture_browser RENAME TO capture;`);
       }
     }
     db.exec(STUDIO_SCHEMA);
+    db.exec(RESEARCH_PLAN_SCHEMA);
     db.exec(AUDIT_SCHEMA);
     db.exec(NOTEBOOK2_SCHEMA);
     db.exec(AUTHORITY2_SCHEMA);
@@ -478,6 +480,13 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
   private workStore: WorkStore | null = null;
   private studioStore: StudioStore | null = null;
   private evidenceStore: EvidenceStore | null = null;
+  private researchPlanStore: ResearchPlanStore | null = null;
+
+  /** J2: the research plan the agent proposes and the advocate approves. */
+  get researchPlans(): ResearchPlanStore {
+    this.researchPlanStore ??= new ResearchPlanStore(this, this.db);
+    return this.researchPlanStore;
+  }
 
   /** Phase 4: facts, evidence, structure, relations, the graph, memory, marks, operations and jurisdiction. */
   get evidence(): EvidenceStore {
