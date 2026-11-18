@@ -53,7 +53,7 @@ export class Library {
     return { item, path: this.blob(item.sha256) };
   }
 
-  async importFiles(files: string[], root?: string): Promise<LibraryImportResult> {
+  async importFiles(files: string[], root?: string, provider = ""): Promise<LibraryImportResult> {
     const out: LibraryImportResult = { added: 0, duplicates: 0, refused: [], items: [] };
     const author = this.store.profile().name ?? "";
     for (const file of files.slice(0, 1000)) {
@@ -89,7 +89,7 @@ export class Library {
             sha256,
             size: info.size,
             notes: "",
-            tags: [],
+            tags: provider ? [provider] : [],
           },
           { actor: "advocate" },
         );
@@ -103,7 +103,7 @@ export class Library {
   }
 
   /** Every file under a folder, recursively, without symbolic links. */
-  async importFolder(root: string): Promise<LibraryImportResult> {
+  async importFolder(root: string, provider = ""): Promise<LibraryImportResult> {
     const files: string[] = [];
     const walk = async (dir: string, depth: number): Promise<void> => {
       if (depth > 12 || files.length >= 1000) return;
@@ -122,6 +122,6 @@ export class Library {
       }
     };
     await walk(root, 0);
-    return this.importFiles(files, root);
+    return this.importFiles(files, root, provider);
   }
 }

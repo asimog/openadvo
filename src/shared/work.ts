@@ -363,4 +363,6 @@ export interface InboxItem {
   tab: string;
   reviewItemId?: string;
   sourceId?: string;
+  /** S9: the trigger fire this item stands for. */
+  triggerId?: string;
 }

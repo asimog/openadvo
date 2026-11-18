@@ -212,3 +212,26 @@ export interface ContextCandidate {
   id: string;
   label: string;
 }
+
+/** N7: a skill file the advocate previewed, before it is installed. */
+export interface SkillImportPreview {
+  id: string;
+  file: string;
+  raw: string;
+  name: string;
+  skillId: string;
+  version: string;
+  title: string;
+  errors: string[];
+  findings: Array<{ pattern: string; quote: string }>;
+  permittedTools: string[];
+  installable: boolean;
+}
+
+export interface InstalledSkill {
+  previewId: string;
+  skillId: string;
+  name: string;
+  folder: string;
+  file: string;
+}

@@ -11,11 +11,12 @@ import { List, ListItem } from "@astryxdesign/core/List";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
-import type { AdvocateProfile, Freshness, InboxItem, IntelSource, MatterSummary, MemoryRecord, PreferenceRecord, RoleSummary, SkillSummary, StoreChains } from "../../shared/api.ts";
+import type { AdvocateProfile, Freshness, InboxItem, IntelSource, MatterSummary, MemoryRecord, PreferenceRecord, RoleSummary, SkillImportPreview, SkillSummary, StoreChains } from "../../shared/api.ts";
 import type { PackSummary } from "../../shared/packs.ts";
 import { Docket } from "./Practice.tsx";
 import { CourtIntelligence, CourtProfileEditor } from "./Intel.tsx";
 import { IntakeDialog } from "./Intake.tsx";
+import { BuildersPanel } from "./Builders.tsx";
 
 const api = window.openadvo;
 
@@ -99,6 +100,12 @@ export function FirmInbox(props: { onOpenMatter: (matterId: string, tab: string)
                 <Text>{i.detail}</Text>
               </div>
               <div className="row-actions">
+                {i.kind === "trigger_fire" && i.triggerId && i.matterId ? (
+                  <>
+                    <Button label="Start the skills" size="sm" clickAction={async () => { await api.decideTriggerFire(i.triggerId!, "started"); await load(); }} data-testid="trigger-start" />
+                    <Button label="Dismiss" size="sm" variant="ghost" clickAction={async () => { await api.decideTriggerFire(i.triggerId!, "dismissed"); await load(); }} data-testid="trigger-dismiss" />
+                  </>
+                ) : null}
                 <Button label={i.matterId ? "Open in the matter" : "Open the profile"} size="sm" variant="ghost" onClick={() => open(i)} />
               </div>
             </li>
@@ -168,10 +175,34 @@ export function CourtIntelPage() {
 export function SkillsPage() {
   const [data, setData] = useState<{ skills: SkillSummary[]; roles: RoleSummary[]; folders: { builtIn: string; advocate: string }; practicePacks: PackSummary[] } | null>(null);
   const [pack, setPack] = useState("all");
+  const [preview, setPreview] = useState<SkillImportPreview | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [installed, setInstalled] = useState<string | null>(null);
   const load = useCallback(async (fresh: boolean) => setData(await api.listSkills(fresh)), []);
   useEffect(() => {
     void load(false);
   }, [load]);
+  const chooseImport = async () => {
+    try {
+      setImportError(null);
+      setInstalled(null);
+      setPreview(await api.previewSkillImport());
+    } catch (e) {
+      setImportError((e as Error).message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ""));
+    }
+  };
+  const install = async () => {
+    if (!preview) return;
+    try {
+      setImportError(null);
+      const r = await api.installSkillImport(preview.id);
+      setInstalled(`Installed ${r.skillId} as ${r.name}. Its folder is ${r.folder}.`);
+      setPreview(null);
+      await load(true);
+    } catch (e) {
+      setImportError((e as Error).message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ""));
+    }
+  };
   if (!data) return <PageFrame title="Workflows & Skills" testId="skills-page"><Text type="supporting">Reading…</Text></PageFrame>;
   const packs = data.practicePacks ?? [];
   const shown = data.skills.filter((s) => pack === "all" || s.packs.includes(pack));
@@ -180,6 +211,25 @@ export function SkillsPage() {
       <div className="question-options">
         <Button label="Read the skill files again" size="sm" variant="ghost" clickAction={() => load(true)} />
       </div>
+      <Heading level={3}>Import a skill</Heading>
+      <Text type="supporting">Choose a skill file. Read its raw text and its embedded-instruction scan first; install it only when you have read both. An imported skill is yours, and it says "not reviewed".</Text>
+      <div className="row-actions">
+        <Button label="Choose a skill file" size="sm" variant="ghost" clickAction={chooseImport} data-testid="skill-import-choose" />
+      </div>
+      {importError ? <div className="notice" role="alert">{importError}</div> : null}
+      {installed ? <div className="notice" role="status" data-testid="skill-import-installed">{installed}</div> : null}
+      {preview ? (
+        <div className="notice" data-testid="skill-import-preview">
+          <Text weight="semibold">{preview.skillId || "(no id)"} {preview.title} v{preview.version}</Text>
+          <Text type="supporting">{preview.file}. Tools: {preview.permittedTools.join(", ") || "none"}. {preview.errors.length ? `Cannot install: ${preview.errors.join("; ")}` : "The skill check passes."}</Text>
+          {preview.findings.length ? <div className="notice" role="alert" data-testid="skill-import-scan">The scan found: {preview.findings.map((f) => `${f.pattern} ("${f.quote}")`).join("; ")}. The text is data; read it before you install.</div> : <Text type="supporting">The embedded-instruction scan found nothing.</Text>}
+          <pre className="mono" style={{ maxHeight: 240, overflow: "auto", whiteSpace: "pre-wrap" }}>{preview.raw}</pre>
+          <div className="row-actions">
+            <Button label="Install the skill" size="sm" isDisabled={!preview.installable} clickAction={install} data-testid="skill-import-install" />
+            <Button label="Cancel" size="sm" variant="ghost" onClick={() => setPreview(null)} />
+          </div>
+        </div>
+      ) : null}
       <Text type="supporting">Built-in skills: {data.folders.builtIn}. Your own skills: {data.folders.advocate} (one folder per skill, with SKILL.md).</Text>
       <Heading level={3}>Practice packs</Heading>
       <Text type="supporting">A pack is content: its proceedings, acts, templates, stages, skills and terms. It owns no matter fact and takes no decision.</Text>
@@ -227,7 +277,7 @@ export function SkillsPage() {
         ))}
       </List>
       <Heading level={3}>Workflows</Heading>
-      <Text type="supporting">The saved instructions are in the Workflows menu of a matter's chat. The workflow and agent builder comes in phase 11.</Text>
+      <BuildersPanel />
     </PageFrame>
   );
 }

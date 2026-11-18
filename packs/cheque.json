@@ -1,0 +1,74 @@
+{
+  "id": "cheque",
+  "version": "1.0.0",
+  "title": "Cheque dishonour",
+  "practice": ["cheque", "negotiable instruments"],
+  "courts": ["in.dj.delhi", "in.hc.delhi"],
+  "acts": [
+    { "act": "Negotiable Instruments Act, 1881", "version": "1881, as amended", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Bharatiya Nyaya Sanhita, 2023", "version": "2023", "source": "the Sanhita, for the offence of cheating where it is alleged" }
+  ],
+  "templates": [
+    { "kind": "legal_notice", "title": "Statutory notice", "note": "The notice under Section 138." },
+    { "kind": "cheque_complaint", "title": "Complaint", "note": "The complaint under Section 138." },
+    { "kind": "application_interim", "title": "Compounding application", "note": "The compounding application." },
+    { "kind": "affidavit", "title": "Affidavit", "note": "The complainant's own recorded words." }
+  ],
+  "proceedings": [
+    {
+      "key": "cheque_complaint",
+      "title": "Cheque dishonour complaint",
+      "caseType": "Complaint under Section 138",
+      "courts": ["in.dj.delhi", "in.hc.delhi"],
+      "provisions": ["Sections 138, 141, 142 and 147 of the Negotiable Instruments Act, 1881"],
+      "limitation": { "id": "ni-138", "title": "Complaint on a dishonoured cheque", "days": 30, "from": "the date on which the cause of action arose under Section 142(1)(b)", "source": "Negotiable Instruments Act, 1881, Section 142(1)(b)", "ref": "Section 142" },
+      "requiredParts": ["Statutory notice", "Complaint", "Affidavit", "Annexures"],
+      "documents": [
+        { "kind": "legal_notice", "title": "Statutory notice" },
+        { "kind": "cheque_complaint", "title": "Complaint" },
+        { "kind": "affidavit", "title": "Affidavit" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Read the cheque, the memo and the notice.", "skill": "SK-651" },
+        { "text": "Draft the statutory notice.", "skill": "SK-651" },
+        { "text": "Draft the complaint.", "skill": "SK-652" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Cheque", "Presentation", "Dishonour", "Notice", "Complaint", "Evidence", "Judgment", "Compounding"],
+      "intakeQuestions": ["What is the cheque number, date and amount?", "Why was it dishonoured?", "When was the notice served and when did the 15 days expire?", "Is the complaint within one month of the cause of action?"],
+      "skills": ["SK-651", "SK-652", "SK-653"],
+      "recordColumns": ["Date", "Cheque event", "Amount", "Source", "Page", "Line"],
+      "evidence": ["The cheque", "The bank memo", "The notice and its proof of service", "The reply"],
+      "terms": [{ "term": "Statutory notice", "meaning": "The notice the Act requires before the complaint, with its 15-day period." }]
+    },
+    {
+      "key": "compounding",
+      "title": "Compounding",
+      "caseType": "Compounding application",
+      "courts": ["in.dj.delhi", "in.hc.delhi"],
+      "provisions": ["Section 147 of the Negotiable Instruments Act, 1881"],
+      "limitation": null,
+      "requiredParts": ["Compounding application", "Affidavit", "Annexures"],
+      "documents": [
+        { "kind": "application_interim", "title": "Compounding application" },
+        { "kind": "affidavit", "title": "Affidavit" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Read the complaint, the settlement and the payment.", "skill": "SK-653" },
+        { "text": "Draft the compounding application.", "skill": "SK-653" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Complaint", "Settlement", "Compounding application", "Order"],
+      "intakeQuestions": ["What are the terms of settlement?", "Has the amount been paid and how?", "Is the complainant consenting to compounding?"],
+      "skills": ["SK-653"],
+      "recordColumns": ["Date", "Settlement event", "Amount", "Source", "Page", "Line"],
+      "evidence": ["The settlement terms", "The payment proof", "The consent"],
+      "terms": [{ "term": "Compounding", "meaning": "The settlement of the offence, in the cases the Act permits." }]
+    }
+  ],
+  "terms": [{ "term": "Cause of action", "meaning": "The expiry of the 15-day period after the notice without payment." }]
+}

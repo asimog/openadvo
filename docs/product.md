@@ -13,7 +13,7 @@ Main properties:
 1. **Simple onboarding.** Four short steps in under three minutes, and an optional fifth that imports the advocate's existing matters from a court portal. All can be skipped. See [advocate-workflow.md](advocate-workflow.md) section 1.
 2. **Local legal intelligence.** Each selected court has a dated, versioned court pack. A rule past its check date shows as stale. It never shows as current.
 3. **One universal matter.** Any court and any proceeding. Each proceeding has its own list of stages. Related matters are linked, for example FIR to bail to quashing to appeal.
-4. **Skills are the unit of work.** About 140 litigation skills in 16 practice packs. The advocate combines skills into workflows and can build their own agents. See [skills.md](skills.md).
+4. **Skills are the unit of work.** About 140 litigation skills in 21 practice packs. The advocate combines skills into workflows and can build their own agents. See [skills.md](skills.md).
 5. **Verification under everything.** Grounding, support, currency, hierarchy and structure checks. Open problems go to one Review Inbox.
 6. **Court operations.** One adapter per court for status, orders, cause lists and defects. A built-in browser that the advocate and the agent share. Open Advocate produces documents ready to file, and the advocate files them. Filing on a portal by the agent comes last. The advocate keeps credentials, CAPTCHAs and every submission.
 

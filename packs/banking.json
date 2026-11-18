@@ -1,0 +1,76 @@
+{
+  "id": "banking",
+  "version": "1.0.0",
+  "title": "Banking and debt recovery",
+  "practice": ["banking", "debt", "sarfaesi"],
+  "courts": ["in.t.drt", "in.t.drat", "in.hc.delhi"],
+  "acts": [
+    { "act": "Securitisation and Reconstruction of Financial Assets and Enforcement of Security Interest Act, 2002", "version": "2002, as amended", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Recovery of Debts and Bankruptcy Act, 1993", "version": "1993, as amended", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Code of Civil Procedure, 1908", "version": "1908, as amended", "source": "the Code; the law store records the version when it is imported" }
+  ],
+  "templates": [
+    { "kind": "drt_application", "title": "Original application", "note": "The debt recovery application." },
+    { "kind": "drat_appeal", "title": "Appeal to the DRAT", "note": "The appeal from the DRT." },
+    { "kind": "application_interim", "title": "Interim application", "note": "The stay or the interim measure." },
+    { "kind": "affidavit", "title": "Affidavit", "note": "The deponent's own recorded words." },
+    { "kind": "vakalatnama", "title": "Vakalatnama", "note": "The appointment form." }
+  ],
+  "proceedings": [
+    {
+      "key": "sarfaesi_17",
+      "title": "SARFAESI Section 17",
+      "caseType": "Application under Section 17",
+      "courts": ["in.t.drt"],
+      "provisions": ["Section 17 of the SARFAESI Act, 2002"],
+      "limitation": { "id": "sarfaesi-17", "title": "Application to the Debts Recovery Tribunal", "days": 45, "from": "the date of the measure taken under Section 13(4)", "source": "SARFAESI Act, 2002, Section 17(1)", "ref": "Section 17(1)" },
+      "requiredParts": ["Application under Section 17", "Affidavit", "Vakalatnama", "Annexures"],
+      "documents": [
+        { "kind": "drt_application", "title": "Application under Section 17" },
+        { "kind": "affidavit", "title": "Affidavit" },
+        { "kind": "vakalatnama", "title": "Vakalatnama" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Read the notice, the demand and the measures taken.", "skill": "SK-531" },
+        { "text": "Chart the debt and the security.", "skill": "SK-532" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Default", "Section 13(2) notice", "Section 13(4) measure", "Section 17 application", "Reply", "Hearing", "Order"],
+      "intakeQuestions": ["What is the debt and the date of default?", "Which measure under Section 13(4) was taken and when?", "Was the Section 13(3A) representation answered?", "Is the applicant a borrower or a guarantor?"],
+      "skills": ["SK-531", "SK-532", "SK-534"],
+      "recordColumns": ["Date", "Notice or measure", "Amount", "Source", "Page", "Line"],
+      "evidence": ["The loan agreement", "The Section 13(2) notice", "The possession or sale notice", "The payment record"],
+      "terms": [{ "term": "Measure under Section 13(4)", "meaning": "The step the secured creditor takes to enforce its security, such as taking possession or selling the asset." }]
+    },
+    {
+      "key": "drt_oa",
+      "title": "DRT original application",
+      "caseType": "Original application",
+      "courts": ["in.t.drt"],
+      "provisions": ["Sections 19 and 19A of the Recovery of Debts and Bankruptcy Act, 1993"],
+      "limitation": null,
+      "requiredParts": ["Original application", "Affidavit", "Vakalatnama", "Annexures"],
+      "documents": [
+        { "kind": "drt_application", "title": "Original application" },
+        { "kind": "affidavit", "title": "Affidavit" },
+        { "kind": "vakalatnama", "title": "Vakalatnama" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Chart the loan, the default and the amount.", "skill": "SK-532" },
+        { "text": "Draft the original application.", "skill": "SK-532" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Loan", "Default", "Original application", "Written statement", "Evidence", "Order"],
+      "intakeQuestions": ["What is the amount claimed and how is it computed?", "Is the bank a secured creditor?", "Is there a counterclaim?"],
+      "skills": ["SK-532", "SK-534"],
+      "recordColumns": ["Date", "Loan event", "Amount", "Source", "Page", "Line"],
+      "evidence": ["The loan documents", "The statement of account", "The guarantee", "The security documents"],
+      "terms": [{ "term": "Original application", "meaning": "The application by which a bank or financial institution asks the DRT to recover a debt." }]
+    }
+  ],
+  "terms": [{ "term": "Pre-deposit", "meaning": "The part of the debt the appeal requires before it is heard." }]
+}

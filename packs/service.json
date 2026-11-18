@@ -1,0 +1,76 @@
+{
+  "id": "service",
+  "version": "1.0.0",
+  "title": "Service and employment",
+  "practice": ["service", "employment", "labour"],
+  "courts": ["in.t.cat", "in.hc.delhi", "in.sc"],
+  "acts": [
+    { "act": "Administrative Tribunals Act, 1985", "version": "1985, as amended", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Industrial Disputes Act, 1947", "version": "1947, as amended", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Constitution of India, Articles 14, 16 and 226", "version": "not recorded", "source": "the Constitution; no version is recorded for this pack" },
+    { "act": "Central Civil Services (Classification, Control and Appeal) Rules, 1965", "version": "1965, as amended", "source": "the Rules; the law store records the version when it is imported" }
+  ],
+  "templates": [
+    { "kind": "cat_application", "title": "Original application", "note": "The CAT application." },
+    { "kind": "writ_petition", "title": "Writ petition", "note": "The service writ." },
+    { "kind": "affidavit", "title": "Affidavit", "note": "The deponent's own recorded words." },
+    { "kind": "application_interim", "title": "Interim application", "note": "The stay of the order." },
+    { "kind": "vakalatnama", "title": "Vakalatnama", "note": "The appointment form." }
+  ],
+  "proceedings": [
+    {
+      "key": "cat_oa",
+      "title": "CAT original application",
+      "caseType": "Service matter",
+      "courts": ["in.t.cat"],
+      "provisions": ["Sections 14 and 19 of the Administrative Tribunals Act, 1985"],
+      "limitation": null,
+      "requiredParts": ["Original application", "Affidavit", "Vakalatnama", "Annexures"],
+      "documents": [
+        { "kind": "cat_application", "title": "Original application" },
+        { "kind": "affidavit", "title": "Affidavit" },
+        { "kind": "vakalatnama", "title": "Vakalatnama" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Read the order, the charge and the enquiry record.", "skill": "SK-553" },
+        { "text": "Draft the original application.", "skill": "SK-551" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Order", "Appeal or representation", "Original application", "Reply", "Hearing", "Order"],
+      "intakeQuestions": ["What is the order challenged and when was it served?", "Was the departmental appeal decided?", "What does the enquiry record hold?", "Is there a limitation question?"],
+      "skills": ["SK-551", "SK-552", "SK-553"],
+      "recordColumns": ["Date", "Service event", "Order", "Source", "Page", "Line"],
+      "evidence": ["The appointment and the service record", "The charge-sheet and the enquiry report", "The punishing order", "The appeal and its decision"],
+      "terms": [{ "term": "Departmental enquiry", "meaning": "The employer's own proceeding on a charge against the employee." }]
+    },
+    {
+      "key": "industrial_dispute",
+      "title": "Industrial dispute",
+      "caseType": "Industrial dispute",
+      "courts": ["in.t.cat", "in.hc.delhi"],
+      "provisions": ["Sections 10 and 33 of the Industrial Disputes Act, 1947"],
+      "limitation": null,
+      "requiredParts": ["Reference of an industrial dispute", "Affidavit", "Annexures"],
+      "documents": [
+        { "kind": "industrial_dispute", "title": "Reference of an industrial dispute" },
+        { "kind": "affidavit", "title": "Affidavit" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Read the demand, the conciliation and the order.", "skill": "SK-553" },
+        { "text": "Draft the reference or the statement of claim.", "skill": "SK-554" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Demand", "Conciliation", "Reference", "Statement of claim", "Evidence", "Award"],
+      "intakeQuestions": ["What is the demand and who made it?", "Was conciliation attempted?", "What is the employment record?"],
+      "skills": ["SK-554", "SK-553"],
+      "recordColumns": ["Date", "Dispute event", "Party", "Source", "Page", "Line"],
+      "evidence": ["The demand charter", "The conciliation record", "The employment and wage records"],
+      "terms": [{ "term": "Award", "meaning": "The tribunal's decision on the industrial dispute." }]
+    }
+  ],
+  "terms": [{ "term": "Natural justice", "meaning": "The hearing the employee must receive before an adverse order." }]
+}

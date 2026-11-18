@@ -13,11 +13,12 @@ import type { AdapterDefinition } from "../../src/shared/intel.ts";
 
 const repo = path.resolve(import.meta.dirname, "../..");
 const raw = (name: string) => JSON.parse(readFileSync(path.join(repo, "packs", `${name}.json`), "utf8")) as unknown;
-const built = buildPacks([raw("criminal"), raw("civil"), raw("writ"), raw("slp")]);
+const PACK_FILES = ["criminal", "civil", "writ", "slp", "commercial", "family", "property", "insolvency", "banking", "tax", "service", "consumer", "ip", "environmental", "competition", "administrative", "insurance", "immigration", "rera", "motor", "cheque"];
+const built = buildPacks(PACK_FILES.map(raw));
 
-test("the four practice packs check, with their proceedings and acts", () => {
-  assert.deepEqual(built.summaries.map((s) => [s.id, s.error]), [["civil", null], ["criminal", null], ["slp", null], ["writ", null]]);
-  assert.deepEqual(built.packs.map((p) => p.id).sort(), ["civil", "criminal", "slp", "writ"]);
+test("the 21 practice packs check, with their proceedings and acts", () => {
+  assert.deepEqual(built.summaries.filter((s) => s.error).map((s) => [s.id, s.error]), []);
+  assert.deepEqual(built.packs.map((p) => p.id).sort(), [...PACK_FILES].sort());
   for (const p of built.packs) {
     assert.ok(p.proceedings.length > 0, p.id);
     assert.ok(p.acts.length > 0, p.id);
@@ -34,7 +35,7 @@ test("the four practice packs check, with their proceedings and acts", () => {
 });
 
 test("a pack is refused for an unknown id, a bad version, a proceeding with no case type and a bad limitation", () => {
-  assert.match(checkPack({ ...(raw("civil") as object), id: "family" }).errors.join("; "), /id must be one of/);
+  assert.match(checkPack({ ...(raw("civil") as object), id: "not-a-pack" }).errors.join("; "), /id must be one of/);
   assert.match(checkPack({ ...(raw("civil") as object), version: "1" }).errors.join("; "), /version must be n\.n\.n/);
   const bad = JSON.parse(JSON.stringify(raw("civil"))) as { proceedings: Array<Record<string, unknown>> };
   bad.proceedings[0].caseType = "";

@@ -1,0 +1,95 @@
+{
+  "id": "commercial",
+  "version": "1.0.0",
+  "title": "Commercial and arbitration",
+  "practice": ["commercial", "arbitration", "corporate"],
+  "courts": ["in.hc.delhi", "in.hc.bombay", "in.t.nclt", "in.t.nclat", "in.sc"],
+  "acts": [
+    { "act": "Arbitration and Conciliation Act, 1996", "version": "1996, as amended in 2015, 2019 and 2021", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Commercial Courts Act, 2015", "version": "2015, as amended in 2018", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Companies Act, 2013", "version": "2013, as amended", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Code of Civil Procedure, 1908", "version": "1908, as amended", "source": "the Code; the law store records the version when it is imported" },
+    { "act": "Indian Contract Act, 1872", "version": "1872", "source": "the Act; the law store records the version when it is imported" }
+  ],
+  "templates": [
+    { "kind": "section_9_application", "title": "Application under Section 9", "note": "Interim measures before or during arbitration." },
+    { "kind": "section_11_application", "title": "Application under Section 11", "note": "The appointment of an arbitrator." },
+    { "kind": "section_34_application", "title": "Application under Section 34", "note": "The challenge to an award." },
+    { "kind": "section_36_enforcement", "title": "Application under Section 36", "note": "The enforcement of an award." },
+    { "kind": "section_37_appeal", "title": "Appeal under Section 37", "note": "The appeal from an order under the Act." },
+    { "kind": "nclt_petition", "title": "Petition before the NCLT", "note": "Oppression and mismanagement and other company matters." },
+    { "kind": "plaint", "title": "Plaint", "note": "The commercial suit." },
+    { "kind": "vakalatnama", "title": "Vakalatnama", "note": "The appointment form." }
+  ],
+  "proceedings": [
+    {
+      "key": "section_34",
+      "title": "Section 34 challenge",
+      "caseType": "Arbitration petition under Section 34",
+      "courts": ["in.hc.delhi", "in.hc.bombay"],
+      "provisions": ["Section 34 of the Arbitration and Conciliation Act, 1996"],
+      "limitation": { "id": "arb-34", "title": "Application to set aside an award", "days": 90, "from": "the date on which the party making the application received the award", "source": "Arbitration and Conciliation Act, 1996, Section 34(3)", "ref": "Section 34(3)" },
+      "requiredParts": ["Application under Section 34", "Vakalatnama", "Memo of parties", "Annexures"],
+      "documents": [
+        { "kind": "section_34_application", "title": "Application under Section 34" },
+        { "kind": "memo_of_parties", "title": "Memo of parties" },
+        { "kind": "vakalatnama", "title": "Vakalatnama" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Analyse the award and the record it rests on.", "skill": "SK-008" },
+        { "text": "Report on the arbitration agreement, the seat, the venue and the law.", "skill": "SK-403" },
+        { "text": "Chart the claims, the defence and the counterclaim.", "skill": "SK-407" },
+        { "text": "Draft the Section 34 challenge with the grounds tied to the record.", "skill": "SK-409" },
+        { "text": "Review the draft against the award and the record.", "skill": "SK-027" },
+        { "text": "Run the filing checklist.", "skill": "SK-023" }
+      ],
+      "stages": ["Award", "Section 34 application", "Notice", "Reply", "Hearing", "Order", "Section 37 appeal"],
+      "intakeQuestions": [
+        "When was the award received, and is the 90-day period running?",
+        "What is the seat and the venue named in the agreement?",
+        "Which grounds under Section 34 does the record support?",
+        "Was there a Section 16 objection or an application under Section 9?"
+      ],
+      "skills": ["SK-403", "SK-407", "SK-409", "SK-410", "SK-027"],
+      "recordColumns": ["Date", "Award event", "Section", "Record", "Page", "Line"],
+      "evidence": ["The arbitration agreement", "The award and its reasons", "The record before the tribunal", "The Section 16 objection and orders"],
+      "terms": [
+        { "term": "Seat", "meaning": "The juridical place of the arbitration, which decides the supervisory court and the law of the arbitration." },
+        { "term": "Award", "meaning": "The tribunal's decision on the claims and the costs." }
+      ]
+    },
+    {
+      "key": "commercial_suit",
+      "title": "Commercial suit",
+      "caseType": "Commercial suit",
+      "courts": ["in.hc.delhi", "in.hc.bombay"],
+      "provisions": ["Commercial Courts Act, 2015", "Code of Civil Procedure, 1908"],
+      "limitation": null,
+      "requiredParts": ["Plaint", "Vakalatnama", "Memo of parties"],
+      "documents": [
+        { "kind": "plaint", "title": "Plaint" },
+        { "kind": "memo_of_parties", "title": "Memo of parties" },
+        { "kind": "vakalatnama", "title": "Vakalatnama" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Complete the pre-institution mediation record and the statement of truth.", "skill": "SK-401" },
+        { "text": "Assess the plaint and the documents.", "skill": "SK-201" },
+        { "text": "Review the citations and the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Pre-institution mediation", "Plaint", "Institution", "Written statement", "Issues", "Evidence", "Arguments", "Judgment"],
+      "intakeQuestions": ["What is the commercial dispute and its value?", "Was pre-institution mediation attempted or exempted?", "Which documents prove the contract and the breach?"],
+      "skills": ["SK-401", "SK-402", "SK-201", "SK-202", "SK-407"],
+      "recordColumns": ["Date", "Contract event", "Document", "Page", "Line"],
+      "evidence": ["The contract", "The invoices and the ledger", "The notice and the reply", "The mediation record"],
+      "terms": [{ "term": "Commercial dispute", "meaning": "A dispute of the kind the Commercial Courts Act, 2015 names." }]
+    }
+  ],
+  "terms": [
+    { "term": "Section 34", "meaning": "The application to set aside an arbitral award, on the grounds the Act limits." },
+    { "term": "Section 37", "meaning": "The appeal from an order of the court under the Act." }
+  ]
+}

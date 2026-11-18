@@ -19,6 +19,9 @@ import { AUTHORITY2_SCHEMA } from "./authority2.ts";
 import { PRACTICE_SCHEMA, addHearing, addParty, addRelatedMatter, addReminder, crossQuestions, decideCrossQuestion, decideTask, hearings, markImpactChecked, matterProfile, parties, policy, proposeCrossQuestion, proposeTask, relatedMatters, reminders, removeRelatedMatter, setMatterProfile, setPolicy, setReminderStatus, taskProposals, type CrossQuestion, type Hearing, type Party, type Policy, type Reminder, type TaskProposal } from "./practice.ts";
 import { EVIDENCE_SCHEMA, EvidenceStore } from "./evidence.ts";
 import { OUTCOME_SCHEMA, insertOutcome, outcomes } from "./outcomes.ts";
+import { FOREIGN_SCHEMA, decideForeignElement, foreignElements, insertForeignElement } from "./foreign.ts";
+import { foreignFromClause, foreignFromParty, routesFor } from "../jurisdiction/foreign.ts";
+import type { ForeignElement, ForeignElementInput, ForeignRoute } from "../../shared/foreign.ts";
 import type { MemorySnapshot, OutcomeInput, OutcomeRecord } from "../../shared/knowledge.ts";
 import type { MatterProfile, MatterRelation, RelatedMatter } from "../../shared/work.ts";
 import { FILING_CHECKS_SCHEMA, checkStates, defects as listDefects, setCheck, setTarget, target as filingTarget } from "./filing-checks.ts";
@@ -27,6 +30,9 @@ import { SKILL_RUN_SCHEMA, insertPackage, listRuns, packageById, packageByHash, 
 import type { ContextPackageRecord, ReportCard, RunState, SkillRunRecord } from "../../shared/skills.ts";
 import { AUDIT_SCHEMA, addRefusal, eventHash, find, findIndexSeq, inspect, listRefusals, replaceFindIndex, verifyChain, type ChainCheck, type FindHit, type FindRow, type Inspection, type Refusal } from "./audit.ts";
 import { ACCEPTED_TEXT, detectMediaType } from "../document-intelligence/formats.ts";
+import { documentQuality as scoreDocument } from "../document-intelligence/quality.ts";
+import type { DocumentQuality, PageQuality } from "../../shared/quality.ts";
+import type { WorkflowRun, WorkflowRunState, WorkflowStepRun } from "../../shared/builders.ts";
 import type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus, DraftKind, RevisionAuthor, DraftRecord, RevisionRecord, ParagraphLinkRecord, ParagraphLinkInput } from "../../shared/records.ts";
 import { DRAFT_KINDS } from "../../shared/records.ts";
 
@@ -71,6 +77,7 @@ CREATE TABLE IF NOT EXISTS origin (
   source_id TEXT NOT NULL REFERENCES source(id),
   original_name TEXT NOT NULL,
   original_path TEXT NOT NULL,
+  provider TEXT NOT NULL DEFAULT '',
   added_at TEXT NOT NULL,
   actor TEXT NOT NULL CHECK (actor IN ('advocate', 'agent', 'system'))
 ) STRICT;
@@ -236,6 +243,24 @@ CREATE TRIGGER IF NOT EXISTS approval_no_update BEFORE UPDATE ON revision_approv
 CREATE TRIGGER IF NOT EXISTS approval_no_delete BEFORE DELETE ON revision_approval BEGIN SELECT RAISE(ABORT, 'approvals are append-only'); END;
 CREATE TRIGGER IF NOT EXISTS paragraph_link_no_update BEFORE UPDATE ON paragraph_link BEGIN SELECT RAISE(ABORT, 'paragraph links are append-only'); END;
 CREATE TRIGGER IF NOT EXISTS paragraph_link_no_delete BEFORE DELETE ON paragraph_link BEGIN SELECT RAISE(ABORT, 'paragraph links are never deleted'); END;
+CREATE TABLE IF NOT EXISTS page_quality (
+  source_id TEXT NOT NULL,
+  page INTEGER NOT NULL,
+  blur REAL NOT NULL,
+  skew REAL NOT NULL,
+  PRIMARY KEY (source_id, page)
+) STRICT;
+CREATE TABLE IF NOT EXISTS workflow_run (
+  id TEXT PRIMARY KEY,
+  workflow_id TEXT NOT NULL,
+  workflow_version TEXT NOT NULL,
+  inputs TEXT NOT NULL,
+  steps TEXT NOT NULL,
+  state TEXT NOT NULL CHECK (state IN ('running', 'done', 'failed', 'stopped')),
+  notice TEXT NOT NULL DEFAULT '',
+  started_at TEXT NOT NULL,
+  finished_at TEXT
+) STRICT;
 `;
 
 function now(): string {
@@ -331,6 +356,9 @@ export class MatterStore {
     MatterStore.migrate(db);
     db.exec("PRAGMA foreign_keys = ON;");
     db.exec(SCHEMA);
+    // Phase 11 (Y3): the origin of a file now names its storage provider (local, OneDrive, Google Drive).
+    const originSql = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'origin'").get() as { sql?: string } | undefined;
+    if (originSql?.sql && !originSql.sql.includes("provider")) db.exec("ALTER TABLE origin ADD COLUMN provider TEXT NOT NULL DEFAULT ''");
     db.exec(WORK_SCHEMA);
     // Phase 3: a download in the built-in browser is a capture of its own, beside the court portal.
     const cap = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'capture'").get() as { sql?: string } | undefined;
@@ -365,6 +393,7 @@ ALTER TABLE capture_browser RENAME TO capture;`);
     db.exec(PRACTICE_SCHEMA);
     db.exec(EVIDENCE_SCHEMA);
     db.exec(OUTCOME_SCHEMA);
+    db.exec(FOREIGN_SCHEMA);
     // Phase 4: the document part kinds grew with layout (header, footer, footnote, table, paragraph).
     const dp = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'document_part'").get() as { sql?: string } | undefined;
     if (dp?.sql && !dp.sql.includes("'header'")) {
@@ -584,7 +613,7 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
   }
 
   /** Add one file. The same bytes are stored once; a second add records an origin. */
-  async addFile(file: string, ctx: WriteContext): Promise<AddFileResult> {
+  async addFile(file: string, ctx: WriteContext, provider = ""): Promise<AddFileResult> {
     const resolved = path.resolve(file);
     let bytes: Buffer;
     try {
@@ -605,7 +634,7 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
       | { id: string }
       | undefined;
     if (existing) {
-      this.addOrigin(existing.id, name, resolved, ctx);
+      this.addOrigin(existing.id, name, resolved, ctx, provider);
       this.appendEvent(ctx, "source.origin_added", existing.id, { name, sha256 });
       return { path: file, outcome: "duplicate", source: this.getSource(existing.id) };
     }
@@ -622,15 +651,15 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
         "INSERT INTO source (id, sha256, name, size, media_type, added_at, status, checked_at) VALUES (?, ?, ?, ?, ?, ?, 'ok', ?)",
       )
       .run(id, sha256, name, bytes.length, mediaType, at, at);
-    this.addOrigin(id, name, resolved, ctx);
-    this.appendEvent(ctx, "source.added", id, { name, sha256, size: bytes.length, mediaType });
+    this.addOrigin(id, name, resolved, ctx, provider);
+    this.appendEvent(ctx, "source.added", id, { name, sha256, size: bytes.length, mediaType, provider });
     return { path: file, outcome: "added", source: this.getSource(id) };
   }
 
-  private addOrigin(sourceId: string, name: string, originalPath: string, ctx: WriteContext): void {
+  private addOrigin(sourceId: string, name: string, originalPath: string, ctx: WriteContext, provider = ""): void {
     this.db
-      .prepare("INSERT INTO origin (source_id, original_name, original_path, added_at, actor) VALUES (?, ?, ?, ?, ?)")
-      .run(sourceId, name, originalPath, now(), ctx.actor);
+      .prepare("INSERT INTO origin (source_id, original_name, original_path, provider, added_at, actor) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(sourceId, name, originalPath, provider, now(), ctx.actor);
   }
 
   getSource(id: string): SourceRecord | undefined {
@@ -669,13 +698,14 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
 
   listOrigins(sourceId: string): OriginRecord[] {
     const rows = this.db
-      .prepare("SELECT id, source_id, original_name, original_path, added_at, actor FROM origin WHERE source_id = ? ORDER BY id")
+      .prepare("SELECT id, source_id, original_name, original_path, provider, added_at, actor FROM origin WHERE source_id = ? ORDER BY id")
       .all(sourceId) as Array<Record<string, unknown>>;
     return rows.map((r) => ({
       id: Number(r.id),
       sourceId: String(r.source_id),
       originalName: String(r.original_name),
       originalPath: String(r.original_path),
+      provider: String(r.provider ?? ""),
       addedAt: String(r.added_at),
       actor: r.actor as Actor,
     }));
@@ -1122,6 +1152,7 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
         this.openReviewItem("page_without_text", sourceId, page.page, `Page ${page.page} of ${source.name} has no text layer, and OCR found no text.`);
       }
       if (page.marks) for (const m of page.marks) this.evidence.addMark({ sourceId, page: page.page, ...m });
+      if (page.quality) this.db.prepare("INSERT OR REPLACE INTO page_quality (source_id, page, blur, skew) VALUES (?, ?, ?, ?)").run(sourceId, page.page, page.quality.blur, page.quality.skew);
       this.db.exec("COMMIT");
     } catch (e) {
       this.db.exec("ROLLBACK");
@@ -1133,6 +1164,13 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
     this.db.prepare("UPDATE ingest_job SET state = 'done', pages = ?, finished_at = ? WHERE source_id = ?").run(pages, now(), sourceId);
     const counts = this.db.prepare("SELECT kind, COUNT(*) AS n FROM page WHERE source_id = ? GROUP BY kind").all(sourceId) as Array<{ kind: string; n: number }>;
     this.appendEvent({ actor: "system" }, "ingest.finished", sourceId, { pages, kinds: Object.fromEntries(counts.map((c) => [c.kind, Number(c.n)])) });
+    // H14: one quality item per source, with the score and its issues. It never changes a page.
+    const quality = this.documentQuality(sourceId);
+    const source = this.getSource(sourceId);
+    if (source && quality.score < 70 && quality.issues.length > 0 && !this.listReviewItems().some((r) => r.kind === "document_quality" && r.sourceId === sourceId)) {
+      const first = quality.issues.slice(0, 5).map((i) => i.detail).join(" ");
+      this.openReviewItem("document_quality", sourceId, null, `${source.name}: document quality ${quality.score} of 100. ${first}${quality.issues.length > 5 ? ` ${quality.issues.length - 5} more issue(s).` : ""}`);
+    }
   }
 
   failJob(sourceId: string, error: string): void {
@@ -1242,6 +1280,9 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
       ]),
     );
     const lines = this.anchorRows("SELECT * FROM anchor WHERE source_id = ? AND page BETWEEN ? AND ? ORDER BY page, line", sourceId, from, to);
+    const qualities = new Map(
+      (this.db.prepare("SELECT page, blur, skew FROM page_quality WHERE source_id = ?").all(sourceId) as Array<Record<string, unknown>>).map((r) => [Number(r.page), { blur: Number(r.blur), skew: Number(r.skew) }]),
+    );
     return pages.map((p) => ({
       sourceId,
       page: Number(p.page),
@@ -1250,8 +1291,15 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
       height: Number(p.height),
       text: String(p.text),
       ocr: ocr.get(Number(p.page)) ?? null,
+      quality: (qualities.get(Number(p.page)) as PageQuality | undefined) ?? null,
       lines: lines.filter((l) => l.page === Number(p.page)),
     }));
+  }
+
+  /** H14: the document's quality score and issues, from the stored pages. */
+  documentQuality(sourceId: string): DocumentQuality {
+    const pages = this.listPages(sourceId).map((p) => ({ page: p.page, text: p.text, kind: p.kind, confidence: p.ocr?.confidence ?? null, quality: p.quality }));
+    return scoreDocument({ sourceId, pages, asOf: now() });
   }
 
   /** Lines that contain the query (case-insensitive), in source and page order. */
@@ -1492,8 +1540,9 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
   /** Notebook readiness (Appendix B-D): no job queued or running, and no review item open. */
   readiness(): Readiness {
     const jobsPending = this.sourcesToIngest().length;
-    // Draft defects belong to the draft's gate, not to the Notebook's readiness.
-    const openReviewItems = this.listReviewItems().filter((r) => r.status === "open" && r.draftId === null).length;
+    // Draft defects belong to the draft's gate, a document quality item is advice about the
+    // reading, and a trigger response is a proposal. None blocks the Notebook's readiness.
+    const openReviewItems = this.listReviewItems().filter((r) => r.status === "open" && r.draftId === null && r.kind !== "document_quality" && !r.kind.startsWith("trigger_")).length;
     return { ready: jobsPending === 0 && openReviewItems === 0, jobsPending, openReviewItems };
   }
 
@@ -1515,6 +1564,119 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
     const record = insertOutcome(this.db, this.matter().id, input, at, ctx.actor);
     this.appendEvent(ctx, "matter.outcome_recorded", record.id, { result: record.result, subject: record.subject, supersedes: record.supersedes });
     return record;
+  }
+
+  // ---- Phase 11 (D4): foreign elements and their routes ----
+
+  foreignElements(): ForeignElement[] {
+    return foreignElements(this.db);
+  }
+
+  /** The agent proposes; the advocate's own row is confirmed at once. */
+  proposeForeignElement(input: ForeignElementInput, ctx: WriteContext): ForeignElement {
+    const at = now();
+    const status = ctx.actor === "advocate" ? "confirmed" : "proposed";
+    const element = insertForeignElement(this.db, input, ctx.actor, at, status);
+    if (!this.db.prepare("SELECT 1 FROM foreign_element WHERE id = ? AND created_at = ?").get(element.id, at)) return element;
+    this.appendEvent(ctx, "matter.foreign_element", element.id, { kind: element.kind, subject: element.subject, status: element.status });
+    return element;
+  }
+
+  /** Human-only: confirm or reject a proposed element. */
+  decideForeignElement(id: string, decision: "confirmed" | "rejected", ctx: WriteContext): ForeignElement {
+    if (ctx.actor !== "advocate") throw new MatterStoreError("HUMAN_ONLY", "only the advocate decides a foreign element");
+    const element = decideForeignElement(this.db, id, decision, now());
+    this.appendEvent(ctx, "matter.foreign_element_decided", element.id, { decision });
+    return element;
+  }
+
+  /**
+   * Propose the elements the record shows: a forum clause that names a country, and a party whose
+   * record names one. A name alone is never a guess: the country must be written down.
+   */
+  proposeForeignFromRecord(parties: Array<{ name: string; note?: string }>, ctx: WriteContext): ForeignElement[] {
+    const before = foreignElements(this.db).length;
+    for (const clause of this.evidence.forumClauses()) {
+      const found = foreignFromClause({ kind: clause.kind, text: clause.text, sourceId: clause.sourceId, anchorId: clause.anchorId });
+      if (found) insertForeignElement(this.db, found, ctx.actor, now(), "proposed");
+    }
+    for (const party of parties) {
+      const found = foreignFromParty(party);
+      if (found) insertForeignElement(this.db, { ...found, detail: found.detail }, ctx.actor, now(), "proposed");
+    }
+    const after = foreignElements(this.db);
+    if (after.length !== before) this.appendEvent(ctx, "matter.foreign_elements_proposed", null, { added: after.length - before });
+    return after;
+  }
+
+  /** The routes the elements may open. Derived, never stored as a decision. */
+  foreignRoutes(): ForeignRoute[] {
+    const out: ForeignRoute[] = [];
+    const seen = new Map<string, ForeignRoute>();
+    for (const element of foreignElements(this.db).filter((e) => e.status !== "rejected")) {
+      for (const route of routesFor([element.kind], element.status === "confirmed" ? "confirmed" : "proposed")) {
+        const key = `${route.route}|${route.basis}`;
+        const have = seen.get(key);
+        if (!have) {
+          seen.set(key, route);
+          out.push(route);
+        } else if (route.status === "confirmed" && have.status !== "confirmed") {
+          have.status = "confirmed";
+        }
+      }
+    }
+    return out;
+  }
+
+  // ---- Phase 11 (N5): workflow runs ----
+
+  private workflowRunRow(r: Record<string, unknown>): WorkflowRun {
+    return {
+      id: String(r.id),
+      matterId: this.matter().id,
+      workflowId: String(r.workflow_id),
+      workflowVersion: String(r.workflow_version),
+      inputs: JSON.parse(String(r.inputs)) as Record<string, string>,
+      steps: JSON.parse(String(r.steps)) as WorkflowStepRun[],
+      state: r.state as WorkflowRunState,
+      notice: String(r.notice),
+      startedAt: String(r.started_at),
+      finishedAt: r.finished_at == null ? null : String(r.finished_at),
+    };
+  }
+
+  startWorkflowRun(input: { workflowId: string; workflowVersion: string; inputs: Record<string, string>; steps: Array<{ id: string; skill: string }> }): WorkflowRun {
+    const id = randomUUID();
+    const steps: WorkflowStepRun[] = input.steps.map((s) => ({ id: s.id, skill: s.skill, state: "pending", runId: null, report: "", output: "" }));
+    this.db
+      .prepare("INSERT INTO workflow_run (id, workflow_id, workflow_version, inputs, steps, state, notice, started_at, finished_at) VALUES (?, ?, ?, ?, ?, 'running', '', ?, NULL)")
+      .run(id, input.workflowId, input.workflowVersion, JSON.stringify(input.inputs), JSON.stringify(steps), now());
+    this.appendEvent({ actor: "advocate" }, "workflow.started", id, { workflowId: input.workflowId, version: input.workflowVersion, steps: steps.length });
+    return this.workflowRun(id)!;
+  }
+
+  setWorkflowStep(runId: string, stepId: string, change: Partial<Omit<WorkflowStepRun, "id" | "skill">>): WorkflowRun {
+    const run = this.workflowRun(runId);
+    if (!run) throw new MatterStoreError("WORKFLOW_RUN_NOT_FOUND", runId);
+    const steps = run.steps.map((s) => (s.id === stepId ? { ...s, ...change } : s));
+    this.db.prepare("UPDATE workflow_run SET steps = ? WHERE id = ?").run(JSON.stringify(steps), runId);
+    this.appendEvent({ actor: "agent" }, "workflow.step", runId, { step: stepId, state: change.state ?? null, runId: change.runId ?? null });
+    return this.workflowRun(runId)!;
+  }
+
+  finishWorkflowRun(runId: string, state: Exclude<WorkflowRunState, "running">, notice: string): WorkflowRun {
+    this.db.prepare("UPDATE workflow_run SET state = ?, notice = ?, finished_at = ? WHERE id = ?").run(state, notice.slice(0, 2000), now(), runId);
+    this.appendEvent({ actor: "agent" }, `workflow.${state}`, runId, { notice: notice.slice(0, 500) });
+    return this.workflowRun(runId)!;
+  }
+
+  workflowRuns(): WorkflowRun[] {
+    return (this.db.prepare("SELECT * FROM workflow_run ORDER BY started_at DESC, rowid DESC").all() as Array<Record<string, unknown>>).map((r) => this.workflowRunRow(r));
+  }
+
+  workflowRun(id: string): WorkflowRun | null {
+    const r = this.db.prepare("SELECT * FROM workflow_run WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+    return r ? this.workflowRunRow(r) : null;
   }
 
   /** F5: the records the memory answerer reads. It writes nothing. */

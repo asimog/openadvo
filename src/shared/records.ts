@@ -1,4 +1,5 @@
 /** Matter record types. Types only: shared by the library, the main process and the renderer. */
+import type { PageQuality } from "./quality.ts";
 
 export type Actor = "advocate" | "agent" | "system";
 export type SourceStatus = "ok" | "missing" | "changed";
@@ -31,6 +32,8 @@ export interface OriginRecord {
   sourceId: string;
   originalName: string;
   originalPath: string;
+  /** Y3: the storage provider the file came from: "", local, onedrive or google_drive. */
+  provider: string;
   addedAt: string;
   actor: Actor;
 }
@@ -92,6 +95,8 @@ export interface PageRecord {
   height: number;
   text: string;
   ocr: { engine: string; version: string; confidence: number } | null;
+  /** H14: the page's image metrics, or null when the page was born digital. */
+  quality: PageQuality | null;
   lines: AnchorRecord[];
 }
 
@@ -122,6 +127,8 @@ export interface PageInput {
   second?: { engine: string; version: string; confidence: number; text: string; disagreements: Array<{ line: number; readingA: string; readingB: string; tokensA: string[]; tokensB: string[] }> };
   /** H4: signature, stamp and seal marks, candidates for the advocate. */
   marks?: Array<{ kind: "signature" | "stamp" | "seal" | "handwriting"; x: number; y: number; w: number; h: number; confidence: number; note: string }>;
+  /** H14: the rendered page's sharpness and skew, when the page was read as an image. */
+  quality?: PageQuality;
 }
 
 export type EventStatus = "candidate" | "confirmed" | "rejected";
@@ -194,6 +201,35 @@ export const DRAFT_KINDS = [
   "anticipatory_bail_application",
   "quashing_petition",
   "discharge_application",
+  // Phase 11 (N8): the remaining packs' forms.
+  "section_9_application",
+  "section_11_application",
+  "section_16_objection",
+  "section_34_application",
+  "section_36_enforcement",
+  "section_37_appeal",
+  "nclt_petition",
+  "ibc_application",
+  "drt_application",
+  "drat_appeal",
+  "tax_appeal",
+  "cat_application",
+  "industrial_dispute",
+  "consumer_complaint",
+  "ip_suit",
+  "rectification_petition",
+  "ngt_application",
+  "cci_information",
+  "rti_appeal",
+  "rera_complaint",
+  "motor_claim",
+  "cheque_complaint",
+  "family_petition",
+  "partition_suit",
+  "eviction_petition",
+  "execution_petition",
+  "contempt_petition",
+  "pil_petition",
   "counter_affidavit",
   "rejoinder",
   "memo_of_parties",

@@ -126,17 +126,17 @@ The tests say, on screen and in the record, that they use fixture briefs, not a 
 
 ## 5. The window
 
-- **Practice Profile → Practice map**: the four packs, their proceedings and whether each is enabled by the practice areas. A pack that is not enabled says so.
+- **Practice Profile → Practice map**: every pack, its proceedings and whether each is enabled by the practice areas. A pack that is not enabled says so.
 - **Practice Profile → Statutory map**: the acts of the enabled packs, with the version only where a source records it.
 - **Practice Profile → Skills**: with the pack of each skill and the review score.
-- **Workflows & Skills**: the four packs with their versions and errors, the pack of each skill, the review score and its date, and a filter by pack.
+- **Workflows & Skills**: the packs with their versions and errors, the pack of each skill, the review score and its date, and a filter by pack.
 - **Filing tab**: the pack and proceeding in use, the pack's workflow with its skill ids, and the required documents. With no court target, the row says that the SLP pack applies by default.
 
 ## 6. Tests
 
 | Test | Checks |
 |---|---|
-| `tests/unit/packs.test.ts` | The four packs check; the SLP pack's set, limitation and workflow; the pack of a matter; the pack gate; the filing plan; the SLP generators unchanged |
+| `tests/unit/packs.test.ts` | The packs check; the SLP pack's set, limitation and workflow; the pack of a matter; the pack gate; the filing plan; the SLP generators unchanged |
 | `tests/unit/skill-review.test.ts` | The thirteen parameters; the three legal failure modes each fail a skill; the score; a version without its record is "review needed" |
 | `tests/unit/skill-library.test.ts` | Every phase 8 skill loads; the ids are the phase 8 rows of `skills.md`; the review record matches the version; the fixture tests and expected properties |
 | `tests/unit/skills.test.ts` | The built-in registry, the roles' new read tools, the pack field |
@@ -148,8 +148,8 @@ Between the steps of the phase: the type check and the unit tests. The end-to-en
 
 ## 7. What is not built, and why
 
-- The commercial, arbitration, family and other packs of [../skills.md](../skills.md) sections 2.5 and 2.6 are phase 11. Their skill ids are not written yet.
-- SK-028 (Matter Change Report) is phase 9. SK-034, SK-035, SK-111, SK-112, SK-115, SK-209, SK-211 and SK-306 are phase 11. Their rows stay in the library and say their phase.
+- The commercial, arbitration, family and other packs of [../skills.md](../skills.md) sections 2.5 and 2.6 are built in phase 11: [builders-and-integrations.md](builders-and-integrations.md) section 9.
+- SK-028 (Matter Change Report) is phase 13. SK-034, SK-035, SK-111, SK-112, SK-115, SK-209, SK-211 and SK-306 are phase 11 and are built there.
 - The skill tests run fixture briefs, not a gold set (questions Q-3). A model is not called by the test.
 - The packs hold no court rule quote. The court adapter owns the quote; the pack names the source.
 - The SLP generator writes the civil form. A criminal special leave petition is named as unmapped in `packs/slp.json`; SK-308 drafts its substance, and the form is not generated yet.

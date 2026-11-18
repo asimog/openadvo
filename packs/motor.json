@@ -1,0 +1,72 @@
+{
+  "id": "motor",
+  "version": "1.0.0",
+  "title": "Motor accident and compensation",
+  "practice": ["motor", "motor accident", "accident"],
+  "courts": ["in.dj.delhi", "in.hc.delhi", "in.sc"],
+  "acts": [
+    { "act": "Motor Vehicles Act, 1988", "version": "1988, as amended in 2019", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Motor Vehicles (Amendment) Act, 2019", "version": "2019", "source": "the Act; the law store records the version when it is imported" }
+  ],
+  "templates": [
+    { "kind": "motor_claim", "title": "Claim petition", "note": "The motor accident claim." },
+    { "kind": "affidavit", "title": "Affidavit", "note": "The claimant's own recorded words." },
+    { "kind": "appeal_memo", "title": "Appeal memo", "note": "The appeal from the tribunal." }
+  ],
+  "proceedings": [
+    {
+      "key": "motor_claim",
+      "title": "Motor accident claim",
+      "caseType": "Motor accident claim",
+      "courts": ["in.dj.delhi", "in.hc.delhi"],
+      "provisions": ["Sections 140, 161, 166 and 168 of the Motor Vehicles Act, 1988"],
+      "limitation": null,
+      "requiredParts": ["Claim petition", "Affidavit", "Annexures"],
+      "documents": [
+        { "kind": "motor_claim", "title": "Claim petition" },
+        { "kind": "affidavit", "title": "Affidavit" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Read the accident, the medical record and the loss.", "skill": "SK-641" },
+        { "text": "Compute the compensation from the record.", "skill": "SK-642" },
+        { "text": "Draft the claim petition.", "skill": "SK-641" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Accident", "Medical record", "Claim petition", "Reply", "Evidence", "Award", "Appeal"],
+      "intakeQuestions": ["When and where did the accident occur?", "Which vehicles and insurers are involved?", "What are the injuries, the treatment and the loss of income?", "What is the police record?"],
+      "skills": ["SK-641", "SK-642", "SK-643"],
+      "recordColumns": ["Date", "Accident or treatment event", "Amount", "Source", "Page", "Line"],
+      "evidence": ["The FIR and the site record", "The medical records and bills", "The income proof", "The insurance policy"],
+      "terms": [{ "term": "Just compensation", "meaning": "The amount the tribunal computes from the record of loss, not a guess." }]
+    },
+    {
+      "key": "motor_appeal",
+      "title": "Motor accident appeal",
+      "caseType": "Motor accident appeal",
+      "courts": ["in.hc.delhi"],
+      "provisions": ["Section 173 of the Motor Vehicles Act, 1988"],
+      "limitation": null,
+      "requiredParts": ["Appeal memo", "Affidavit", "Annexures"],
+      "documents": [
+        { "kind": "appeal_memo", "title": "Appeal memo" },
+        { "kind": "affidavit", "title": "Affidavit" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Analyse the award.", "skill": "SK-008" },
+        { "text": "Draft the appeal with the computation.", "skill": "SK-643" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Award", "Appeal", "Hearing", "Order"],
+      "intakeQuestions": ["What did the tribunal award and on what computation?", "Which finding or amount is challenged?", "What is the deposit?"],
+      "skills": ["SK-643", "SK-642"],
+      "recordColumns": ["Date", "Award finding", "Amount", "Record", "Page", "Line"],
+      "evidence": ["The award", "The claim and reply", "The medical and income record"],
+      "terms": [{ "term": "Composite negligence", "meaning": "The negligence of more than one vehicle, which the claimant need not apportion." }]
+    }
+  ],
+  "terms": [{ "term": "No-fault liability", "meaning": "The compensation the Act provides without proof of fault, in the cases it names." }]
+}

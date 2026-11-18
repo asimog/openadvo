@@ -71,11 +71,11 @@ test("the matter store records pages, anchors, OCR readings, review items, and s
     assert.equal(store.searchLines("100%_").length, 0);
 
     const items = store.listReviewItems();
-    assert.equal(items.length, 1);
-    assert.equal(items[0].kind, "page_without_text");
-    assert.equal(items[0].page, 3);
-    assert.throws(() => store.decideReviewItem(items[0].id, "resolved", { actor: "agent" }), /HUMAN_ONLY/);
-    assert.equal(store.decideReviewItem(items[0].id, "skipped", { actor: "advocate" }).status, "skipped");
+    const withoutText = items.find((r) => r.kind === "page_without_text")!;
+    assert.equal(withoutText.page, 3);
+    assert.ok(items.some((r) => r.kind === "document_quality"), "the quality score opens one item");
+    assert.throws(() => store.decideReviewItem(withoutText.id, "resolved", { actor: "agent" }), /HUMAN_ONLY/);
+    assert.equal(store.decideReviewItem(withoutText.id, "skipped", { actor: "advocate" }).status, "skipped");
     assert.throws(() => store.startJob(source.id), /ALREADY_INGESTED/);
 
     const actions = store.listEvents().map((e) => e.action);

@@ -4,7 +4,29 @@
  * intake questions, skills, evidence requirements and terms. It owns no matter fact.
  */
 
-export const PACK_IDS = ["criminal", "civil", "writ", "slp"] as const;
+export const PACK_IDS = [
+  "criminal",
+  "civil",
+  "writ",
+  "slp",
+  "commercial",
+  "family",
+  "property",
+  "insolvency",
+  "banking",
+  "tax",
+  "service",
+  "consumer",
+  "ip",
+  "environmental",
+  "competition",
+  "administrative",
+  "insurance",
+  "immigration",
+  "rera",
+  "motor",
+  "cheque",
+] as const;
 export type PackId = (typeof PACK_IDS)[number];
 
 export interface PackLimitation {

@@ -12,7 +12,7 @@ type Handle = <A extends unknown[], R>(channel: string, fn: (...args: A) => Prom
 
 const str = (v: unknown): string => String(v ?? "");
 
-export function registerIntelBridge(handle: Handle, d: { intel: CourtIntel; matters: Matters }): void {
+export function registerIntelBridge(handle: Handle, d: { intel: CourtIntel; matters: Matters; onEvent?: (matterId: string, event: "defect_received", subject: string) => void }): void {
   // B1: the directory, offline.
   handle("intel:directory", (query: string) => ({ version: DIRECTORY_VERSION, note: DIRECTORY_NOTE, courts: searchDirectory(str(query), 60) }));
   handle("intel:route", (courtId: string) => appealRoute(str(courtId)).map((c) => ({ id: c.id, name: c.name, appealNote: c.appealNote ?? null })));
@@ -43,6 +43,10 @@ export function registerIntelBridge(handle: Handle, d: { intel: CourtIntel; matt
   });
   handle("filing:format-checks", (matterId: string) => d.intel.formatChecks(str(matterId)));
   handle("filing:defects", async (matterId: string) => (await d.matters.store(str(matterId))).defects());
-  handle("filing:import-defects", (matterId: string, text: string) => d.intel.importDefects(str(matterId), str(text)));
+  handle("filing:import-defects", async (matterId: string, text: string) => {
+    const rows = await d.intel.importDefects(str(matterId), str(text));
+    d.onEvent?.(str(matterId), "defect_received", `${rows.length} defect(s) imported`);
+    return rows;
+  });
   handle("filing:set-defect", async (matterId: string, id: string, cured: boolean) => (await d.matters.store(str(matterId))).setDefect(str(id), cured === true, { actor: "advocate" }));
 }

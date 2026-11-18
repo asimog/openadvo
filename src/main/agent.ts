@@ -44,6 +44,8 @@ import { SideQuestions } from "./side-questions.ts";
 import { skillCommand, skillsForPrompt, type Registry } from "../lib/skills/index.ts";
 import { injectionNotice, scanText } from "../lib/verification/injection.ts";
 import { answerMemoryQuestion } from "../lib/memory-answers/index.ts";
+import { executeWorkflow } from "./workflow-runs.ts";
+import type { WorkflowDefinition } from "../shared/builders.ts";
 import type { MatterStore } from "../lib/matter-store/index.ts";
 import type { ReportCard, SideThread } from "../shared/skills.ts";
 import { FIRM_READ_ONLY, FIRM_TOOLS, firmSystemPrompt, firmTools, type FirmHost } from "./firm-agent.ts";
@@ -166,6 +168,9 @@ export const AGENT_TOOLS = [
   "get_timeline",
   "list_document_parts",
   "get_contradictions",
+  // Phase 11 (D4): foreign elements and their route facts.
+  "list_foreign_elements",
+  "propose_foreign_element",
   // Phase 6 (L5, A7, F2): citation insertion from saved authorities; the learned preferences and
   // the advocate's own memory, always as proposals the advocate decides.
   "insert_citation",
@@ -282,6 +287,10 @@ export interface HarnessHost {
   packRefusal?(matterId: string, packs: readonly string[]): Promise<{ refusal: string | null; notice: string | null }>;
   /** Phase 10 (M2): the approved precedents for this matter, best first. */
   precedents?(matterId: string): Promise<import("../shared/knowledge.ts").PrecedentOffer[]>;
+  /** Phase 11 (N5): a built workflow. */
+  workflow?(id: string): WorkflowDefinition | null;
+  /** Phase 11 (N5): every built workflow. */
+  workflows?(): WorkflowDefinition[];
 }
 
 export interface AgentWorkHost {
@@ -1796,6 +1805,7 @@ export class Agent {
         ["get_timeline", "Get timeline", "The chronology, procedural, payment, communication, order and limitation entries.", {}],
         ["list_document_parts", "List document parts", "The structure of the documents: title, parties, facts, grounds, prayer, allegations, admissions, denials, witnesses, exhibits, directions and annexures.", { source_id: Type.Optional(Type.String()) }],
         ["get_contradictions", "Get contradictions", "The disagreements of date, amount, name or event across facts and events. Never choose which value is right.", {}],
+        ["list_foreign_elements", "List foreign elements", "The foreign parties, judgments, awards, seats and assets of the matter, with the routes each may open. The routes are questions with their provisions, never a decision.", {}],
       ] as const).map(([name, label, description, properties]) =>
         defineTool({
           name,
@@ -1854,6 +1864,19 @@ export class Agent {
           supersedes: Type.Optional(Type.String()),
         }),
         execute: async (_id, p) => text(host.evidence ? await host.evidence(matterId, "propose_matter_memory", p as Record<string, unknown>, await actor(_id)) : "Phase 4 records are not available in this session."),
+      }),
+      defineTool({
+        name: "propose_foreign_element",
+        label: "Propose a foreign element",
+        description: "Record a foreign party, judgment, award, seat or asset the record shows, with the country it names. The country must be written in the record; never guess it from a name. The advocate confirms or rejects it, and the routes it opens are questions with their provisions.",
+        parameters: Type.Object({
+          kind: choice(["foreign_party", "foreign_judgment", "foreign_award", "foreign_seat", "foreign_asset"]),
+          subject: Type.String({ description: "The party, the judgment, the award, the seat or the asset, in the record's words." }),
+          country: Type.String({ description: "The country the record names." }),
+          detail: Type.Optional(Type.String({ description: "Where it was read: the clause or the line." })),
+          source: Type.Optional(Type.String({ description: "The source name or id." })),
+        }),
+        execute: async (_id, p) => text(host.evidence ? await host.evidence(matterId, "propose_foreign_element", p as Record<string, unknown>, await actor(_id)) : "Phase 4 records are not available in this session."),
       }),
     ];
     const checkDraftTool = defineTool({
@@ -2402,8 +2425,54 @@ export class Agent {
               details: {},
             }),
           }),
+          defineTool({
+            name: "list_workflows",
+            label: "List the workflows",
+            description: "The workflows the advocate built, with their ids, versions, inputs and steps. Run one with run_workflow.",
+            parameters: Type.Object({}),
+            execute: async () => ({ content: [{ type: "text" as const, text: JSON.stringify(harness.workflows?.() ?? []) }], details: {} }),
+          }),
         ]
       : [];
+    const runWorkflowTool = harness && runner
+      ? defineTool({
+          name: "run_workflow",
+          label: "Run a workflow",
+          description:
+            "Run a workflow the advocate built: its skills in order, its inputs, its conditions and its approval gates. It records each step in the matter and stops where the workflow says to stop. Call it when the advocate asks to run a workflow, or when a trigger asks for one.",
+          parameters: Type.Object({
+            workflow: Type.String({ description: "The workflow id (wf-...). list_workflows shows the ids." }),
+            inputs: Type.Optional(Type.Record(Type.String(), Type.String(), { description: "The values of the workflow's inputs, by key." })),
+          }),
+          execute: async (_id, p, signal, _update, ctx) => {
+            const workflow = harness.workflow?.(p.workflow);
+            if (!workflow) throw new Error(`There is no workflow ${p.workflow}.`);
+            const store = await harness.store(matterId);
+            const run = await executeWorkflow({
+              workflow,
+              inputs: p.inputs ?? {},
+              store,
+              runSkill: async (step, request, s) => {
+                const skill = harness.registry().active.get(step.skill);
+                if (!skill) throw new Error(`The workflow names ${step.skill}, which is not in the registry.`);
+                return runner.run(skill, { request, reason: `workflow ${workflow.title}, step ${step.id}`, pinned: [] }, ctx, s);
+              },
+              confirm: async (title, message) => {
+                try {
+                  return await ctx.ui.confirm(title, message);
+                } catch {
+                  return false;
+                }
+              },
+              signal,
+            });
+            return {
+              content: [{ type: "text" as const, text: JSON.stringify({ runId: run.id, state: run.state, notice: run.notice, steps: run.steps.map((s) => ({ id: s.id, skill: s.skill, state: s.state, runId: s.runId, report: s.report })) }) }],
+              details: { runId: run.id, state: run.state },
+            };
+          },
+        })
+      : null;
     const labels = new Map(spec.tools.map((t) => [t.name, (t as { label?: string }).label ?? t.name]));
     const policy = policyExtension({
       store: this.policyStore(),
@@ -2466,7 +2535,7 @@ export class Agent {
       // Decision 2: Pi's built-in file and shell tools are off; our tools and extension tools are on.
       noTools: "builtin",
       excludeTools: [...BUILTIN_TOOL_NAMES],
-      customTools: [...spec.tools.map(harden), ...plan.map(harden), ...helperSessionTools, ...(recall ? [harden(recall)] : []), ...(runSkillTool ? [harden(runSkillTool)] : []), ...phase10Tools.map(harden)] as never,
+      customTools: [...spec.tools.map(harden), ...plan.map(harden), ...helperSessionTools, ...(recall ? [harden(recall)] : []), ...(runSkillTool ? [harden(runSkillTool)] : []), ...(runWorkflowTool ? [harden(runWorkflowTool)] : []), ...phase10Tools.map(harden)] as never,
     });
     sessionRef.s = session;
     const active = session.getActiveToolNames();

@@ -82,6 +82,21 @@ export function registerHarnessBridge(handle: Handle, d: HarnessBridgeDeps): voi
     }
     for (const p of d.advocate.preferences().filter((x) => x.status === "proposed")) all.push({ id: `preference:${p.id}`, kind: "advocate_preference", blocks: false, title: "Preference proposed", detail: `${p.key}: ${p.value} (${p.reason})`, tab: "profile", matterId: null, matterTitle: "Advocate profile" });
     for (const r of d.advocate.memory("proposed")) all.push({ id: `advocate-memory:${r.memoryId}`, kind: "advocate_memory", blocks: false, title: "Advocate memory proposed", detail: `${r.subject} ${r.relation} ${r.object}`, tab: "profile", matterId: null, matterTitle: "Advocate profile" });
+    // S9: a trigger fire waits for the advocate. It starts nothing by itself.
+    const titles = new Map((await d.matters.list()).map((m) => [m.id, m.title]));
+    for (const f of d.advocate.triggerFires("proposed")) {
+      all.push({
+        id: `trigger:${f.id}`,
+        kind: "trigger_fire",
+        blocks: false,
+        title: `Trigger: ${f.event.replace(/_/g, " ")}`,
+        detail: `${f.subject}. Skills: ${f.skills.join(", ") || "none"}. Responses: ${f.responses.join(", ") || "none"}. Nothing has started.`,
+        tab: "overview",
+        matterId: f.matterId,
+        matterTitle: titles.get(f.matterId) ?? "Matter",
+        triggerId: f.id,
+      });
+    }
     return [...all.filter((x) => x.blocks), ...all.filter((x) => !x.blocks)];
   });
   // G5: the advocate's search over every open matter and the judgment index. The agent's own

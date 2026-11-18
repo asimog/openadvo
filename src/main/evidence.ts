@@ -20,6 +20,7 @@ export interface AnalysisResult {
   contradictions: number;
   edges: number;
   injections: number;
+  foreign: number;
 }
 
 export async function analyzeMatter(matters: Matters, matterId: string, courtIntel?: CourtIntel): Promise<AnalysisResult> {
@@ -89,6 +90,9 @@ export async function analyzeMatter(matters: Matters, matterId: string, courtInt
   const contradictions = detectContradictions(allFacts, nb.events.map((e) => ({ id: e.id, dateStart: e.dateStart, description: e.description, sourceId: e.sourceId, page: e.page, line: e.line })));
   const opened = store.evidence.recordContradictions(contradictions);
   const edges = store.evidence.rebuildEdges();
+  // Phase 11 (D4): the foreign elements the record shows, as proposals. A country must be written
+  // in the record; a party's name alone is never a guess.
+  store.proposeForeignFromRecord(store.parties().map((p) => ({ name: p.nameInRecord })), { actor: "agent" });
 
   if (courtIntel) {
     const profile = store.profile();
@@ -111,5 +115,5 @@ export async function analyzeMatter(matters: Matters, matterId: string, courtInt
     );
   }
 
-  return { facts, parts, clauses, relations, contradictions: opened, edges, injections };
+  return { facts, parts, clauses, relations, contradictions: opened, edges, injections, foreign: store.foreignElements().length };
 }

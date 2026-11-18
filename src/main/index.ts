@@ -44,8 +44,15 @@ import { SkillRegistry } from "./skills.ts";
 import { registerHarnessBridge } from "./harness-bridge.ts";
 import { registerIntelBridge } from "./intel-bridge.ts";
 import { CourtIntel } from "./court-intel.ts";
+import { Integrations } from "./integrations.ts";
+import { SkillImport } from "./skill-import.ts";
 import { PracticePacks } from "./packs.ts";
 import { filingPlan, skillPackRefusal } from "../lib/packs/index.ts";
+import { detectStorageFolders, insideRoot, storageReady, type StorageProvider } from "../lib/storage/index.ts";
+import { testAgent } from "../lib/builders/index.ts";
+import { HUMAN_ONLY_PATTERN, NEVER_IN_A_SKILL } from "../lib/skills/roles.ts";
+import { CATALOGUE } from "../lib/drafting/documents.ts";
+import { responseProposal } from "../lib/triggers/index.ts";
 import type { FilingPack } from "./filing.ts";
 import { listsForCaseType } from "../lib/court-adapters/index.ts";
 import { AdvocateStore } from "../lib/advocate-store/index.ts";
@@ -107,12 +114,23 @@ let courtIntel: CourtIntel;
 let browser: Browser;
 /** Phase 3: the Knowledge Library (M1). */
 let library: Library;
+let integrations: Integrations;
+let skillImporter: SkillImport;
 /** C2: the matters the agent proposed in the chat. */
 let proposals: MatterProposals;
 
 /** Steps 6 to 10 notify the window that a matter changed (a capture, a proposal). */
 function matterChanged(matterId: string): void {
   window?.webContents.send("ingest:update", matterId);
+}
+
+/** S9: a local event reaches the trigger table. It writes fires only; it starts nothing. */
+function fireTrigger(matterId: string, event: import("../shared/triggers.ts").TriggerEvent, subject: string): void {
+  try {
+    advocateStore.fireTriggers({ matterId, event, subject }, { actor: "agent" });
+  } catch (e) {
+    console.error(`trigger ${event}: ${(e as Error).message}`);
+  }
 }
 
 /** The IMAP account: host, port and user in settings; the password encrypted with safeStorage (decision 9). */
@@ -257,7 +275,12 @@ function registerBridge(): void {
     return recordTables.decide(matterId, sourceId, columnId, decision);
   });
   // V2 (docs/archive/2026-11-15/specs/v2.md). Every write here is human-only.
-  handle("sources:setType", (matterId: string, sourceId: string, type: string) => matters.setSourceType(matterId, sourceId, String(type)));
+  handle("sources:setType", async (matterId: string, sourceId: string, type: string) => {
+    const out = await matters.setSourceType(matterId, sourceId, String(type));
+    if (/order|judgment/i.test(String(type))) fireTrigger(String(matterId), "order", `${String(type)}: ${String(sourceId)}`);
+    if (/notification|amendment|circular/i.test(String(type))) fireTrigger(String(matterId), "amendment", `${String(type)}: ${String(sourceId)}`);
+    return out;
+  });
   handle("duplicates:list", (matterId: string) => matters.listDuplicates(matterId));
   handle("duplicates:decide", (matterId: string, reviewItemId: string, decision: string) => {
     if (decision !== "same" && decision !== "different") throw new Error("BAD_DECISION: same or different");
@@ -383,12 +406,14 @@ function registerBridge(): void {
   handle("studio:stop", (matterId: string) => studio.stop(matterId));
   // V5-19 to V5-25: hearings, reminders, policy and usage, Stop, parties and contacts, docket, questions, diagnostics.
   handle("hearings:list", async (matterId: string) => (await matters.store(matterId)).hearings());
-  handle("hearings:add", async (matterId: string, h: Record<string, unknown>) =>
-    (await matters.store(matterId)).addHearing(
+  handle("hearings:add", async (matterId: string, h: Record<string, unknown>) => {
+    const hearing = await (await matters.store(matterId)).addHearing(
       { date: String(h?.date ?? ""), bench: String(h?.bench ?? ""), directions: String(h?.directions ?? ""), nextDate: String(h?.nextDate ?? ""), nextDateStatus: h?.nextDateStatus === "inferred" ? "inferred" : "confirmed", notes: String(h?.notes ?? "") },
       { actor: "advocate" },
-    ),
-  );
+    );
+    fireTrigger(matterId, "hearing_date", `${hearing.date} ${hearing.bench}`);
+    return hearing;
+  });
   handle("reminders:list", async (matterId: string) => (await matters.store(matterId)).reminders());
   handle("reminders:add", async (matterId: string, text: string, dueAt: string) => (await matters.store(matterId)).addReminder(String(text ?? ""), String(dueAt ?? ""), { actor: "advocate" }));
   handle("reminders:done", async (matterId: string, id: string) => {
@@ -679,6 +704,7 @@ function registerBridge(): void {
   handle("research:checkCitations", async (matterId: string, draftId: string | null) => {
     const out = await research.checkCitations(matterId, draftId ? String(draftId) : undefined);
     matterChanged(matterId);
+    if (out.some((c) => c.outcome === "failed" || c.outcome === "unresolved")) fireTrigger(String(matterId), "citation_change", `${out.filter((c) => c.outcome !== "verified" && c.outcome !== "not_applicable").length} citation(s) changed or unresolved`);
     return out;
   });
   handle("research:attestCitation", (matterId: string, citation: string, reason: string) => research.attestCitation(matterId, String(citation ?? ""), String(reason ?? "")));
@@ -893,8 +919,8 @@ function registerBridge(): void {
     return buildTimeline(nb.events, store.evidence.facts());
   });
   handle("matter-memory:list", async (matterId: string, filter?: Record<string, string>) => (await matters.store(String(matterId))).evidence.memory(filter ?? {}));
-  handle("matter-memory:propose", async (matterId: string, input: Record<string, unknown>) =>
-    (await matters.store(String(matterId))).evidence.proposeMemory(
+  handle("matter-memory:propose", async (matterId: string, input: Record<string, unknown>) => {
+    const memory = (await matters.store(String(matterId))).evidence.proposeMemory(
       {
         type: String(input?.type ?? "fact_from_document"),
         subject: String(input?.subject ?? ""),
@@ -908,8 +934,10 @@ function registerBridge(): void {
         supersedes: input?.supersedes ? String(input.supersedes) : null,
       },
       { actor: "advocate" },
-    ),
-  );
+    );
+    if (memory.type === "client_instruction") fireTrigger(String(matterId), "instruction", memory.object);
+    return memory;
+  });
   handle("matter-memory:decide", async (matterId: string, id: string, status: string) => (await matters.store(String(matterId))).evidence.decideMemory(String(id), status as never, { actor: "advocate" }));
   handle("evidence:marks", async (matterId: string, sourceId?: string) => (await matters.store(String(matterId))).evidence.marks(sourceId ? String(sourceId) : undefined));
   handle("docops:list", async (matterId: string) => (await matters.store(String(matterId))).evidence.operations());
@@ -971,6 +999,7 @@ function registerBridge(): void {
     if (r.canceled) return { messages: 0, attachments: [] };
     const out = await mail.importEmlFiles(matterId, r.filePaths);
     ingest.enqueue(matterId);
+    if (out.messages > 0) fireTrigger(String(matterId), "email", `${out.messages} saved message(s) imported`);
     return out;
   });
   handle("mail:getAccount", () => {
@@ -997,6 +1026,7 @@ function registerBridge(): void {
       since: filter?.since ? String(filter.since) : undefined,
     });
     ingest.enqueue(matterId);
+    if (out.messages > 0) fireTrigger(String(matterId), "email", `${out.messages} message(s) fetched`);
     return out;
   });
   handle("dialog:pickFiles", async () => {
@@ -1046,8 +1076,10 @@ function registerBridge(): void {
   });
   // C1, C3, C6, C10: the universal matter.
   handle("matter:profile", async (matterId: string) => (await matters.store(String(matterId))).profile());
-  handle("matter:setProfile", async (matterId: string, input: Record<string, unknown>) =>
-    (await matters.store(String(matterId))).setProfile(
+  handle("matter:setProfile", async (matterId: string, input: Record<string, unknown>) => {
+    const store = await matters.store(String(matterId));
+    const before = store.profile().stage;
+    const out = store.setProfile(
       {
         ...(input?.court !== undefined ? { court: String(input.court) } : {}),
         ...(input?.bench !== undefined ? { bench: String(input.bench) } : {}),
@@ -1064,8 +1096,10 @@ function registerBridge(): void {
         ...(input?.relief !== undefined ? { relief: String(input.relief) } : {}),
       },
       { actor: "advocate" },
-    ),
-  );
+    );
+    if (input?.stage !== undefined && out.stage !== before) fireTrigger(String(matterId), "stage_change", out.stage);
+    return out;
+  });
   handle("matter:classification", async (matterId: string) => {
     const store = await matters.store(String(matterId));
     const profile = store.profile();
@@ -1187,6 +1221,156 @@ function registerBridge(): void {
   handle("advocate:graph", () => advocateStore.graph());
   handle("advocate:rebuild-graph", async () => advocateStore.rebuildGraph(await matters.allOutcomes(), { actor: "advocate" }));
   handle("advocate:graph-walk", (kind: string, id: string, depth: number) => advocateStore.graphWalk(String(kind) as never, String(id), Number(depth) || 1));
+  // Phase 11 (D4): foreign elements and their routes.
+  handle("foreign:list", async (matterId: string) => (await matters.store(String(matterId))).foreignElements());
+  handle("foreign:add", async (matterId: string, input: Record<string, unknown>) => {
+    if (!input || typeof input !== "object") throw new Error("BAD_ELEMENT: an element is needed");
+    const store = await matters.store(String(matterId));
+    return store.proposeForeignElement(
+      {
+        kind: String(input.kind ?? "") as never,
+        subject: String(input.subject ?? ""),
+        detail: input.detail === undefined ? undefined : String(input.detail),
+        country: input.country === undefined ? undefined : String(input.country),
+        sourceId: input.sourceId === undefined || input.sourceId === null ? null : String(input.sourceId),
+        anchorId: input.anchorId === undefined || input.anchorId === null ? null : String(input.anchorId),
+      },
+      { actor: "advocate" },
+    );
+  });
+  handle("foreign:decide", async (matterId: string, id: string, decision: string) => {
+    if (decision !== "confirmed" && decision !== "rejected") throw new Error("BAD_DECISION: confirmed or rejected");
+    return (await matters.store(String(matterId))).decideForeignElement(String(id), decision, { actor: "advocate" });
+  });
+  handle("foreign:routes", async (matterId: string) => (await matters.store(String(matterId))).foreignRoutes());
+  handle("quality:document", async (matterId: string, sourceId: string) => (await matters.store(String(matterId))).documentQuality(String(sourceId)));
+  // Phase 11 (Y3): the synced OneDrive and Google Drive folders. No OAuth and no credential.
+  const storageProvider = (value: unknown): StorageProvider => {
+    if (value !== "onedrive" && value !== "google_drive") throw new Error("BAD_PROVIDER: onedrive or google_drive");
+    return value;
+  };
+  const storageFolder = async (provider: StorageProvider): Promise<string | null> => {
+    const ready = storageReady(detectStorageFolders(), provider);
+    if (!ready) throw new Error(`NOT_DETECTED: the ${provider === "onedrive" ? "OneDrive" : "Google Drive"} folder is not on this computer`);
+    if (!window) throw new Error("WINDOW_CLOSED: the window is not open");
+    const picked = await dialog.showOpenDialog(window, { title: `Import a folder from ${provider === "onedrive" ? "OneDrive" : "Google Drive"}`, defaultPath: ready.root, properties: ["openDirectory"] });
+    const folder = picked.canceled ? null : picked.filePaths[0] ?? null;
+    if (!folder) return null;
+    if (!insideRoot(ready.root, folder)) throw new Error("OUTSIDE_PROVIDER: the folder is not inside the synced folder");
+    return folder;
+  };
+  handle("storage:folders", () => detectStorageFolders());  handle("storage:import-library", async (providerValue: string) => {
+    const provider = storageProvider(providerValue);
+    const folder = await storageFolder(provider);
+    if (!folder) return null;
+    return library.importFolder(folder, provider);
+  });
+  handle("storage:import-matter", async (matterId: string, providerValue: string) => {
+    const provider = storageProvider(providerValue);
+    const folder = await storageFolder(provider);
+    if (!folder) return null;
+    const results = await matters.addFolder(String(matterId), folder, { actor: "advocate" }, provider);
+    ingest.enqueue(String(matterId));
+    return { added: results.filter((r) => r.outcome === "added").length, refused: results.filter((r) => r.outcome === "refused").length, folder };
+  });
+  handle("intake:storage", async (providerValue: string) => {
+    const provider = storageProvider(providerValue);
+    const folder = await storageFolder(provider);
+    if (!folder) return null;
+    const matter = await matters.create(path.basename(folder));
+    const results = await matters.addFolder(matter.id, folder, { actor: "advocate" }, provider);
+    ingest.enqueue(matter.id);
+    return { matter, added: results.filter((r) => r.outcome === "added").length, refused: results.filter((r) => r.outcome === "refused").length, folder };
+  });
+  // Phase 11 (Y1): the integration manifests. No integration ships; the registry keeps the state.
+  handle("integrations:list", () => integrations.list());
+  handle("integrations:sync", () => integrations.sync());
+  handle("integrations:add", async () => {
+    if (!window) return null;
+    const picked = await dialog.showOpenDialog(window, { title: "Add an integration manifest", properties: ["openFile"], filters: [{ name: "Integration manifest", extensions: ["json"] }] });
+    const file = picked.canceled ? null : picked.filePaths[0] ?? null;
+    return file ? integrations.add(file) : null;
+  });
+  handle("integrations:enable", (id: string, enabled: boolean) => integrations.setEnabled(String(id), enabled === true));
+  // Phase 11 (N5): the workflow and agent builder.
+  const builderDeps = () => ({
+    skills: skillRegistry.get().active,
+    draftKinds: CATALOGUE.map((c) => c.kind),
+    humanOnly: HUMAN_ONLY_PATTERN,
+    never: NEVER_IN_A_SKILL,
+  });
+  handle("builders:workflows", () => advocateStore.workflows());
+  handle("builders:save-workflow", (input: Record<string, unknown>) => {
+    if (!input || typeof input !== "object") throw new Error("BAD_WORKFLOW: a workflow is needed");
+    return advocateStore.saveWorkflow(input, [...skillRegistry.get().active.keys()], { actor: "advocate" });
+  });
+  handle("builders:delete-workflow", (id: string) => {
+    advocateStore.deleteWorkflow(String(id), { actor: "advocate" });
+    return advocateStore.workflows();
+  });
+  handle("builders:runs", async (matterId: string) => (await matters.store(String(matterId))).workflowRuns());
+  handle("builders:run-workflow", async (matterId: string, workflowId: string, inputs: Record<string, string>) => {
+    const wf = advocateStore.workflow(String(workflowId));
+    if (!wf) throw new Error(`NOT_FOUND: no workflow ${String(workflowId)}`);
+    // The run streams in the chat; the bridge does not hold the renderer until it ends.
+    void agent.send(String(matterId), `Run the workflow "${wf.title}" (${wf.id}) with these inputs: ${JSON.stringify(inputs ?? {})}. Call run_workflow now with the workflow "${wf.id}" and the inputs. Then tell me each step's result in short.`).catch((e) => console.error(`workflow start: ${(e as Error).message}`));
+    return { sent: true };
+  });
+  handle("builders:agents", () => advocateStore.agents());
+  handle("builders:save-agent", (input: Record<string, unknown>) => {
+    if (!input || typeof input !== "object") throw new Error("BAD_AGENT: an agent is needed");
+    return advocateStore.saveAgent(input, builderDeps(), { actor: "advocate" });
+  });
+  handle("builders:delete-agent", (id: string) => {
+    advocateStore.deleteAgent(String(id), { actor: "advocate" });
+    return advocateStore.agents();
+  });
+  handle("builders:test-agent", (input: Record<string, unknown>) => {
+    const raw = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
+    return testAgent({ ...raw, id: String(raw.id ?? "agent-draft"), version: String(raw.version ?? "1.0.0") } as never, builderDeps());
+  });
+  // Phase 11 (N7): the skill import. The raw text and the scan come first; the advocate installs.
+  handle("skills:import-preview", async () => {
+    if (!window) return null;
+    const picked = await dialog.showOpenDialog(window, { title: "Import a skill file", properties: ["openFile"], filters: [{ name: "Skill file", extensions: ["md"] }] });
+    const file = picked.canceled ? null : picked.filePaths[0] ?? null;
+    return file ? skillImporter.preview(file) : null;
+  });
+  handle("skills:import-install", (id: string) => {
+    const installed = skillImporter.install(String(id));
+    skillRegistry.get(true);
+    return installed;
+  });
+  // Phase 11 (S9): the trigger table and its fires. A fire starts nothing until the advocate starts it.
+  handle("triggers:list", () => advocateStore.triggers());
+  handle("triggers:save", (input: Record<string, unknown>) => {
+    if (!input || typeof input !== "object") throw new Error("BAD_TRIGGER: a trigger is needed");
+    return advocateStore.saveTrigger(input, { actor: "advocate" });
+  });
+  handle("triggers:set-enabled", (id: string, enabled: boolean) => advocateStore.setTriggerEnabled(String(id), enabled === true, { actor: "advocate" }));
+  handle("triggers:delete", (id: string) => advocateStore.deleteTrigger(String(id), { actor: "advocate" }));
+  handle("triggers:fires", (matterId?: string) => {
+    const all = advocateStore.triggerFires();
+    return matterId ? all.filter((f) => f.matterId === String(matterId)) : all;
+  });
+  handle("triggers:decide", async (id: string, state: string) => {
+    if (state !== "started" && state !== "dismissed") throw new Error("BAD_STATE: started or dismissed");
+    const fire = advocateStore.triggerFires().find((f) => f.id === String(id));
+    if (!fire) throw new Error(`NOT_FOUND: no trigger fire ${String(id)}`);
+    const decided = advocateStore.decideTriggerFire(fire.id, state, { actor: "advocate" });
+    if (state === "started") {
+      const store = await matters.store(fire.matterId);
+      for (const r of fire.responses) {
+        const p = responseProposal(r, fire.subject);
+        store.openReviewItem(p.kind, null, null, p.detail);
+      }
+      if (fire.skills.length) {
+        void agent.send(fire.matterId, `The trigger "${fire.event}" fired for ${fire.subject}. Run these skills now, one after the other: ${fire.skills.join(", ")}. Use run_skill for each, with the reason "the trigger ${fire.event} fired". These are proposals; do not change a draft or a deadline.`).catch((e) => console.error(`trigger start: ${(e as Error).message}`));
+      }
+      matterChanged(fire.matterId);
+    }
+    return decided;
+  });
   handle("library:open", async (id: string) => {
     const f = library.fileFor(String(id));
     if (!f) throw new Error(`NOT_FOUND: no library item ${String(id)}`);
@@ -1541,6 +1725,7 @@ async function notifyReminders(): Promise<number> {
   for (const r of due) {
     if (Notification.isSupported() && process.env.OPENADVO_TEST !== "1") new Notification({ title: `Reminder: ${r.title}`, body: r.text }).show();
     window?.webContents.send("reminders:due", r);
+    if (advocateStore) fireTrigger(r.matterId, "deadline_approaching", r.text);
   }
   return due.length;
 }
@@ -1676,6 +1861,9 @@ app.whenReady().then(() => {
   };
   recordTables = new RecordTables(matters);
   library = new Library(advocateStore, path.join(app.getPath("userData"), "library"));
+  integrations = new Integrations(advocateStore, path.join(app.getPath("userData"), "integrations"));
+  integrations.sync();
+  skillImporter = new SkillImport(path.join(app.getPath("userData"), "skills"), AGENT_TOOLS);
   proposals = new MatterProposals(path.join(app.getPath("userData"), "matter-proposals.json"));
   courtIntel = new CourtIntel({
     intel: intelStore,
@@ -1837,6 +2025,9 @@ app.whenReady().then(() => {
           const details = store.work.details();
           return library.precedents({ court: details.court || profile.court, proceeding: profile.proceeding, practiceArea: profile.practiceArea });
         },
+        // Phase 11 (N5): the workflows the advocate built.
+        workflow: (id) => advocateStore.workflow(id),
+        workflows: () => advocateStore.workflows(),
       },
       browser: {
         open: async ({ url, visible }) => {
@@ -1938,6 +2129,21 @@ app.whenReady().then(() => {
           const rows = detectContradictions(store.evidence.facts(), nb.events.map((e) => ({ id: e.id, dateStart: e.dateStart, description: e.description, sourceId: e.sourceId, page: e.page, line: e.line })));
           return rows.length ? rows.map((c) => `- ${c.kind}: ${c.values.map((v) => `${v.value} (${v.text.slice(0, 120)})`).join(" / ")}`).join("\n") : "No contradiction is found.";
         }
+        if (tool === "list_foreign_elements") {
+          const rows = store.foreignElements();
+          const routes = store.foreignRoutes();
+          return rows.length
+            ? `${rows.map((f) => `- ${f.id} [${f.status}/${f.kind}] ${f.subject}${f.country ? ` (${f.country})` : ""}${f.detail ? `: ${f.detail}` : ""}`).join("\n")}\nRoutes:\n${routes.map((r) => `- [${r.status}] ${r.route} (${r.basis}; ${r.source})`).join("\n") || "No route is open."}`
+            : "No foreign element is recorded.";
+        }
+        if (tool === "propose_foreign_element") {
+          const source = sourceOf(params.source);
+          const f = store.proposeForeignElement(
+            { kind: String(params.kind ?? "") as never, subject: String(params.subject ?? ""), country: String(params.country ?? ""), detail: String(params.detail ?? ""), sourceId: source?.id ?? null },
+            { actor: "agent", sessionId },
+          );
+          return `Proposed foreign element ${f.id}: ${f.subject} (${f.country}). The advocate confirms or rejects it.`;
+        }
         throw new MatterStoreError("UNKNOWN_TOOL", tool);
       },
       firm: {
@@ -1950,7 +2156,7 @@ app.whenReady().then(() => {
     },
     { agentDir: piAgentDir(), piHome: ownerPiHome ?? getAgentDir(), model: process.env.OPENADVO_MODEL || undefined, extensions: piExtensions(), policy: toolPolicy() },
   );
-  ingest = new Ingest(matters, (matterId) => window?.webContents.send("ingest:update", matterId), (matterId) => analyzeMatter(matters, matterId, courtIntel));
+  ingest = new Ingest(matters, (matterId) => window?.webContents.send("ingest:update", matterId), (matterId) => analyzeMatter(matters, matterId, courtIntel), (matterId, name) => fireTrigger(matterId, "new_document", name));
   browser = new Browser({
     window: () => window,
     userData: app.getPath("userData"),
@@ -1972,7 +2178,7 @@ app.whenReady().then(() => {
     onShortcut: (shortcut) => window?.webContents.send("browser:shortcut", shortcut),
   });
   registerBridge();
-  registerIntelBridge(handle, { intel: courtIntel, matters });
+  registerIntelBridge(handle, { intel: courtIntel, matters, onEvent: (matterId, event, subject) => fireTrigger(matterId, event, subject) });
   registerHarnessBridge(handle, { matters, agent, progress, skills: skillRegistry, packs: practicePacks, advocate: advocateStore, intel: intelStore, corpus: () => hub?.corpus ?? null });
   exposeTestHooks();
   createWindow();

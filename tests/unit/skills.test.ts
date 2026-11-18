@@ -36,7 +36,7 @@ const load = (over: Record<string, unknown>, body = "Do the work.", file = "a/SK
 test("the built-in skills load with no error, each inside its role's tool scope", () => {
   const registry = new SkillRegistry({ builtIn: path.join(repo, "skills"), advocate: path.join(tmpdir(), "no-such-folder") }, AGENT_TOOLS).get();
   // Phase 8 (N4): the practice-pack library. Every phase 8 row of docs/skills.md is present.
-  assert.equal(registry.all.length, 61);
+  assert.equal(registry.all.length, 140);
   assert.deepEqual(registry.all.filter((s) => s.error).map((s) => [s.id, s.error]), []);
   for (const s of registry.active.values()) {
     assert.equal(s.author, "built-in");

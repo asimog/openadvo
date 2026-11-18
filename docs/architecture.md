@@ -31,10 +31,11 @@ Derived indexes       FTS5 · vectors · graph edges   (rebuildable, own nothing
 | Advocate profile, court and practice selections, preferences, advocate memory | Advocate store | `advocate.db` in user data |
 | Courts, benches, case types, rules, fees, forms, limitation rules, holidays, sources and their freshness | Local intelligence store | `intel.db` in user data, versioned rows |
 | Judgments, statutes and their versions, treatments, propositions from public law | Legal corpus | `corpus.db` (extends the current one) |
-| Matter identity, stage, parties, facts, events, issues, arguments, decisions, approvals, matter memory, hearings, filings | Matter store | `matter.db` per matter (current) |
+| Matter identity, stage, parties, facts, events, issues, arguments, decisions, approvals, matter memory, hearings, filings, workflow runs, outcome records, foreign elements and document quality | Matter store | `matter.db` per matter (current) |
 | Original files | Content-addressed store | `blobs/<sha256>` (current) |
 | Draft revisions | Matter store and blobs | current |
-| Skills, workflows, custom agents | Skills registry | `skills/` in the repository (built-in) and in user data (the advocate's own), with an index |
+| Skills, workflows, custom agents | Skills registry and the advocate store | `skills/` in the repository (built-in) and in user data (the advocate's own), with an index; the built workflows and agents in `advocate.db` |
+| Triggers, integration manifests and their state | Advocate store | `advocate.db` and `<userData>/integrations/` |
 | Execution state | Agent runtime | Pi session files per matter (current) |
 | Permissions and policy | Policy module in the main process | code plus `advocate.db` settings |
 | Audit | Hash chain inside each store | current pattern, extended to `advocate.db` and `intel.db` |

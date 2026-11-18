@@ -142,10 +142,43 @@ export function packById(packs: readonly PracticePack[], id: string): PracticePa
   return packs.find((p) => p.id === id) ?? null;
 }
 
-/** The pack a Practice Profile practice area serves. `constitutional` is the writ pack. */
+const PRACTICE_ALIAS: Record<string, string> = {
+  constitutional: "writ",
+  constitution: "writ",
+  arbitration: "commercial",
+  corporate: "commercial",
+  contracts: "commercial",
+  contract: "commercial",
+  matrimonial: "family",
+  marriage: "family",
+  land: "property",
+  "real estate": "property",
+  ibc: "insolvency",
+  company: "insolvency",
+  debt: "banking",
+  sarfaesi: "banking",
+  drt: "banking",
+  taxation: "tax",
+  gst: "tax",
+  "income tax": "tax",
+  employment: "service",
+  labour: "service",
+  "intellectual property": "ip",
+  trademark: "ip",
+  copyright: "ip",
+  patent: "ip",
+  environment: "environmental",
+  regulatory: "environmental",
+  "administrative law": "administrative",
+  "motor accident": "motor",
+  accident: "motor",
+  "negotiable instruments": "cheque",
+};
+
+/** The pack a Practice Profile practice area serves. */
 export function packForPractice(packs: readonly PracticePack[], practice: string): PracticePack | null {
   const p = norm(practice);
-  const alias = p === "constitutional" || p === "constitution" ? "writ" : p;
+  const alias = PRACTICE_ALIAS[p] ?? PRACTICE_ALIAS[practice.trim().toLowerCase()] ?? p;
   return packs.find((x) => x.id === alias || x.practice.some((y) => norm(y) === p || norm(y) === alias)) ?? null;
 }
 

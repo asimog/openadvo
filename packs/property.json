@@ -1,0 +1,79 @@
+{
+  "id": "property",
+  "version": "1.0.0",
+  "title": "Property",
+  "practice": ["property", "land"],
+  "courts": ["in.hc.delhi", "in.dj.delhi"],
+  "acts": [
+    { "act": "Transfer of Property Act, 1882", "version": "1882, as amended", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Registration Act, 1908", "version": "1908, as amended", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Specific Relief Act, 1963", "version": "1963, as amended in 2018", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Code of Civil Procedure, 1908", "version": "1908, as amended", "source": "the Code; the law store records the version when it is imported" },
+    { "act": "State land revenue and tenancy codes", "version": "not recorded", "source": "the state code; the law store records the version when it is imported" }
+  ],
+  "templates": [
+    { "kind": "partition_suit", "title": "Partition suit", "note": "Partition, separate possession and the shares." },
+    { "kind": "eviction_petition", "title": "Eviction petition", "note": "Possession and eviction." },
+    { "kind": "plaint", "title": "Plaint", "note": "The title and injunction suit." },
+    { "kind": "application_interim", "title": "Interim application", "note": "Injunction against dispossession." },
+    { "kind": "written_statement", "title": "Written statement", "note": "The reply to the plaint." },
+    { "kind": "vakalatnama", "title": "Vakalatnama", "note": "The appointment form." }
+  ],
+  "proceedings": [
+    {
+      "key": "partition",
+      "title": "Partition suit",
+      "caseType": "Partition suit",
+      "courts": ["in.hc.delhi", "in.dj.delhi"],
+      "provisions": ["Partition Act, 1893", "Transfer of Property Act, 1882", "Code of Civil Procedure, 1908"],
+      "limitation": null,
+      "requiredParts": ["Partition suit", "Vakalatnama", "Affidavit", "Annexures"],
+      "documents": [
+        { "kind": "partition_suit", "title": "Partition suit" },
+        { "kind": "affidavit", "title": "Affidavit" },
+        { "kind": "vakalatnama", "title": "Vakalatnama" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Chart the title chain and the shares from the record.", "skill": "SK-511" },
+        { "text": "Review the land record entries.", "skill": "SK-512" },
+        { "text": "Draft the partition suit.", "skill": "SK-513" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Title documents", "Partition suit", "Written statement", "Issues", "Evidence", "Preliminary decree", "Final decree"],
+      "intakeQuestions": ["How did each owner acquire the share?", "Is the property joint family or co-owned?", "Is there a will or a family settlement?", "Which land record entries name the parties?"],
+      "skills": ["SK-511", "SK-512", "SK-513", "SK-516"],
+      "recordColumns": ["Date", "Document or entry", "Share", "Source", "Page", "Line"],
+      "evidence": ["The sale deeds and the gift deeds", "The mutation and land record entries", "The family tree", "The will or settlement"],
+      "terms": [{ "term": "Title chain", "meaning": "The series of documents by which the present owner's title is traced to its source." }]
+    },
+    {
+      "key": "eviction",
+      "title": "Possession and eviction",
+      "caseType": "Eviction petition",
+      "courts": ["in.hc.delhi", "in.dj.delhi"],
+      "provisions": ["Delhi Rent Control Act, 1958", "Transfer of Property Act, 1882, Section 106", "Code of Civil Procedure, 1908"],
+      "limitation": null,
+      "requiredParts": ["Eviction petition", "Vakalatnama", "Annexures"],
+      "documents": [
+        { "kind": "eviction_petition", "title": "Eviction petition" },
+        { "kind": "vakalatnama", "title": "Vakalatnama" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Read the tenancy, the rent and the default.", "skill": "SK-512" },
+        { "text": "Draft the possession and eviction petition.", "skill": "SK-514" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Tenancy", "Default or ground", "Notice", "Petition", "Reply", "Evidence", "Order"],
+      "intakeQuestions": ["When did the tenancy begin and at what rent?", "What is the ground for eviction?", "Was a notice served and how?", "Is the premises in a rent-controlled area?"],
+      "skills": ["SK-514", "SK-515", "SK-512"],
+      "recordColumns": ["Date", "Event", "Rent or default", "Source", "Page", "Line"],
+      "evidence": ["The lease or rent agreement", "The rent receipts and ledger", "The notice and its proof of service", "The photographs and inspection notes"],
+      "terms": [{ "term": "Bona fide need", "meaning": "The landlord's genuine requirement the rent law may name as a ground; the record must show it." }]
+    }
+  ],
+  "terms": [{ "term": "Mutation", "meaning": "The revenue record entry that records a transfer of title for land revenue purposes." }]
+}

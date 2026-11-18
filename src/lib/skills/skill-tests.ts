@@ -8,9 +8,9 @@ import { runGate } from "./gate.ts";
 import { WRITING_TOOLS } from "./roles.ts";
 
 export interface FixtureBrief {
-  id: "criminal-bail" | "civil-injunction" | "writ-maintainability";
+  id: string;
   title: string;
-  pack: "criminal" | "civil" | "writ";
+  pack: string;
   /** The record ids the fixture holds. A sample output anchors to these. */
   anchors: string[];
   context: ContextKind[];
@@ -38,6 +38,31 @@ export const FIXTURE_BRIEFS: FixtureBrief[] = [
     anchors: ["src-order:1:2", "src-appeal-order:2:5", "fact-order", "fact-remedy", "issue-maintainability"],
     context: ["sources", "lines", "events", "conflicts", "issues", "authorities", "drafts", "memory", "rules", "preferences"],
   },
+  ...([
+    ["commercial-arbitration", "A Section 34 challenge to an award on the record", "commercial", ["src-award:4:9", "fact-award", "fact-clause", "issue-jurisdiction"]],
+    ["family", "A maintenance application on the income record", "family", ["src-income:2:6", "fact-income", "fact-need", "issue-maintenance"]],
+    ["property", "A partition suit on a title chain with a gap", "property", ["src-deed:1:4", "fact-title", "fact-share", "issue-partition"]],
+    ["insolvency", "A Section 7 application on the default record", "insolvency", ["src-ledger:3:2", "fact-debt", "fact-default", "issue-admission"]],
+    ["banking", "A SARFAESI challenge to a possession notice", "banking", ["src-notice:2:7", "fact-debt", "fact-measure", "issue-section-17"]],
+    ["tax", "An ITAT appeal on an assessment and a demand", "tax", ["src-assessment:5:3", "fact-demand", "fact-ground", "issue-appeal"]],
+    ["service", "A CAT application on a punishment order", "service", ["src-order:1:1", "fact-charge", "fact-punishment", "issue-service"]],
+    ["consumer", "A consumer complaint on a deficient service", "consumer", ["src-invoice:1:5", "fact-service", "fact-loss", "issue-deficiency"]],
+    ["ip", "An infringement suit on a registered mark", "ip", ["src-registration:1:2", "fact-mark", "fact-use", "issue-infringement"]],
+    ["environmental", "An NGT application on a breached clearance condition", "environmental", ["src-clearance:2:1", "fact-condition", "fact-harm", "issue-ngt"]],
+    ["competition", "A CCI information on an anti-competitive practice", "competition", ["src-agreement:3:4", "fact-market", "fact-practice", "issue-competition"]],
+    ["administrative", "A statutory appeal on a reasoned order", "administrative", ["src-order:4:2", "fact-power", "fact-ground", "issue-appeal"]],
+    ["insurance", "A repudiation challenge on the policy clause", "insurance", ["src-policy:2:8", "fact-cover", "fact-repudiation", "issue-insurance"]],
+    ["immigration", "A writ against a deportation order", "immigration", ["src-order:1:6", "fact-status", "fact-order", "issue-deportation"]],
+    ["rera", "A RERA complaint on a delayed project", "rera", ["src-agreement:2:2", "fact-project", "fact-delay", "issue-rera"]],
+    ["motor", "A motor accident claim on the medical and income record", "motor", ["src-medical:1:3", "fact-accident", "fact-loss", "issue-compensation"]],
+    ["cheque", "A Section 138 complaint on a dishonoured cheque", "cheque", ["src-cheque:1:1", "fact-cheque", "fact-dishonour", "issue-offence"]],
+  ] as const).map(([id, title, pack, anchors]) => ({
+    id,
+    title,
+    pack,
+    anchors: [...anchors],
+    context: ["sources", "lines", "events", "conflicts", "issues", "authorities", "drafts", "memory", "rules", "preferences"] as ContextKind[],
+  })),
 ];
 
 export function fixtureById(id: string): FixtureBrief | null {
@@ -71,7 +96,7 @@ export interface ExpectedProperties {
   context: boolean;
 }
 
-const PACKS = ["general", "criminal", "civil", "writ", "slp"];
+const PACKS = ["general", "criminal", "civil", "writ", "slp", "commercial", "family", "property", "insolvency", "banking", "tax", "service", "consumer", "ip", "environmental", "competition", "administrative", "insurance", "immigration", "rera", "motor", "cheque"];
 
 /** A sample output of the skill's type, built from the fixture's anchors. */
 export function sampleOutput(type: OutputType, fixture: FixtureBrief): unknown {

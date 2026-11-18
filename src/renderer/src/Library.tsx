@@ -11,6 +11,7 @@ import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
 import { LIBRARY_KINDS, LIBRARY_STATUSES, type LibraryImportResult, type LibraryItem, type LibraryKind, type LibraryStatus } from "../../shared/stores.ts";
 import type { AdvocateGraphView, LibraryRoleGroup } from "../../shared/knowledge.ts";
+import type { StorageFolder, StorageProvider } from "../../shared/api.ts";
 import type { MatterSummary } from "../../shared/records.ts";
 
 const api = window.openadvo;
@@ -95,6 +96,7 @@ export function LibraryPage() {
   const [roles, setRoles] = useState<LibraryRoleGroup[]>([]);
   const [graph, setGraph] = useState<AdvocateGraphView | null>(null);
   const [graphError, setGraphError] = useState<string | null>(null);
+  const [storage, setStorage] = useState<StorageFolder[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -114,6 +116,7 @@ export function LibraryPage() {
   useEffect(() => {
     void api.listMatters().then(setMatters, () => setMatters([]));
     void api.advocateGraph().then(setGraph, () => setGraph(null));
+    void api.storageFolders().then(setStorage, () => setStorage([]));
   }, []);
 
   const rebuildGraph = async () => {
@@ -145,6 +148,18 @@ export function LibraryPage() {
       setError(errorText(e));
     }
   };
+  const importStorage = async (provider: StorageProvider) => {
+    try {
+      setError(null);
+      const r = await api.storageImportLibrary(provider);
+      if (r) {
+        setResult(r);
+        await load();
+      }
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
   const setItemStatus = async (id: string, next: LibraryStatus) => {
     try {
       setError(null);
@@ -165,6 +180,9 @@ export function LibraryPage() {
         <div className="row-actions">
           <Button label="Import files" size="sm" clickAction={importFiles} data-testid="library-import-files" />
           <Button label="Import a folder" size="sm" clickAction={importFolder} data-testid="library-import-folder" />
+          {storage.filter((s) => s.exists).map((s) => (
+            <Button key={s.provider} label={`Import from ${s.provider === "onedrive" ? "OneDrive" : "Google Drive"}`} size="sm" variant="ghost" clickAction={() => importStorage(s.provider)} data-testid={`library-import-${s.provider}`} />
+          ))}
           <input aria-label="Search the library" placeholder="Search titles, notes and tags" value={q} onChange={(e) => setQ(e.target.value)} />
           <select aria-label="Filter by kind" value={kind} onChange={(e) => setKind(e.target.value)}>
             <option value="">Every kind</option>

@@ -1,0 +1,74 @@
+{
+  "id": "administrative",
+  "version": "1.0.0",
+  "title": "Administrative and regulatory",
+  "practice": ["administrative", "regulatory", "RTI"],
+  "courts": ["in.hc.delhi", "in.t.cat", "in.sc"],
+  "acts": [
+    { "act": "Constitution of India, Articles 14, 19, 21 and 226", "version": "not recorded", "source": "the Constitution; no version is recorded for this pack" },
+    { "act": "Right to Information Act, 2005", "version": "2005, as amended", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "General Clauses Act, 1897", "version": "1897, as amended", "source": "the Act; the law store records the version when it is imported" }
+  ],
+  "templates": [
+    { "kind": "notice_reply", "title": "Show-cause reply", "note": "The reply to a show-cause notice." },
+    { "kind": "appeal_memo", "title": "Statutory appeal", "note": "The appeal the statute provides." },
+    { "kind": "writ_petition", "title": "Writ petition", "note": "The writ against the order." },
+    { "kind": "rti_appeal", "title": "RTI appeal", "note": "The first or second appeal." },
+    { "kind": "affidavit", "title": "Affidavit", "note": "The deponent's own recorded words." }
+  ],
+  "proceedings": [
+    {
+      "key": "statutory_appeal",
+      "title": "Statutory appeal",
+      "caseType": "Regulatory appeal",
+      "courts": ["in.t.cat", "in.hc.delhi"],
+      "provisions": ["The appeal provision of the governing statute", "Article 226 of the Constitution of India"],
+      "limitation": null,
+      "requiredParts": ["Statutory appeal", "Affidavit", "Annexures"],
+      "documents": [
+        { "kind": "appeal_memo", "title": "Statutory appeal" },
+        { "kind": "affidavit", "title": "Affidavit" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Read the order and the power it is made under.", "skill": "SK-602" },
+        { "text": "Draft the statutory appeal.", "skill": "SK-602" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Notice", "Reply", "Order", "Statutory appeal", "Hearing", "Order", "Writ"],
+      "intakeQuestions": ["What is the order and the power it is made under?", "Which appeal does the statute provide?", "Was the reply and the hearing given?", "What is the limitation?"],
+      "skills": ["SK-601", "SK-602", "SK-603"],
+      "recordColumns": ["Date", "Order or notice", "Power", "Source", "Page", "Line"],
+      "evidence": ["The notice", "The reply", "The order", "The appeal provision"],
+      "terms": [{ "term": "Natural justice", "meaning": "The notice and hearing the authority must give before an adverse order." }]
+    },
+    {
+      "key": "rti_appeal",
+      "title": "RTI appeal",
+      "caseType": "RTI appeal",
+      "courts": ["in.t.cat", "in.hc.delhi"],
+      "provisions": ["Sections 6, 7, 19 and 20 of the Right to Information Act, 2005"],
+      "limitation": { "id": "rti-19", "title": "First appeal under the Right to Information Act", "days": 30, "from": "the date of the reply or the expiry of the period", "source": "Right to Information Act, 2005, Section 19(1)", "ref": "Section 19(1)" },
+      "requiredParts": ["RTI appeal", "Affidavit", "Annexures"],
+      "documents": [
+        { "kind": "rti_appeal", "title": "RTI appeal" },
+        { "kind": "affidavit", "title": "Affidavit" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Read the request, the reply and the exemption claimed.", "skill": "SK-604" },
+        { "text": "Draft the first or second appeal.", "skill": "SK-604" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Request", "Reply", "First appeal", "Second appeal", "Order"],
+      "intakeQuestions": ["What information was sought and when?", "What did the public authority reply?", "Which exemption is claimed?", "Is the appeal within 30 days?"],
+      "skills": ["SK-604"],
+      "recordColumns": ["Date", "Request or reply", "Information", "Source", "Page", "Line"],
+      "evidence": ["The request", "The reply", "The exemption clause", "The appeal"],
+      "terms": [{ "term": "Public interest override", "meaning": "The Act's limit on an exemption where the public interest in disclosure is greater." }]
+    }
+  ],
+  "terms": [{ "term": "Reasoned order", "meaning": "An order that states the reasons the record supports." }]
+}

@@ -13,6 +13,8 @@ import type { Contradiction, DocumentOperation, DocumentPart, EvidenceRecord, Fa
 import type { SourceRecord } from "../../shared/records.ts";
 import { FACT_STATUSES, FACT_TYPES } from "../../shared/evidence.ts";
 import { MEMORY_QUESTIONS, OUTCOME_RESULTS, type MemoryAnswer, type OutcomeRecord, type OutcomeResult } from "../../shared/knowledge.ts";
+import { FOREIGN_KINDS, type ForeignElement, type ForeignRoute, type ForeignKind } from "../../shared/foreign.ts";
+import type { DocumentQuality } from "../../shared/quality.ts";
 import { dmy } from "../../shared/dates.ts";
 import { factProvenance } from "../../lib/verification/provenance.ts";
 import type { SourceLink } from "./Notebook.tsx";
@@ -215,6 +217,7 @@ export function EvidencePanel(props: { matterId: string; sources: SourceRecord[]
   const [operations, setOperations] = useState<DocumentOperation[]>([]);
   const [marks, setMarks] = useState<PageMark[]>([]);
   const [edges, setEdges] = useState<MatterEdge[]>([]);
+  const [quality, setQuality] = useState<Record<string, DocumentQuality>>({});
   const [form, setForm] = useState({ sourceId: "", exhibitNumber: "", witness: "", statement: "", givenBy: "", givenAt: "", electronic: false, device: "", admissibility: "", notes: "" });
   const [op, setOp] = useState({ kind: "extract", sourceId: "", sourceIds: [] as string[], pages: "", ranges: "", order: "", page: "1", x: "0.1", y: "0.1", w: "0.4", h: "0.1" });
   const [note, setNote] = useState<string | null>(null);
@@ -228,6 +231,8 @@ export function EvidencePanel(props: { matterId: string; sources: SourceRecord[]
       setOperations(o);
       setMarks(m);
       setEdges(g);
+      const scores = await Promise.all(props.sources.map(async (s) => [s.id, await api.documentQuality(props.matterId, s.id)] as const));
+      setQuality(Object.fromEntries(scores));
     } catch (e) {
       setError(errorText(e));
     }
@@ -277,6 +282,26 @@ export function EvidencePanel(props: { matterId: string; sources: SourceRecord[]
       <Text type="supporting">The exhibit, the witness and the chain of custody. The hash is the source's bytes. Authenticity and admissibility are yours to record.</Text>
       {error ? <div className="notice" role="alert">{error}</div> : null}
       {note ? <div className="notice" role="status">{note}</div> : null}
+      <Heading level={4}>Document quality</Heading>
+      <Text type="supporting">The score of each document: a blank page, a duplicate, a missing page, a low OCR confidence, blur, skew or a short read. A page read as text has no image metrics, and the score says so.</Text>
+      <ul className="plain-list" data-testid="document-quality">
+        {props.sources.map((s) => {
+          const q = quality[s.id];
+          return (
+            <li key={s.id} className="phase4-row" data-testid="document-quality-row">
+              <div className="phase4-main">
+                <div className="phase4-head">
+                  <Badge variant={!q || q.score >= 85 ? "success" : q.score >= 70 ? "warning" : "error"} label={q ? `${q.score}/100` : "no pages"} />
+                  <Text weight="semibold">{s.name}</Text>
+                </div>
+                <Text type="supporting">{q ? `${q.pages} page${q.pages === 1 ? "" : "s"}${q.expectedPages ? ` of ${q.expectedPages}` : ""}. ${q.imageMetrics ? "Image metrics recorded." : "Image metrics not recorded."}` : "The document has not been read yet."}</Text>
+                {q?.issues.length ? <Text type="supporting">{q.issues.slice(0, 4).map((i) => i.detail).join(" ")}{q.issues.length > 4 ? ` ${q.issues.length - 4} more issue(s).` : ""}</Text> : null}
+              </div>
+            </li>
+          );
+        })}
+        {props.sources.length === 0 ? <li><Text type="supporting">No document yet.</Text></li> : null}
+      </ul>
       <div className="phase4-form">
         <select aria-label="Evidence source" value={form.sourceId} onChange={(e) => setForm({ ...form, sourceId: e.target.value })}>
           <option value="">Choose a source</option>
@@ -401,12 +426,17 @@ export function JurisdictionPanel(props: { matterId: string; version: number; on
   const [draft, setDraft] = useState<JurisdictionReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [foreign, setForeign] = useState<ForeignElement[]>([]);
+  const [routes, setRoutes] = useState<ForeignRoute[]>([]);
+  const [foreignForm, setForeignForm] = useState({ kind: "foreign_party" as ForeignKind, subject: "", country: "", detail: "" });
   const load = useCallback(async () => {
     try {
-      const [r, c] = await Promise.all([api.jurisdictionGet(props.matterId), api.forumClauses(props.matterId)]);
+      const [r, c, f, fr] = await Promise.all([api.jurisdictionGet(props.matterId), api.forumClauses(props.matterId), api.listForeignElements(props.matterId), api.foreignRoutes(props.matterId)]);
       setReport(r);
       setDraft(r);
       setClauses(c);
+      setForeign(f);
+      setRoutes(fr);
     } catch (e) {
       setError(errorText(e));
     }
@@ -420,6 +450,25 @@ export function JurisdictionPanel(props: { matterId: string; version: number; on
       setError(null);
       setReport(await api.jurisdictionSet(props.matterId, draft));
       setNote("The jurisdiction report is saved.");
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  const addForeign = async () => {
+    try {
+      setError(null);
+      await api.addForeignElement(props.matterId, foreignForm);
+      setForeignForm({ ...foreignForm, subject: "", country: "", detail: "" });
+      await load();
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  const decideForeign = async (id: string, decision: "confirmed" | "rejected") => {
+    try {
+      setError(null);
+      await api.decideForeignElement(props.matterId, id, decision);
+      await load();
     } catch (e) {
       setError(errorText(e));
     }
@@ -448,6 +497,48 @@ export function JurisdictionPanel(props: { matterId: string; version: number; on
       <ul className="plain-list" data-testid="forum-clauses">
         {clauses.map((c) => <li key={c.id} className="phase4-row"><div className="phase4-main"><div className="phase4-head"><Badge variant="warning" label={c.kind.replace(/_/g, " ")} /><Text type="supporting">{c.sourceName}, p. {c.page}, l. {c.line}</Text></div><Text>{c.text}</Text></div><SourceButton sourceId={c.sourceId} sourceName={c.sourceName} page={c.page} line={c.line} onOpen={props.onOpenSource} /></li>)}
         {clauses.length === 0 ? <li><Text type="supporting">No forum clause is read.</Text></li> : null}
+      </ul>
+      <Heading level={4}>Foreign elements</Heading>
+      <Text type="supporting">A foreign party, judgment, award, seat or asset opens a route. The record must name the country; a name alone is never a guess. A route is a question for you, with its provisions and source.</Text>
+      <div className="phase4-form">
+        <select aria-label="Foreign element kind" value={foreignForm.kind} onChange={(e) => setForeignForm({ ...foreignForm, kind: e.target.value as ForeignKind })}>
+          {FOREIGN_KINDS.map((k) => <option key={k} value={k}>{k.replace(/_/g, " ")}</option>)}
+        </select>
+        <input aria-label="Foreign element subject" placeholder="The party, judgment, award, seat or asset" value={foreignForm.subject} onChange={(e) => setForeignForm({ ...foreignForm, subject: e.target.value })} />
+        <input aria-label="Foreign element country" placeholder="Country" value={foreignForm.country} onChange={(e) => setForeignForm({ ...foreignForm, country: e.target.value })} />
+        <input aria-label="Foreign element detail" placeholder="Where it was read (optional)" value={foreignForm.detail} onChange={(e) => setForeignForm({ ...foreignForm, detail: e.target.value })} />
+        <Button label="Add the element" size="sm" isDisabled={!foreignForm.subject.trim()} clickAction={addForeign} data-testid="foreign-add" />
+      </div>
+      <ul className="plain-list" data-testid="foreign-elements">
+        {foreign.map((f) => (
+          <li key={f.id} className="phase4-row" data-status={f.status} data-testid="foreign-element">
+            <div className="phase4-main">
+              <div className="phase4-head"><Badge variant={f.status === "confirmed" ? "success" : f.status === "rejected" ? "error" : "warning"} label={f.status} /><Badge variant="neutral" label={f.kind.replace(/_/g, " ")} /></div>
+              <Text weight="semibold">{f.subject}{f.country ? ` — ${f.country}` : ""}</Text>
+              {f.detail ? <Text type="supporting">{f.detail}</Text> : null}
+            </div>
+            {f.status === "proposed" ? (
+              <div className="row-actions">
+                <Button label="Confirm" size="sm" clickAction={() => decideForeign(f.id, "confirmed")} />
+                <Button label="Reject" size="sm" variant="ghost" clickAction={() => decideForeign(f.id, "rejected")} />
+              </div>
+            ) : null}
+          </li>
+        ))}
+        {foreign.length === 0 ? <li><Text type="supporting">No foreign element is recorded. A forum clause that names another country is proposed after the record is read.</Text></li> : null}
+      </ul>
+      <Heading level={4}>Routes</Heading>
+      <ul className="plain-list" data-testid="foreign-routes">
+        {routes.map((r) => (
+          <li key={`${r.route}|${r.basis}`} className="phase4-row" data-status={r.status}>
+            <div className="phase4-main">
+              <div className="phase4-head"><Badge variant={r.status === "confirmed" ? "success" : "warning"} label={r.status === "confirmed" ? "element confirmed" : "element proposed"} /></div>
+              <Text weight="semibold">{r.route}</Text>
+              <Text type="supporting">{r.basis}. Source: {r.source}. {r.note}</Text>
+            </div>
+          </li>
+        ))}
+        {routes.length === 0 ? <li><Text type="supporting">No route is open until an element is recorded.</Text></li> : null}
       </ul>
     </section>
   );

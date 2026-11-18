@@ -69,15 +69,15 @@ export class Matters {
     return store;
   }
 
-  async addFiles(matterId: string, paths: string[], ctx: WriteContext = { actor: "advocate" }): Promise<AddFileResult[]> {
+  async addFiles(matterId: string, paths: string[], ctx: WriteContext = { actor: "advocate" }, provider = ""): Promise<AddFileResult[]> {
     const store = await this.store(matterId);
     const results: AddFileResult[] = [];
-    for (const p of paths) results.push(await store.addFile(p, ctx));
+    for (const p of paths) results.push(await store.addFile(p, ctx, provider));
     return results;
   }
 
   /** C2, W4: every file under a folder, not hidden, into the matter. */
-  async addFolder(matterId: string, folder: string, ctx: WriteContext = { actor: "advocate" }): Promise<AddFileResult[]> {
+  async addFolder(matterId: string, folder: string, ctx: WriteContext = { actor: "advocate" }, provider = ""): Promise<AddFileResult[]> {
     const files: string[] = [];
     const walk = async (dir: string, depth: number): Promise<void> => {
       if (depth > 10 || files.length >= 1000) return;
@@ -96,7 +96,7 @@ export class Matters {
       }
     };
     await walk(folder, 0);
-    return this.addFiles(matterId, files, ctx);
+    return this.addFiles(matterId, files, ctx, provider);
   }
 
   /** C6: the edges in this matter and the edges other matters record to it, with their titles. */

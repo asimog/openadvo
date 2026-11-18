@@ -24,6 +24,9 @@ export interface LineBox {
   text: string;
 }
 
+import { pageQuality } from "./quality.ts";
+import type { PageQuality } from "../../shared/quality.ts";
+
 export type TextKind = "born_digital" | "ocr" | "none";
 
 export interface PageText {
@@ -39,6 +42,8 @@ export interface PageText {
   second?: { engine: string; version: string; confidence: number; text: string; disagreements: Disagreement[] };
   /** H4: signature, stamp and seal marks, candidates for the advocate. */
   marks?: MarkInput[];
+  /** H14: the rendered page's sharpness and skew, when the page was read as an image. */
+  quality?: PageQuality;
 }
 
 /** A page with fewer printable characters than this is treated as having no text layer. */
@@ -221,6 +226,8 @@ export async function processPdf(bytes: Uint8Array, onPage?: (page: PageText) =>
         page.ocr = { engine: OCR_ENGINE, version: ocrVersion(), confidence: ocr.confidence };
         page.second = await secondReading(png, page.height, 2.5, ocr.lines);
         page.marks = await detectMarks(png, page.height, 2.5).catch(() => []);
+        // H14: the quality of the page the OCR read.
+        page.quality = await pageQuality(png).catch(() => undefined);
       }
     }
     await onPage?.(page);
@@ -252,6 +259,7 @@ export async function processImage(bytes: Uint8Array, onPage?: (page: PageText) 
   };
   if (found) page.second = await secondReading(Buffer.from(bytes), img.height, 1, ocr.lines);
   if (found) page.marks = await detectMarks(Buffer.from(bytes), img.height, 1).catch(() => []);
+  if (found) page.quality = await pageQuality(Buffer.from(bytes)).catch(() => undefined);
   await onPage?.(page);
   return [page];
 }

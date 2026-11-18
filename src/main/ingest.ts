@@ -14,13 +14,15 @@ export class Ingest {
   private matters: Matters;
   private notify: (matterId: string) => void;
   private analyze: ((matterId: string) => Promise<unknown>) | null;
+  private onDocument: ((matterId: string, name: string) => void) | null;
   private chain: Promise<void> = Promise.resolve();
   private pending = new Set<string>();
 
-  constructor(matters: Matters, notify: (matterId: string) => void, analyze?: (matterId: string) => Promise<unknown>) {
+  constructor(matters: Matters, notify: (matterId: string) => void, analyze?: (matterId: string) => Promise<unknown>, onDocument?: (matterId: string, name: string) => void) {
     this.matters = matters;
     this.notify = notify;
     this.analyze = analyze ?? null;
+    this.onDocument = onDocument ?? null;
   }
 
   /** Queue every source of the matter that needs a job. Safe to call often. */
@@ -74,6 +76,7 @@ export class Ingest {
           await this.matters.recordPage(matterId, source.id, page);
         });
         await this.matters.finishJob(matterId, source.id, pages.length);
+        this.onDocument?.(matterId, source.name);
       } catch (e) {
         await this.matters.failJob(matterId, source.id, (e as Error).message || String(e));
       }

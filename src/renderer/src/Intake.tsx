@@ -3,12 +3,12 @@
  * confirms each creation; nothing is created from a model's suggestion alone.
  * Spec: docs/specs/advocate-matters-browser.md section 6.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@astryxdesign/core/Button";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
-import type { MatterSummary } from "../../shared/records.ts";
+import type { MatterSummary, StorageFolder } from "../../shared/api.ts";
 
 const api = window.openadvo;
 
@@ -21,6 +21,10 @@ export function IntakeDialog(props: { isOpen: boolean; onOpenChange: (open: bool
   const [court, setCourt] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [storage, setStorage] = useState<StorageFolder[]>([]);
+  useEffect(() => {
+    void api.storageFolders().then(setStorage, () => setStorage([]));
+  }, []);
 
   const run = async (fn: () => Promise<MatterSummary | null>) => {
     setBusy(true);
@@ -69,6 +73,15 @@ export function IntakeDialog(props: { isOpen: boolean; onOpenChange: (open: bool
           </div>
           <Button label="Choose an email" size="sm" isDisabled={busy} clickAction={() => run(async () => (await api.intakeEmail())?.matter ?? null)} data-testid="intake-email" />
         </section>
+        {storage.filter((s) => s.exists).map((s) => (
+          <section key={s.provider} className="intake-row">
+            <div>
+              <Text weight="semibold">From {s.provider === "onedrive" ? "OneDrive" : "Google Drive"}</Text>
+              <Text type="supporting">A folder inside the synced folder. The provider is kept on every source. Sign in to the provider in its own application; Open Advocate holds no cloud credential.</Text>
+            </div>
+            <Button label={`Choose from ${s.provider === "onedrive" ? "OneDrive" : "Google Drive"}`} size="sm" isDisabled={busy} clickAction={() => run(async () => (await api.intakeStorage(s.provider))?.matter ?? null)} data-testid={`intake-${s.provider}`} />
+          </section>
+        ))}
         <section className="intake-row">
           <div>
             <Text weight="semibold">From the chat</Text>

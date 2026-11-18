@@ -10,7 +10,14 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { CHAIN_SCHEMA, StoreError, appendChained, checkChain, humanOnly, inTransaction, type ChainCheck } from "../store-chain/index.ts";
 import { GRAPH_SCHEMA, buildAdvocateEdges } from "./graph.ts";
+import { checkIntegrationManifest } from "../integrations/index.ts";
+import { bumpVersion, checkAgent, checkWorkflow } from "../builders/index.ts";
+import { DEFAULT_TRIGGERS, checkTrigger, matchTriggers } from "../triggers/index.ts";
 import type { AdvocateGraphEdge, AdvocateGraphView, GraphNodeKind } from "../../shared/knowledge.ts";
+import type { IntegrationRecord } from "../../shared/integrations.ts";
+import type { AgentProfile, WorkflowDefinition } from "../../shared/builders.ts";
+import type { SkillDefinition } from "../../shared/skills.ts";
+import type { TriggerDefinition, TriggerFire, TriggerFireInput } from "../../shared/triggers.ts";
 import { ADVOCATE_SCOPE_TYPES, LIBRARY_KINDS, LIBRARY_STATUSES, MEMORY_STATUSES, MEMORY_TYPES, type AdvocateProfile, type LibraryItem, type LibraryKind, type LibraryStatus, type MemoryRecord, type MemoryStatus, type MemoryType, type PreferenceRecord } from "../../shared/stores.ts";
 import type { WriteContext } from "../../shared/records.ts";
 
@@ -70,6 +77,60 @@ CREATE TABLE IF NOT EXISTS library_item (
 ) STRICT;
 CREATE UNIQUE INDEX IF NOT EXISTS library_item_sha ON library_item(sha256);
 CREATE TRIGGER IF NOT EXISTS library_item_no_delete BEFORE DELETE ON library_item BEGIN SELECT RAISE(ABORT, 'library items are marked, never deleted'); END;
+`;
+
+const INTEGRATION_SCHEMA = `
+CREATE TABLE IF NOT EXISTS integration (
+  id TEXT PRIMARY KEY,
+  version TEXT NOT NULL,
+  title TEXT NOT NULL,
+  manifest TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 0,
+  error TEXT,
+  installed_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+) STRICT;
+CREATE TABLE IF NOT EXISTS workflow (
+  id TEXT NOT NULL,
+  version TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  definition TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  superseded_by TEXT,
+  PRIMARY KEY (id, version)
+) STRICT;
+CREATE TABLE IF NOT EXISTS agent (
+  id TEXT NOT NULL,
+  version TEXT NOT NULL,
+  title TEXT NOT NULL,
+  definition TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  superseded_by TEXT,
+  PRIMARY KEY (id, version)
+) STRICT;
+CREATE TABLE IF NOT EXISTS trigger (
+  id TEXT PRIMARY KEY,
+  event TEXT NOT NULL,
+  title TEXT NOT NULL,
+  skills TEXT NOT NULL,
+  responses TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+) STRICT;
+CREATE TABLE IF NOT EXISTS trigger_fire (
+  id TEXT PRIMARY KEY,
+  trigger_id TEXT NOT NULL,
+  event TEXT NOT NULL,
+  matter_id TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  skills TEXT NOT NULL,
+  responses TEXT NOT NULL,
+  state TEXT NOT NULL CHECK (state IN ('proposed', 'started', 'dismissed')),
+  created_at TEXT NOT NULL,
+  decided_at TEXT
+) STRICT;
 `;
 
 function memoryRow(r: Record<string, unknown>): MemoryRecord {
@@ -147,7 +208,15 @@ export class AdvocateStore {
     db.exec(CHAIN_SCHEMA);
     db.exec(SCHEMA);
     db.exec(GRAPH_SCHEMA);
+    db.exec(INTEGRATION_SCHEMA);
     const store = new AdvocateStore(file, db);
+    // S9: the default trigger table is written once. The advocate can disable or change each row.
+    if (!db.prepare("SELECT 1 FROM trigger LIMIT 1").get()) {
+      const at = new Date().toISOString();
+      const insert = db.prepare("INSERT INTO trigger (id, event, title, skills, responses, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+      for (const t of DEFAULT_TRIGGERS) insert.run(t.id, t.event, t.title, JSON.stringify(t.skills), JSON.stringify(t.responses), t.enabled ? 1 : 0, at, at);
+      appendChained(db, { actor: "system" }, "triggers.seeded", null, { triggers: DEFAULT_TRIGGERS.length });
+    }
     if (!db.prepare("SELECT 1 FROM event LIMIT 1").get()) appendChained(db, { actor: "system" }, "advocate_store.created", null, null);
     return store;
   }
@@ -426,5 +495,233 @@ export class AdvocateStore {
       if (frontier.length === 0) break;
     }
     return out;
+  }
+
+  // ---- Y1: the integration registry ----
+
+  integrations(): IntegrationRecord[] {
+    return (this.db.prepare("SELECT * FROM integration ORDER BY title, id").all() as Array<Record<string, unknown>>).map((r) => {
+      const check = checkIntegrationManifest(JSON.parse(String(r.manifest)));
+      return {
+        id: String(r.id),
+        version: String(r.version),
+        title: String(r.title),
+        enabled: Number(r.enabled) === 1,
+        error: r.error == null ? null : String(r.error),
+        manifest: check.manifest,
+        installedAt: String(r.installed_at),
+        updatedAt: String(r.updated_at),
+      };
+    });
+  }
+
+  /** Install or refresh one manifest. An invalid manifest is kept with its errors and cannot run. */
+  upsertIntegration(raw: unknown, ctx: WriteContext): IntegrationRecord {
+    const check = checkIntegrationManifest(raw);
+    const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+    const id = String(o.id ?? "").trim();
+    if (!id) throw new StoreError("BAD_INTEGRATION", "the manifest has no id");
+    const at = new Date().toISOString();
+    const version = String(o.version ?? "0.0.0");
+    const title = String(o.title ?? id);
+    inTransaction(this.db, () => {
+      this.db
+        .prepare("INSERT INTO integration (id, version, title, manifest, enabled, error, installed_at, updated_at) VALUES (?, ?, ?, ?, 0, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET version = excluded.version, title = excluded.title, manifest = excluded.manifest, error = excluded.error, updated_at = excluded.updated_at")
+        .run(id, version, title, JSON.stringify(raw), check.errors.length ? check.errors.join("; ") : null, at, at);
+      appendChained(this.db, ctx, "integration.installed", id, { version, valid: !check.errors.length });
+    });
+    return this.integrations().find((x) => x.id === id)!;
+  }
+
+  /** Human-only: enable or disable an integration. A refused manifest never enables. */
+  setIntegrationEnabled(id: string, enabled: boolean, ctx: WriteContext): IntegrationRecord {
+    humanOnly(ctx, "enables an integration");
+    const row = this.db.prepare("SELECT error FROM integration WHERE id = ?").get(id) as { error: string | null } | undefined;
+    if (!row) throw new StoreError("NOT_FOUND", `no integration ${id}`);
+    if (enabled && row.error) throw new StoreError("INTEGRATION_INVALID", row.error);
+    inTransaction(this.db, () => {
+      this.db.prepare("UPDATE integration SET enabled = ?, updated_at = ? WHERE id = ?").run(enabled ? 1 : 0, new Date().toISOString(), id);
+      appendChained(this.db, ctx, "integration.enabled", id, { enabled });
+    });
+    return this.integrations().find((x) => x.id === id)!;
+  }
+
+  // ---- N5: the built workflows and agents ----
+
+  private workflowRow(r: Record<string, unknown>): WorkflowDefinition {
+    const definition = JSON.parse(String(r.definition)) as Omit<WorkflowDefinition, "createdAt" | "supersededBy">;
+    return { ...definition, createdAt: String(r.created_at), supersededBy: r.superseded_by == null ? null : String(r.superseded_by) };
+  }
+
+  private agentRow(r: Record<string, unknown>): AgentProfile {
+    const definition = JSON.parse(String(r.definition)) as Omit<AgentProfile, "createdAt" | "supersededBy">;
+    return { ...definition, createdAt: String(r.created_at), supersededBy: r.superseded_by == null ? null : String(r.superseded_by) };
+  }
+
+  workflows(): WorkflowDefinition[] {
+    return (this.db.prepare("SELECT * FROM workflow WHERE superseded_by IS NULL ORDER BY title, id").all() as Array<Record<string, unknown>>).map((r) => this.workflowRow(r));
+  }
+
+  workflow(id: string): WorkflowDefinition | null {
+    const r = this.db.prepare("SELECT * FROM workflow WHERE id = ? AND superseded_by IS NULL").get(id) as Record<string, unknown> | undefined;
+    return r ? this.workflowRow(r) : null;
+  }
+
+  workflowHistory(id: string): WorkflowDefinition[] {
+    return (this.db.prepare("SELECT * FROM workflow WHERE id = ? ORDER BY created_at, version").all(id) as Array<Record<string, unknown>>).map((r) => this.workflowRow(r));
+  }
+
+  /** Human-only: save a workflow. An edit is a new version; the old row stays and points to it. */
+  saveWorkflow(raw: unknown, skillIds: readonly string[], ctx: WriteContext): WorkflowDefinition {
+    humanOnly(ctx, "saves a workflow");
+    const given = typeof (raw as { id?: unknown })?.id === "string" ? String((raw as { id: string }).id) : "";
+    const active = given ? this.workflow(given) : null;
+    const id = active?.id ?? (/^wf-[a-z0-9-]+$/.test(given) ? given : `wf-${randomUUID()}`);
+    const version = active ? bumpVersion(active.version) : "1.0.0";
+    const check = checkWorkflow({ ...(raw as object), id, version }, new Map(skillIds.map((s) => [s, { id: s, title: s }])));
+    if (!check.value) throw new StoreError("BAD_WORKFLOW", check.errors.join("; "));
+    const at = new Date().toISOString();
+    inTransaction(this.db, () => {
+      if (active) this.db.prepare("UPDATE workflow SET superseded_by = ? WHERE id = ? AND version = ?").run(version, id, active.version);
+      this.db.prepare("INSERT INTO workflow (id, version, title, description, definition, created_at, superseded_by) VALUES (?, ?, ?, ?, ?, ?, NULL)").run(id, version, check.value!.title, check.value!.description, JSON.stringify(check.value), at);
+      appendChained(this.db, ctx, "workflow.saved", id, { version, steps: check.value!.steps.length });
+    });
+    return this.workflow(id)!;
+  }
+
+  deleteWorkflow(id: string, ctx: WriteContext): void {
+    humanOnly(ctx, "removes a workflow");
+    if (!this.workflow(id)) throw new StoreError("NOT_FOUND", `no workflow ${id}`);
+    inTransaction(this.db, () => {
+      this.db.prepare("DELETE FROM workflow WHERE id = ? AND superseded_by IS NULL").run(id);
+      appendChained(this.db, ctx, "workflow.removed", id, null);
+    });
+  }
+
+  agents(): AgentProfile[] {
+    return (this.db.prepare("SELECT * FROM agent WHERE superseded_by IS NULL ORDER BY title, id").all() as Array<Record<string, unknown>>).map((r) => this.agentRow(r));
+  }
+
+  agent(id: string): AgentProfile | null {
+    const r = this.db.prepare("SELECT * FROM agent WHERE id = ? AND superseded_by IS NULL").get(id) as Record<string, unknown> | undefined;
+    return r ? this.agentRow(r) : null;
+  }
+
+  saveAgent(raw: unknown, deps: { skills: ReadonlyMap<string, SkillDefinition>; draftKinds: readonly string[]; humanOnly: RegExp; never: readonly string[] }, ctx: WriteContext): AgentProfile {
+    humanOnly(ctx, "saves an agent");
+    const given = typeof (raw as { id?: unknown })?.id === "string" ? String((raw as { id: string }).id) : "";
+    const active = given ? this.agent(given) : null;
+    const id = active?.id ?? (/^agent-[a-z0-9-]+$/.test(given) ? given : `agent-${randomUUID()}`);
+    const version = active ? bumpVersion(active.version) : "1.0.0";
+    const check = checkAgent({ ...(raw as object), id, version }, deps);
+    if (!check.value) throw new StoreError("BAD_AGENT", check.errors.join("; "));
+    const at = new Date().toISOString();
+    inTransaction(this.db, () => {
+      if (active) this.db.prepare("UPDATE agent SET superseded_by = ? WHERE id = ? AND version = ?").run(version, id, active.version);
+      this.db.prepare("INSERT INTO agent (id, version, title, definition, created_at, superseded_by) VALUES (?, ?, ?, ?, ?, NULL)").run(id, version, check.value!.title, JSON.stringify(check.value), at);
+      appendChained(this.db, ctx, "agent.saved", id, { version, skills: check.value!.skills.length });
+    });
+    return this.agent(id)!;
+  }
+
+  deleteAgent(id: string, ctx: WriteContext): void {
+    humanOnly(ctx, "removes an agent");
+    if (!this.agent(id)) throw new StoreError("NOT_FOUND", `no agent ${id}`);
+    inTransaction(this.db, () => {
+      this.db.prepare("DELETE FROM agent WHERE id = ? AND superseded_by IS NULL").run(id);
+      appendChained(this.db, ctx, "agent.removed", id, null);
+    });
+  }
+
+  // ---- S9: the trigger table ----
+
+  triggers(): TriggerDefinition[] {
+    return (this.db.prepare("SELECT * FROM trigger ORDER BY event, title, id").all() as Array<Record<string, unknown>>).map((r) => ({
+      id: String(r.id),
+      event: String(r.event) as TriggerDefinition["event"],
+      title: String(r.title),
+      skills: JSON.parse(String(r.skills)) as string[],
+      responses: JSON.parse(String(r.responses)) as TriggerDefinition["responses"],
+      enabled: Number(r.enabled) === 1,
+      createdAt: String(r.created_at),
+      updatedAt: String(r.updated_at),
+    }));
+  }
+
+  /** Human-only: add or change a trigger. */
+  saveTrigger(raw: unknown, ctx: WriteContext): TriggerDefinition {
+    humanOnly(ctx, "saves a trigger");
+    const check = checkTrigger(raw);
+    if (!check.trigger) throw new StoreError("BAD_TRIGGER", check.errors.join("; "));
+    const t = check.trigger;
+    const at = new Date().toISOString();
+    inTransaction(this.db, () => {
+      this.db
+        .prepare("INSERT INTO trigger (id, event, title, skills, responses, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET event = excluded.event, title = excluded.title, skills = excluded.skills, responses = excluded.responses, enabled = excluded.enabled, updated_at = excluded.updated_at")
+        .run(t.id, t.event, t.title, JSON.stringify(t.skills), JSON.stringify(t.responses), t.enabled ? 1 : 0, at, at);
+      appendChained(this.db, ctx, "trigger.saved", t.id, { event: t.event, enabled: t.enabled });
+    });
+    return this.triggers().find((x) => x.id === t.id)!;
+  }
+
+  setTriggerEnabled(id: string, enabled: boolean, ctx: WriteContext): TriggerDefinition {
+    humanOnly(ctx, "enables a trigger");
+    const have = this.triggers().find((t) => t.id === id);
+    if (!have) throw new StoreError("NOT_FOUND", `no trigger ${id}`);
+    return this.saveTrigger({ ...have, enabled }, ctx);
+  }
+
+  deleteTrigger(id: string, ctx: WriteContext): TriggerDefinition[] {
+    humanOnly(ctx, "removes a trigger");
+    if (!this.triggers().some((t) => t.id === id)) throw new StoreError("NOT_FOUND", `no trigger ${id}`);
+    inTransaction(this.db, () => {
+      this.db.prepare("DELETE FROM trigger WHERE id = ?").run(id);
+      appendChained(this.db, ctx, "trigger.removed", id, null);
+    });
+    return this.triggers();
+  }
+
+  /** Match the enabled triggers and write one fire for each. A fire starts nothing. */
+  fireTriggers(input: TriggerFireInput, ctx: WriteContext): TriggerFire[] {
+    const out: TriggerFire[] = [];
+    const at = new Date().toISOString();
+    inTransaction(this.db, () => {
+      for (const t of matchTriggers(this.triggers(), input.event)) {
+        const id = randomUUID();
+        this.db.prepare("INSERT INTO trigger_fire (id, trigger_id, event, matter_id, subject, skills, responses, state, created_at, decided_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'proposed', ?, NULL)").run(id, t.id, t.event, input.matterId, input.subject.slice(0, 500), JSON.stringify(t.skills), JSON.stringify(t.responses), at);
+        appendChained(this.db, ctx, "trigger.fired", id, { trigger: t.id, event: t.event, matter: input.matterId });
+        out.push(this.triggerFires().find((f) => f.id === id)!);
+      }
+    });
+    return out;
+  }
+
+  triggerFires(state?: TriggerFire["state"]): TriggerFire[] {
+    const rows = state ? this.db.prepare("SELECT * FROM trigger_fire WHERE state = ? ORDER BY created_at DESC, rowid DESC").all(state) : this.db.prepare("SELECT * FROM trigger_fire ORDER BY created_at DESC, rowid DESC").all();
+    return (rows as Array<Record<string, unknown>>).map((r) => ({
+      id: String(r.id),
+      triggerId: String(r.trigger_id),
+      event: String(r.event) as TriggerFire["event"],
+      matterId: String(r.matter_id),
+      subject: String(r.subject),
+      skills: JSON.parse(String(r.skills)) as string[],
+      responses: JSON.parse(String(r.responses)) as TriggerFire["responses"],
+      state: String(r.state) as TriggerFire["state"],
+      createdAt: String(r.created_at),
+      decidedAt: r.decided_at == null ? null : String(r.decided_at),
+    }));
+  }
+
+  /** Human-only: start the fire's skills or dismiss it. Starting is a chat instruction, in main. */
+  decideTriggerFire(id: string, state: "started" | "dismissed", ctx: WriteContext): TriggerFire {
+    humanOnly(ctx, "decides a trigger fire");
+    const have = this.triggerFires().find((f) => f.id === id);
+    if (!have) throw new StoreError("NOT_FOUND", `no trigger fire ${id}`);
+    if (have.state !== "proposed") throw new StoreError("DECIDED", `the fire is already ${have.state}`);
+    inTransaction(this.db, () => {
+      this.db.prepare("UPDATE trigger_fire SET state = ?, decided_at = ? WHERE id = ?").run(state, new Date().toISOString(), id);
+      appendChained(this.db, ctx, `trigger.${state}`, id, { trigger: have.triggerId });
+    });
+    return this.triggerFires().find((f) => f.id === id)!;
   }
 }

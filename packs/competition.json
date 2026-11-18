@@ -1,0 +1,71 @@
+{
+  "id": "competition",
+  "version": "1.0.0",
+  "title": "Competition",
+  "practice": ["competition"],
+  "courts": ["in.t.nclat", "in.hc.delhi", "in.sc"],
+  "acts": [
+    { "act": "Competition Act, 2002", "version": "2002, as amended in 2007, 2017, 2019 and 2023", "source": "the Act; the law store records the version when it is imported" }
+  ],
+  "templates": [
+    { "kind": "cci_information", "title": "Information to the CCI", "note": "The information alleging an anti-competitive practice." },
+    { "kind": "notice_reply", "title": "Reply to a report", "note": "The reply to the investigation report." },
+    { "kind": "appeal_memo", "title": "Appeal memo", "note": "The appeal to the NCLAT." },
+    { "kind": "affidavit", "title": "Affidavit", "note": "The informant's own recorded words." }
+  ],
+  "proceedings": [
+    {
+      "key": "cci_information",
+      "title": "CCI information",
+      "caseType": "Competition information",
+      "courts": ["in.t.nclat", "in.hc.delhi"],
+      "provisions": ["Sections 3, 4, 19 and 26 of the Competition Act, 2002"],
+      "limitation": null,
+      "requiredParts": ["Information to the CCI", "Affidavit", "Annexures"],
+      "documents": [
+        { "kind": "cci_information", "title": "Information to the CCI" },
+        { "kind": "affidavit", "title": "Affidavit" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Define the relevant market and the practice.", "skill": "SK-591" },
+        { "text": "Draft the information to the CCI.", "skill": "SK-591" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Practice", "Information", "Investigation", "Report", "Hearing", "Order", "NCLAT appeal"],
+      "intakeQuestions": ["What is the relevant market?", "Which practice is complained of and by whom?", "What effect does the record show on competition?", "Is there an earlier order or investigation?"],
+      "skills": ["SK-591", "SK-592", "SK-593"],
+      "recordColumns": ["Date", "Practice event", "Market", "Source", "Page", "Line"],
+      "evidence": ["The agreements or conduct", "The market data", "The correspondence", "The earlier orders"],
+      "terms": [{ "term": "Relevant market", "meaning": "The market the Commission defines for the practice complained of." }]
+    },
+    {
+      "key": "nclat_appeal",
+      "title": "NCLAT appeal",
+      "caseType": "Competition appeal",
+      "courts": ["in.t.nclat", "in.sc"],
+      "provisions": ["Section 53B of the Competition Act, 2002"],
+      "limitation": null,
+      "requiredParts": ["Appeal memo", "Affidavit", "Annexures"],
+      "documents": [
+        { "kind": "appeal_memo", "title": "Appeal memo" },
+        { "kind": "affidavit", "title": "Affidavit" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Analyse the CCI order.", "skill": "SK-008" },
+        { "text": "Draft the appeal.", "skill": "SK-593" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["CCI order", "Appeal", "Hearing", "Order"],
+      "intakeQuestions": ["What did the CCI decide?", "What is the penalty and the deposit?", "Which finding is challenged?"],
+      "skills": ["SK-593", "SK-008"],
+      "recordColumns": ["Date", "Finding", "Record", "Page", "Line"],
+      "evidence": ["The CCI order", "The investigation report", "The reply"],
+      "terms": [{ "term": "Penalty", "meaning": "The amount the Commission imposes, computed on the turnover as the Act requires." }]
+    }
+  ],
+  "terms": [{ "term": "Abuse of dominance", "meaning": "The conduct Section 4 of the Act prohibits by a dominant enterprise." }]
+}

@@ -1,0 +1,73 @@
+{
+  "id": "insurance",
+  "version": "1.0.0",
+  "title": "Insurance",
+  "practice": ["insurance"],
+  "courts": ["in.cc.ncdrc", "in.hc.delhi", "in.sc"],
+  "acts": [
+    { "act": "Insurance Act, 1938", "version": "1938, as amended", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Consumer Protection Act, 2019", "version": "2019, as amended", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Insurance Regulatory and Development Authority Act, 1999", "version": "1999", "source": "the Act; the law store records the version when it is imported" }
+  ],
+  "templates": [
+    { "kind": "consumer_complaint", "title": "Consumer complaint", "note": "The complaint against the repudiation." },
+    { "kind": "notice_reply", "title": "Reply or representation", "note": "The representation to the insurer or the ombudsman." },
+    { "kind": "written_statement", "title": "Written version", "note": "The insurer's reply." },
+    { "kind": "appeal_memo", "title": "Appeal memo", "note": "The appeal from the commission." },
+    { "kind": "affidavit", "title": "Affidavit", "note": "The insured's own recorded words." }
+  ],
+  "proceedings": [
+    {
+      "key": "repudiation",
+      "title": "Repudiation challenge",
+      "caseType": "Insurance complaint",
+      "courts": ["in.cc.ncdrc", "in.hc.delhi"],
+      "provisions": ["Section 45 of the Insurance Act, 1938", "Sections 2 and 35 of the Consumer Protection Act, 2019"],
+      "limitation": { "id": "insurance-consumer", "title": "Complaint to the consumer commission", "days": 730, "from": "the date on which the cause of action arose", "source": "Consumer Protection Act, 2019, Section 69", "ref": "Section 69" },
+      "requiredParts": ["Consumer complaint", "Affidavit", "Annexures"],
+      "documents": [
+        { "kind": "consumer_complaint", "title": "Consumer complaint" },
+        { "kind": "affidavit", "title": "Affidavit" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Chart the policy clauses and the repudiation.", "skill": "SK-612" },
+        { "text": "Draft the repudiation challenge.", "skill": "SK-611" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Policy", "Claim", "Survey", "Repudiation", "Representation", "Complaint", "Order", "Appeal"],
+      "intakeQuestions": ["What is the policy and the sum insured?", "What was the claim and its documents?", "What reason did the insurer give?", "Was the claim within time?"],
+      "skills": ["SK-611", "SK-612"],
+      "recordColumns": ["Date", "Policy or claim event", "Clause", "Source", "Page", "Line"],
+      "evidence": ["The policy and the proposal form", "The claim form and documents", "The survey report", "The repudiation letter"],
+      "terms": [{ "term": "Uberrima fides", "meaning": "The utmost good faith the contract of insurance requires of both parties." }]
+    },
+    {
+      "key": "ombudsman",
+      "title": "Insurance ombudsman",
+      "caseType": "Ombudsman representation",
+      "courts": ["in.cc.ncdrc"],
+      "provisions": ["The Insurance Ombudsman Rules, 2017", "Section 35 of the Consumer Protection Act, 2019"],
+      "limitation": null,
+      "requiredParts": ["Reply or representation", "Annexures"],
+      "documents": [
+        { "kind": "notice_reply", "title": "Reply or representation" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Chart the policy clauses.", "skill": "SK-612" },
+        { "text": "Draft the representation.", "skill": "SK-611" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Repudiation", "Representation", "Ombudsman", "Recommendation", "Complaint"],
+      "intakeQuestions": ["Is the complaint within the ombudsman's limit?", "Was the insurer's grievance process used?", "What relief is sought?"],
+      "skills": ["SK-611", "SK-612"],
+      "recordColumns": ["Date", "Claim event", "Clause", "Source", "Page", "Line"],
+      "evidence": ["The policy", "The repudiation", "The representation and reply"],
+      "terms": [{ "term": "Ombudsman", "meaning": "The officer who hears certain insurance complaints under the Rules." }]
+    }
+  ],
+  "terms": [{ "term": "Repudiation", "meaning": "The insurer's refusal to pay the claim, with its reason." }]
+}

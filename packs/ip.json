@@ -1,0 +1,79 @@
+{
+  "id": "ip",
+  "version": "1.0.0",
+  "title": "Intellectual property",
+  "practice": ["ip", "intellectual property", "trademark", "copyright", "patent"],
+  "courts": ["in.hc.delhi", "in.hc.bombay"],
+  "acts": [
+    { "act": "Trade Marks Act, 1999", "version": "1999, as amended", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Copyright Act, 1957", "version": "1957, as amended", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Patents Act, 1970", "version": "1970, as amended", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Designs Act, 2000", "version": "2000", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Code of Civil Procedure, 1908", "version": "1908, as amended", "source": "the Code; the law store records the version when it is imported" }
+  ],
+  "templates": [
+    { "kind": "ip_suit", "title": "Suit for infringement and passing off", "note": "The IP suit." },
+    { "kind": "application_interim", "title": "Interim injunction", "note": "The interim relief in the IP suit." },
+    { "kind": "rectification_petition", "title": "Rectification petition", "note": "The rectification or opposition." },
+    { "kind": "affidavit", "title": "Affidavit", "note": "The deponent's own recorded words." },
+    { "kind": "vakalatnama", "title": "Vakalatnama", "note": "The appointment form." }
+  ],
+  "proceedings": [
+    {
+      "key": "ip_suit",
+      "title": "Infringement suit",
+      "caseType": "IP suit",
+      "courts": ["in.hc.delhi", "in.hc.bombay"],
+      "provisions": ["Sections 27, 29, 134 and 135 of the Trade Marks Act, 1999", "Sections 51, 55 and 62 of the Copyright Act, 1957", "Order XXXIX Rules 1 and 2 of the Code of Civil Procedure, 1908"],
+      "limitation": null,
+      "requiredParts": ["Suit for infringement and passing off", "Interim injunction", "Affidavit", "Vakalatnama", "Annexures"],
+      "documents": [
+        { "kind": "ip_suit", "title": "Suit for infringement and passing off" },
+        { "kind": "application_interim", "title": "Interim injunction" },
+        { "kind": "affidavit", "title": "Affidavit" },
+        { "kind": "vakalatnama", "title": "Vakalatnama" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Read the registration, the use and the confusion record.", "skill": "SK-571" },
+        { "text": "Chart the mark or work and the use complained of.", "skill": "SK-571" },
+        { "text": "Draft the suit and the interim injunction.", "skill": "SK-572" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Registration or creation", "Use", "Cease and desist", "Suit", "Interim injunction", "Evidence", "Decree"],
+      "intakeQuestions": ["What is the mark, work or design and its registration?", "When did the plaintiff first use it?", "What use by the defendant is complained of?", "What evidence shows confusion or the likelihood of it?"],
+      "skills": ["SK-571", "SK-572", "SK-573", "SK-574"],
+      "recordColumns": ["Date", "Use or registration", "Mark or work", "Source", "Page", "Line"],
+      "evidence": ["The registration certificate", "The first-use record and sales", "The defendant's use", "The confusion evidence"],
+      "terms": [{ "term": "Passing off", "meaning": "The misrepresentation that the defendant's goods or services are the plaintiff's." }]
+    },
+    {
+      "key": "rectification",
+      "title": "Rectification and opposition",
+      "caseType": "Rectification petition",
+      "courts": ["in.hc.delhi", "in.hc.bombay"],
+      "provisions": ["Sections 47, 57 and 124 of the Trade Marks Act, 1999"],
+      "limitation": null,
+      "requiredParts": ["Rectification petition", "Affidavit", "Annexures"],
+      "documents": [
+        { "kind": "rectification_petition", "title": "Rectification petition" },
+        { "kind": "affidavit", "title": "Affidavit" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Read the mark and the register.", "skill": "SK-574" },
+        { "text": "Draft the rectification or the opposition.", "skill": "SK-574" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Application", "Opposition", "Evidence", "Hearing", "Order", "Rectification"],
+      "intakeQuestions": ["Which entry in the register is challenged?", "On which ground under the Act?", "What is the earlier right?"],
+      "skills": ["SK-574"],
+      "recordColumns": ["Date", "Register entry", "Ground", "Source", "Page", "Line"],
+      "evidence": ["The register extract", "The earlier mark or right", "The use record"],
+      "terms": [{ "term": "Rectification", "meaning": "The correction of an entry in the register of trade marks." }]
+    }
+  ],
+  "terms": [{ "term": "Confusion", "meaning": "The likelihood that the public associates the defendant's goods or services with the plaintiff's." }]
+}

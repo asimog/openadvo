@@ -145,6 +145,7 @@ Key files:
 | `src/lib/storage/` | The OneDrive and Google Drive synced-folder detection (Y3) |
 | `src/main/workflow-runs.ts` | The workflow runner: the steps, the gates and the report (N5) |
 | `src/main/skill-import.ts` | The skill import preview, the scan and the install (N7) |
+| `src/main/integrations.ts` | The integration manifest registry (Y1) |
 
 ### 6.2 Patterns to keep
 

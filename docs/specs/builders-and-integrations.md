@@ -21,7 +21,7 @@ Status: started 2026-11-18. The phase, its scope and its exit are in [../build-p
 
 | Element | Proposed from | Routes it may open |
 |---|---|---|
-| Foreign party | A party's address, or the advocate | Section 9 CPC read with the forum clause; a foreign plaintiff's security for costs; service outside India |
+| Foreign party | A party's recorded name or note, or the advocate | Section 9 CPC read with the forum clause; a foreign plaintiff's security for costs; service outside India |
 | Foreign judgment | A judgment from a court outside India, or the advocate | Section 13 and Section 44A CPC; enforcement, and the defences Section 13 names |
 | Foreign award | An award with a foreign seat, or the advocate | The New York Convention, Sections 44 to 52 of the Arbitration and Conciliation Act, 1996 |
 | Foreign seat or venue | A forum clause that names a seat outside India | The law of the arbitration, the supervisory court, and Section 9 or Section 17 interim relief |
@@ -33,7 +33,7 @@ The element rows live in `matter.db` (`foreign_element`). The routes are derived
 
 Detection is narrow and honest:
 
-- a party whose recorded address names a country other than India;
+- a party whose recorded name or note names a country other than India;
 - a forum clause from D3 whose seat, venue or law is outside India;
 - a source the advocate marks as a foreign judgment or a foreign award.
 
@@ -45,7 +45,7 @@ The two-engine comparison and its disputes are built (H3, H14 in part). This mod
 
 `src/lib/document-intelligence/quality.ts` has two functions:
 
-- `pageQuality(png)` returns `{ blur, skew }`. Blur is the variance of the Laplacian of the grey image, normalised to 0 to 100, higher is sharper. Skew is the angle in degrees, from -10 to 10, that maximises the row-sum variance of the dark pixels. Both run on a downscaled copy (480 px wide at most), so a page costs milliseconds.
+- `pageQuality(png)` returns `{ blur, skew }`. Blur is the variance of the Laplacian of the grey image, normalised to 0 to 100, higher is sharper. Skew is the angle in degrees, from -5 to 5, that maximises the row-sum variance of the dark pixels. Both run on a downscaled copy (480 px wide at most), so a page costs milliseconds.
 - `documentQuality({ pages, qualities, expectedPages })` returns `{ score, issues }`. It checks: a blank page; a page under 20 characters; a low OCR confidence (under 60); a blur score under 35; a skew over 1.5 degrees; a duplicate page (the same normalised text); a missing page number when the document numbers its pages; and a page count below `expectedPages`.
 
 The score starts at 100. Each issue costs its weight: blank 20, duplicate 15, missing page 15, low confidence 8, blur 8, skew 5, short page 3. The score never hides an issue; every issue is listed with its page.

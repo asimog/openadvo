@@ -6,6 +6,7 @@
 import { ROLE_TABLE } from "./roles.ts";
 import { WRITING_TOOLS } from "./roles.ts";
 import type { SkillDefinition } from "../../shared/skills.ts";
+import { PACK_IDS } from "../../shared/packs.ts";
 
 export const REVIEW_MAX = 26;
 
@@ -44,9 +45,9 @@ export const LEGAL_FAILURE_MODES = [
   { key: "decided_for_advocate", title: "Decided for the advocate: an issue, draft, authority or filing decided, accepted or approved" },
 ] as const;
 
-const FIXTURES = ["criminal-bail", "civil-injunction", "writ-maintainability"] as const;
+const FIXTURES = ["criminal-bail", "civil-injunction", "writ-maintainability", "commercial-arbitration", "family", "property", "insolvency", "banking", "tax", "service", "consumer", "ip", "environmental", "competition", "administrative", "insurance", "immigration", "rera", "motor", "cheque"] as const;
 
-const KNOWN_PACKS = ["general", "criminal", "civil", "writ", "slp"];
+const KNOWN_PACKS = ["general", ...PACK_IDS];
 
 function sentences(text: string): string[] {
   return text

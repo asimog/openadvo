@@ -1,8 +1,9 @@
 /**
- * Phase 8 (N4, N6): the phase 8 skill library. Every row of docs/skills.md section 2 that phase 8
- * owns is a skill; each loads, carries its review record with its version, and passes its fixture
- * test. The fixture briefs are named in docs/specs/practice-packs.md section 4; no gold set exists
- * (questions Q-3), and the test says that in its name.
+ * Phase 8 and phase 11 (N4, N8, N6): the skill library. Every row of docs/skills.md section 2 that
+ * phases 8 and 11 own is a skill; each loads, carries its review record with its version, and
+ * passes its fixture test. The fixture briefs are named in docs/specs/practice-packs.md section 4
+ * and docs/specs/builders-and-integrations.md section 11; no gold set exists (questions Q-3), and
+ * the test says that in its name.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -28,17 +29,65 @@ const PHASE_8 = [
   "SK-301", "SK-302", "SK-303", "SK-304", "SK-305", "SK-307", "SK-308", "SK-309",
 ];
 
+const PHASE_11 = [
+  // Every proceeding.
+  "SK-034", "SK-035",
+  // Criminal.
+  "SK-111", "SK-112", "SK-115",
+  // Civil.
+  "SK-209", "SK-211",
+  // Writ.
+  "SK-306",
+  // Commercial and arbitration.
+  "SK-401", "SK-402", "SK-403", "SK-404", "SK-405", "SK-406", "SK-407", "SK-408", "SK-409", "SK-410", "SK-411",
+  // Family.
+  "SK-501", "SK-502", "SK-503", "SK-504", "SK-505", "SK-506", "SK-507",
+  // Property.
+  "SK-511", "SK-512", "SK-513", "SK-514", "SK-515", "SK-516",
+  // Insolvency.
+  "SK-521", "SK-522", "SK-523", "SK-524", "SK-525",
+  // Banking.
+  "SK-531", "SK-532", "SK-533", "SK-534",
+  // Tax.
+  "SK-541", "SK-542", "SK-543", "SK-544", "SK-545",
+  // Service.
+  "SK-551", "SK-552", "SK-553", "SK-554",
+  // Consumer.
+  "SK-561", "SK-562", "SK-563",
+  // Intellectual property.
+  "SK-571", "SK-572", "SK-573", "SK-574",
+  // Environmental.
+  "SK-581", "SK-582", "SK-583",
+  // Competition.
+  "SK-591", "SK-592", "SK-593",
+  // Administrative.
+  "SK-601", "SK-602", "SK-603", "SK-604",
+  // Insurance.
+  "SK-611", "SK-612",
+  // Immigration.
+  "SK-621", "SK-622",
+  // RERA.
+  "SK-631", "SK-632",
+  // Motor accident.
+  "SK-641", "SK-642", "SK-643",
+  // Cheque dishonour.
+  "SK-651", "SK-652", "SK-653",
+];
+
+const ALL = [...PHASE_8, ...PHASE_11];
+
 const registry = new SkillRegistry({ builtIn: path.join(repo, "skills"), advocate: path.join(tmpdir(), "no-such-folder") }, AGENT_TOOLS).get();
 
-test("N4: the phase 8 rows of the skill library are present, once each", () => {
+test("N4, N8: the phase 8 and phase 11 rows of the skill library are present, once each", () => {
   assert.equal(PHASE_8.length, 61);
-  assert.equal(registry.all.length, 61);
-  assert.deepEqual([...registry.active.keys()].sort(), [...PHASE_8].sort());
+  assert.equal(PHASE_11.length, 79);
+  assert.equal(registry.all.length, 140);
+  assert.deepEqual([...registry.active.keys()].sort(), [...ALL].sort());
   assert.deepEqual(registry.all.filter((s) => s.error).map((s) => [s.id, s.error]), []);
 });
 
-test("N4: every skill names its pack, loads inside its role, and says what it does and when to call it", () => {
-  const packs = new Set(["general", "criminal", "civil", "writ", "slp"]);
+test("N4, N8: every skill names its pack, loads inside its role, and says what it does and when to call it", () => {
+  const packs = new Set(["general", "criminal", "civil", "writ", "slp", "commercial", "family", "property", "insolvency", "banking", "tax", "service", "consumer", "ip", "environmental", "competition", "administrative", "insurance", "immigration", "rera", "motor", "cheque"]);
   for (const s of registry.active.values()) {
     assert.ok(s.packs.length > 0 && s.packs.every((p) => packs.has(p)), `${s.id}: packs`);
     assert.ok(s.description.length >= 80 && /Use it when/i.test(s.description), `${s.id}: description`);
@@ -70,6 +119,7 @@ test("N6: every skill passes its fixture brief and its expected properties (fixt
 
 test("the prompt lists every skill and its role, so the Matter Agent can pick one and say which", () => {
   const prompt = skillsForPrompt(registry);
-  for (const id of PHASE_8) assert.ok(prompt.includes(id), id);
+  for (const id of ALL) assert.ok(prompt.includes(id), id);
   assert.match(prompt, /SK-103 \(Regular bail application/);
+  assert.match(prompt, /SK-409 \(Section 34 challenge/);
 });

@@ -1,0 +1,74 @@
+{
+  "id": "environmental",
+  "version": "1.0.0",
+  "title": "Environmental",
+  "practice": ["environmental", "environment"],
+  "courts": ["in.t.ngt", "in.sc"],
+  "acts": [
+    { "act": "National Green Tribunal Act, 2010", "version": "2010", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Environment (Protection) Act, 1986", "version": "1986, as amended", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Water (Prevention and Control of Pollution) Act, 1974", "version": "1974, as amended", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Air (Prevention and Control of Pollution) Act, 1981", "version": "1981, as amended", "source": "the Act; the law store records the version when it is imported" }
+  ],
+  "templates": [
+    { "kind": "ngt_application", "title": "NGT application", "note": "The application or appeal under the NGT Act." },
+    { "kind": "appeal_memo", "title": "Appeal memo", "note": "The appeal to the Supreme Court." },
+    { "kind": "affidavit", "title": "Affidavit", "note": "The deponent's own recorded words." }
+  ],
+  "proceedings": [
+    {
+      "key": "ngt_application",
+      "title": "NGT application",
+      "caseType": "Environmental application",
+      "courts": ["in.t.ngt"],
+      "provisions": ["Sections 14, 15, 16, 18 and 20 of the National Green Tribunal Act, 2010"],
+      "limitation": { "id": "ngt-16", "title": "Application or appeal to the National Green Tribunal", "days": 180, "from": "the date on which the cause of action first arose", "source": "National Green Tribunal Act, 2010, Section 16", "ref": "Section 16" },
+      "requiredParts": ["NGT application", "Affidavit", "Annexures"],
+      "documents": [
+        { "kind": "ngt_application", "title": "NGT application" },
+        { "kind": "affidavit", "title": "Affidavit" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Read the activity, the clearances and the harm.", "skill": "SK-581" },
+        { "text": "Chart the expert evidence.", "skill": "SK-583" },
+        { "text": "Draft the NGT application.", "skill": "SK-581" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Activity", "Clearance", "Representation", "NGT application", "Reply", "Expert evidence", "Order", "Appeal"],
+      "intakeQuestions": ["What activity is complained of and where?", "Which clearance or condition is breached?", "What harm does the record show?", "Was a representation made to the authority?"],
+      "skills": ["SK-581", "SK-582", "SK-583"],
+      "recordColumns": ["Date", "Activity or order", "Condition", "Source", "Page", "Line"],
+      "evidence": ["The clearances and conditions", "The inspection reports", "The expert reports", "The photographs and samples"],
+      "terms": [{ "term": "Precautionary principle", "meaning": "The principle the NGT applies when the record shows a risk of harm." }]
+    },
+    {
+      "key": "ngt_appeal",
+      "title": "NGT appeal",
+      "caseType": "Appeal under the NGT Act",
+      "courts": ["in.sc"],
+      "provisions": ["Section 22 of the National Green Tribunal Act, 2010"],
+      "limitation": null,
+      "requiredParts": ["Appeal memo", "Affidavit", "Annexures"],
+      "documents": [
+        { "kind": "appeal_memo", "title": "Appeal memo" },
+        { "kind": "affidavit", "title": "Affidavit" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Analyse the NGT order.", "skill": "SK-008" },
+        { "text": "Draft the appeal.", "skill": "SK-582" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["NGT order", "Appeal", "Hearing", "Order"],
+      "intakeQuestions": ["What did the NGT decide?", "Which question of law does the appeal raise?"],
+      "skills": ["SK-582", "SK-008"],
+      "recordColumns": ["Date", "Finding", "Record", "Page", "Line"],
+      "evidence": ["The NGT order", "The application and replies", "The expert evidence"],
+      "terms": [{ "term": "Question of law", "meaning": "The legal question the Supreme Court may hear in the appeal." }]
+    }
+  ],
+  "terms": [{ "term": "Sustainable development", "meaning": "The balance the Tribunal applies between development and the environment." }]
+}

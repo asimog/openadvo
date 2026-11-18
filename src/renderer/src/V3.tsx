@@ -9,8 +9,9 @@ import { Heading } from "@astryxdesign/core/Heading";
 import { Layout, LayoutContent, LayoutFooter, LayoutHeader, LayoutPanel, VStack } from "@astryxdesign/core/Layout";
 import { List, ListItem } from "@astryxdesign/core/List";
 import { Text } from "@astryxdesign/core/Text";
-import type { AppInfo, Appearance, InboxItem, PiExtensionInfo, ProgressStage, ToolPolicyView } from "../../shared/api.ts";
+import type { AppInfo, Appearance, InboxItem, IntegrationRecord, PiExtensionInfo, ProgressStage, StorageFolder, ToolPolicyView } from "../../shared/api.ts";
 import { DateAnchorForm, DisputeDecision } from "./V5.tsx";
+import { TriggersPanel } from "./Builders.tsx";
 
 const api = window.openadvo;
 
@@ -161,10 +162,33 @@ export function SettingsPage(props: { mailbox: ReactNode; research?: ReactNode; 
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [mode, setMode] = useState<Appearance>("system");
   const [active, setActive] = useState("appearance");
+  const [storage, setStorage] = useState<StorageFolder[]>([]);
+  const [integrations, setIntegrations] = useState<IntegrationRecord[]>([]);
+  const [integrationError, setIntegrationError] = useState<string | null>(null);
   useEffect(() => {
     void api.getAppInfo().then(setInfo);
     void api.getAppearance().then(setMode);
+    void api.storageFolders().then(setStorage, () => setStorage([]));
+    void api.listIntegrations().then(setIntegrations, () => setIntegrations([]));
   }, []);
+  const addIntegration = async () => {
+    try {
+      setIntegrationError(null);
+      const r = await api.addIntegration();
+      if (r) setIntegrations(await api.listIntegrations());
+    } catch (e) {
+      setIntegrationError((e as Error).message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ""));
+    }
+  };
+  const toggleIntegration = async (id: string, enabled: boolean) => {
+    try {
+      setIntegrationError(null);
+      await api.setIntegrationEnabled(id, enabled);
+      setIntegrations(await api.listIntegrations());
+    } catch (e) {
+      setIntegrationError((e as Error).message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ""));
+    }
+  };
   const choose = async (m: Appearance) => {
     setMode(m);
     window.dispatchEvent(new CustomEvent(APPEARANCE_EVENT, { detail: m }));
@@ -179,6 +203,9 @@ export function SettingsPage(props: { mailbox: ReactNode; research?: ReactNode; 
     { id: "mailbox", label: "Mailbox" },
     { id: "research", label: "Research sources" },
     { id: "contacts", label: "Contacts" },
+    { id: "storage", label: "Storage" },
+    { id: "integrations", label: "Integrations" },
+    { id: "triggers", label: "Triggers" },
     { id: "diagnostics", label: "Diagnostics" },
     { id: "filing-key", label: "Filing manifest key" },
     { id: "folders", label: "Folders" },
@@ -257,6 +284,47 @@ export function SettingsPage(props: { mailbox: ReactNode; research?: ReactNode; 
               <Heading level={3}>Contacts</Heading>
               <Text type="supporting">The firm's clients, opposing parties and advocates. A matter's parties link to them.</Text>
               {props.contacts}
+            </section>
+            <section className="work-section" id="settings-storage" aria-label="Storage">
+              <Heading level={3}>Storage</Heading>
+              <Text type="supporting">Local folders come first. OneDrive and Google Drive are read through the folders their desktop applications keep in sync. Open Advocate holds no cloud credential and uses no sign-in.</Text>
+              {storage.length === 0 ? <Text type="supporting">No OneDrive or Google Drive folder is detected on this computer.</Text> : (
+                <List density="compact" data-testid="storage-folders">
+                  {storage.map((s) => (
+                    <ListItem
+                      key={`${s.provider}:${s.root}`}
+                      label={`${s.provider === "onedrive" ? "OneDrive" : "Google Drive"}: ${s.exists ? "found" : "not found"}`}
+                      description={`${s.root} (${s.how})`}
+                    />
+                  ))}
+                </List>
+              )}
+            </section>
+            <section className="work-section" id="settings-integrations" aria-label="Integrations">
+              <Heading level={3}>Integrations</Heading>
+              <Text type="supporting">An integration declares what it does, what it may reach, its events, its lifecycle, its audit and what happens when it fails or is disabled. No integration is installed with the application.</Text>
+              <div className="row-actions">
+                <Button label="Add a manifest" size="sm" variant="ghost" clickAction={addIntegration} data-testid="integration-add" />
+              </div>
+              {integrationError ? <div className="notice" role="alert">{integrationError}</div> : null}
+              {integrations.length === 0 ? <Text type="supporting">No integration manifest is installed.</Text> : (
+                <List density="compact" data-testid="integrations-list">
+                  {integrations.map((i) => (
+                    <ListItem
+                      key={i.id}
+                      data-testid={`integration-${i.id}`}
+                      startContent={<Badge variant={i.error ? "error" : i.enabled ? "success" : "neutral"} label={i.error ? "Refused" : i.enabled ? "Enabled" : "Disabled"} />}
+                      label={`${i.title} v${i.version}`}
+                      description={i.error ?? `${i.manifest?.capabilities.join(", ")}; may reach ${i.manifest?.permissions.join(", ")}. Failure: ${i.manifest?.failure.mode}; disabled: ${i.manifest?.disable.state.replace(/_/g, " ")}.`}
+                      endContent={!i.error ? <Button label={i.enabled ? "Disable" : "Enable"} size="sm" variant="ghost" clickAction={() => toggleIntegration(i.id, !i.enabled)} /> : undefined}
+                    />
+                  ))}
+                </List>
+              )}
+            </section>
+            <section className="work-section" id="settings-triggers" aria-label="Triggers">
+              <Heading level={3}>Triggers</Heading>
+              <TriggersPanel />
             </section>
             <section className="work-section" id="settings-diagnostics" aria-label="Diagnostics">
               <Heading level={3}>Diagnostics</Heading>

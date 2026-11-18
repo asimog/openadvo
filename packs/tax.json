@@ -1,0 +1,77 @@
+{
+  "id": "tax",
+  "version": "1.0.0",
+  "title": "Tax",
+  "practice": ["tax", "taxation", "gst"],
+  "courts": ["in.t.itat", "in.t.cestat", "in.hc.delhi", "in.sc"],
+  "acts": [
+    { "act": "Income-tax Act, 1961", "version": "1961, as amended", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Central Goods and Services Tax Act, 2017", "version": "2017, as amended", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Integrated Goods and Services Tax Act, 2017", "version": "2017, as amended", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Customs Act, 1962", "version": "1962, as amended", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Central Excise Act, 1944", "version": "1944, as amended", "source": "the Act; the law store records the version when it is imported" }
+  ],
+  "templates": [
+    { "kind": "tax_appeal", "title": "Memorandum of appeal", "note": "The appeal to the Commissioner (Appeals), the ITAT, CESTAT or the GST appellate authority." },
+    { "kind": "notice_reply", "title": "Reply to a notice", "note": "The reply to a show-cause or a demand notice." },
+    { "kind": "application_stay", "title": "Stay application", "note": "The stay of the demand." },
+    { "kind": "affidavit", "title": "Affidavit", "note": "The deponent's own recorded words." },
+    { "kind": "vakalatnama", "title": "Vakalatnama", "note": "The appointment form." }
+  ],
+  "proceedings": [
+    {
+      "key": "itat",
+      "title": "ITAT appeal",
+      "caseType": "Income-tax appeal",
+      "courts": ["in.t.itat"],
+      "provisions": ["Sections 253 and 254 of the Income-tax Act, 1961"],
+      "limitation": null,
+      "requiredParts": ["Memorandum of appeal", "Affidavit", "Vakalatnama", "Annexures"],
+      "documents": [
+        { "kind": "tax_appeal", "title": "Memorandum of appeal" },
+        { "kind": "affidavit", "title": "Affidavit" },
+        { "kind": "vakalatnama", "title": "Vakalatnama" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Read the assessment order and the demand.", "skill": "SK-008" },
+        { "text": "Draft the grounds of appeal from the record.", "skill": "SK-543" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Return", "Assessment", "CIT(A) appeal", "ITAT appeal", "Hearing", "Order", "High Court appeal"],
+      "intakeQuestions": ["What did the assessing officer decide and on what material?", "What did the CIT(A) decide?", "Was the tax and the interest paid or stayed?", "Is there a limitation or a condonation question?"],
+      "skills": ["SK-541", "SK-542", "SK-543", "SK-545"],
+      "recordColumns": ["Date", "Assessment event", "Section", "Source", "Page", "Line"],
+      "evidence": ["The return and the accounts", "The assessment order", "The CIT(A) order", "The demand and the stay record"],
+      "terms": [{ "term": "Ground of appeal", "meaning": "One legal or factual challenge to the order, tied to its record." }]
+    },
+    {
+      "key": "gst_appeal",
+      "title": "GST appeal",
+      "caseType": "GST appeal",
+      "courts": ["in.t.cestat", "in.hc.delhi"],
+      "provisions": ["Sections 107 and 112 of the Central Goods and Services Tax Act, 2017"],
+      "limitation": null,
+      "requiredParts": ["Memorandum of appeal", "Stay application", "Annexures"],
+      "documents": [
+        { "kind": "tax_appeal", "title": "Memorandum of appeal" },
+        { "kind": "application_stay", "title": "Stay application" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Read the show-cause notice and the order.", "skill": "SK-541" },
+        { "text": "Draft the reply or the appeal.", "skill": "SK-544" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Show-cause notice", "Reply", "Order", "First appeal", "Second appeal", "High Court"],
+      "intakeQuestions": ["What is the demand and its basis?", "Was the reply and the personal hearing given?", "What is the pre-deposit paid?"],
+      "skills": ["SK-541", "SK-544", "SK-545"],
+      "recordColumns": ["Date", "Notice or order", "Section", "Source", "Page", "Line"],
+      "evidence": ["The show-cause notice", "The reply and the hearing record", "The order", "The pre-deposit receipt"],
+      "terms": [{ "term": "Pre-deposit", "meaning": "The part of the demand the statute requires before the appeal is entertained." }]
+    }
+  ],
+  "terms": [{ "term": "Demand", "meaning": "The tax, interest and penalty the order requires the assessee to pay." }]
+}

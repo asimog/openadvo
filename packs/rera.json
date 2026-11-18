@@ -1,0 +1,71 @@
+{
+  "id": "rera",
+  "version": "1.0.0",
+  "title": "RERA",
+  "practice": ["rera", "real estate"],
+  "courts": ["in.ra.rera.delhi", "in.t.aptel", "in.hc.delhi"],
+  "acts": [
+    { "act": "Real Estate (Regulation and Development) Act, 2016", "version": "2016, as amended", "source": "the Act; the law store records the version when it is imported" }
+  ],
+  "templates": [
+    { "kind": "rera_complaint", "title": "RERA complaint", "note": "The complaint to the authority." },
+    { "kind": "appeal_memo", "title": "Appeal memo", "note": "The appeal to the appellate tribunal." },
+    { "kind": "written_statement", "title": "Written statement", "note": "The promoter's reply." },
+    { "kind": "affidavit", "title": "Affidavit", "note": "The complainant's own recorded words." }
+  ],
+  "proceedings": [
+    {
+      "key": "rera_complaint",
+      "title": "RERA complaint",
+      "caseType": "RERA complaint",
+      "courts": ["in.ra.rera.delhi", "in.hc.delhi"],
+      "provisions": ["Sections 18, 19, 31 and 71 of the Real Estate (Regulation and Development) Act, 2016"],
+      "limitation": null,
+      "requiredParts": ["RERA complaint", "Affidavit", "Annexures"],
+      "documents": [
+        { "kind": "rera_complaint", "title": "RERA complaint" },
+        { "kind": "affidavit", "title": "Affidavit" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Read the project, the agreement and the default.", "skill": "SK-631" },
+        { "text": "Draft the complaint.", "skill": "SK-631" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Project registration", "Agreement", "Default", "Complaint", "Reply", "Hearing", "Order", "Appeal"],
+      "intakeQuestions": ["Is the project registered and for what completion date?", "What does the agreement say?", "What is the delay or the defect?", "What relief and interest are claimed?"],
+      "skills": ["SK-631", "SK-632"],
+      "recordColumns": ["Date", "Project event", "Amount", "Source", "Page", "Line"],
+      "evidence": ["The project registration", "The agreement to sell", "The payment receipts", "The occupation certificate and correspondence"],
+      "terms": [{ "term": "Promoter", "meaning": "The person the Act defines as building or selling the project." }]
+    },
+    {
+      "key": "rera_appeal",
+      "title": "RERA appeal",
+      "caseType": "RERA appeal",
+      "courts": ["in.t.aptel", "in.hc.delhi"],
+      "provisions": ["Sections 43 and 44 of the Real Estate (Regulation and Development) Act, 2016"],
+      "limitation": null,
+      "requiredParts": ["Appeal memo", "Affidavit", "Annexures"],
+      "documents": [
+        { "kind": "appeal_memo", "title": "Appeal memo" },
+        { "kind": "affidavit", "title": "Affidavit" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Analyse the authority's order.", "skill": "SK-008" },
+        { "text": "Draft the appeal.", "skill": "SK-632" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Authority order", "Appeal", "Hearing", "Order"],
+      "intakeQuestions": ["What did the authority decide?", "When was the order received?", "What is the pre-deposit?"],
+      "skills": ["SK-632", "SK-008"],
+      "recordColumns": ["Date", "Finding", "Record", "Page", "Line"],
+      "evidence": ["The authority's order", "The complaint and reply", "The project and payment record"],
+      "terms": [{ "term": "Pre-deposit", "meaning": "The part of the amount the appellant must deposit before the appeal is heard." }]
+    }
+  ],
+  "terms": [{ "term": "Occupancy certificate", "meaning": "The certificate the local authority issues when the building is fit for occupation." }]
+}

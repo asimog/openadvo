@@ -247,6 +247,13 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
       "listCrossQuestions", "proposeCrossQuestion", "decideCrossQuestion", "addTheory", "decideTheory", "askDissent",
       // Phase 10: memory and knowledge (docs/specs/memory-and-knowledge.md).
       "answerMemory", "listOutcomes", "recordOutcome", "libraryRoles", "listPrecedents", "advocateGraph", "rebuildAdvocateGraph", "walkAdvocateGraph",
+      // Phase 11: foreign elements, quality, storage, integrations, builders, skill import, triggers.
+      "listForeignElements", "addForeignElement", "decideForeignElement", "foreignRoutes", "documentQuality",
+      "storageFolders", "storageImportLibrary", "storageImportMatter", "intakeStorage",
+      "listIntegrations", "syncIntegrations", "addIntegration", "setIntegrationEnabled",
+      "listBuiltWorkflows", "saveBuiltWorkflow", "deleteBuiltWorkflow", "listWorkflowRuns", "runWorkflow", "listAgents", "saveAgent", "deleteAgent", "testAgentProfile",
+      "previewSkillImport", "installSkillImport",
+      "listTriggers", "saveTrigger", "setTriggerEnabled", "deleteTrigger", "listTriggerFires", "decideTriggerFire",
     ].sort(),
   );
 
@@ -361,6 +368,11 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
     // Phase 10 (F5, M2): the memory answers and the precedent offers.
     "answer_memory_question",
     "list_precedents",
+    // Phase 11 (D4, N5): foreign elements and the workflow tools.
+    "list_foreign_elements",
+    "propose_foreign_element",
+    "run_workflow",
+    "list_workflows",
   ].sort());
   const sessionId = await app.evaluate((_e, m) => (globalThis as any).__openadvoTest.agentSessionId(m), id);
   const events = await page.evaluate((m) => (globalThis as any).openadvo.listEvents(m), id);

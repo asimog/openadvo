@@ -1,0 +1,90 @@
+{
+  "version": "1.0.0",
+  "score": 25,
+  "max": 26,
+  "parameters": [
+    {
+      "key": "purpose",
+      "title": "Purpose and triggers",
+      "score": 2,
+      "detail": "The description says what the skill does and when to call it."
+    },
+    {
+      "key": "scope",
+      "title": "Pack, court and proceeding scope",
+      "score": 2,
+      "detail": "Packs: commercial. Courts: any. Proceedings: Section 16 objection."
+    },
+    {
+      "key": "inputs",
+      "title": "Inputs",
+      "score": 2,
+      "detail": "The run needs: the record the skill reads; the advocate's instruction."
+    },
+    {
+      "key": "context",
+      "title": "Required context",
+      "score": 2,
+      "detail": "The package includes: sources, events, issues, drafts, memory, preferences."
+    },
+    {
+      "key": "tools",
+      "title": "Permitted tools",
+      "score": 2,
+      "detail": "19 tool(s), all inside the drafting role."
+    },
+    {
+      "key": "output",
+      "title": "Output schema",
+      "score": 1,
+      "detail": "The output is a draft; the gate checks its shape."
+    },
+    {
+      "key": "anchors",
+      "title": "Anchors and provenance",
+      "score": 2,
+      "detail": "Every output item carries an anchor; the gate refuses an anchor of no record."
+    },
+    {
+      "key": "checks",
+      "title": "Checks",
+      "score": 2,
+      "detail": "schema, anchors"
+    },
+    {
+      "key": "approval",
+      "title": "Approval points",
+      "score": 2,
+      "detail": "A writing skill stops before its first write."
+    },
+    {
+      "key": "budget",
+      "title": "Budget",
+      "score": 2,
+      "detail": "60000 tokens."
+    },
+    {
+      "key": "tests",
+      "title": "Tests",
+      "score": 2,
+      "detail": "Tests: commercial-arbitration; every item is anchored and nothing is decided."
+    },
+    {
+      "key": "instructions",
+      "title": "Instructions",
+      "score": 2,
+      "detail": "The body states the steps, the anchors, not_read, the witness rule where it applies, and the line between a question and a decision."
+    },
+    {
+      "key": "version",
+      "title": "Version and author",
+      "score": 2,
+      "detail": "Version 1.0.0, advocate."
+    }
+  ],
+  "failure_modes": [],
+  "reviewed_at": "2026-11-18",
+  "fixtures": [
+    "commercial-arbitration"
+  ]
+}

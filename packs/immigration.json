@@ -1,0 +1,71 @@
+{
+  "id": "immigration",
+  "version": "1.0.0",
+  "title": "Immigration and citizenship",
+  "practice": ["immigration", "citizenship"],
+  "courts": ["in.hc.delhi", "in.hc.bombay", "in.sc"],
+  "acts": [
+    { "act": "Foreigners Act, 1946", "version": "1946, as amended", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Passports Act, 1967", "version": "1967, as amended", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Citizenship Act, 1955", "version": "1955, as amended", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Constitution of India, Articles 21 and 22", "version": "not recorded", "source": "the Constitution; no version is recorded for this pack" }
+  ],
+  "templates": [
+    { "kind": "writ_petition", "title": "Writ petition", "note": "The writ against a deportation or visa order." },
+    { "kind": "notice_reply", "title": "Representation", "note": "The representation to the authority." },
+    { "kind": "affidavit", "title": "Affidavit", "note": "The petitioner's own recorded words." }
+  ],
+  "proceedings": [
+    {
+      "key": "deportation_writ",
+      "title": "Writ against deportation",
+      "caseType": "Immigration writ",
+      "courts": ["in.hc.delhi", "in.hc.bombay"],
+      "provisions": ["Article 226 of the Constitution of India", "Section 3 of the Foreigners Act, 1946", "Section 5 of the Passports Act, 1967"],
+      "limitation": null,
+      "requiredParts": ["Writ petition", "Affidavit", "Annexures"],
+      "documents": [
+        { "kind": "writ_petition", "title": "Writ petition" },
+        { "kind": "affidavit", "title": "Affidavit" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Read the order, the visa and the representation.", "skill": "SK-621" },
+        { "text": "Draft the writ.", "skill": "SK-621" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Visa", "Order", "Representation", "Writ", "Hearing", "Order"],
+      "intakeQuestions": ["What order is challenged and on what power?", "What is the person's status and visa history?", "Was a representation made?", "Is there a threat of deportation before the decision?"],
+      "skills": ["SK-621", "SK-622"],
+      "recordColumns": ["Date", "Immigration event", "Order", "Source", "Page", "Line"],
+      "evidence": ["The passport and the visa", "The order", "The representation", "The travel and residence record"],
+      "terms": [{ "term": "Foreigner", "meaning": "The person the Foreigners Act, 1946 defines as not an Indian citizen." }]
+    },
+    {
+      "key": "foreigners_tribunal",
+      "title": "Foreigners Tribunal record",
+      "caseType": "Foreigners Tribunal review",
+      "courts": ["in.hc.delhi"],
+      "provisions": ["The Foreigners Act, 1946", "The Foreigners (Tribunals) Order, 1964"],
+      "limitation": null,
+      "requiredParts": ["Foreigners Tribunal record", "Affidavit", "Annexures"],
+      "documents": [
+        { "kind": "affidavit", "title": "Affidavit" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Chart the tribunal's record and findings.", "skill": "SK-622" },
+        { "text": "Review the findings against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Reference", "Tribunal", "Evidence", "Opinion", "Writ"],
+      "intakeQuestions": ["What did the tribunal find and on what evidence?", "Which documents were denied or not considered?", "Is the person named in the electoral roll or a citizenship record?"],
+      "skills": ["SK-622"],
+      "recordColumns": ["Date", "Tribunal event", "Finding", "Source", "Page", "Line"],
+      "evidence": ["The tribunal's opinion and record", "The citizenship documents", "The electoral roll entries"],
+      "terms": [{ "term": "Reference", "meaning": "The reference the authority makes to the Foreigners Tribunal to decide a person's status." }]
+    }
+  ],
+  "terms": [{ "term": "Citizenship", "meaning": "The status the Citizenship Act, 1955 governs." }]
+}

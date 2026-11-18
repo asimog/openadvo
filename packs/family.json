@@ -1,0 +1,78 @@
+{
+  "id": "family",
+  "version": "1.0.0",
+  "title": "Family",
+  "practice": ["family", "matrimonial"],
+  "courts": ["in.hc.delhi", "in.dj.delhi", "in.sc"],
+  "acts": [
+    { "act": "Hindu Marriage Act, 1955", "version": "1955, as amended", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Protection of Women from Domestic Violence Act, 2005", "version": "2005", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Hindu Minority and Guardianship Act, 1956", "version": "1956", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Guardians and Wards Act, 1890", "version": "1890", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Family Courts Act, 1984", "version": "1984", "source": "the Act; the law store records the version when it is imported" },
+    { "act": "Bharatiya Nagarik Suraksha Sanhita, 2023, Section 144", "version": "2023", "source": "the Sanhita, for maintenance; the Code of Criminal Procedure, 1973, Section 125, for matters before it" }
+  ],
+  "templates": [
+    { "kind": "family_petition", "title": "Family petition", "note": "Divorce, maintenance, custody or a matrimonial transfer." },
+    { "kind": "application_interim", "title": "Interim application", "note": "Maintenance, custody or an injunction during the case." },
+    { "kind": "affidavit", "title": "Affidavit", "note": "The deponent's own recorded words." },
+    { "kind": "vakalatnama", "title": "Vakalatnama", "note": "The appointment form." }
+  ],
+  "proceedings": [
+    {
+      "key": "divorce",
+      "title": "Divorce",
+      "caseType": "Matrimonial petition",
+      "courts": ["in.hc.delhi", "in.dj.delhi"],
+      "provisions": ["Hindu Marriage Act, 1955, Sections 13 and 13B", "Family Courts Act, 1984"],
+      "limitation": null,
+      "requiredParts": ["Family petition", "Vakalatnama", "Affidavit", "Annexures"],
+      "documents": [
+        { "kind": "family_petition", "title": "Family petition" },
+        { "kind": "affidavit", "title": "Affidavit" },
+        { "kind": "vakalatnama", "title": "Vakalatnama" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Read the marriage, the parties and the events with their anchors.", "skill": "SK-506" },
+        { "text": "Draft the divorce petition from the record.", "skill": "SK-501" },
+        { "text": "Review the draft against the record and the conditions.", "skill": "SK-027" }
+      ],
+      "stages": ["Marriage", "Petition", "Notice", "Mediation", "Evidence", "Arguments", "Decree"],
+      "intakeQuestions": ["When and where was the marriage solemnised?", "What is the ground for divorce?", "Is there a pending case between the parties?", "What is the arrangement for maintenance and custody?"],
+      "skills": ["SK-501", "SK-502", "SK-504", "SK-506", "SK-507"],
+      "recordColumns": ["Date", "Event", "Party", "Source", "Page", "Line"],
+      "evidence": ["The marriage certificate", "The petition and the reply", "The maintenance and custody record", "The mediation record"],
+      "terms": [{ "term": "Irretrievable breakdown", "meaning": "The ground the court may consider under the Act; the record must show it." }]
+    },
+    {
+      "key": "maintenance",
+      "title": "Maintenance",
+      "caseType": "Maintenance application",
+      "courts": ["in.dj.delhi", "in.hc.delhi"],
+      "provisions": ["Section 144 of the Bharatiya Nagarik Suraksha Sanhita, 2023", "Section 125 of the Code of Criminal Procedure, 1973, for matters before it", "Hindu Marriage Act, 1955, Section 24"],
+      "limitation": null,
+      "requiredParts": ["Maintenance application", "Affidavit", "Vakalatnama"],
+      "documents": [
+        { "kind": "family_petition", "title": "Maintenance application" },
+        { "kind": "affidavit", "title": "Affidavit" },
+        { "kind": "vakalatnama", "title": "Vakalatnama" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Chart the income, the expenses and the needs from the record.", "skill": "SK-506" },
+        { "text": "Draft the maintenance application.", "skill": "SK-502" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Application", "Notice", "Reply", "Interim order", "Evidence", "Order"],
+      "intakeQuestions": ["What is each party's income and employment?", "What are the needs of the applicant and the children?", "Is there an earlier maintenance order?"],
+      "skills": ["SK-502", "SK-506", "SK-507"],
+      "recordColumns": ["Date", "Income or expense", "Amount", "Source", "Page", "Line"],
+      "evidence": ["The salary and bank records", "The household expenses", "The earlier orders", "The children's school and medical records"],
+      "terms": [{ "term": "Maintenance", "meaning": "The amount the court orders for the applicant's support, from the record of means and needs." }]
+    }
+  ],
+  "terms": [{ "term": "Stridhan", "meaning": "The property a woman receives at or after marriage; the claim is her own." }]
+}

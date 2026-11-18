@@ -34,7 +34,7 @@ import type { Assessment, Challenge, QuickCheck, Treatment, ArgumentRun, Argumen
 import type { KnowledgeHealthView, KnowledgeScope, LawCounts, ResearchPlan, RetrievalResult, SearchMode } from "./law.ts";
 
 import type { AGUIEvent } from "@ag-ui/core";
-import type { ContextCandidate, ContextPackageRecord, JobRow, ReportCard, RoleSummary, SideThread, SkillRunRecord, SkillSummary } from "./skills.ts";
+import type { ContextCandidate, ContextPackageRecord, JobRow, ReportCard, RoleSummary, SideThread, SkillRunRecord, SkillSummary, SkillImportPreview, InstalledSkill } from "./skills.ts";
 import type { AdvocateProfile, IntelSource, Freshness, LibraryImportResult, LibraryItem, LibraryStatus, MemoryRecord, PreferenceRecord, StoreChains } from "./stores.ts";
 import type { BrowserBookmark, BrowserBounds, BrowserShortcut, BrowserState, BrowserVisit, CaseListProposal, CaseListResult } from "./browser.ts";
 import type { PackSummary } from "./packs.ts";
@@ -43,7 +43,19 @@ import type { AdvocateGraphView, GraphNodeKind } from "./knowledge.ts";
 export type * from "./packs.ts";
 export type * from "./browser.ts";
 import type { Contradiction, DocumentOperation, DocumentPart, EvidenceRecord, FactRecord, ForumClause, JurisdictionReport, MatterEdge, PageMark, RecordTemplate, RelatedProposal, SourceRelation, TimelineEntry } from "./evidence.ts";
+import type { ForeignElement, ForeignElementInput, ForeignRoute } from "./foreign.ts";
+import type { DocumentQuality } from "./quality.ts";
+import type { StorageFolder, StorageProvider } from "./storage.ts";
+export type { StorageFolder, StorageProvider } from "./storage.ts";
+import type { IntegrationRecord } from "./integrations.ts";
+import type { AgentProfile, AgentTest, WorkflowDefinition, WorkflowRun } from "./builders.ts";
+import type { TriggerDefinition, TriggerFire } from "./triggers.ts";
 export type * from "./evidence.ts";
+export type * from "./foreign.ts";
+export type * from "./quality.ts";
+export type * from "./integrations.ts";
+export type * from "./builders.ts";
+export type * from "./triggers.ts";
 export type * from "./skills.ts";
 export type * from "./stores.ts";
 export type * from "./knowledge.ts";
@@ -816,4 +828,67 @@ export interface OpenAdvoApi {
   rebuildAdvocateGraph(): Promise<AdvocateGraphView>;
   /** G3: one node's neighbours, one to three steps out. */
   walkAdvocateGraph(kind: GraphNodeKind, id: string, depth: number): Promise<AdvocateGraphView["edges"]>;
+  // ---- Phase 11: foreign elements, quality, builders, imports, triggers, integrations, storage ----
+  /** D4: the matter's foreign elements. */
+  listForeignElements(matterId: string): Promise<ForeignElement[]>;
+  /** D4, human-only: the advocate adds an element; it is confirmed at once. */
+  addForeignElement(matterId: string, input: ForeignElementInput): Promise<ForeignElement>;
+  /** D4, human-only: confirm or reject a proposed element. */
+  decideForeignElement(matterId: string, id: string, decision: "confirmed" | "rejected"): Promise<ForeignElement>;
+  /** D4: the routes the elements may open, derived with their provisions. */
+  foreignRoutes(matterId: string): Promise<ForeignRoute[]>;
+  /** H14: the document's quality score, its issues and its pages. */
+  documentQuality(matterId: string, sourceId: string): Promise<DocumentQuality>;
+  /** Y3: the OneDrive and Google Drive folders kept in sync on this machine. */
+  storageFolders(): Promise<StorageFolder[]>;
+  /** Y3, human-only: import a folder inside a provider into the Knowledge Library. Null when cancelled. */
+  storageImportLibrary(provider: StorageProvider): Promise<LibraryImportResult | null>;
+  /** Y3, human-only: import a folder inside a provider into a matter. Null when cancelled. */
+  storageImportMatter(matterId: string, provider: StorageProvider): Promise<{ added: number; refused: number; folder: string } | null>;
+  /** Y3, human-only: create a matter from a folder inside OneDrive or Google Drive. */
+  intakeStorage(provider: StorageProvider): Promise<{ matter: MatterSummary; added: number; refused: number; folder: string } | null>;
+  /** Y1: the installed integration manifests with their state. */
+  listIntegrations(): Promise<IntegrationRecord[]>;
+  /** Y1: read the manifest folders again. */
+  syncIntegrations(): Promise<IntegrationRecord[]>;
+  /** Y1, human-only: add a manifest file. Null when cancelled. */
+  addIntegration(): Promise<IntegrationRecord | null>;
+  /** Y1, human-only: enable or disable an integration. */
+  setIntegrationEnabled(id: string, enabled: boolean): Promise<IntegrationRecord>;
+  // ---- Phase 11: workflow and agent builder (N5) ----
+  /** N5: the workflows the advocate built, newest version of each. */
+  listBuiltWorkflows(): Promise<WorkflowDefinition[]>;
+  /** N5, human-only: save a workflow. An edit is a new version. */
+  saveBuiltWorkflow(input: Partial<WorkflowDefinition>): Promise<WorkflowDefinition>;
+  /** N5, human-only: remove a workflow. */
+  deleteBuiltWorkflow(id: string): Promise<WorkflowDefinition[]>;
+  /** N5: the workflow runs of the matter, newest first. */
+  listWorkflowRuns(matterId: string): Promise<WorkflowRun[]>;
+  /** N5, human-only: ask the Matter Agent to run the workflow. It calls run_workflow. */
+  runWorkflow(matterId: string, workflowId: string, inputs: Record<string, string>): Promise<{ sent: boolean }>;
+  /** N5: the agents the advocate built. */
+  listAgents(): Promise<AgentProfile[]>;
+  /** N5, human-only: save an agent. An edit is a new version. */
+  saveAgent(input: Partial<AgentProfile>): Promise<AgentProfile>;
+  /** N5, human-only: remove an agent. */
+  deleteAgent(id: string): Promise<AgentProfile[]>;
+  /** N5: the agent's test, against the registry and the drafting catalogue. It writes nothing. */
+  testAgentProfile(input: Partial<AgentProfile>): Promise<AgentTest>;
+  /** N7, human-only: choose a skill file and read it, with its scan, before installing. */
+  previewSkillImport(): Promise<SkillImportPreview | null>;
+  /** N7, human-only: install the previewed skill. It never overwrites a folder. */
+  installSkillImport(id: string): Promise<InstalledSkill>;
+  // ---- Phase 11: event triggers (S9) ----
+  /** S9: the trigger table. */
+  listTriggers(): Promise<TriggerDefinition[]>;
+  /** S9, human-only: add or change a trigger. */
+  saveTrigger(input: Partial<TriggerDefinition>): Promise<TriggerDefinition>;
+  /** S9, human-only: enable or disable a trigger. */
+  setTriggerEnabled(id: string, enabled: boolean): Promise<TriggerDefinition>;
+  /** S9, human-only: remove a trigger. */
+  deleteTrigger(id: string): Promise<TriggerDefinition[]>;
+  /** S9: the fires, newest first, for one matter or all. */
+  listTriggerFires(matterId?: string): Promise<TriggerFire[]>;
+  /** S9, human-only: start the fire's skills or dismiss it. Starting is a chat instruction. */
+  decideTriggerFire(id: string, state: "started" | "dismissed"): Promise<TriggerFire>;
 }

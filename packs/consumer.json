@@ -1,0 +1,71 @@
+{
+  "id": "consumer",
+  "version": "1.0.0",
+  "title": "Consumer",
+  "practice": ["consumer"],
+  "courts": ["in.cc.ncdrc", "in.hc.delhi", "in.sc"],
+  "acts": [
+    { "act": "Consumer Protection Act, 2019", "version": "2019, as amended", "source": "the Act; the law store records the version when it is imported" }
+  ],
+  "templates": [
+    { "kind": "consumer_complaint", "title": "Consumer complaint", "note": "The complaint with the pecuniary jurisdiction facts." },
+    { "kind": "written_statement", "title": "Written version", "note": "The opposite party's reply." },
+    { "kind": "appeal_memo", "title": "Appeal memo", "note": "The appeal to the State or National Commission." },
+    { "kind": "affidavit", "title": "Affidavit", "note": "The complainant's own recorded words." }
+  ],
+  "proceedings": [
+    {
+      "key": "consumer_complaint",
+      "title": "Consumer complaint",
+      "caseType": "Consumer complaint",
+      "courts": ["in.cc.ncdrc", "in.hc.delhi"],
+      "provisions": ["Sections 2, 34, 35 and 69 of the Consumer Protection Act, 2019"],
+      "limitation": { "id": "consumer-69", "title": "Complaint to the consumer commission", "days": 730, "from": "the date on which the cause of action arose", "source": "Consumer Protection Act, 2019, Section 69", "ref": "Section 69" },
+      "requiredParts": ["Consumer complaint", "Affidavit", "Annexures"],
+      "documents": [
+        { "kind": "consumer_complaint", "title": "Consumer complaint" },
+        { "kind": "affidavit", "title": "Affidavit" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Chart the service, the deficiency and the loss.", "skill": "SK-561" },
+        { "text": "Draft the complaint with the pecuniary jurisdiction facts.", "skill": "SK-561" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Purchase or service", "Deficiency", "Complaint", "Written version", "Evidence", "Order", "Appeal"],
+      "intakeQuestions": ["What was bought or hired and for how much?", "What was the deficiency and when did it occur?", "What loss did the complainant suffer?", "Which commission has the pecuniary jurisdiction?"],
+      "skills": ["SK-561", "SK-562", "SK-563"],
+      "recordColumns": ["Date", "Consumer event", "Amount", "Source", "Page", "Line"],
+      "evidence": ["The invoice and the payment record", "The warranty or the contract", "The complaint and the replies", "The loss documents"],
+      "terms": [{ "term": "Deficiency in service", "meaning": "The shortfall in the quality, nature or manner of performance the Act defines." }]
+    },
+    {
+      "key": "consumer_appeal",
+      "title": "Consumer appeal",
+      "caseType": "Consumer appeal",
+      "courts": ["in.cc.ncdrc", "in.hc.delhi"],
+      "provisions": ["Sections 41 and 51 of the Consumer Protection Act, 2019"],
+      "limitation": null,
+      "requiredParts": ["Appeal memo", "Affidavit", "Annexures"],
+      "documents": [
+        { "kind": "appeal_memo", "title": "Appeal memo" },
+        { "kind": "affidavit", "title": "Affidavit" }
+      ],
+      "annexureParts": ["Annexures"],
+      "unmappedParts": [],
+      "workflow": [
+        { "text": "Analyse the commission's order.", "skill": "SK-008" },
+        { "text": "Draft the consumer appeal.", "skill": "SK-563" },
+        { "text": "Review the draft against the record.", "skill": "SK-027" }
+      ],
+      "stages": ["Commission order", "Appeal", "Notice", "Hearing", "Order"],
+      "intakeQuestions": ["What did the commission decide?", "When was the order received?", "What is the pre-deposit?"],
+      "skills": ["SK-563", "SK-008"],
+      "recordColumns": ["Date", "Order finding", "Record", "Page", "Line"],
+      "evidence": ["The commission's order", "The complaint and the written version", "The evidence"],
+      "terms": [{ "term": "Pre-deposit", "meaning": "The amount the appellant deposits before the appeal is heard." }]
+    }
+  ],
+  "terms": [{ "term": "Opposite party", "meaning": "The trader, manufacturer or service provider the complaint is against." }]
+}
