@@ -497,6 +497,9 @@ function RoleModelSettings() {
                   <option key={m.key} value={m.key}>{m.name || m.id} ({m.key})</option>
                 ))}
               </select>
+              {roles[r.role] && !models.some((m) => m.key === roles[r.role]) ? (
+                <Text type="supporting">The saved model is no longer signed in. The chat's model runs this role until you choose another.</Text>
+              ) : null}
             </div>
           </li>
         ))}

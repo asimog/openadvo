@@ -133,7 +133,19 @@ function StrategyPart(props: { matterId: string; version: number }) {
     }
   };
   if (!s) return null;
-  const view = strategyView({ arguments: s.arguments, theories: s.theories, weakPoints: weak, gaps });
+  const view = strategyView({ arguments: s.arguments, theories: s.theories, issues, weakPoints: weak, gaps });
+  // K5: the answers of one run are shown together, with the split the run found.
+  const panels: Array<{ id: string; question: string; split: boolean; answers: typeof s.dissents }> = [];
+  for (const answer of s.dissents) {
+    const id = answer.runId || answer.id;
+    const panel = panels.find((p) => p.id === id);
+    if (panel) {
+      panel.answers.push(answer);
+      panel.split ||= answer.split;
+    } else {
+      panels.push({ id, question: answer.question, split: answer.split, answers: [answer] });
+    }
+  }
   return (
     <section className="work-section" aria-label="Case strategy" data-testid="strategy-panel">
       <Heading level={3}>Case theory</Heading>
@@ -185,6 +197,7 @@ function StrategyPart(props: { matterId: string; version: number }) {
         {view.standing.slice(0, 12).map((a) => (
           <li key={a.id} data-testid="standing-row" data-standing={a.standing}>
             <Badge variant={a.standing === "in" ? "success" : a.standing === "out" ? "error" : "warning"} label={a.standing === "in" ? "stands" : a.standing === "out" ? "felled" : "undecided"} /> {a.claim}
+            {a.issue ? <Text type="supporting"> — issue: {a.issue}</Text> : null}
             {a.felledBy ? <Text type="supporting"> — felled by: {a.felledBy}</Text> : null}
           </li>
         ))}
@@ -238,15 +251,23 @@ function StrategyPart(props: { matterId: string; version: number }) {
         />
         <Button label={asking ? "Asking…" : "Ask the panel"} size="sm" isDisabled={asking || !question.trim()} clickAction={() => void ask()} />
       </div>
-      {s.dissents.length > 0 ? (
-        <ul className="plain-list" data-testid="dissent-list">
-          {s.dissents.slice(0, 12).map((d) => (
-            <li key={d.id} data-testid="dissent-answer" data-refused={d.refused ? "yes" : "no"}>
-              <Badge variant={d.refused ? "warning" : "neutral"} label={d.role} /> <Text type="supporting">{d.model} · {d.at.slice(0, 10)}</Text>
-              {d.refused ? <Text>Refused: {d.refused}</Text> : <Text>{d.answer}</Text>}
-            </li>
+      {panels.length > 0 ? (
+        <div data-testid="dissent-list">
+          {panels.slice(0, 4).map((p) => (
+            <div key={p.id} className="dissent-panel" data-testid="dissent-panel" data-split={p.split ? "yes" : "no"}>
+              <Text weight="semibold">{p.question}</Text>{" "}
+              <Badge variant={p.split ? "warning" : "neutral"} label={p.split ? "Split" : "No split"} />
+              <div className="dissent-answers">
+                {p.answers.map((d) => (
+                  <div key={d.id} data-testid="dissent-answer" data-refused={d.refused ? "yes" : "no"}>
+                    <Badge variant={d.refused ? "warning" : "neutral"} label={d.role} /> <Text type="supporting">{d.model} · {d.at.slice(0, 10)}</Text>
+                    {d.refused ? <Text>Refused: {d.refused}</Text> : <Text>{d.answer}</Text>}
+                  </div>
+                ))}
+              </div>
+            </div>
           ))}
-        </ul>
+        </div>
       ) : null}
     </section>
   );

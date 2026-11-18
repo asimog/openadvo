@@ -425,6 +425,9 @@ kbd { font-family: ui-monospace, monospace; font-size: 12px; border: 1px solid v
 
 /* Phase 4: facts, evidence, structure, jurisdiction and memory. */
 .phase4-row { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid var(--color-border); border-radius: 8px; }
+.dissent-panel { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; margin-top: 8px; border: 1px solid var(--color-border); border-radius: 8px; }
+.dissent-answers { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; }
+.dissent-answers > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .phase4-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 320px; }
 .phase4-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .phase4-form { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }

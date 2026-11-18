@@ -431,6 +431,12 @@ ALTER TABLE document_part_layout RENAME TO document_part;`);
       db.exec("ALTER TABLE record_column ADD COLUMN issue_id TEXT;");
       db.exec("ALTER TABLE record_column ADD COLUMN decided_at TEXT NOT NULL DEFAULT '';");
     }
+    // Phase 7 (K5): the panel's answers keep their run and whether that run split.
+    const ds = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'dissent'").get() as { sql?: string } | undefined;
+    if (ds?.sql && !ds.sql.includes("run_id")) {
+      db.exec("ALTER TABLE dissent ADD COLUMN run_id TEXT NOT NULL DEFAULT '';");
+      db.exec("ALTER TABLE dissent ADD COLUMN split INTEGER NOT NULL DEFAULT 0;");
+    }
     return db;
   }
 

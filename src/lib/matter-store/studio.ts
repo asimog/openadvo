@@ -84,11 +84,13 @@ CREATE TABLE IF NOT EXISTS theory (
 ) STRICT;
 CREATE TABLE IF NOT EXISTS dissent (
   id TEXT PRIMARY KEY,
+  run_id TEXT NOT NULL DEFAULT '',
   question TEXT NOT NULL,
   model TEXT NOT NULL,
   role TEXT NOT NULL,
   answer TEXT NOT NULL,
   refused TEXT NOT NULL DEFAULT '',
+  split INTEGER NOT NULL DEFAULT 0,
   at TEXT NOT NULL
 ) STRICT;
 CREATE TRIGGER IF NOT EXISTS dissent_no_delete BEFORE DELETE ON dissent BEGIN SELECT RAISE(ABORT, 'every answer is kept: a split is shown, never hidden'); END;
@@ -372,21 +374,35 @@ export class StudioStore {
    * K5: one model's answer to a hard question, kept whatever it says. A refused answer (no
    * anchor, or a model error) is stored with its reason, never dropped silently.
    */
-  addDissent(input: { question: string; model: string; role: string; answer: string; refused?: string }): DissentRecord {
+  addDissent(input: { runId?: string; question: string; model: string; role: string; answer: string; refused?: string; split?: boolean }): DissentRecord {
     const id = randomUUID();
-    this.db.prepare("INSERT INTO dissent (id, question, model, role, answer, refused, at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(id, clean(input.question, 2000), clean(input.model, 200), clean(input.role, 40), clean(input.answer, 12000), clean(input.refused ?? "", 600), now());
-    return { id, question: clean(input.question, 2000), model: clean(input.model, 200), role: clean(input.role, 40), answer: clean(input.answer, 12000), refused: clean(input.refused ?? "", 600), at: now() };
+    const at = now();
+    const row = {
+      id,
+      runId: clean(input.runId ?? "", 100),
+      question: clean(input.question, 2000),
+      model: clean(input.model, 200),
+      role: clean(input.role, 40),
+      answer: clean(input.answer, 12000),
+      refused: clean(input.refused ?? "", 600),
+      split: input.split === true,
+      at,
+    };
+    this.db.prepare("INSERT INTO dissent (id, run_id, question, model, role, answer, refused, split, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(row.id, row.runId, row.question, row.model, row.role, row.answer, row.refused, row.split ? 1 : 0, row.at);
+    return row;
   }
 
   /** The panel's answers, newest first. Every answer is kept (K5: a split is shown, never hidden). */
   dissents(): DissentRecord[] {
     return (this.db.prepare("SELECT * FROM dissent ORDER BY at DESC, rowid DESC").all() as Array<Record<string, unknown>>).map((r) => ({
       id: String(r.id),
+      runId: String(r.run_id ?? ""),
       question: String(r.question),
       model: String(r.model),
       role: String(r.role),
       answer: String(r.answer),
       refused: String(r.refused ?? ""),
+      split: Number(r.split ?? 0) === 1,
       at: String(r.at),
     }));
   }

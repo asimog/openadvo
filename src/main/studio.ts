@@ -745,7 +745,7 @@ export class ArgumentStudio {
       dissents: store.studio.dissents(),
       loop: {
         available: !!c && !running,
-        detail: running ? `Running: ${this.progress.get(matterId) ?? "starting"}` : c ? `Chat model: ${c.model}. The drafting role's model runs the proposing passes when one is set.` : "No model is available. Set up a model in Pi, then try again.",
+        detail: running ? `Running: ${this.progress.get(matterId) ?? "starting"}` : c ? `Chat model: ${c.model}. A drafting role model that is signed in runs the proposing passes; otherwise the chat's model does.` : "No model is available. Set up a model in Pi, then try again.",
         running,
       },
     };
@@ -950,7 +950,7 @@ export class ArgumentStudio {
     }
     const result = await runDissent(question, context, panel);
     for (const a of result.answers) {
-      store.studio.addDissent({ question, model: a.model, role: a.role, answer: a.answer, refused: a.refused });
+      store.studio.addDissent({ runId, question, model: a.model, role: a.role, answer: a.answer, refused: a.refused, split: result.split });
     }
     if (result.split && result.splitPair) {
       const [a, b] = result.splitPair;

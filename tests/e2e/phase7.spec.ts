@@ -155,6 +155,7 @@ test("phase 7: issue ties, the element chart, the theory, the tasks, the cross-e
   const argument = studio.arguments.find((a) => a.status === "candidate" && !a.attacks)!;
   await call("decideArgument", matterId, argument.id, "accepted");
   await expect(page.getByTestId("standing-list")).toContainText("The order was passed without hearing", { timeout: 15_000 });
+  await expect(page.getByTestId("standing-list")).toContainText("Was the impugned order passed without hearing the petitioner?");
   // The advocate rejects the opponent's standing attack, so the argument stands for the outline.
   const attack = studio.arguments.find((a) => a.status === "candidate" && a.attacks)!;
   await call("decideArgument", matterId, attack.id, "rejected");
@@ -212,6 +213,11 @@ test("phase 7: issue ties, the element chart, the theory, the tasks, the cross-e
   expect(panel.answers.length).toBeGreaterThanOrEqual(1);
   expect(panel.answers[0].refused).toBe("");
   expect(panel.split).toBe(false);
+  // The Strategy view shows the run's answers together and says it did not split.
+  await page.getByTestId("studio").getByRole("tab", { name: "Conference" }).click();
+  await page.getByTestId("studio").getByRole("tab", { name: "Strategy" }).click();
+  await expect(page.getByTestId("dissent-panel")).toContainText("Was any notice issued before the order?");
+  await expect(page.getByTestId("dissent-panel")).toContainText("No split");
 
   // ---- K6, K7: the hearing brief and the oral outline, before the date ----
   const briefDraft = await call<{ draft: { id: string } }>("generateDraft", matterId, "hearing_brief");

@@ -21,11 +21,22 @@ test("K1: an issue names the facts it rests on; unknown facts are refused", asyn
   const issue = s.work.addIssue("Was the order passed without jurisdiction?", { actor: "agent" }, [fact.id]);
   assert.deepEqual(issue.factIds, [fact.id]);
   assert.equal(issue.status, "candidate");
+  // The fact's own list mirrors the tie for the Facts tab.
+  assert.deepEqual(s.evidence.facts().find((f) => f.id === fact.id)!.issueIds, [issue.id]);
   // An unknown fact id is refused, and nothing is written.
   assert.throws(() => s.work.addIssue("Another issue", { actor: "agent" }, ["no-such-fact"]), (e: Error) => (e as MatterStoreError).code === "FACT_NOT_FOUND");
   // The view reads the ties from the row.
   const read = s.work.listIssues().find((i) => i.id === issue.id)!;
   assert.deepEqual(read.factIds, [fact.id]);
+  // The advocate's Facts-tab path writes the same issue column, and unlinking moves the tie.
+  const second = s.work.addIssue("Was notice served?", { actor: "advocate" });
+  s.evidence.linkFact(fact.id, { issueIds: [second.id] }, { actor: "advocate" });
+  assert.deepEqual(s.work.listIssues().find((i) => i.id === second.id)!.factIds, [fact.id]);
+  assert.deepEqual(s.work.listIssues().find((i) => i.id === issue.id)!.factIds, []);
+  assert.deepEqual(s.evidence.facts().find((f) => f.id === fact.id)!.issueIds, [second.id]);
+  // An unknown issue is refused before the fact or the issue rows change.
+  assert.throws(() => s.evidence.linkFact(fact.id, { issueIds: ["no-issue"] }, { actor: "advocate" }), (e: Error) => (e as MatterStoreError).code === "ISSUE_NOT_FOUND");
+  assert.deepEqual(s.evidence.facts().find((f) => f.id === fact.id)!.issueIds, [second.id]);
 });
 
 test("K4: a theory is proposed — the agent's waits, the advocate's is primary; the advocate decides its place", async () => {
@@ -85,12 +96,14 @@ test("K4: the Strategy view assembles the standing, the attack that fells an out
   const view = strategyView({
     arguments: [standing, felled, attack, rejected],
     theories: [theory, dropped],
+    issues: [{ id: "i1", text: "Was the order passed without a hearing?" }],
     weakPoints: [{ claim: standing.claim, questions: ["Was notice issued?"], attacks: [] }],
     gaps: [{ columnId: "c2", question: "Balance of convenience" }],
   });
   // Only the live theories, and only the advocate's accepted main arguments, stand.
   assert.deepEqual(view.theories.map((t) => t.id), ["t1"]);
   assert.deepEqual(view.standing.map((a) => a.id), ["a1", "a2"]);
+  assert.equal(view.standing[0].issue, "Was the order passed without a hearing?", "the standing is read per issue");
   assert.equal(view.standing[0].felledBy, null);
   // The attack that fells the out argument is named in its own words.
   assert.equal(view.standing[1].standing, "out");

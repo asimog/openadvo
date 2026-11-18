@@ -526,8 +526,32 @@ export class WorkStore {
     const id = randomUUID();
     const status = who === "advocate" ? "accepted" : "candidate";
     this.db.prepare("INSERT INTO legal_issue (id, text, author, status, fact_ids, created_at, decided_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(id, t, who, status, JSON.stringify(ids), now(), who === "advocate" ? now() : null);
+    // K1: the issue row owns the tie. The fact's own list mirrors it for the Facts tab.
+    for (const fid of ids) this.addFactIssueLink(fid, id);
     this.event(ctx, "issue.added", id, { author: who, status, facts: ids.length });
     return this.listIssues().find((i) => i.id === id)!;
+  }
+
+  /** K1: the advocate's link path on the Facts tab writes the same issue column. */
+  syncFactIssues(factId: string, issueIds: string[]): void {
+    const issues = this.listIssues();
+    for (const issueId of issueIds) if (!issues.some((i) => i.id === issueId)) throw new MatterStoreError("ISSUE_NOT_FOUND", issueId);
+    const wanted = new Set(issueIds);
+    for (const issue of issues) {
+      const has = issue.factIds.includes(factId);
+      const want = wanted.has(issue.id);
+      if (has === want) continue;
+      const next = want ? [...issue.factIds, factId] : issue.factIds.filter((x) => x !== factId);
+      this.db.prepare("UPDATE legal_issue SET fact_ids = ? WHERE id = ?").run(JSON.stringify(next), issue.id);
+    }
+  }
+
+  private addFactIssueLink(factId: string, issueId: string): void {
+    const row = this.db.prepare("SELECT issue_ids FROM fact WHERE id = ?").get(factId) as { issue_ids?: string } | undefined;
+    if (!row) return;
+    const ids = JSON.parse(String(row.issue_ids ?? "[]")) as string[];
+    if (ids.includes(issueId)) return;
+    this.db.prepare("UPDATE fact SET issue_ids = ? WHERE id = ?").run(JSON.stringify([...ids, issueId]), factId);
   }
 
   /** Human-only (decision 5): the case conference accepts or rejects an issue, with a reason. */

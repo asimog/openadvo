@@ -393,8 +393,12 @@ export class EvidenceStore {
     human(ctx, "links a fact");
     const f = this.facts().find((x) => x.id === id);
     if (!f) throw new MatterStoreError("FACT_NOT_FOUND", id);
-    this.db.prepare("UPDATE fact SET issue_ids = ?, argument_ids = ?, relief = ? WHERE id = ?").run(JSON.stringify(input.issueIds ?? f.issueIds), JSON.stringify(input.argumentIds ?? f.argumentIds), clean(input.relief ?? f.relief, 1000), id);
-    this.event(ctx, "fact.linked", id, { issues: (input.issueIds ?? f.issueIds).length, arguments: (input.argumentIds ?? f.argumentIds).length });
+    const issueIds = input.issueIds ?? f.issueIds;
+    // K1: both link paths write the issue row's fact_ids, which the issues view reads. The
+    // issue rows are checked and written first, so an unknown issue leaves the fact unchanged.
+    this.store.work.syncFactIssues(id, issueIds);
+    this.db.prepare("UPDATE fact SET issue_ids = ?, argument_ids = ?, relief = ? WHERE id = ?").run(JSON.stringify(issueIds), JSON.stringify(input.argumentIds ?? f.argumentIds), clean(input.relief ?? f.relief, 1000), id);
+    this.event(ctx, "fact.linked", id, { issues: issueIds.length, arguments: (input.argumentIds ?? f.argumentIds).length });
     return this.facts().find((x) => x.id === id)!;
   }
 

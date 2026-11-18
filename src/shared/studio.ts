@@ -143,6 +143,8 @@ export interface TheoryRecord {
 /** Phase 7 (K5): one model's answer to a hard question. Refused answers are kept, never dropped. */
 export interface DissentRecord {
   id: string;
+  /** The panel run the answer belongs to; the view groups the answers of one run. */
+  runId: string;
   question: string;
   model: string;
   /** The role whose model answered: drafting, extraction, critic, or chat. */
@@ -150,6 +152,8 @@ export interface DissentRecord {
   answer: string;
   /** Empty when the model answered; the refusal's reason when it did not. */
   refused: string;
+  /** True when this run's answers split; the view shows it, never resolves it. */
+  split: boolean;
   at: string;
 }
 

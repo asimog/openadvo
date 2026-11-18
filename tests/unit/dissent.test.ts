@@ -4,6 +4,10 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { MatterStore } from "../../src/lib/matter-store/index.ts";
 import { runDissent, type PanelMember } from "../../src/lib/studio/dissent.ts";
 import type { LoopContext } from "../../src/lib/studio/index.ts";
 
@@ -41,6 +45,15 @@ test("an unanchored answer is kept with its reason, never dropped silently", asy
   assert.equal(result.answers.length, 1);
   assert.equal(result.answers[0].answer, "");
   assert.match(result.answers[0].refused, /not anchored/);
+});
+
+test("K5: every answer keeps its run and the run's split, so the view shows the panel together", async () => {
+  const s = await MatterStore.create(mkdtempSync(path.join(tmpdir(), "p7-dissent-")), "X v. Y", { actor: "advocate" });
+  s.studio.addDissent({ runId: "run-1", question: "Is the order void?", model: "a/model-1", role: "chat", answer: "Yes, on E1.", split: true });
+  s.studio.addDissent({ runId: "run-1", question: "Is the order void?", model: "a/model-2", role: "critic", answer: "No, on the appeal.", split: true });
+  const rows = s.studio.dissents();
+  assert.equal(rows.length, 2);
+  assert.ok(rows.every((r) => r.runId === "run-1" && r.split));
 });
 
 test("a model error is a refusal, not a crash", async () => {
