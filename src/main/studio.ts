@@ -14,7 +14,7 @@ import { readStatute, searchStatutes } from "../lib/research-sources/indiacode.t
 import { webFetch, webSearch } from "../lib/research-sources/web.ts";
 import { getBytes, SourceError } from "../lib/research-sources/http.ts";
 import { processPdf } from "../lib/document-intelligence/index.ts";
-import { groundedStatus, runLoop, type ArchivedArgument, type LoopContext } from "../lib/studio/index.ts";
+import { groundedStatus, proposingCompleter, runLoop, type ArchivedArgument, type LoopContext } from "../lib/studio/index.ts";
 import { rehearse } from "../lib/studio/rehearsal.ts";
 import { runDissent, type PanelMember } from "../lib/studio/dissent.ts";
 import { disposalClass, quickCheck } from "../lib/matter-store/authority2.ts";
@@ -745,7 +745,7 @@ export class ArgumentStudio {
       dissents: store.studio.dissents(),
       loop: {
         available: !!c && !running,
-        detail: running ? `Running: ${this.progress.get(matterId) ?? "starting"}` : c ? `Model: ${c.model}` : "No model is available. Set up a model in Pi, then try again.",
+        detail: running ? `Running: ${this.progress.get(matterId) ?? "starting"}` : c ? `Chat model: ${c.model}. The drafting role's model runs the proposing passes when one is set.` : "No model is available. Set up a model in Pi, then try again.",
         running,
       },
     };
@@ -757,6 +757,9 @@ export class ArgumentStudio {
     const c = await this.completer();
     if (!c) throw new MatterStoreError("NO_MODEL", "no model is available. Set up a model in Pi, then try again");
     const allowance = await this.admit(matterId, c);
+    // O5: the proposing passes run on the drafting model when one resolves; the chat's model
+    // otherwise. The attacking passes take the critic model below.
+    const propose = proposingCompleter(c, await this.roleModel("drafting"));
     const meter = new Meter();
     const criticMeter = new Meter();
     const context = await this.context(matterId, issueId);
@@ -764,16 +767,16 @@ export class ArgumentStudio {
     const rounds = Math.min(Math.max(Math.trunc(opts.rounds ?? 2), 1), 4);
     const generators = Math.min(Math.max(Math.trunc(opts.generators ?? 3), 1), 6);
     const store = await this.matters.store(matterId);
-    const run = store.studio.startRun({ issueId, model: c.model, rounds, generators }, ctx);
+    const run = store.studio.startRun({ issueId, model: propose.model, rounds, generators }, ctx);
     this.running.set(matterId, run.id);
     const folder = path.join(store.folder, "studio", run.id);
     await mkdir(folder, { recursive: true });
     let n = 0;
     const calls: Array<{ label: string; request: string; response: string }> = [];
     const complete = async (system: string, user: string, label: string) => {
-      const response = await c.complete(system, user, `openadvo-studio-${run.id}`, meter.add);
+      const response = await propose.complete(system, user, `openadvo-studio-${run.id}`, meter.add);
       const i = ++n;
-      const record = { label, model: c.model, system, user, response };
+      const record = { label, model: propose.model, system, user, response };
       const request = createHash("sha256").update(JSON.stringify({ system, user })).digest("hex");
       calls.push({ label, request, response: createHash("sha256").update(response).digest("hex") });
       await writeFile(path.join(folder, `${String(i).padStart(3, "0")}-${label.replace(/[^\w-]+/g, "_")}.json`), JSON.stringify(record, null, 2));
@@ -783,7 +786,7 @@ export class ArgumentStudio {
     // attacking passes run on it; the calls are recorded beside the proposing model's.
     const critic = await this.roleModel("critic");
     const criticComplete =
-      critic && critic.model !== c.model
+      critic && critic.model !== propose.model
         ? async (system: string, user: string, label: string) => {
             const response = await critic.complete(system, user, `openadvo-studio-${run.id}`, criticMeter.add);
             const i = ++n;
@@ -827,7 +830,7 @@ export class ArgumentStudio {
       } catch (e) {
         store.studio.finishRun(run.id, "failed", { calls: n }, (e as Error).message);
       } finally {
-        await this.recordUsage(matterId, c.model, meter, `openadvo-studio-${run.id}`).catch((e) => console.error(`studio usage: ${(e as Error).message}`));
+        if (meter.totalTokens > 0) await this.recordUsage(matterId, propose.model, meter, `openadvo-studio-${run.id}`).catch((e) => console.error(`studio usage: ${(e as Error).message}`));
         if (criticComplete && critic) await this.recordUsage(matterId, critic.model, criticMeter, `openadvo-studio-${run.id}`).catch((e) => console.error(`studio usage: ${(e as Error).message}`));
         this.running.delete(matterId);
         this.stopping.delete(matterId);
@@ -851,6 +854,8 @@ export class ArgumentStudio {
     const c = await this.completer();
     if (!c) throw new MatterStoreError("NO_MODEL", "no model is available. Set up a model in Pi, then try again");
     await this.admit(matterId, c);
+    // O5: the bench questions are the drafting role's; the objections are the critic's.
+    const propose = proposingCompleter(c, await this.roleModel("drafting"));
     const meter = new Meter();
     const context = await this.context(matterId, null);
     const store = await this.matters.store(matterId);
@@ -864,7 +869,7 @@ export class ArgumentStudio {
     const critic = await this.roleModel("critic");
     const criticMeter = new Meter();
     const criticComplete =
-      critic && critic.model !== c.model
+      critic && critic.model !== propose.model
         ? async (system: string, user: string, label: string) => {
             const response = await critic.complete(system, user, `openadvo-rehearsal-${runId}`, criticMeter.add);
             await writeFile(path.join(folder, `${String(++n).padStart(3, "0")}-${label}.json`), JSON.stringify({ label, model: critic.model, system, user, response }, null, 2));
@@ -874,15 +879,15 @@ export class ArgumentStudio {
     try {
       r = await rehearse(
         async (system, user, label) => {
-          const response = await c.complete(system, user, `openadvo-rehearsal-${runId}`, meter.add);
-          await writeFile(path.join(folder, `${String(++n).padStart(3, "0")}-${label}.json`), JSON.stringify({ label, model: c.model, system, user, response }, null, 2));
+          const response = await propose.complete(system, user, `openadvo-rehearsal-${runId}`, meter.add);
+          await writeFile(path.join(folder, `${String(++n).padStart(3, "0")}-${label}.json`), JSON.stringify({ label, model: propose.model, system, user, response }, null, 2));
           return response;
         },
         context,
         criticComplete,
       );
     } finally {
-      await this.recordUsage(matterId, c.model, meter, `openadvo-rehearsal-${runId}`);
+      if (meter.totalTokens > 0) await this.recordUsage(matterId, propose.model, meter, `openadvo-rehearsal-${runId}`);
       if (criticComplete && critic && criticMeter.totalTokens > 0) await this.recordUsage(matterId, critic.model, criticMeter, `openadvo-rehearsal-${runId}`);
     }
     for (const it of r.items) store.studio.addChallenge({ runId, kind: it.kind, category: it.category, text: it.text, answer: it.answer, refs: it.refs, origin: "generated" });
@@ -890,7 +895,7 @@ export class ArgumentStudio {
       if (store.studio.challenges().some((ch) => ch.origin === "verified_defect" && ch.text === item.detail)) continue;
       store.studio.addChallenge({ runId, kind: "objection", category: "verified defect", text: item.detail, answer: "", refs: [item.id], origin: "verified_defect" });
     }
-    store.appendEvent(ctx, "rehearsal.run", runId, { model: c.model, items: r.items.length, rejected: r.rejected.length });
+    store.appendEvent(ctx, "rehearsal.run", runId, { model: propose.model, items: r.items.length, rejected: r.rejected.length });
     this.onChange(matterId);
     return { runId, added: r.items.length, rejected: r.rejected.length };
   }

@@ -308,6 +308,15 @@ export function groundedStatus(args: Array<{ id: string; attacks: string | null;
 
 export type Complete = (system: string, user: string, label: string) => Promise<string>;
 
+/**
+ * O5: the model of the proposing passes. A drafting model that resolves and differs from the
+ * chat's runs them; otherwise the chat's model does, as before. The attacking passes take the
+ * critic model separately (LoopDeps.criticComplete).
+ */
+export function proposingCompleter<T extends { model: string }>(chat: T, drafting: T | null): T {
+  return drafting && drafting.model !== chat.model ? drafting : chat;
+}
+
 export interface ArchivedArgument {
   id: string;
   ground: string;

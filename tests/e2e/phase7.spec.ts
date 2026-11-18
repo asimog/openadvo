@@ -139,13 +139,14 @@ test("phase 7: issue ties, the element chart, the theory, the tasks, the cross-e
     (_e, input) => (globalThis as any).__openadvoTest.runStudioScripted(
       input.matterId,
       input.issueId,
-      [
-        { match: "TASK: Propose", answer: JSON.stringify({ arguments: [{ claim: "The order was passed without hearing the petitioner.", reasoning: "E1 records the order and E2 records the petition; the record holds no notice.", events: [{ ref: "E1", quote: "without hearing the petitioner" }] }] }) },
-        { match: "better", answer: '{"better":"A"}' },
-      ],
+      [],
       [
         { match: "critical questions", answer: '{"questions":["Was any notice issued before the order?"]}' },
         { match: "counsel for the respondent", answer: JSON.stringify({ arguments: [{ kind: "undercut", claim: "The record's silence on notice does not prove none was issued.", reasoning: "E1 records only that the order does not mention a hearing.", events: [{ ref: "E1", quote: "without hearing the petitioner" }] }] }) },
+      ],
+      [
+        { match: "TASK: Propose", answer: JSON.stringify({ arguments: [{ claim: "The order was passed without hearing the petitioner.", reasoning: "E1 records the order and E2 records the petition; the record holds no notice.", events: [{ ref: "E1", quote: "without hearing the petitioner" }] }] }) },
+        { match: "better", answer: '{"better":"A"}' },
       ],
     ),
     { matterId, issueId: acceptedIssue.id },
@@ -160,10 +161,12 @@ test("phase 7: issue ties, the element chart, the theory, the tasks, the cross-e
 
   // ---- The rehearsal, with a scripted model, and one bench question accepted ----
   await app.evaluate(
-    (_e, id) => (globalThis as any).__openadvoTest.rehearseScripted(id, [
-      { match: "bench is most likely", answer: JSON.stringify({ questions: [{ question: "Was the petitioner heard before the order?", answer: "No; E1 records the order was passed without hearing the petitioner.", events: [{ ref: "E1", quote: "without hearing the petitioner" }] }] }) },
-      { match: "As counsel for the respondent at the admission hearing", answer: JSON.stringify({ objections: [{ category: "delay", objection: "The petition is late.", response: "It was filed within time, as E2 records.", events: [{ ref: "E2", quote: "filed the writ petition on 02.04.2024" }] }] }) },
-    ]),
+    (_e, id) => (globalThis as any).__openadvoTest.rehearseScripted(
+      id,
+      [],
+      [{ match: "As counsel for the respondent at the admission hearing", answer: JSON.stringify({ objections: [{ category: "delay", objection: "The petition is late.", response: "It was filed within time, as E2 records.", events: [{ ref: "E2", quote: "filed the writ petition on 02.04.2024" }] }] }) }],
+      [{ match: "bench is most likely", answer: JSON.stringify({ questions: [{ question: "Was the petitioner heard before the order?", answer: "No; E1 records the order was passed without hearing the petitioner.", events: [{ ref: "E1", quote: "without hearing the petitioner" }] }] }) }],
+    ),
     matterId,
   );
   const challenges = (await call<{ challenges: Array<{ id: string; kind: string; status: string }> }>("getStudio", matterId)).challenges;

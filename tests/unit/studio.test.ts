@@ -8,6 +8,7 @@ import {
   groundedStatus,
   parseCandidates,
   pickCells,
+  proposingCompleter,
   runLoop,
   validate,
   type ArchivedArgument,
@@ -218,4 +219,12 @@ test("K2 (O5): the critic and the opposing counsel run on the second completer; 
   assert.ok(second.some((l) => l.includes("-critic")), "the critic ran on the second completer");
   assert.ok(second.some((l) => l.includes("-opponent")), "the opposing counsel ran on the second completer");
   assert.ok(!first.some((l) => l.includes("-critic") || l.includes("-opponent")), "no attacking pass ran on the first completer");
+});
+
+test("O5: the proposing passes take the drafting model when it resolves and differs; the chat model otherwise", () => {
+  const chat = { model: "provider/chat" };
+  const drafting = { model: "provider/drafting" };
+  assert.equal(proposingCompleter(chat, null), chat, "no drafting model: the chat's model");
+  assert.equal(proposingCompleter(chat, { model: "provider/chat" }), chat, "the same model is not a second family");
+  assert.equal(proposingCompleter(chat, drafting), drafting, "a distinct drafting model runs the proposing passes");
 });

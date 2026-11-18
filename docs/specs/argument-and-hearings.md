@@ -85,7 +85,7 @@ A cross-examination question is a proposed row tied to the record: it names the 
 
 | Test | Checks |
 |---|---|
-| `tests/unit/studio.test.ts` | The loop's attacking passes on the second completer; the rest on the first |
+| `tests/unit/studio.test.ts` | The loop's attacking passes on the second completer; the rest on the first; the proposing passes take a distinct drafting model, and fall back to the chat's model |
 | `tests/unit/theory.test.ts` | K1 and K4: the issue row keeps the agent's fact ids; theory rows proposed and decided, no status outside the three; the view assembles standing, the attack that fells an out argument, weaknesses and dependencies |
 | `tests/unit/dissent.test.ts` | Each model answers once; an unanchored answer is refused, not dropped; a split opens one review item; no split when the answers agree |
 | `tests/unit/hearing-brief.test.ts` | K6 and K7: the brief from records (posture, directions with anchors, bench questions, register; no outcome text); three or four points strongest first, the rebuttal notes, the compilation with the paragraphs |

@@ -1369,7 +1369,7 @@ function exposeTestHooks(): void {
     // V4-3: the loop with a scripted model (labels to answers), so tests need no model.
     // O5 (K2): an optional second script runs the critic and opposing-counsel passes on a
     // distinct critic model, so the end-to-end path exercises the role's model too.
-    runStudioScripted: async (matterId: string, issueId: string, script: Array<{ match: string; answer: string }>, criticScript?: Array<{ match: string; answer: string }>) => {
+    runStudioScripted: async (matterId: string, issueId: string, script: Array<{ match: string; answer: string }>, criticScript?: Array<{ match: string; answer: string }>, draftingScript?: Array<{ match: string; answer: string }>) => {
       const answer = (model: string, rows: Array<{ match: string; answer: string }>) => ({
         model,
         complete: async (_s: string, user: string) => rows.find((x) => user.includes(x.match))?.answer ?? "{}",
@@ -1378,7 +1378,13 @@ function exposeTestHooks(): void {
         matters,
         async () => answer("test/scripted", script),
         (id) => window?.webContents.send("studio:changed", id),
-        criticScript ? async (role) => (role === "critic" ? answer("test/critic", criticScript) : null) : null,
+        criticScript || draftingScript
+          ? async (role) => {
+              if (role === "critic" && criticScript) return answer("test/critic", criticScript);
+              if (role === "drafting" && draftingScript) return answer("test/drafting", draftingScript);
+              return null;
+            }
+          : null,
       );
       await fake.start(matterId, issueId, { rounds: 1, generators: 2 });
       await fake.idle(matterId);
@@ -1387,15 +1393,28 @@ function exposeTestHooks(): void {
     studioTool: (matterId: string, tool: string, params: Record<string, unknown>) => studioTools(hub, studio, matters)(matterId, tool, params, ""),
     checkReminders: () => notifyReminders(),
     recordUsageForTest: async (matterId: string, totalTokens: number) => (await matters.store(matterId)).appendEvent({ actor: "agent" }, "agent.usage", null, { model: "test", input: totalTokens, output: 0, totalTokens, cost: 0.01 }),
-    // V5-11: the rehearsal with a scripted model.
-    rehearseScripted: async (matterId: string, script: Array<{ match: string; answer: string }>) => {
-      const fake = new ArgumentStudio(matters, async () => ({
-        model: "test/scripted",
+    // V5-11: the rehearsal with a scripted model. O5 (K2): the bench questions run on the
+    // drafting model and the objections on the critic model when the scripts are given.
+    rehearseScripted: async (matterId: string, script: Array<{ match: string; answer: string }>, criticScript?: Array<{ match: string; answer: string }>, draftingScript?: Array<{ match: string; answer: string }>) => {
+      const answer = (model: string, rows: Array<{ match: string; answer: string }>) => ({
+        model,
         complete: async (_s: string, user: string, _id?: string, onUsage?: (u: { input: number; output: number; totalTokens: number; cost: number }) => void) => {
           onUsage?.({ input: 60, output: 40, totalTokens: 100, cost: 0 });
-          return script.find((x) => user.includes(x.match))?.answer ?? "{}";
+          return rows.find((x) => user.includes(x.match))?.answer ?? "{}";
         },
-      }));
+      });
+      const fake = new ArgumentStudio(
+        matters,
+        async () => answer("test/scripted", script),
+        undefined,
+        criticScript || draftingScript
+          ? async (role) => {
+              if (role === "critic" && criticScript) return answer("test/critic", criticScript);
+              if (role === "drafting" && draftingScript) return answer("test/drafting", draftingScript);
+              return null;
+            }
+          : null,
+      );
       return fake.rehearse(matterId);
     },
     importEml: async (matterId: string, paths: string[]) => {
