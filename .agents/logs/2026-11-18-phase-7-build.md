@@ -53,7 +53,8 @@ Date: 2026-11-18. Owner instruction: implement phase 7 of the build plan. The sp
 - `94ded85`: the phase-7 core (O5 and K1–K9).
 - `9706c19`: the window and the exit path completed.
 - `9df37cf`: O5's drafting model for the proposing passes and the bench questions, with the test that proves it.
-- `15fc092`: one issue link column, the standing per issue, the dissent panel grouped with its split, and the Settings fallback notice.
+- `15fc092`: one issue link column, the dissent panel grouped with its split, and the Settings fallback notice.
+- `fb31172`: `strategyView` names the issue of each standing row.
 
 ## Known gaps and limits
 
