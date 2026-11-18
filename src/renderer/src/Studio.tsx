@@ -8,8 +8,9 @@ import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Text } from "@astryxdesign/core/Text";
 import { TabList, Tab } from "@astryxdesign/core/TabList";
-import type { ArgumentRecord, ArgumentStatus, CorpusPart, EventRecord, IssueRecord, ResearchDocument, ResearchHit, StudioState } from "../../shared/api.ts";
+import type { ArgumentRecord, ArgumentStatus, CorpusPart, EventRecord, IssueRecord, KnowledgeHealthView, KnowledgeHit, ResearchDocument, ResearchHit, ResearchPlan, RetrievalResult, SearchMode, StudioState } from "../../shared/api.ts";
 import { GROUNDS, STANCES } from "../../shared/studio.ts";
+import { citationKeyText, summariseVerification } from "../../shared/law.ts";
 import { InspectButton } from "./V5.tsx";
 import { AuthorityReview, RehearsalPart } from "./StudioV5.tsx";
 
@@ -34,6 +35,7 @@ export function StudioView(props: { matterId: string; version: number; conferenc
     <div className="studio" data-testid="studio">
       <TabList value={part} onChange={setPart} size="sm" role="tablist" aria-label="Studio parts">
         <Tab value="conference" label="Conference" />
+        <Tab value="law" label="Law library" />
         <Tab value="sources" label="Search" />
         <Tab value="arguments" label="Arguments" />
         <Tab value="rehearsal" label="Rehearsal" />
@@ -47,10 +49,246 @@ export function StudioView(props: { matterId: string; version: number; conferenc
           </>
         ) : null}
         {part === "rehearsal" ? <RehearsalPart matterId={props.matterId} version={props.version + changed} /> : null}
+        {part === "law" ? <LawPart matterId={props.matterId} version={props.version + changed} /> : null}
         {part === "sources" ? <SourcesPart matterId={props.matterId} /> : null}
         {part === "arguments" ? <ArgumentsPart matterId={props.matterId} version={props.version + changed} /> : null}
         {part === "log" ? <LogPart matterId={props.matterId} version={props.version + changed} /> : null}
       </div>
+    </div>
+  );
+}
+
+// ---- Phase 5: the law library ----
+
+const LAW_SCOPES: Record<string, Array<"statute" | "procedure" | "research" | "matter">> = {
+  all: ["statute", "procedure", "research", "matter"],
+  statutes: ["statute"],
+  procedure: ["procedure"],
+  judgments: ["research"],
+  matter: ["matter"],
+};
+
+function LawPart(props: { matterId: string; version: number }) {
+  const [health, setHealth] = useState<KnowledgeHealthView | null>(null);
+  const [plans, setPlans] = useState<ResearchPlan[]>([]);
+  const [progress, setProgress] = useState("");
+  const [query, setQuery] = useState("");
+  const [mode, setMode] = useState<SearchMode>("natural");
+  const [date, setDate] = useState("");
+  const [scope, setScope] = useState("all");
+  const [result, setResult] = useState<RetrievalResult | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      setHealth(await api.knowledgeHealth(props.matterId));
+    } catch (e) {
+      setError(errorText(e));
+    }
+  }, [props.matterId]);
+
+  const refreshPlans = useCallback(async () => {
+    try {
+      setPlans(await api.knowledgePlans(props.matterId));
+    } catch (e) {
+      setError(errorText(e));
+    }
+  }, [props.matterId]);
+
+  useEffect(() => {
+    void refresh();
+    void refreshPlans();
+  }, [refresh, refreshPlans, props.version]);
+
+  useEffect(() => api.onStudioProgress(setProgress), []);
+
+  const decidePlan = async (id: string, decision: "approved" | "stopped") => {
+    try {
+      setError(null);
+      await api.decideResearchPlan(props.matterId, id, decision);
+      await refreshPlans();
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+
+  const load = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await api.knowledgeLoadFirstWave();
+      setNote(`Loaded ${r.acts} Acts and ${r.provisions} provisions. Set ${r.setHash.slice(0, 12)}.`);
+      await refresh();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const search = async () => {
+    if (!query.trim()) return;
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      setResult(
+        await api.knowledgeSearch(props.matterId, query.trim(), {
+          mode,
+          scopes: LAW_SCOPES[scope] ?? LAW_SCOPES.all,
+          date: date || null,
+          limit: 20,
+        }),
+      );
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveProvision = async (hit: KnowledgeHit) => {
+    try {
+      setError(null);
+      const saved = await api.knowledgeSaveProvision(props.matterId, hit.id);
+      setNote(`Saved in this matter: ${saved.act}, ${saved.section}. The library row is the shared source.`);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+
+  const saveAuthority = async (hit: KnowledgeHit) => {
+    try {
+      setError(null);
+      const [ref, para] = hit.anchor.split("#p");
+      const saved = await api.saveJudgment(props.matterId, ref, { paragraph: para ?? "", proposition: "", role: "supporting" });
+      setNote(`Saved as a candidate authority: ${saved.citation}, paragraph ${saved.paragraph || "not given"}.`);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+
+  const counts = health?.counts;
+  return (
+    <div className="work-view" data-testid="studio-law">
+      <section className="work-section" aria-label="Law library">
+        <div className="row-actions">
+          <Heading level={3}>Law library</Heading>
+          {counts ? <Badge label={`${counts.acts} Acts · ${counts.provisions} provisions`} /> : null}
+          {result ? <Badge variant={result.coverage.partial ? "warning" : "success"} label={result.coverage.partial ? "Partial coverage" : "Complete coverage"} /> : null}
+        </div>
+        <Text type="supporting">
+          The shared library is the owner's ten-instrument first wave: the Constitution, BNS, BNSS, BSA, IPC, CrPC, the Evidence Act, the Civil Procedure Code, the General Clauses Act and the Limitation Act. It is read from India Code with page and line anchors and a source manifest. A saved provision is a case-specific copy in this matter; the library row remains the shared source.
+        </Text>
+        {counts ? (
+          <Text type="supporting">
+            {counts.provisions} current provisions, {counts.versions} versions, {counts.stale} stale; {counts.judgments} judgment(s), {counts.paragraphs} paragraph(s), {counts.edges} treatment edge(s). Set {health?.manifest.setHash.slice(0, 12) ?? "—"}.
+          </Text>
+        ) : null}
+        <div className="row-actions">
+          <Button label={counts && counts.provisions > 0 ? "Recheck and refresh the first wave" : "Load the first wave"} size="sm" isDisabled={busy || !!progress} clickAction={load} />
+          <Button label="Refresh health" size="sm" variant="ghost" isDisabled={busy} clickAction={refresh} />
+        </div>
+        {progress ? <Text type="supporting" data-testid="law-progress">Law: {progress}</Text> : null}
+        {health ? (
+          <Text type="supporting" data-testid="law-health">
+            {health.adapters
+              .filter((row) => row.scope === "statute" || row.scope === "procedure" || row.scope === "research" || row.scope === "matter")
+              .map((row) => `${row.scope}: ${row.state} — ${row.detail}`)
+              .join(" · ")}
+          </Text>
+        ) : null}
+        {note ? <div className="notice" role="status">{note}</div> : null}
+        {error ? <div className="notice" role="alert" data-testid="law-error">{error}</div> : null}
+      </section>
+
+      {plans.length ? (
+        <section className="work-section" aria-label="Research plans" data-testid="research-plans">
+          <Heading level={3}>Research plans</Heading>
+          {plans.map((plan) => (
+            <div key={plan.id} className="work-row">
+              <div className="row-actions">
+                <Badge variant={plan.status === "proposed" ? "warning" : plan.status === "stopped" ? "error" : "success"} label={plan.status} />
+                <strong>{plan.question}</strong>
+                {plan.governingDate ? <Text type="supporting">Governing date {plan.governingDate}</Text> : null}
+              </div>
+              <ol>
+                {plan.steps.map((step) => (
+                  <li key={step.n}>
+                    <Text type="supporting">{step.status} · {step.mode} · {step.scopes.join(", ")}{step.hits ? ` · ${step.hits} hit(s)` : ""}{step.note ? ` — ${step.note}` : ""}</Text> {step.question}
+                  </li>
+                ))}
+              </ol>
+              <div className="row-actions">
+                {plan.status === "proposed" ? <Button label="Approve the plan" size="sm" clickAction={() => decidePlan(plan.id, "approved")} /> : null}
+                {plan.status === "proposed" || plan.status === "approved" || plan.status === "running" ? <Button label="Stop the plan" size="sm" variant="ghost" clickAction={() => decidePlan(plan.id, "stopped")} /> : null}
+              </div>
+            </div>
+          ))}
+        </section>
+      ) : null}
+
+      <section className="work-section" aria-label="Search the law library">
+        <div className="row-actions search-row">
+          <input aria-label="Law query" className="grow" placeholder="A question, a citation, or words of a provision" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void search()} />
+          <select aria-label="Law mode" value={mode} onChange={(e) => setMode(e.target.value as SearchMode)}>
+            <option value="natural">Natural language</option>
+            <option value="citation">Citation</option>
+            <option value="statute">Statute and section</option>
+            <option value="paragraph">Judgment paragraph</option>
+            <option value="historical">Law on a date</option>
+            <option value="connected">Connected case</option>
+            <option value="phrase">Exact phrase</option>
+            <option value="boolean">Boolean</option>
+          </select>
+          <select aria-label="Law scope" value={scope} onChange={(e) => setScope(e.target.value)}>
+            <option value="all">Law, judgments and matter</option>
+            <option value="statutes">Statutes</option>
+            <option value="procedure">Procedure</option>
+            <option value="judgments">Judgments</option>
+            <option value="matter">This matter</option>
+          </select>
+          <input aria-label="Governing date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <Button label="Search the law library" size="sm" isDisabled={busy || !query.trim()} clickAction={search} />
+        </div>
+        {result ? (
+          <>
+            <Text type="supporting" data-testid="law-coverage">
+              Searched {result.coverage.searched.join(", ") || "none"}. Deferred {result.coverage.deferred.map((d) => `${d.scope} (${d.reason})`).join("; ") || "none"}. Failed {result.coverage.failed.map((f) => `${f.scope} (${f.reason})`).join("; ") || "none"}. {result.coverage.partial ? "This result is partial." : "This result is complete for the scopes named."}
+            </Text>
+            <ol className="hit-list" data-testid="law-hits">
+              {result.hits.map((hit) => {
+                const summary = hit.checks ? summariseVerification(hit.checks) : "unconfirmed";
+                return (
+                  <li key={`${hit.scope}:${hit.id}`}>
+                    <div className="hit-main">
+                      <div className="row-actions">
+                        <Badge label={hit.scope} />
+                        <strong>{hit.title}</strong>
+                        <Badge variant={summary === "verified" ? "success" : summary === "partial" ? "warning" : "error"} label={summary} />
+                        {hit.stale ? <Badge variant="warning" label="stale" /> : null}
+                      </div>
+                      {hit.citationKey ? <Text type="supporting">{citationKeyText(hit.citationKey)}</Text> : null}
+                      {hit.binding ? <Text type="supporting">Binding: {hit.binding.label} — {hit.binding.reasons.join(" ")}{hit.binding.unresolved.length ? ` (missing: ${hit.binding.unresolved.join(", ")})` : ""}</Text> : null}
+                      <Text>{hit.text.length > 900 ? `${hit.text.slice(0, 900)}…` : hit.text}</Text>
+                      <Text type="supporting">
+                        anchor {hit.anchor} · {hit.why.join(", ")} · {hit.verification}
+                      </Text>
+                      <div className="row-actions">
+                        {hit.scope === "statute" || hit.scope === "procedure" ? <Button label="Save in this matter" size="sm" variant="ghost" clickAction={() => saveProvision(hit)} /> : null}
+                        {hit.scope === "research" ? <Button label="Save as a candidate authority" size="sm" variant="ghost" clickAction={() => saveAuthority(hit)} /> : null}
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+              {result.hits.length === 0 ? <li><Text type="supporting">No hit. The coverage above says what was searched.</Text></li> : null}
+            </ol>
+          </>
+        ) : null}
+      </section>
     </div>
   );
 }

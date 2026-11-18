@@ -6,6 +6,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { Corpus, type CachedPage } from "../lib/research-sources/corpus.ts";
 import { AWS_LICENCE, highCourtCodes, highCourtName, highCourtYear, supremeCourtYear, type JudgmentMeta } from "../lib/research-sources/aws.ts";
 import { readStatute, searchStatutes } from "../lib/research-sources/indiacode.ts";
@@ -18,9 +19,20 @@ import { disposalClass, quickCheck } from "../lib/matter-store/authority2.ts";
 import { findCitations } from "../lib/ulos/index.ts";
 import { readParagraphs } from "../lib/drafting/index.ts";
 import { randomUUID } from "node:crypto";
-import { MatterStoreError } from "../lib/matter-store/index.ts";
+import { MatterStoreError, type MatterStore } from "../lib/matter-store/index.ts";
+import { LawStore, instrumentId } from "../lib/law-store/index.ts";
+import { FIRST_WAVE } from "../lib/statutes/first-wave.ts";
+import { importFirstWave, readProvisionForCheck, type ImportProgress } from "../lib/law-import/index.ts";
+import { createPhase5Knowledge } from "../lib/knowledge/skeleton.ts";
+import { runRetrieval, type KnowledgeRegistry, type RetrieveOptions } from "../lib/knowledge/index.ts";
+import { boundMatterAdapter, type MatterKnowledgePort } from "../lib/knowledge/adapters.ts";
+import { paragraphs, edgesOf } from "../lib/legal-corpus/index.ts";
+import { bindingEffect } from "../lib/authority/binding.ts";
+import { quoteHash, verifyQuote } from "../lib/knowledge/quote.ts";
+import { adverseQueries, composeResearchMemo, type VerifiedQuote } from "../lib/research-workflow/index.ts";
 import type { Matters } from "./matters.ts";
 import type { WriteContext } from "../shared/records.ts";
+import type { KnowledgeHealthView, KnowledgeHit, QuoteCheck, RetrievalResult } from "../shared/law.ts";
 import type { CorpusPart, ResearchDocument, ResearchHit, ResearchSettings, StudioState } from "../shared/studio.ts";
 import { dmy } from "../shared/dates.ts";
 
@@ -45,12 +57,19 @@ export class ResearchHub {
   private matters: Matters;
   private settings: () => ResearchSettings;
   readonly corpus: Corpus;
+  readonly law: LawStore;
   private indexing: string | null = null;
+  private lawIndexing: string | null = null;
   private onProgress: (text: string) => void;
 
   constructor(matters: Matters, corpusFolder: string, settings: () => ResearchSettings, onProgress: (text: string) => void = () => undefined) {
     this.matters = matters;
-    this.corpus = new Corpus(corpusFolder);
+    // One owner for the corpus file. The judgment metadata and the law rows share the same
+    // connection; no second module opens corpus.db.
+    const db = new DatabaseSync(path.join(corpusFolder, "corpus.db"));
+    db.exec("PRAGMA journal_mode = WAL;");
+    this.corpus = new Corpus(corpusFolder, db);
+    this.law = new LawStore(db);
     this.settings = settings;
     this.onProgress = onProgress;
   }
@@ -73,6 +92,267 @@ export class ResearchHub {
 
   indexingNow(): string | null {
     return this.indexing;
+  }
+
+  lawIndexingNow(): string | null {
+    return this.lawIndexing;
+  }
+
+  // ---- Phase 5: the shared law library and the one knowledge search ----
+
+  private matterPort(store: MatterStore): MatterKnowledgePort {
+    return {
+      search: (_matterId, q, ctx): KnowledgeHit[] => {
+        const limit = Math.min(Math.max(ctx.limit ?? 20, 1), 60);
+        const hits: KnowledgeHit[] = store.find(q.raw, limit).map((hit) => ({
+          id: `matter:${hit.kind}:${hit.ref}`,
+          scope: "matter",
+          kind: hit.kind,
+          title: hit.label,
+          text: hit.text,
+          anchor: hit.ref,
+          date: null,
+          authority: 0,
+          verification: `Matter record (${hit.kind})`,
+          stale: false,
+          score: 0,
+          why: ["text"],
+        }));
+        return hits;
+      },
+    };
+  }
+
+  private async knowledge(matterId: string | null): Promise<KnowledgeRegistry> {
+    const store = matterId ? await this.matters.store(matterId) : null;
+    const cpc = FIRST_WAVE.find((item) => item.short === "CPC");
+    return createPhase5Knowledge({
+      law: this.law,
+      matter: store && matterId ? { id: matterId, port: this.matterPort(store) } : null,
+      verify: (provision) => readProvisionForCheck(this.law, provision),
+      procedureActIds: cpc ? [instrumentId("indiacode", cpc.itemUuid)] : [],
+    });
+  }
+
+  /** The law counts, the set manifest and one health row per scope, for the Index Health view. */
+  async knowledgeHealth(matterId: string | null = null): Promise<KnowledgeHealthView> {
+    const registry = await this.knowledge(matterId);
+    return { adapters: registry.health(), counts: this.law.counts(), manifest: this.law.manifest() };
+  }
+
+  /**
+   * One retrieval over the law library, the judgment paragraphs and the bound matter. The matter
+   * scope is refused when the caller names another matter. The run is logged as a matter event;
+   * the law references are ids, never matter facts.
+   */
+  async searchKnowledge(matterId: string | null, query: string, opts: RetrieveOptions = {}): Promise<RetrievalResult> {
+    const registry = await this.knowledge(matterId);
+    const result = await runRetrieval(registry, query, { ...opts, matterId });
+    const profile = matterId ? (await this.matters.store(matterId)).profile() : null;
+    const question = {
+      court: profile?.court ?? opts.court ?? "",
+      jurisdiction: profile?.court ?? null,
+      territory: profile?.court ?? null,
+      date: profile?.governingDate || opts.date || new Date().toISOString().slice(0, 10),
+    };
+    for (const hit of result.hits) if (hit.authorityFacts) hit.binding = bindingEffect(hit.authorityFacts, question);
+    if (matterId) {
+      const store = await this.matters.store(matterId);
+      await store.appendEvent({ actor: "agent" }, "knowledge.search", null, {
+        query: query.slice(0, 500),
+        mode: result.mode,
+        hits: result.hits.length,
+        lawRefs: result.hits.filter((hit) => hit.scope === "statute" || hit.scope === "procedure" || hit.scope === "research").map((hit) => hit.id).slice(0, 50),
+        coverage: result.coverage,
+      });
+    }
+    return result;
+  }
+
+  /**
+   * The negative search for one issue. It runs the contrary-treatment queries, deduplicates the
+   * hits and keeps each query's coverage. It finds candidates; the advocate decides.
+   */
+  async adverseSearch(matterId: string | null, issue: string, opts: { date?: string | null; limit?: number } = {}): Promise<{ queries: Array<{ query: string; hits: number; coverage: RetrievalResult["coverage"] }>; hits: KnowledgeHit[] }> {
+    const queries = adverseQueries(issue);
+    const runs = await Promise.all(
+      queries.map(async (query) => {
+        const result = await this.searchKnowledge(matterId, query, { mode: "natural", scopes: ["research", "statute", "procedure"], date: opts.date ?? null, limit: Math.min(Math.max(opts.limit ?? 8, 1), 20) });
+        return { query, result };
+      }),
+    );
+    const seen = new Set<string>();
+    const hits: KnowledgeHit[] = [];
+    for (const run of runs) {
+      for (const hit of run.result.hits) {
+        const key = `${hit.scope}:${hit.id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        hits.push(hit);
+      }
+    }
+    return { queries: runs.map((run) => ({ query: run.query, hits: run.result.hits.length, coverage: run.result.coverage })), hits };
+  }
+
+  /** The exact source text behind a hit id: a law provision, a judgment paragraph or a matter record. */
+  private async hitText(hitId: string, matterId: string | null): Promise<{ text: string; title: string; citation: string } | null> {
+    const provision = this.law.provision(hitId);
+    if (provision) {
+      return {
+        text: provision.text,
+        title: `${provision.kind} ${provision.number}, ${provision.actTitle}${provision.heading ? `: ${provision.heading}` : ""}`,
+        citation: provision.actTitle,
+      };
+    }
+    const paragraph = /^(.*)#p(\d+)$/.exec(hitId);
+    if (paragraph) {
+      const judgment = this.law.judgment(paragraph[1]);
+      const row = this.law.paras(paragraph[1], Number(paragraph[2]), Number(paragraph[2]))[0];
+      if (judgment && row) return { text: row.text, title: `${judgment.title}${row.label ? `, para ${row.label}` : ""}`, citation: judgment.citations[0] ?? "" };
+    }
+    if (matterId) {
+      const store = await this.matters.store(matterId);
+      const ref = hitId.startsWith("matter:") ? hitId.split(":").slice(2).join(":") : hitId;
+      const found = store.find(ref, 8).find((hit) => hit.ref === ref || `${hit.kind}:${hit.ref}` === hitId);
+      if (found) return { text: found.text, title: found.label, citation: found.kind };
+    }
+    return null;
+  }
+
+  /** The deterministic quote check for one hit. It never trusts a quote the caller supplies. */
+  async verifyQuoteForHit(hitId: string, quote: string, matterId: string | null = null): Promise<QuoteCheck> {
+    const source = await this.hitText(hitId, matterId);
+    if (!source) return { quote, quoteHash: quoteHash(quote), start: null, end: null, verified: false, detail: "The hit id is not in the shared library or this matter." };
+    return verifyQuote(quote, source.text);
+  }
+
+  /**
+   * Write a quote-first research memorandum. Every selected quote is located in its source; one
+   * unverified quote refuses the whole memorandum. The memo is a candidate for the advocate and
+   * opens a review item.
+   */
+  async writeResearchMemo(
+    matterId: string,
+    input: {
+      title: string;
+      issueId?: string | null;
+      question: string;
+      governingDate?: string | null;
+      body: string;
+      coverage: string;
+      quotes: Array<{ hitId: string; quote: string }>;
+      adverse?: Array<{ hitId: string; quote: string }>;
+      openQuestions?: string[];
+    },
+    ctx: WriteContext = { actor: "agent" },
+  ) {
+    const store = await this.matters.store(matterId);
+    const verifyAll = async (rows: Array<{ hitId: string; quote: string }>): Promise<VerifiedQuote[]> => {
+      const out: VerifiedQuote[] = [];
+      for (const row of rows) {
+        const source = await this.hitText(row.hitId, matterId);
+        if (!source) throw new SourceError("HIT_NOT_FOUND", row.hitId);
+        const check = verifyQuote(row.quote, source.text);
+        if (!check.verified) throw new SourceError("QUOTE_UNVERIFIED", `${row.quote.slice(0, 120)}: ${check.detail}`);
+        out.push({ hitId: row.hitId, title: source.title, citation: source.citation, quote: row.quote, check });
+      }
+      return out;
+    };
+    const quotes = await verifyAll(input.quotes);
+    const adverse = await verifyAll(input.adverse ?? []);
+    const body = composeResearchMemo({
+      title: input.title,
+      question: input.question,
+      governingDate: input.governingDate ?? null,
+      body: input.body,
+      quotes,
+      adverse,
+      coverage: input.coverage,
+      openQuestions: input.openQuestions ?? [],
+    });
+    const memo = store.work.addMemorandum(
+      {
+        title: input.title,
+        issueId: input.issueId ?? null,
+        body,
+        refs: [...quotes, ...adverse].map((row) => row.hitId),
+        unresolved: [],
+      },
+      ctx,
+    );
+    const reviewItem = store.openReviewItem("research_memo", memo.id, null, `Research memorandum "${memo.title}" is ready for review. ${quotes.length} verified quote(s), ${adverse.length} adverse quote(s).`);
+    return { memo, reviewItem, quotes: quotes.length, adverse: adverse.length };
+  }
+
+  /** Load the owner's ten-instrument first wave. It writes law rows and source hashes. */
+  async loadLawFirstWave(onProgress: (progress: ImportProgress) => void = () => undefined): Promise<{ acts: number; provisions: number; setHash: string; counts: ReturnType<LawStore["counts"]> }> {
+    if (this.lawIndexing) throw new SourceError("INDEX_BUSY", `already loading law: ${this.lawIndexing}`);
+    this.lawIndexing = "The first wave";
+    try {
+      const result = await importFirstWave(this.law, (progress) => {
+        this.lawIndexing = `${progress.title} (${progress.stage} ${progress.done}/${progress.total})`;
+        this.onProgress(this.lawIndexing);
+        onProgress(progress);
+      });
+      return { acts: result.acts.length, provisions: result.provisions, setHash: result.setHash, counts: this.law.counts() };
+    } finally {
+      this.lawIndexing = null;
+      this.onProgress("");
+    }
+  }
+
+  /**
+   * Save one provision from the shared law library as a case-specific copy in this matter. The
+   * copy keeps the source reference, so the Studio shows it beside the library row. The advocate
+   * decides whether to rely on it.
+   */
+  async saveLawProvision(matterId: string, provisionId: string, ctx: WriteContext = { actor: "advocate" }) {
+    const provision = this.law.provision(provisionId);
+    if (!provision) throw new SourceError("NOT_FOUND", provisionId);
+    const store = await this.matters.store(matterId);
+    const act = this.law.act(provision.actId);
+    return store.studio.addProvision(
+      {
+        sourceRef: provision.sourceRef,
+        act: provision.actTitle,
+        section: provision.number,
+        title: provision.heading || `${provision.kind} ${provision.number}`,
+        text: provision.text,
+        repealed: provision.status === "repealed" || act?.repealed === true,
+        url: provision.sourceUrl,
+        retrievedAt: provision.retrievedAt,
+      },
+      ctx,
+    );
+  }
+
+  /**
+   * Index a judgment's paragraphs and treatment edges after its PDF has been read. The paragraph
+   * is the unit; the page and line stay as anchors. A judgment that is only metadata is not
+   * searchable by text until it is read once.
+   */
+  async indexJudgment(ref: string): Promise<{ indexed: boolean; paragraphs: number; edges: number; reason?: string }> {
+    const meta = this.corpus.get(ref);
+    if (!meta) throw new SourceError("NOT_INDEXED", `${ref} is not in the local index`);
+    const cached = this.corpus.cachedText(ref);
+    if (!cached) return { indexed: false, paragraphs: 0, edges: 0, reason: "Read the judgment first; its PDF has not been fetched." };
+    const paras = paragraphs(cached.pages);
+    this.law.putJudgment(
+      ref,
+      {
+        court: meta.court,
+        courtName: meta.courtName,
+        title: meta.title,
+        decisionDate: meta.decisionDate,
+        citations: [meta.insc, meta.citation].filter(Boolean),
+        judges: meta.judge ? meta.judge.split(/\s*[,;]\s*/).filter(Boolean) : [],
+      },
+      paras,
+      { actor: "system" },
+    );
+    const edges = edgesOf(ref, paras, (citation) => this.law.byCitation(citation)[0] ?? null, (_kind, number, act) => this.law.findProvision(number, act)[0]?.id ?? null);
+    this.law.putEdges(ref, edges, { actor: "system" });
+    return { indexed: true, paragraphs: paras.length, edges: edges.length };
   }
 
   /** Index Supreme Court years. Years already indexed are read again only when `refresh`. */
@@ -185,6 +465,9 @@ export class ResearchHub {
         cached = { sha256: put.sha256, pages };
         await this.log(matterId, source, "fetch judgment", ref, ctx, pages.length);
       }
+      // The paragraph is the research unit. Index it once the PDF has been read, so later
+      // searches can find the exact paragraph and its treatment edges.
+      await this.indexJudgment(ref);
       const h = judgmentHit(j);
       return { source, ref, title: j.title, detail: h.detail, url: j.pdfUrl, sha256: cached.sha256, pages: cached.pages, notice: `${AWS_LICENCE}. The court's PDF as mirrored there, read by page and line.` };
     }

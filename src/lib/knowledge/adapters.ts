@@ -15,11 +15,14 @@ import type { AdapterContext, KnowledgeAdapter, ParsedQuery, RankedList, VectorI
 const PROCEDURE_KINDS: InstrumentKind[] = ["rules", "practice_direction", "regulation"];
 const STATUTE_KINDS: InstrumentKind[] = ["act", "notification"];
 
-/** The chapter, part or order a rule is under, when the source prints one. */
+/** The part, chapter or order a provision is under, when the source prints one. */
 function provisionCitationKey(p: Provision): CitationKey {
   const key: CitationKey = { instrument: p.actId, kind: p.kind, number: p.number, version: p.version };
-  const under = /^(chapter|part|order)\s+(.+)$/i.exec(p.under.trim());
-  if (under) {
+  // An Act provision can be under a Part and a Chapter ("PART III / CHAPTER I"). A rule can be
+  // under an Order. Both are read here; an absent heading stays absent.
+  for (const raw of p.under.split(/\s*[>/]\s*/)) {
+    const under = /^(chapter|part|order)\s+(.+)$/i.exec(raw.trim());
+    if (!under) continue;
     const label = under[1].toLowerCase();
     if (label === "chapter") key.chapter = under[2];
     else if (label === "part") key.part = under[2];
@@ -80,16 +83,20 @@ export interface LawAdapterOptions {
   verify?: (p: Provision) => Promise<{ text: string; footnotes?: string; heading?: string }>;
   /** At most this many source reads per retrieval. */
   maxChecks?: number;
+  /** Acts that belong in this scope even though their kind is "act" (the Civil Procedure Code). */
+  includeActIds?: string[];
 }
 
 /** Statutes (Acts) or procedure (court rules, practice directions), both over the provision table. */
 export function provisionAdapter(scope: "statute" | "procedure", law: LawStore, opts: LawAdapterOptions = {}): KnowledgeAdapter {
   const kinds = scope === "statute" ? STATUTE_KINDS : PROCEDURE_KINDS;
+  const includeActIds = opts.includeActIds ?? [];
+  const allowed = (act: { id: string; kind: InstrumentKind }) => kinds.includes(act.kind) || includeActIds.includes(act.id);
   return {
     scope,
-    unavailable: () => (law.acts().some((a) => kinds.includes(a.kind)) ? null : scope === "statute" ? "No Act is in the library yet. Add one from India Code." : "No court rules are in the library yet. Add the rules PDF."),
+    unavailable: () => (law.acts().some(allowed) ? null : scope === "statute" ? "No Act is in the library yet. Add one from India Code." : "No court rules are in the library yet. Add the rules PDF."),
     health: () => {
-      const rows = law.acts().filter((a) => kinds.includes(a.kind)).reduce((n, a) => n + a.provisions, 0);
+      const rows = law.acts().filter(allowed).reduce((n, a) => n + a.provisions, 0);
       return {
         scope,
         state: rows > 0 ? "ready" : "empty",
@@ -104,7 +111,7 @@ export function provisionAdapter(scope: "statute" | "procedure", law: LawStore, 
       for (const ref of q.provisions) {
         if (!ref.act) continue;
         for (const p of law.findProvision(ref.number, ref.act)) {
-          if (!kinds.includes(law.act(p.actId)!.kind)) continue;
+          if (!allowed(law.act(p.actId)!)) continue;
           if (q.date) {
             const r = law.inForce(p.actId, p.number, q.date);
             const h = provisionHit(scope, r.version ?? p, `on ${q.date}: ${r.state.replace(/_/g, " ")}. ${r.basis.join(" ")}`, r);
@@ -115,7 +122,7 @@ export function provisionAdapter(scope: "statute" | "procedure", law: LawStore, 
       if (exact.length) lists.push({ retriever: "exact", hits: exact, weight: 3 });
       // 2. Full text.
       if (q.fts) {
-        const hits = law.searchProvisions(q.fts, { raw: true, kinds, jurisdiction: scope === "procedure" && q.court ? q.court : undefined, limit: ctx.limit });
+        const hits = law.searchProvisions(q.fts, { raw: true, kinds, actIds: includeActIds, jurisdiction: scope === "procedure" && q.court ? q.court : undefined, limit: ctx.limit });
         if (hits.length) {
           lists.push({
             retriever: "text",

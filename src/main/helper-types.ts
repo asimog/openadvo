@@ -7,10 +7,10 @@
 /** Tools that read the matter and change nothing. */
 const READ_MATTER = [
   "list_sources", "read_source_text", "search_sources", "list_events", "get_chronology", "read_draft",
-  "get_paragraph_source", "list_research", "list_record_table", "read_matter_memory", "find_in_matter", "list_arguments",
+  "get_paragraph_source", "list_research", "list_research_plans", "list_record_table", "read_matter_memory", "find_in_matter", "list_arguments",
 ];
 /** Tools that read public law and the web. */
-const READ_LAW = ["search_judgments", "read_judgment", "search_statutes", "read_statute_section", "search_citation_index", "web_search", "web_fetch"];
+const READ_LAW = ["search_knowledge", "verify_quote", "find_adverse_authority", "search_judgments", "read_judgment", "search_statutes", "read_statute_section", "search_citation_index", "web_search", "web_fetch"];
 
 export interface HelperType {
   name: string;

@@ -7,6 +7,8 @@
 import type { ArgumentStudio, ResearchHub, SourceName } from "./studio.ts";
 import type { Matters } from "./matters.ts";
 import type { ResearchDocument } from "../shared/studio.ts";
+import type { KnowledgeScope, SearchMode } from "../shared/law.ts";
+import { citationKeyText } from "../shared/law.ts";
 import { ensureFindIndex } from "./audit.ts";
 
 const MAX_PAGES = 5;
@@ -41,6 +43,25 @@ export function studioTools(hub: ResearchHub, studio: ArgumentStudio, matters: M
         }
         case "read_statute_section":
           return pagesText(await hub.read(matterId, "indiacode", s("id"), agent));
+        case "search_knowledge": {
+          const scopes = Array.isArray(p.scopes) ? p.scopes.filter((scope): scope is KnowledgeScope => typeof scope === "string") : undefined;
+          const r = await hub.searchKnowledge(matterId, s("query"), {
+            mode: (s("mode") || "natural") as SearchMode,
+            scopes,
+            limit: Math.min(Math.max(n("limit") ?? 12, 1), 40),
+            date: s("date") || null,
+            court: s("court") || null,
+          });
+          const hits = r.hits.map((hit, index) => {
+            const cite = hit.citationKey ? citationKeyText(hit.citationKey) : hit.anchor;
+            const authority = hit.authorityFacts ? `${hit.authorityFacts.courtName ?? hit.authorityFacts.court}${hit.authorityFacts.decisionDate ? `, ${hit.authorityFacts.decisionDate}` : ""}` : "";
+            const binding = hit.binding ? `\n   binding: ${hit.binding.label} — ${hit.binding.reasons.join(" ")}${hit.binding.unresolved.length ? ` (missing: ${hit.binding.unresolved.join(", ")})` : ""}` : "";
+            return `${index + 1}. [${hit.scope}] ${hit.title}\n   ${cite}${authority ? `\n   authority: ${authority}` : ""}${binding}\n   ${hit.text.slice(0, 500).replace(/\s+/g, " ")}${hit.text.length > 500 ? "..." : ""}\n   anchor: ${hit.anchor}${hit.stale ? " (stale)" : ""}\n   why: ${hit.why.join(", ")}; verification: ${hit.verification}`;
+          });
+          const deferred = r.coverage.deferred.map((row) => `${row.scope} (${row.reason})`).join("; ");
+          const failed = r.coverage.failed.map((row) => `${row.scope} (${row.reason})`).join("; ");
+          return `${hits.join("\n") || "No hit."}\n\nCoverage: searched ${r.coverage.searched.join(", ") || "none"}; deferred ${deferred || "none"}; failed ${failed || "none"}; ${r.coverage.partial ? "PARTIAL" : "complete"}. A hit is a candidate; the advocate decides.`;
+        }
         case "web_search": {
           const r = await hub.search(matterId, "web", s("query"), { limit: 8 }, agent);
           return `${r.notice}\n${r.hits.map((h, i) => `${i + 1}. ${h.title}\n   ${h.url}\n   ${h.detail}${h.courtCopy ? `\n   court copy in the index: ${h.courtCopy.insc}, ref ${h.courtCopy.ref} (read it with read_judgment)` : ""}`).join("\n") || "No result."}`;
@@ -50,6 +71,71 @@ export function studioTools(hub: ResearchHub, studio: ArgumentStudio, matters: M
         case "save_judgment": {
           const a = await hub.saveJudgment(matterId, s("ref"), { paragraph: s("paragraph"), proposition: s("proposition"), role: s("role"), issueId: s("issue_id") || null }, agent);
           return `Saved as a candidate authority (${a.id}): ${a.citation}, ${a.parties}. The advocate adopts or rejects it. Run check_citations to have the validator check a neutral citation.`;
+        }
+        case "find_adverse_authority": {
+          const r = await hub.adverseSearch(matterId, s("issue"), { date: s("date") || null, limit: n("limit") });
+          const hits = r.hits.map((hit, index) => {
+            const cite = hit.citationKey ? citationKeyText(hit.citationKey) : hit.anchor;
+            const binding = hit.binding ? `; binding ${hit.binding.label}` : "";
+            return `${index + 1}. [${hit.scope}] ${hit.title}\n   ${cite}${binding}\n   ${hit.text.slice(0, 400).replace(/\s+/g, " ")}\n   anchor: ${hit.anchor}`;
+          });
+          const coverage = r.queries.map((query) => `- ${query.query}: ${query.hits} hit(s); searched ${query.coverage.searched.join(", ") || "none"}${query.coverage.partial ? "; partial" : ""}`).join("\n");
+          return `${hits.join("\n") || "No adverse hit."}\n\nNegative searches:\n${coverage || "No query."}\nAbsence is not proof that no adverse authority exists. The advocate decides.`;
+        }
+        case "propose_research_plan": {
+          const steps = Array.isArray(p.steps)
+            ? p.steps
+                .filter((row): row is Record<string, unknown> => typeof row === "object" && row !== null)
+                .map((row) => ({
+                  question: String(row.question ?? ""),
+                  mode: String(row.mode ?? "natural") as never,
+                  scopes: Array.isArray(row.scopes) ? (row.scopes.filter((scope): scope is KnowledgeScope => typeof scope === "string") as KnowledgeScope[]) : (["statute", "procedure", "research", "matter"] as KnowledgeScope[]),
+                }))
+                .filter((row) => row.question)
+            : [];
+          const plan = (await matters.store(matterId)).researchPlans.add({ question: s("question"), issueId: s("issue_id") || null, governingDate: s("governing_date") || null, steps }, agent);
+          return `Research plan proposed (${plan.id}) with ${plan.steps.length} step(s). It waits for the advocate's approval before a long run.`;
+        }
+        case "list_research_plans": {
+          const plans = (await matters.store(matterId)).researchPlans.list();
+          return plans.length
+            ? plans.map((plan) => `- ${plan.status.toUpperCase()} ${plan.question} (id ${plan.id}; ${plan.steps.filter((step) => step.status === "done").length}/${plan.steps.length} done)\n  ${plan.steps.map((step) => `${step.n}. ${step.status}: ${step.question}${step.note ? ` — ${step.note}` : ""}`).join("\n  ")}`).join("\n")
+            : "No research plan.";
+        }
+        case "set_research_step": {
+          const plan = (await matters.store(matterId)).researchPlans.setStep(s("plan_id"), n("n") ?? 0, { status: s("status") as never, hits: n("hits"), note: s("note") }, agent);
+          return `Research plan ${plan.id}: step ${n("n")} is ${s("status") || "unchanged"}. Plan status ${plan.status}.`;
+        }
+        case "verify_quote": {
+          const check = await hub.verifyQuoteForHit(s("hit_id"), s("quote"), matterId);
+          return check.verified
+            ? `Verified. The quote is at offsets ${check.start}–${check.end} in the source. SHA-256 ${check.quoteHash}. It proves the words are present at the anchor; it does not prove the passage is the holding or the only authority.`
+            : `NOT verified. ${check.detail} The quote is not evidence and must not be put in a memorandum.`;
+        }
+        case "write_research_memo": {
+          const rows = (value: unknown): Array<{ hitId: string; quote: string }> =>
+            Array.isArray(value)
+              ? value
+                  .filter((row): row is Record<string, unknown> => typeof row === "object" && row !== null)
+                  .map((row) => ({ hitId: String(row.hit_id ?? ""), quote: String(row.quote ?? "") }))
+                  .filter((row) => row.hitId && row.quote)
+              : [];
+          const r = await hub.writeResearchMemo(
+            matterId,
+            {
+              title: s("title"),
+              issueId: s("issue_id") || null,
+              question: s("question"),
+              governingDate: s("governing_date") || null,
+              body: s("body"),
+              coverage: s("coverage"),
+              quotes: rows(p.quotes),
+              adverse: rows(p.adverse),
+              openQuestions: Array.isArray(p.open_questions) ? p.open_questions.filter((q): q is string => typeof q === "string") : [],
+            },
+            agent,
+          );
+          return `Memorandum written (${r.memo.id}): ${r.quotes} verified quote(s), ${r.adverse} adverse quote(s). A review item is open for the advocate.`;
         }
         case "save_provision": {
           const pr = await hub.saveProvision(matterId, s("id"), agent);

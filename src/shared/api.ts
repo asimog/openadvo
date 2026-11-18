@@ -7,12 +7,31 @@ export type { AgentChanges, AgentChange } from "./records.ts";
 import type { InboxItem, ProgressStage, DuplicatePair, MemoryProposal, RecordColumn, RecordTable, Workflow, ManifestCheck, AdverseReview, AnnexureRecord, Attestation, AuthorityRecord, CitationCheck, FilingSetRecord, FilingState, IssueRecord, LimitationRecord, MatterDetails, MatterProfile, MatterProposal, MatterRelation, RelatedMatter, ResearchState } from "./work.ts";
 export type * from "./work.ts";
 export type * from "./studio.ts";
+export type {
+  AdapterHealth,
+  AuthorityFacts,
+  CitationKey,
+  Coverage,
+  KnowledgeHealthView,
+  KnowledgeHit,
+  KnowledgeScope,
+  LawCounts,
+  LawManifest,
+  LawManifestAct,
+  ResearchPlan,
+  ResearchPlanStep,
+  RetrievalResult,
+  SearchMode,
+  SourceFileRow,
+  VerificationCheck,
+} from "./law.ts";
 export type * from "./audit.ts";
 export type * from "./practice.ts";
 import type { Contact, Hearing, Reminder } from "./practice.ts";
 export type { Entity, OcrDispute } from "./audit.ts";
 import type { ChainCheck, Refusal, Inspection, FindHit, Entity, OcrDispute } from "./audit.ts";
 import type { Assessment, Challenge, QuickCheck, Treatment, ArgumentRun, ArgumentRecord, CorpusPart, ProvisionRecord, ResearchDocument, ResearchHit, ResearchSettings, StudioState } from "./studio.ts";
+import type { KnowledgeHealthView, KnowledgeScope, LawCounts, ResearchPlan, RetrievalResult, SearchMode } from "./law.ts";
 
 import type { AGUIEvent } from "@ag-ui/core";
 import type { ContextCandidate, ContextPackageRecord, JobRow, ReportCard, RoleSummary, SideThread, SkillRunRecord, SkillSummary } from "./skills.ts";
@@ -623,6 +642,20 @@ export interface OpenAdvoApi {
   /** Proposes an accepted argument as a tracked insertion in the Grounds. */
   argumentToGrounds(matterId: string, id: string): Promise<string>;
   getWeakPoints(matterId: string): Promise<Array<{ claim: string; questions: string[]; attacks: Array<{ kind: string; claim: string }> }>>;
+  /** Phase 5: one search over the law library, judgment paragraphs and the bound matter. */
+  knowledgeSearch(matterId: string, query: string, opts?: { mode?: SearchMode; scopes?: KnowledgeScope[]; date?: string | null; court?: string | null; limit?: number }): Promise<RetrievalResult>;
+  /** Phase 5: law counts, the set manifest and one health row per scope. */
+  knowledgeHealth(matterId: string): Promise<KnowledgeHealthView>;
+  /** Human-only: load the owner's ten-instrument first wave from India Code. */
+  knowledgeLoadFirstWave(): Promise<{ acts: number; provisions: number; setHash: string; counts: LawCounts }>;
+  /** Index a judgment's paragraphs and treatment edges after its PDF has been read. */
+  knowledgeIndexJudgment(matterId: string, ref: string): Promise<{ indexed: boolean; paragraphs: number; edges: number; reason?: string }>;
+  /** Human-only: keep a case-specific copy of a library provision in this matter's Studio. */
+  knowledgeSaveProvision(matterId: string, provisionId: string): Promise<ProvisionRecord>;
+  /** The matter's research plans, proposed by the agent and approved by the advocate. */
+  knowledgePlans(matterId: string): Promise<ResearchPlan[]>;
+  /** Human-only: approve or stop a research plan. */
+  decideResearchPlan(matterId: string, id: string, decision: "approved" | "stopped"): Promise<ResearchPlan>;
   corpusParts(): Promise<CorpusPart[]>;
   indexSupremeCourt(years: number[]): Promise<CorpusPart[]>;
   listHighCourts(year: number): Promise<Array<{ code: string; name: string }>>;

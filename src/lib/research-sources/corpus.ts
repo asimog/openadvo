@@ -54,17 +54,20 @@ export function ftsQuery(q: string): string {
 export class Corpus {
   readonly folder: string;
   private db: DatabaseSync;
+  private ownsDb: boolean;
 
-  constructor(folder: string) {
+  /** A shared connection is passed by the corpus owner; a second module must not open the file. */
+  constructor(folder: string, db?: DatabaseSync) {
     this.folder = folder;
     mkdirSync(path.join(folder, "pdf"), { recursive: true });
-    this.db = new DatabaseSync(path.join(folder, "corpus.db"));
-    this.db.exec("PRAGMA journal_mode = WAL;");
+    this.ownsDb = !db;
+    this.db = db ?? new DatabaseSync(path.join(folder, "corpus.db"));
+    if (this.ownsDb) this.db.exec("PRAGMA journal_mode = WAL;");
     this.db.exec(SCHEMA);
   }
 
   close(): void {
-    this.db.close();
+    if (this.ownsDb) this.db.close();
   }
 
   /** Replace one part (a Supreme Court year, or one High Court in one year). */
