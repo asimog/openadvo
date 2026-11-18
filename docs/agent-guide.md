@@ -115,7 +115,8 @@ Key files:
 | `src/main/helpers.ts`, `src/main/helper-types.ts` | The helper runtime: foreground and background jobs, Steer, Stop, results, the Final Recap, the files |
 | `src/main/plan.ts`, `src/main/agent-context.ts` | The plan rules; the context strategy, the summaries with refs and the summary form |
 | `src/main/test-model.ts` | The scripted model for end-to-end tests (only under `OPENADVO_TEST=1`) |
-| `src/main/skills.ts`, `src/lib/skills/` | The skill registry: discovery of `SKILL.md` files, their checks, the roles and the evaluator gate (N1, O2, O4) |
+| `src/main/skills.ts`, `src/lib/skills/` | The skill registry: discovery of `SKILL.md` files, their checks, the roles and the evaluator gate (N1, O2, O4); the thirteen-parameter review and the fixture tests (N6) |
+| `src/main/packs.ts`, `src/lib/packs/`, `packs/` | The practice packs (N4, Q3): the four JSON packs, their checks, the pack of a matter, the skill gate and the filing plan; the SLP generators |
 | `src/main/skill-runner.ts`, `src/main/context-assembly.ts`, `src/lib/context-package/` | A skill run, retrieval and the context package (N2, I1) |
 | `src/main/side-questions.ts` | Side questions (O9) |
 | `src/main/harness-bridge.ts` | The bridge functions of phase 1 |
@@ -188,7 +189,9 @@ Key files:
 
 1. Add a folder under `skills/` with `SKILL.md`. The frontmatter fields are in [specs/harness-and-stores.md](specs/harness-and-stores.md) section 2.
 2. Name only tools of the skill's role ([../src/lib/skills/roles.ts](../src/lib/skills/roles.ts)). The registry refuses a human-only action, a portal or filing tool, or a tool the agent does not have.
-3. Check that it loads: the test "the built-in skills load with no error" in `tests/unit/skills.test.ts` lists the built-in ids. Add the new id there.
+3. Run `node scripts/review-skills.ts`. It writes `review.json` beside the skill with the thirteen-parameter score and the three legal failure modes (feature N6). A built-in skill without a record for its version cannot run.
+4. Check that it loads: the test "the built-in skills load with no error" in `tests/unit/skills.test.ts` and `tests/unit/skill-library.test.ts` run on every change. Add the new id there.
+5. A skill that belongs to a practice pack names it in `packs`. The pack is in `packs/<id>.json`; the schema is in [specs/practice-packs.md](specs/practice-packs.md) section 2.
 
 ### 7.7 Add or change a court adapter
 

@@ -23,15 +23,17 @@ This file owns the folders, the write boundaries, the data outside the repositor
 | `src/lib/preferences/` | The learned preferences (A7): the keys, the ask-once questions, the correction-driven proposals. |
 | `src/lib/verification/` | The draft checks of phase 6 (P1 to P10): the one defect mapping, grounding, provenance, statutes, structure, markers, injection and the reviewer note. | — |
 | `src/lib/court-directory/` | The offline directory of courts and tribunals (B1). | Engineers; the advocate's corrections come with the pack editor. |
+| `src/lib/packs/` | The practice-pack registry (N4, Q3): checks, the pack of a matter, the skill gate and the filing plan; `slp.ts` holds the SLP generators. | Engineers. |
+| `packs/` | Built-in practice packs, one JSON file per pack: criminal, civil, writ and slp. Content only, no matter fact. | Engineers, with the official source. |
 | `adapters/` | Built-in court adapters, one folder per adapter with `adapter.json` (data, never code). | Engineers, with every quote read in the official document. |
 | `src/main/browser.ts` | The built-in browser (S10): tabs, bookmarks, recent pages, hidden agent pages, DevTools Protocol control and downloads into the matter. | Main-process code only. |
 | `src/main/library.ts` | The Knowledge Library's file import and blob folder (M1). | Main-process code only. |
 | `src/main/matter-proposals.ts` | The matters the agent proposes in the chat (C2). | Main-process code only. |
 | `src/main/evidence.ts` | The post-ingest analysis: facts, structure, relations, contradictions, the evidence graph and the jurisdiction report (phase 4). | Main-process code only. |
 | `src/main/document-ops.ts` | PDF extract, split, merge, reorder, annotate, highlight and redact, each writing a new source (H13). | Main-process code only. |
-| `skills/` | Built-in skills, one folder per skill with `SKILL.md` ([specs/harness-and-stores.md](specs/harness-and-stores.md) section 2). Practice packs come in phase 8. | Engineers, through a reviewed change (N6). |
+| `skills/` | Built-in skills, one folder per skill with `SKILL.md` and its `review.json` ([specs/harness-and-stores.md](specs/harness-and-stores.md) section 2; [specs/practice-packs.md](specs/practice-packs.md) section 4). | Engineers, through a reviewed change (N6). |
 | `tests/unit/` | `node:test` tests of the plain libraries. | — |
-| `tests/e2e/` | Playwright tests against the built application. The native harness parts have one file each: `native-policy.spec.ts`, `native-helpers.spec.ts`, `native-plan.spec.ts`, `native-context.spec.ts`. Phase 1 is `phase1.spec.ts`; phase 2 is `phase2.spec.ts`; phase 3 is `phase3.spec.ts`; phase 4 is `phase4.spec.ts`; phase 6 is `phase6.spec.ts`. | — |
+| `tests/e2e/` | Playwright tests against the built application. The native harness parts have one file each: `native-policy.spec.ts`, `native-helpers.spec.ts`, `native-plan.spec.ts`, `native-context.spec.ts`. Phase 1 is `phase1.spec.ts`; phase 2 is `phase2.spec.ts`; phase 3 is `phase3.spec.ts`; phase 4 is `phase4.spec.ts`; phase 6 is `phase6.spec.ts`; phase 7 is `phase7.spec.ts`; phase 8 is `phase8.spec.ts`. | — |
 | `scripts/` | Node scripts. No PowerShell (decision 9). | — |
 | `spikes/` | Small proofs that settle one question. Each has a result file. Not product code. | — |
 | `docs/` | Durable documents. See [README.md](README.md). | — |
