@@ -13,6 +13,7 @@ import type { Contradiction, DocumentOperation, DocumentPart, EvidenceRecord, Fa
 import type { SourceRecord } from "../../shared/records.ts";
 import { FACT_STATUSES, FACT_TYPES } from "../../shared/evidence.ts";
 import { dmy } from "../../shared/dates.ts";
+import { factProvenance } from "../../lib/verification/provenance.ts";
 import type { SourceLink } from "./Notebook.tsx";
 import { MemoryEditor } from "./V1.tsx";
 
@@ -20,6 +21,11 @@ const api = window.openadvo;
 
 function errorText(e: unknown): string {
   return (e as Error).message.replace(/^Error invoking remote method '[^']+': (Error: )?/, "");
+}
+
+/** Phase 6 (P2): the provenance value of one fact, as the badge shows it. */
+function factProvenanceLabel(f: FactRecord): string {
+  return factProvenance({ author: f.author, sourceId: f.sourceId, anchorId: f.anchorId }).value.replace(/_/g, " ");
 }
 
 function SourceButton(props: { sourceId: string | null; sourceName: string | null; page: number | null; line: number | null; onOpen: (l: SourceLink) => void }) {
@@ -128,6 +134,7 @@ export function FactsPanel(props: { matterId: string; version: number; onOpenSou
                     <Badge variant="neutral" label={f.type} />
                     {f.date ? <Badge variant="info" label={dmy(f.date)} /> : null}
                     {f.amount ? <Badge variant="neutral" label={`₹ ${f.amount}`} /> : null}
+                    <Badge variant="neutral" label={factProvenanceLabel(f)} />
                   </div>
                   <Text>{f.text}</Text>
                   <Text type="supporting"><SourceButton sourceId={f.sourceId} sourceName={f.sourceName} page={f.page} line={f.line} onOpen={props.onOpenSource} />{f.parties.length ? ` · ${f.parties.join(" / ")}` : ""}{f.issueIds.length ? ` · ${f.issueIds.length} issue link(s)` : ""}</Text>

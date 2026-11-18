@@ -52,6 +52,11 @@ CREATE TABLE IF NOT EXISTS judgment_identity (
   citations TEXT NOT NULL, judges TEXT NOT NULL, bench_strength INTEGER NOT NULL, paragraphs INTEGER NOT NULL, indexed_at TEXT NOT NULL
 ) STRICT;
 CREATE TABLE IF NOT EXISTS citation_key (key TEXT NOT NULL, judgment_id TEXT NOT NULL, PRIMARY KEY (key, judgment_id)) STRICT;
+CREATE TABLE IF NOT EXISTS shared_citation_check (
+  seq INTEGER PRIMARY KEY AUTOINCREMENT, citation TEXT NOT NULL, outcome TEXT NOT NULL,
+  against TEXT NOT NULL, by TEXT NOT NULL, detail TEXT, at TEXT NOT NULL
+) STRICT;
+CREATE INDEX IF NOT EXISTS shared_citation_citation ON shared_citation_check (citation);
 CREATE TABLE IF NOT EXISTS legal_edge (
   id TEXT PRIMARY KEY, from_kind TEXT NOT NULL, from_id TEXT NOT NULL, relation TEXT NOT NULL, to_kind TEXT NOT NULL,
   to_id TEXT NOT NULL, evidence_ref TEXT NOT NULL, quote TEXT NOT NULL, status TEXT NOT NULL, built_from TEXT NOT NULL, built_at TEXT NOT NULL,
@@ -488,6 +493,25 @@ export class LawStore {
   /** The judgment a citation names, when it is indexed. */
   byCitation(citation: string): string[] {
     return (this.db.prepare("SELECT judgment_id FROM citation_key WHERE key = ?").all(citationKey(citation)) as Array<{ judgment_id: string }>).map((r) => r.judgment_id);
+  }
+
+  // ---- Phase 6 (P3): the shared verification record of public law ----
+
+  /**
+   * Record one validator run: who verified what, when, against which source. The record is
+   * shared across matters; it is a log, never a substitute for the online check (ruling R-4).
+   */
+  recordSharedCitationCheck(input: { citation: string; outcome: string; against: string; by: string; detail: string | null }): void {
+    this.db
+      .prepare("INSERT INTO shared_citation_check (citation, outcome, against, by, detail, at) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(input.citation, input.outcome, input.against, input.by, input.detail, new Date().toISOString());
+  }
+
+  /** The shared record's rows for one citation, newest first. */
+  sharedChecks(citation: string): Array<{ citation: string; outcome: string; against: string; at: string; by: string }> {
+    return (
+      this.db.prepare("SELECT citation, outcome, against, by, at FROM shared_citation_check WHERE citation = ? ORDER BY seq DESC LIMIT 50").all(citation) as Array<Record<string, unknown>>
+    ).map((r) => ({ citation: String(r.citation), outcome: String(r.outcome), against: String(r.against), by: String(r.by), at: String(r.at) }));
   }
 
   paras(judgmentId: string, from = 1, to = 1_000_000): ParaInput[] {

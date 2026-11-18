@@ -8,7 +8,7 @@
 import { createHash } from "node:crypto";
 import type { ContextPackageRecord, PackageExclusion, PackageItemRecord, PackageType, QuestionType } from "../../shared/skills.ts";
 
-export type ItemKind = "source" | "line" | "event" | "conflict" | "issue" | "authority" | "draft" | "memory" | "pinned" | "rule";
+export type ItemKind = "source" | "line" | "event" | "conflict" | "issue" | "authority" | "draft" | "memory" | "pinned" | "rule" | "preference";
 
 export interface ContextItem {
   id: string;
@@ -17,8 +17,8 @@ export interface ContextItem {
   text: string;
   /** Record ids and source anchors the text rests on. They survive shortening. */
   anchors: string[];
-  /** The matter the item belongs to. Another matter's item is refused before ranking. */
-  matterId: string;
+  /** The matter the item belongs to. Null for advocate-scope items (preferences), which cross matters by design. */
+  matterId: string | null;
   /** 0 to 1, from retrieval. */
   relevance: number;
   /** A date of the item (ISO), for recency. */
@@ -43,11 +43,11 @@ export interface ContextItem {
  * events, then the parties' statements. What the client wants: the dated instructions.
  */
 export const RANK_POLICY: Record<QuestionType, ItemKind[]> = {
-  law: ["pinned", "authority", "rule", "issue", "memory", "draft", "line", "event", "conflict", "source"],
-  happened: ["pinned", "line", "source", "event", "conflict", "issue", "draft", "rule", "authority", "memory"],
-  agreed: ["pinned", "line", "source", "event", "memory", "conflict", "issue", "draft", "rule", "authority"],
-  client_wants: ["pinned", "memory", "line", "event", "issue", "draft", "source", "conflict", "rule", "authority"],
-  court_directed: ["pinned", "rule", "line", "source", "event", "issue", "draft", "conflict", "memory", "authority"],
+  law: ["pinned", "authority", "rule", "issue", "memory", "draft", "line", "event", "conflict", "source", "preference"],
+  happened: ["pinned", "line", "source", "event", "conflict", "issue", "draft", "rule", "authority", "memory", "preference"],
+  agreed: ["pinned", "line", "source", "event", "memory", "conflict", "issue", "draft", "rule", "authority", "preference"],
+  client_wants: ["pinned", "memory", "line", "event", "issue", "draft", "source", "conflict", "rule", "authority", "preference"],
+  court_directed: ["pinned", "rule", "line", "source", "event", "issue", "draft", "conflict", "memory", "authority", "preference"],
 };
 
 const QUESTION_WORDS: Array<[QuestionType, RegExp]> = [
@@ -139,10 +139,12 @@ export function buildPackage(input: BuildInput): BuiltPackage {
   const excluded: PackageExclusion[] = [];
   const ex = (i: ContextItem, reason: string) => excluded.push({ id: i.id, kind: i.kind, label: i.label, reason });
 
-  // Scope check before anything else (Q2; architecture section 6).
+  // Scope check before anything else (Q2; architecture section 6). An item with no matter of its
+  // own (the advocate's approved preferences) is advocate scope: it crosses matters by design.
   const inScope: ContextItem[] = [];
   for (const i of input.items) {
-    if (i.matterId !== input.matterId) ex(i, "another matter: facts never cross matters");
+    if (i.matterId == null) inScope.push(i);
+    else if (i.matterId !== input.matterId) ex(i, "another matter: facts never cross matters");
     else inScope.push(i);
   }
 

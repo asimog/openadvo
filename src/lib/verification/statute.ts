@@ -53,14 +53,15 @@ export interface StatuteReference {
   text: string;
 }
 
-const SECTION_OF = /\b(?:section|sec\.?|s\.)\s*(\d+[A-Z]{0,2})\s+of\s+(?:the\s+)?([A-Z][A-Za-z'’, -]*(?:Act|Code|Sanhita|Adhiniyam|Rules|Regulation)[A-Za-z ,()0-9]*)/g;
-const ARTICLE_OF = /\b(Article|art\.)\s*(\d+[A-Z]{0,2})\s+of\s+(?:the\s+)?(Constitution of India|Constitution)\b/g;
+const SECTION_OF = /\b(?:[Ss]ection|[Ss]ec\.?|[Ss]\.)\s*(\d+[A-Z]{0,2})\s+of\s+(?:[Tt]he\s+)?(([A-Za-z&,-]+(?:\s+[A-Z][A-Za-z&,-]*)*\s+(?:Act|Code|Sanhita|Adhiniyam|Rules|Regulation)|(?:Code|Act)\s+of\s+[A-Za-z&,-]+(?:\s+[A-Z][A-Za-z&,-]*)*)(?:,?\s*(?:1[5-9]\d\d|20\d\d))?)/g;
+const ARTICLE_OF = /\b([Aa]rticle|[Aa]rt\.)\s*(\d+[A-Z]{0,2})\s+of\s+(?:[Tt]he\s+)?(Constitution of India|Constitution)\b/g;
 
 /** Every statutory reference of a paragraph: "section 12 of the Contract Act, 1872", "Article 226 of the Constitution". */
 export function findStatuteReferences(paragraph: string): StatuteReference[] {
   const out: StatuteReference[] = [];
   for (const m of paragraph.matchAll(SECTION_OF)) {
-    out.push({ section: m[1], act: m[2].trim(), text: m[0] });
+    // The optional "the" before the name can be absorbed by the capture; strip it.
+    out.push({ section: m[1], act: m[2].replace(/^[Tt]he\s+/, "").trim(), text: m[0] });
   }
   for (const m of paragraph.matchAll(ARTICLE_OF)) {
     out.push({ section: m[2], act: "Constitution of India", text: m[0] });

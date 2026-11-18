@@ -16,9 +16,26 @@ import type { AdverseReview, AuthorityRecord, CitationCheck, MemorandumRecord, R
 
 const advocate: WriteContext = { actor: "advocate" };
 
+/** One row of the shared verification record for public law (P3). */
+export interface SharedCitationCheck {
+  citation: string;
+  outcome: string;
+  /** The source the check ran against, as the validator names it. */
+  against: string;
+  at: string;
+  /** Who ran it: the application's validator run for one matter. */
+  by: string;
+}
+
 export class Research {
   private matters: Matters;
   private ulos: UlosPaths;
+  /** Phase 6 (P3): the shared verification record of public law, in corpus.db. Optional in tests. */
+  sharedCheck?: (input: { citation: string; outcome: string; against: string; by: string; detail: string | null }) => void;
+  /** Phase 6 (P3): the shared record's rows for one citation. */
+  sharedChecksOf?: (citation: string) => SharedCitationCheck[];
+  /** Phase 6 (P3): the highest indexed paragraph of a saved authority's judgment, or null. */
+  authorityParagraph?: (citation: string) => number | null;
 
   constructor(matters: Matters, ulos: UlosPaths) {
     this.matters = matters;
@@ -31,14 +48,19 @@ export class Research {
 
   async state(matterId: string): Promise<ResearchState> {
     const w = await this.work(matterId);
+    const citations = this.latestChecks(w.listCitationChecks());
+    const shared = this.sharedChecksOf ? citations.map((c) => ({ citation: c.citation, rows: (this.sharedChecksOf?.(c.citation) ?? []) })) : [];
     return {
       issues: w.listIssues(),
       authorities: w.listAuthorities(),
       memoranda: w.listMemoranda(),
-      citations: this.latestChecks(w.listCitationChecks()),
+      citations,
       attestations: w.listAttestations(),
       adverseReview: w.adverseReview(),
       validator: ulosAvailable(this.ulos),
+      // Phase 6 (P3): the coverage of the checks, and the shared verification record.
+      coverage: await this.citationCoverage(matterId),
+      sharedChecks: shared.filter((s) => s.rows.length > 0),
     };
   }
 
@@ -99,9 +121,39 @@ export class Research {
   }
 
   /**
+   * Phase 6 (P3): the coverage of the citation checks, as one line with its numbers. `of` counts
+   * every citation the drafts and the authorities state; `checked` counts those whose newest
+   * check verified. A reporter-only citation is counted and named, never skipped silently.
+   */
+  async citationCoverage(matterId: string): Promise<{ checked: number; of: number; note: string }> {
+    const w = await this.work(matterId);
+    const checks = this.latestChecks(w.listCitationChecks());
+    const verified = new Set(checks.filter((c) => c.outcome === "verified").map((c) => c.citation));
+    const found = new Set<string>();
+    let reporterOnly = 0;
+    const drafts = (await this.matters.listDrafts(matterId)).filter((d) => d.head);
+    for (const d of drafts) {
+      const text = readParagraphs(await this.matters.revisionBytes(matterId, d.head!.id)).map((p) => p.text).join("\n");
+      for (const c of findCitations(text)) found.add(c);
+    }
+    for (const a of w.listAuthorities().filter((x) => x.status !== "rejected")) {
+      const c = findCitations(a.citation)[0];
+      if (c) found.add(c);
+    }
+    let checked = 0;
+    for (const c of found) if (verified.has(c)) checked += 1;
+    const note =
+      found.size === 0
+        ? "No citation is stated in the drafts or the authorities."
+        : `Checked ${checked} of ${found.size} citation(s) with the validator. The validator checks Supreme Court neutral citations; a citation in reporter form with no neutral citation is counted and reported as unchecked.${reporterOnly ? ` ${reporterOnly} paragraph(s) hold reporter-only citations.` : ""}`;
+    return { checked, of: found.size, note };
+  }
+
+  /**
    * Check every Supreme Court neutral citation in the latest revision of one draft (or of all
    * drafts), and every authority not rejected, with the validator. Each failed or unresolved
    * citation opens a review item of its draft. Nothing is checked when the validator is absent.
+   * Phase 6 (P3): each run also writes the shared verification record of public law.
    */
   async checkCitations(matterId: string, draftId?: string): Promise<CitationCheck[]> {
     const avail = ulosAvailable(this.ulos);
@@ -124,6 +176,10 @@ export class Research {
         { actor: "system" },
       );
       out.push(check);
+      // Phase 6 (P3): the shared verification record of public law, so the advocate can see who
+      // verified what, when, against which source. A record, never a substitute for the online
+      // check (ruling R-4).
+      this.sharedCheck?.({ citation, outcome: rec.outcome, against: `ulos ${this.ulos.db}`, by: `the validator run for matter ${matterId}`, detail: rec.reason ?? null });
       return { check, detail: rec.reasonDetail };
     };
     const drafts = (await this.matters.listDrafts(matterId)).filter((d) => d.head && (!draftId || d.id === draftId));
@@ -174,13 +230,21 @@ export class Research {
     }
     // V5-10: an overruled authority blocks the grounds (and the petition that repeats them) until addressed;
     // a cited authority whose voice the advocate has not confirmed holds them in legal review.
+    // Phase 6 (P3): the passage relied on must exist in the indexed judgment, and the support
+    // assessment — that the paragraph supports the whole proposition — must be confirmed.
     if (draft.kind === "grounds" || draft.kind === "petition") {
       const store = await this.matters.store(matterId);
       for (const r of store.listReviewItems().filter((x) => x.kind === "authority_overruled" && x.status === "open")) out.push(r.detail);
-      const voices = new Map(store.studio.assessments().map((a) => [a.authorityId, a]));
+      const assessments = new Map(store.studio.assessments().map((a) => [a.authorityId, a]));
       for (const a of w.listAuthorities().filter((x) => x.status !== "rejected" && text.includes(x.citation))) {
-        const v = voices.get(a.id);
+        const v = assessments.get(a.id);
         if (!v || v.voice === null || v.voiceStatus !== "confirmed") out.push(`${a.citation}: the voice of the passage relied on (holding, obiter, and so on) is not confirmed`);
+        if (!v || v.support === null || v.supportStatus !== "confirmed") out.push(`${a.citation}: whether the passage supports the whole proposition is not confirmed (the support assessment is open)`);
+        if (a.paragraph.trim() && this.authorityParagraph) {
+          const max = this.authorityParagraph(a.citation);
+          const para = Number(/^(\d+)/.exec(a.paragraph.trim())?.[1] ?? NaN);
+          if (max != null && Number.isFinite(para) && para > max) out.push(`${a.citation}: paragraph ${para} is relied on, and the indexed judgment reaches only paragraph ${max}`);
+        }
       }
     }
     if (draft.kind === "grounds") {

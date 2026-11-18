@@ -42,6 +42,8 @@ export interface SkillRunnerDeps {
   memory(): Promise<string>;
   /** Phase 2: the court's rules for the matter's filing, as context items. */
   rules?(): ReturnType<NonNullable<import("./context-assembly.ts").RetrievalDeps["rules"]>>;
+  /** Phase 6 (A7): the approved preferences, as context items with their applied-because reasons. */
+  preferences?(): Array<{ key: string; value: string; reason: string }>;
   /** D5: why a skill naming these courts may not run in this matter, or null. */
   forumRefusal?(courts: readonly string[]): Promise<string | null>;
   /** A session in `sessionDir` with this prompt and these tools; `resume` continues the newest file there. */
@@ -174,7 +176,7 @@ export class SkillRunner {
       const budget = skill.budgetTokens ?? this.limits.defaultBudget;
       const packageBudget = Math.floor(budget * this.limits.packageShare);
       let record: ContextPackageRecord;
-      const items = await retrieve({ matterId: this.deps.matterId, store, ensureFind: this.deps.ensureFind, memory: this.deps.memory, rules: this.deps.rules }, skill.requiredContext, request, input.pinned);
+      const items = await retrieve({ matterId: this.deps.matterId, store, ensureFind: this.deps.ensureFind, memory: this.deps.memory, rules: this.deps.rules, preferences: this.deps.preferences }, skill.requiredContext, request, input.pinned);
       const pkg: BuiltPackage = buildPackage({ matterId: this.deps.matterId, skillId: skill.id, skillVersion: skill.version, packageType: skill.packageType, questionType: skill.questionType, request, budget: packageBudget, items });
       const earlier = resumed?.packageId ? store.contextPackage(resumed.packageId) : store.packageByHash(pkg.record.hash);
       if (earlier) {

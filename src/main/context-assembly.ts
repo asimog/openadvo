@@ -41,6 +41,8 @@ export interface RetrievalDeps {
   memory(): Promise<string>;
   /** The court's rules for the matter's filing (phase 2), when the application has them. */
   rules?(): Promise<Array<{ id: string; label: string; text: string; anchors: string[]; stale: boolean; verified: boolean }>>;
+  /** Phase 6 (A7): the advocate's approved preferences, each with the reason it applies. */
+  preferences?(): Array<{ key: string; value: string; reason: string }>;
 }
 
 export async function retrieve(deps: RetrievalDeps, kinds: readonly ContextKind[], request: string, pinned: string[]): Promise<ContextItem[]> {
@@ -163,6 +165,25 @@ export async function retrieve(deps: RetrievalDeps, kinds: readonly ContextKind[
   if (want.has("memory")) {
     const text = (await deps.memory()).trim();
     if (text) items.push({ id: `memory:${matterId}`, kind: "memory", label: "matter memory", text, anchors: [], matterId, relevance: 0.6, provenance: "the advocate's notes for this matter (lower authority than the advocate's message)" });
+  }
+
+  // Phase 6 (A7): the approved preferences, each rendered with its applied-because reason. They
+  // are the advocate's own ways, so they cross matters by design: the scope check treats an
+  // advocate-scope item as such, not as a fact of this matter.
+  if (want.has("preferences") && deps.preferences) {
+    for (const p of deps.preferences()) {
+      items.push({
+        id: `preference:${p.key}`,
+        kind: "preference",
+        label: `preference ${p.key}`,
+        text: `${p.key}: ${p.value} (applied because ${p.reason})`,
+        anchors: [],
+        matterId: null,
+        relevance: 1,
+        verification: "confirmed",
+        provenance: "the advocate's approved preference (advocate scope, not a matter fact)",
+      });
+    }
   }
   return items;
 }

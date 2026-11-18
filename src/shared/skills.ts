@@ -14,11 +14,11 @@ export const QUESTION_TYPES = ["law", "happened", "agreed", "client_wants", "cou
 export type QuestionType = (typeof QUESTION_TYPES)[number];
 
 /** The kinds of record a skill can ask the package for. */
-export const CONTEXT_KINDS = ["sources", "lines", "events", "conflicts", "issues", "authorities", "drafts", "memory", "rules"] as const;
+export const CONTEXT_KINDS = ["sources", "lines", "events", "conflicts", "issues", "authorities", "drafts", "memory", "rules", "preferences"] as const;
 export type ContextKind = (typeof CONTEXT_KINDS)[number];
 
-/** Checks the gate can run in phase 1. Any other name reports "not available yet". */
-export const AVAILABLE_CHECKS = ["schema", "anchors", "no_unverified_claims"] as const;
+/** Checks the gate can run. Any other name reports "not available yet". */
+export const AVAILABLE_CHECKS = ["schema", "anchors", "no_unverified_claims", "severity_floor"] as const;
 
 export const APPROVAL_POINTS = ["before_start", "before_write"] as const;
 export type ApprovalPoint = (typeof APPROVAL_POINTS)[number];

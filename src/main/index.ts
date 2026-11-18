@@ -44,6 +44,7 @@ import { SkillRegistry } from "./skills.ts";
 import { registerHarnessBridge } from "./harness-bridge.ts";
 import { registerIntelBridge } from "./intel-bridge.ts";
 import { CourtIntel } from "./court-intel.ts";
+import { listsForCaseType } from "../lib/court-adapters/index.ts";
 import { AdvocateStore } from "../lib/advocate-store/index.ts";
 import { IntelStore } from "../lib/intel-store/index.ts";
 import { MatterStoreError } from "../lib/matter-store/index.ts";
@@ -1496,13 +1497,38 @@ app.whenReady().then(() => {
   contacts = new Contacts(path.join(app.getPath("userData"), "contacts.json"));
   // V5-8: the second OCR engine, when its models are vendored (npm run vendor:ocr).
   setPpocrDir(ppocrDir(resourcesRoot()));
-  workHost = agentWorkHost({ matters, research, drafts, portal, ulos });
+  advocateStore = AdvocateStore.open(app.getPath("userData"));
+  intelStore = IntelStore.open(app.getPath("userData"));
+  workHost = agentWorkHost({ matters, research, drafts, portal, ulos, advocate: advocateStore });
   // V4: the Research and Argument Studio.
   hub = new ResearchHub(matters, path.join(app.getPath("userData"), "corpus"), researchSettings, (text) => window?.webContents.send("studio:progress", text));
   studio = new ArgumentStudio(matters, () => agent.completer(), (id) => window?.webContents.send("studio:changed", id));
+  // Phase 6 (P3): the shared verification record of public law and the indexed judgment
+  // paragraphs, reached through the one corpus owner.
+  research.sharedCheck = (input) => {
+    try {
+      hub.law.recordSharedCitationCheck(input);
+    } catch {
+      // the record is a log; a refused row is not a failed check
+    }
+  };
+  research.sharedChecksOf = (citation) => {
+    try {
+      return hub.law.sharedChecks(citation);
+    } catch {
+      return [];
+    }
+  };
+  research.authorityParagraph = (citation) => {
+    try {
+      const id = hub.law.byCitation(citation)[0] ?? null;
+      const judgment = id ? hub.law.judgment(id) : null;
+      return judgment ? judgment.paragraphs : null;
+    } catch {
+      return null;
+    }
+  };
   recordTables = new RecordTables(matters);
-  advocateStore = AdvocateStore.open(app.getPath("userData"));
-  intelStore = IntelStore.open(app.getPath("userData"));
   library = new Library(advocateStore, path.join(app.getPath("userData"), "library"));
   proposals = new MatterProposals(path.join(app.getPath("userData"), "matter-proposals.json"));
   courtIntel = new CourtIntel({
@@ -1514,6 +1540,31 @@ app.whenReady().then(() => {
     docsDir: path.join(app.getPath("userData"), "intel", "docs"),
   });
   filing.courtRules = (id) => courtIntel.compliance(id);
+  // Phase 6 (L1, P5): the target's proceeding pack drives the required documents, and the pack
+  // lists' freshness is the rule-currency row. With no pack, the SLP set is unchanged.
+  const targetPack = async (id: string): Promise<{ requiredParts: string[]; caseType: string } | null> => {
+    const store = await matters.store(id);
+    const target = store.filingTarget();
+    if (!target) return null;
+    const adapter = courtIntel.adapterFor(target.court);
+    if (!adapter) return null;
+    const proceeding = (adapter.proceedings ?? []).find((p) => p.caseType === target.caseType) ?? null;
+    return proceeding ? { requiredParts: proceeding.requiredParts, caseType: proceeding.caseType } : null;
+  };
+  filing.proceedingPack = (id) => targetPack(id);
+  filing.packFreshness = async (id) => {
+    const store = await matters.store(id);
+    const target = store.filingTarget();
+    if (!target) return [];
+    const adapter = courtIntel.adapterFor(target.court);
+    if (!adapter) return [];
+    return listsForCaseType(adapter, target.caseType)
+      .filter((l) => l.kind === "checklist")
+      .map((l) => {
+        const list = courtIntel.readList(adapter.id, l.key);
+        return { list: list?.title ?? l.title, state: (list?.freshness?.state ?? "fresh") as "fresh" | "stale", since: list?.freshness?.since ?? "" };
+      });
+  };
   skillRegistry = new SkillRegistry({ builtIn: path.join(app.getAppPath(), "skills"), advocate: path.join(app.getPath("userData"), "skills") }, AGENT_TOOLS);
   agent = new Agent(
     {
@@ -1548,6 +1599,8 @@ app.whenReady().then(() => {
         return dir;
       },
       readMemory: (id) => matters.memory(id),
+      // Phase 6 (A7): the approved preferences with their reasons, for a skill's context package.
+      listApprovedPreferences: () => advocateStore.preferences().filter((p) => p.status === "approved").map((p) => ({ key: p.key, value: p.value, reason: p.reason })),
       proposeMemory: async (id, text, reason, sessionId) => (await matters.proposeMemory(id, text, reason, sessionId)).id,
       recordTable: (id) => recordTables.describe(id),
       fillRecordCell: (id, input, sessionId) => recordTables.fillByAgent(id, input, sessionId, findSource),

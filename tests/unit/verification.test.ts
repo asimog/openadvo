@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { checkDraft } from "../../src/lib/verification/index.ts";
 import type { CheckEvent, CheckParagraph } from "../../src/lib/verification/index.ts";
+import { buildReviewerNote, lowersSeverity, maxSeverity, severityOfKind } from "../../src/lib/verification/reviewer-note.ts";
 
 function event(id: string, date: string, overrides: Partial<CheckEvent> = {}): CheckEvent {
   const [y, m, d] = date.split("-");
@@ -88,4 +89,83 @@ test("an event stated here and absent from the other draft is reported once", ()
   const result = checkDraft({ paragraphs: LIST, events: EVENTS, other: { title: "Synopsis", paragraphs: synopsis } });
   assert.deepEqual(result.defects.map((d) => `${d.paragraph}:${d.kind}`), ["3:missing_in_other_draft"]);
   assert.match(result.defects[0].action, /Add the event to the Synopsis/);
+});
+
+// ---- Phase 6 (P6): the fact checks ----
+
+const FACTS = [
+  { id: "f1", text: "The order was served on 01.04.2024.", type: "fact", status: "confirmed", sourceName: "affidavit.pdf", page: 1, line: 3 },
+  { id: "f2", text: "The respondent admits the service.", type: "admission", status: "disputed", sourceName: "affidavit.pdf", page: 2, line: 1 },
+  { id: "f3", text: "The petitioner was out of the country.", type: "inference", status: "confirmed", sourceName: "passport.pdf", page: 5, line: 2 },
+];
+
+test("P6: a paragraph linked to a disputed, unconfirmed or inferred fact is an item, and an open contradiction is never resolved silently", () => {
+  const paragraphs = [
+    { anchor: "oa-1", text: "The respondent admits the service.", eventIds: [], factIds: ["f2"] },
+    { anchor: "oa-2", text: "The petitioner was out of the country.", eventIds: [], factIds: ["f3"] },
+    { anchor: "oa-3", text: "The order was served.", eventIds: [], factIds: ["gone"] },
+  ];
+  const contradictions = [
+    { kind: "date", values: [{ factId: "f2", text: "served on 01.04.2024", sourceName: "affidavit.pdf", page: 1, line: 3 }, { factId: "f2", text: "served on 03.04.2024", sourceName: "reply.pdf", page: 1, line: 1 }] },
+  ];
+  const result = checkDraft({ paragraphs, events: [], facts: FACTS, contradictions, kind: "writ_petition" });
+  const kinds = result.defects.map((d) => d.kind).sort();
+  assert.ok(kinds.includes("fact_disputed"));
+  assert.ok(kinds.includes("inference_source"));
+  assert.ok(kinds.includes("fact_not_confirmed"));
+  assert.ok(kinds.includes("fact_contradiction"));
+  const contradiction = result.defects.find((d) => d.kind === "fact_contradiction");
+  assert.match(contradiction?.evidence ?? "", /contradicts itself/);
+  const inference = result.defects.find((d) => d.kind === "inference_source");
+  assert.match(inference?.evidence ?? "", /an inference/);
+});
+
+test("P6: a paragraph whose facts are all confirmed and uncontradicted has no fact item", () => {
+  const result = checkDraft({
+    paragraphs: [{ anchor: "oa-1", text: "The order was served.", eventIds: [], factIds: ["f1"] }],
+    events: [],
+    facts: FACTS,
+    kind: "writ_petition",
+  });
+  assert.deepEqual(result.defects, []);
+});
+
+// ---- Phase 6 (L8): the witness rule on the affidavit kinds ----
+
+test("L8: an affidavit statement without a recorded statement of the deponent is a defect; one with it passes", () => {
+  const affidavit = { anchor: "a", text: "AFFIDAVIT", eventIds: [], factIds: [] };
+  const lead = { anchor: "b", text: "1. I am the petitioner. I am competent to swear this affidavit.", eventIds: [], factIds: [] };
+  const linked = { anchor: "c", text: "2. I received the order.", eventIds: [], factIds: [], evidenceIds: ["ev1"] };
+  const composed = { anchor: "d", text: "3. The delay was neither intentional nor deliberate.", eventIds: [], factIds: [] };
+  const result = checkDraft({ paragraphs: [affidavit, lead, linked, composed], events: [], kind: "affidavit" });
+  assert.deepEqual(result.defects.map((d) => d.kind), ["affidavit_unlinked"]);
+  assert.match(result.defects[0].evidence, /the deponent's own words/);
+});
+
+// ---- Phase 6 (P9): the reviewer note and the severity floor ----
+
+test("P9: the reviewer note counts the items by severity, highest first, and says what to do", () => {
+  const note = buildReviewerNote({
+    defects: [{ kind: "no_source" }, { kind: "date_mismatch" }, { kind: "date_mismatch" }],
+    openItemKinds: ["draft_defect.marker_cite", "skill_run"],
+    sources: { read: 2, of: 5 },
+    currency: ["Limitation Act 1963 s 5: never verified (unconfirmed)"],
+  });
+  assert.equal(note.sources?.read, 2);
+  assert.deepEqual(
+    note.items.map((i) => `${i.severity}:${i.count}`),
+    ["blocker:1", "correction:4"],
+  );
+  assert.ok(note.beforeRelying.some((b) => b.includes("blocking")));
+  assert.ok(note.beforeRelying.some((b) => b.includes("not confirmed current")));
+});
+
+test("P9: the severity of a kind comes from one mapping, and nothing downstream may lower one", () => {
+  assert.equal(severityOfKind("no_source"), "blocker");
+  assert.equal(severityOfKind("date_mismatch"), "correction");
+  assert.equal(severityOfKind("statute_unconfirmed"), "blocker");
+  assert.equal(severityOfKind("an_unknown_kind"), "correction");
+  assert.equal(maxSeverity(["note", "correction", "note"]), "correction");
+  assert.equal(lowersSeverity("note", "blocker"), true);
+  assert.equal(lowersSeverity("blocker", "blocker"), false);
 });

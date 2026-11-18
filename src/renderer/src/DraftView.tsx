@@ -68,9 +68,49 @@ function ParagraphSourcePanel(props: { source: ParagraphSource; onClose: () => v
   );
 }
 
-/** The result of the draft checks: each defect with its evidence and the action it needs (workflow 9A, 9D). */
-function DraftCheckPanel(props: { check: DraftCheck; stale: boolean; onClose: () => void }) {
+/**
+ * Phase 6 (A7): one preference question, answered once inside the task that asked it. The answer
+ * is approved at once, because the advocate gave it; the reason names the task and the date.
+ */
+function PreferenceQuestion(props: { question: { key: string; title: string; question: string; values: string[] | null; free: boolean; default: string }; onSet: (key: string, value: string) => void }) {
+  const [value, setValue] = useState(props.question.default);
+  const q = props.question;
+  return (
+    <li className="preference-question" data-testid="preference-question" data-key={q.key}>
+      <Text weight="semibold">{q.title}</Text>
+      <Text type="supporting">{q.question}</Text>
+      <div className="row-actions">
+        {q.values ? (
+          <select aria-label={`${q.title} value`} value={value} onChange={(e) => setValue(e.target.value)}>
+            {q.values.map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input aria-label={`${q.title} value`} value={value} onChange={(e) => setValue(e.target.value)} />
+        )}
+        <Button label="Set" size="sm" clickAction={() => props.onSet(q.key, value)} />
+        <Text type="supporting">Used until you answer: {q.default}</Text>
+      </div>
+    </li>
+  );
+}
+
+/** The result of the draft checks: the reviewer note, the gate, and each defect with its evidence and action. */
+function DraftCheckPanel(props: { check: DraftCheck; stale: boolean; onClose: () => void; onPreferencesSet: () => void }) {
   const { check } = props;
+  const [working, setWorking] = useState(false);
+  const setPreference = async (key: string, value: string) => {
+    setWorking(true);
+    try {
+      await api.setPreference(key, value, "the draft check");
+      props.onPreferencesSet();
+    } finally {
+      setWorking(false);
+    }
+  };
   return (
     <section className="source-panel" data-testid="draft-check" aria-label="Draft check">
       <div className="source-panel-header">
@@ -79,6 +119,42 @@ function DraftCheckPanel(props: { check: DraftCheck; stale: boolean; onClose: ()
         </Text>
         <Button label="Close" size="sm" variant="ghost" onClick={props.onClose} />
       </div>
+      {check.reviewerNote ? (
+        <div className="reviewer-note" data-testid="reviewer-note">
+          <Text weight="semibold">Reviewer note</Text>
+          {check.reviewerNote.sources ? <Text type="supporting">Sources read: {check.reviewerNote.sources.read} of {check.reviewerNote.sources.of}.</Text> : null}
+          {check.reviewerNote.items.map((i) => (
+            <Text key={i.severity} type="supporting">
+              {i.label}: {i.count}.
+            </Text>
+          ))}
+          {check.reviewerNote.currency.slice(0, 8).map((c) => (
+            <Text key={c} type="supporting">
+              Currency: {c}
+            </Text>
+          ))}
+          {check.reviewerNote.beforeRelying.map((b) => (
+            <Text key={b} type="supporting">
+              Before relying: {b}
+            </Text>
+          ))}
+        </div>
+      ) : null}
+      {check.grounding ? (
+        <div data-testid="grounding">
+          <Text type="supporting">
+            Grounding: {check.grounding.grounded} of {check.grounding.checked} checked statement(s) grounded ({Math.round(check.grounding.score * 100)}%).
+          </Text>
+        </div>
+      ) : null}
+      {check.preferenceQuestions.length > 0 ? (
+        <ul className="preference-questions" data-testid="preference-questions" aria-label="Preference questions">
+          {check.preferenceQuestions.map((q) => (
+            <PreferenceQuestion key={q.key} question={q} onSet={(key, value) => void setPreference(key, value)} />
+          ))}
+          {working ? <Text type="supporting">Saving the answer…</Text> : null}
+        </ul>
+      ) : null}
       <div data-testid="draft-gate">
         <Text weight="semibold">Gate: {check.gate.label}</Text>
         <ul className="gate-reasons">
@@ -508,7 +584,7 @@ export function DraftView(props: {
         </div>
       </div>
       {source ? <ParagraphSourcePanel source={source} onClose={() => setSource(null)} onOpenSource={props.onOpenSource} /> : null}
-      {check && !source ? <DraftCheckPanel check={check} stale={dirty || check.seq !== revisionInfo.seq} onClose={() => setCheck(null)} /> : null}
+      {check && !source ? <DraftCheckPanel check={check} stale={dirty || check.seq !== revisionInfo.seq} onClose={() => setCheck(null)} onPreferencesSet={() => void runCheck()} /> : null}
     </>
   );
 

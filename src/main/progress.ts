@@ -4,7 +4,6 @@
  */
 import { matterProgress, type Stage } from "../lib/progress/index.ts";
 import type { Filing } from "./filing.ts";
-import { required } from "./filing.ts";
 import type { Matters } from "./matters.ts";
 import type { Research } from "./research.ts";
 import type { Drafts } from "./drafts.ts";
@@ -58,7 +57,7 @@ export class Progress {
         adverseReview: research.adverseReview !== null,
         blockedCitations: this.blockedCitations(research).length,
       },
-      drafts: required(filing.limitation).map((r) => {
+      drafts: filing.required.map((r) => {
         const x = drafts.find((dr) => dr.kind === r.kind);
         return { title: r.title, approved: !!x?.approved, exists: !!x };
       }),

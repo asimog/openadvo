@@ -237,6 +237,8 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
       "evidenceList", "evidenceAdd", "evidenceUpdate", "evidenceParts", "evidenceRelations", "evidenceDecideRelation", "evidenceEdges",
       "matterMemory", "matterMemoryPropose", "matterMemoryDecide", "evidenceMarks", "documentOperations", "documentOperation",
       "jurisdictionGet", "jurisdictionSet", "forumClauses", "timeline", "relatedSuggestions", "recordTemplates", "applyRecordTemplate",
+      // Phase 6: drafting and verification (docs/specs/drafting-and-verification.md).
+      "draftCatalogue", "compareRevisionWithPdf", "setPreference",
     ].sort(),
   );
 
@@ -327,6 +329,11 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
     "get_timeline",
     "list_document_parts",
     "get_contradictions",
+    // Phase 6 (L5, A7, F2): citation insertion, learned preferences, advocate memory proposals.
+    "insert_citation",
+    "list_preferences",
+    "propose_preference",
+    "propose_advocate_memory",
   ].sort());
   const sessionId = await app.evaluate((_e, m) => (globalThis as any).__openadvoTest.agentSessionId(m), id);
   const events = await page.evaluate((m) => (globalThis as any).openadvo.listEvents(m), id);

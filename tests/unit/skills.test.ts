@@ -125,3 +125,32 @@ test("the gate allows at most two rewrites, then the run needs review", () => {
   assert.equal(gateDecision(2, false), "rewrite");
   assert.equal(gateDecision(3, false), "review");
 });
+
+test("P9: the severity floor — a skill's output never lowers a severity the checks assigned", () => {
+  const out = (v: unknown) => "```json\n" + JSON.stringify(v) + "\n```";
+  // A blocking defect reported as not blocking fails; one reported as blocking passes.
+  const lowered = runGate({
+    type: "list",
+    checks: ["severity_floor"],
+    text: out({ items: [{ title: "Unlinked paragraph", detail: "no source", anchors: ["oa-1"], kind: "no_source", blocks: false }] }),
+    resolves: () => true,
+  });
+  const floor = lowered.checks.find((c) => c.name === "severity_floor");
+  assert.equal(floor?.result, "failed");
+  assert.match(lowered.defects[0], /lower a severity/);
+  const honest = runGate({
+    type: "list",
+    checks: ["severity_floor"],
+    text: out({ items: [{ title: "Unlinked paragraph", detail: "no source", anchors: ["oa-1"], kind: "no_source", blocks: true }] }),
+    resolves: () => true,
+  });
+  assert.equal(honest.ok, true);
+  // An item without a kind is not judged by the floor.
+  const unkinded = runGate({
+    type: "list",
+    checks: ["severity_floor"],
+    text: out({ items: [{ title: "A note", detail: "for judgment", anchors: ["oa-1"], blocks: false }] }),
+    resolves: () => true,
+  });
+  assert.equal(unkinded.ok, true);
+});

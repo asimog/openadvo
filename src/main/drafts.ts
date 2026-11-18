@@ -16,7 +16,7 @@ import { MatterStoreError } from "../lib/matter-store/index.ts";
 import { checkDraft, defectItemKind, gateState } from "../lib/verification/index.ts";
 import { checkGrounding } from "../lib/verification/grounding.ts";
 import { checkStatutes } from "../lib/verification/statute.ts";
-import { checkStructure } from "../lib/verification/structure.ts";
+import { checkStructure, markersIn } from "../lib/verification/structure.ts";
 import { buildReviewerNote } from "../lib/verification/reviewer-note.ts";
 import { detectContradictions } from "../lib/evidence/contradictions.ts";
 import { decideChanges, pendingChanges, proposeInsertion, proposeReplacement, type ChangeDecision } from "../lib/tracked-changes/index.ts";
@@ -320,7 +320,7 @@ export class Drafts {
     matterId: string,
     input: { draftId: string; anchor: string; authorityId: string; note?: string },
     sessionId?: string,
-  ): Promise<{ revision: RevisionRecord; citation: string; reason: string }> {
+  ): Promise<{ revision: RevisionRecord; citation: string; reason: string; before: string; after: string; substantive: boolean }> {
     const draft = await this.matters.getDraft(matterId, input.draftId);
     if (!draft.head) throw new MatterStoreError("DRAFT_NOT_FOUND", input.draftId);
     const store = await this.matters.store(matterId);
@@ -358,7 +358,7 @@ export class Drafts {
       reason,
     });
     await this.options.onCitationInserted?.({ matterId, citation: authority.citation }).catch(() => undefined);
-    return { revision, citation, reason };
+    return { revision, citation, reason, before: live.text, after: replacement, substantive: change.substantive };
   }
 
   /**
@@ -600,8 +600,15 @@ export class Drafts {
     const legal = (await this.options.legalBlockers?.(matterId, revision.draftId, revisionId)) ?? [];
     if (legal.length > 0) throw new MatterStoreError("LEGAL_REVIEW_BLOCKED", legal.join("; "));
     // V1-7: a revision that still holds a "[TO BE COMPLETED" marker is not approved (lesson L2).
-    const marked = readParagraphs(await this.matters.revisionBytes(matterId, revisionId)).filter((p) => p.text.includes(TO_COMPLETE));
+    // Phase 6 (P8): an open [CITE], [VERIFY] or [REVIEW] marker blocks finality the same way.
+    const paragraphs = readParagraphs(await this.matters.revisionBytes(matterId, revisionId));
+    const marked = paragraphs.filter((p) => p.text.includes(TO_COMPLETE));
     if (marked.length > 0) throw new MatterStoreError("DRAFT_INCOMPLETE", `${marked.length} paragraph(s) still say "${TO_COMPLETE}". Record the details and generate again, or complete them in the editor.`);
+    const openMarkers = paragraphs.flatMap((p) => markersIn(p.text).filter((m) => m !== TO_COMPLETE).map((m) => ({ m, text: p.text.slice(0, 60) })));
+    if (openMarkers.length > 0) {
+      const first = openMarkers[0];
+      throw new MatterStoreError("MARKERS_OPEN", `${openMarkers.length} open marker(s), the first is ${first.m} ("${first.text}…"). Insert the citation, verify the statement or review the passage, then remove the marker.`);
+    }
     return this.matters.approveRevision(matterId, revisionId);
   }
 

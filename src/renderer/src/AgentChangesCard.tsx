@@ -9,6 +9,8 @@ const api = window.openadvo;
  * Editor-design items e to g: one card per draft with agent changes not yet decided.
  * Keep all covers only the changes that are not substantive (item g). Each change shows its
  * before and after, with Keep and Undo. Keep and Undo are bridge functions (decision 5).
+ * Phase 6 (A7): an undo may carry the advocate's reason. The second undo with the same reason
+ * in a matter proposes the matching preference, so the reason is worth one line.
  */
 export function AgentChangesCard(props: {
   matterId: string;
@@ -20,6 +22,7 @@ export function AgentChangesCard(props: {
   const g = props.group;
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
+  const [undoReason, setUndoReason] = useState("");
   const plain = g.changes.filter((c) => !c.substantive);
   const substantive = g.changes.filter((c) => c.substantive);
 
@@ -28,7 +31,13 @@ export function AgentChangesCard(props: {
     setWorking(true);
     setError(null);
     try {
-      await api.decideAgentChanges(props.matterId, g.draftId, g.revisionId, changes.map((c) => ({ anchor: c.anchor, decision })));
+      const reason = decision === "undo" ? undoReason.trim() : undefined;
+      await api.decideAgentChanges(
+        props.matterId,
+        g.draftId,
+        g.revisionId,
+        changes.map((c) => ({ anchor: c.anchor, decision, ...(reason ? { reason } : {}) })),
+      );
       await props.onDecided();
     } catch (e) {
       setError((e as Error).message);
@@ -58,6 +67,19 @@ export function AgentChangesCard(props: {
       <Text type="supporting">
         {plain.length} wording change(s), {substantive.length} substantive change(s). The revision cannot be approved until each one is decided.
       </Text>
+      <div className="undo-reason" data-testid="undo-reason">
+        <label htmlFor={`undo-reason-${g.draftId}`}>
+          <Text type="supporting">Why are you undoing? (optional)</Text>
+        </label>
+        <input
+          id={`undo-reason-${g.draftId}`}
+          aria-label="Reason for undoing"
+          value={undoReason}
+          placeholder="For example: keep paragraphs short"
+          onChange={(e) => setUndoReason(e.target.value)}
+        />
+        <Text type="supporting">The same reason twice proposes a preference you approve.</Text>
+      </div>
       <div className="change-actions">
         <Button label={`Keep all wording changes (${plain.length})`} size="sm" isDisabled={working || plain.length === 0} onClick={() => void decide(plain, "keep")} />
         <Button label="Undo all" size="sm" variant="ghost" isDisabled={working} onClick={() => void decide(g.changes, "undo")} />

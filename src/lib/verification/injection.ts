@@ -25,27 +25,27 @@ interface Pattern {
 export const PATTERNS: Pattern[] = [
   {
     name: "disregard the record",
-    re: /\b(?:ignore|disregard|forget|override)\b[^.\n]{0,60}\b(?:previous|prior|above|earlier|all|this)\b[^.\n]{0,40}\b(?:instruction|instructions|prompt|direction|directions|rule|rules|record|document|evidence|source)\b/i,
+    re: /\b(?:ignore|disregard|forget|override)\b[^.\n]{0,60}\b(?:previous|prior|above|earlier|all|this)\b[^.\n]{0,40}\b(?:instruction|instructions|prompt|direction|directions|rule|rules|record|document|evidence|source)\b/gi,
   },
   {
     name: "role change",
-    re: /\b(?:you are now|act as|from now on you(?:'| a)re|pretend to be)\b[^.\n]{0,60}\b(?:an?\s+)?(?:AI|artificial intelligence|assistant|agent|model|chatbot|lawyer|advocate|judge)\b/i,
+    re: /\b(?:you are now|act as|from now on you(?:'| a)re|pretend to be)\b[^.\n]{0,60}\b(?:an?\s+)?(?:AI|artificial intelligence|assistant|agent|model|chatbot|lawyer|advocate|judge)\b/gi,
   },
   {
     name: "system prompt",
-    re: /\b(?:system prompt|your instructions|developer instructions|hidden instructions)\b/i,
+    re: /\b(?:system prompt|your instructions|developer instructions|hidden instructions)\b/gi,
   },
   {
     name: "conceal from the user",
-    re: /\b(?:do not|don't|never)\b[^.\n]{0,40}\b(?:tell|reveal|inform|show)\b[^.\n]{0,30}\b(?:the|your)?\s*(?:user|advocate|client|owner|reader)\b/i,
+    re: /\b(?:do not|don't|never)\b[^.\n]{0,40}\b(?:tell|reveal|inform|show)\b[^.\n]{0,30}\b(?:the|your)?\s*(?:user|advocate|client|owner|reader)\b/gi,
   },
   {
     name: "role-play marker",
-    re: /^\s*(?:assistant|system|user)\s*:[^\n]{12,}/im,
+    re: /^\s*(?:assistant|system|user)\s*:[^\n]{12,}/gim,
   },
   {
     name: "jailbreak",
-    re: /\b(?:jailbreak|DAN mode|do anything now mode)\b/i,
+    re: /\b(?:jailbreak|DAN mode|do anything now mode)\b/gi,
   },
 ];
 

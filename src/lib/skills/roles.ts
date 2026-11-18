@@ -20,6 +20,8 @@ export const READ_MATTER_TOOLS = [
   "read_matter_memory",
   "find_in_matter",
   "list_arguments",
+  // Phase 6 (A7): the advocate's approved preferences and the proposals waiting.
+  "list_preferences",
 ] as const;
 
 /** Tools that read public law and the web. */
@@ -77,11 +79,11 @@ export const ROLE_TABLE: Record<Role, { description: string; tools: string[] }> 
   research: { description: "Finds and assesses law, supporting and adverse, and records candidates and memoranda.", tools: [...R, ...L, "save_judgment", "save_provision", "add_authority", "assess_authority", "record_treatment", "write_memorandum", "write_research_memo", "propose_research_plan", "set_research_step", "propose_issue"] },
   evidence: { description: "Reads the record and answers questions of each source with exact anchors.", tools: [...R, "fill_record_cell"] },
   chronology: { description: "Builds and tests the chronology: dates, conflicts and contradictions.", tools: [...R] },
-  drafting: { description: "Proposes text as tracked changes from confirmed records.", tools: [...R, "propose_correction", "propose_paragraph"] },
-  review: { description: "Checks drafts, citations and grounding, and reports defects. It never approves its own run.", tools: [...R, "check_draft", "check_citations", "quick_check_citations", "search_knowledge", "read_judgment", "read_statute_section", "search_citation_index"] },
+  drafting: { description: "Proposes text as tracked changes from confirmed records.", tools: [...R, "propose_correction", "propose_paragraph", "insert_citation", "propose_preference"] },
+  review: { description: "Checks drafts, citations and grounding, and reports defects. It never approves its own run.", tools: [...R, "check_draft", "check_citations", "quick_check_citations", "search_knowledge", "read_judgment", "read_statute_section", "search_citation_index", "propose_preference"] },
   strategy: { description: "Proposes issues and arguments and tests them with a critic.", tools: [...R, ...L, "propose_issue", "run_argument_loop"] },
   filing: { description: "Checks a filing-ready set against the court's checklist. It never files.", tools: [...R, "check_draft", "check_citations", "quick_check_citations"] },
   hearing: { description: "Prepares the hearing brief, bench questions and the oral outline.", tools: [...R, ...L, "run_rehearsal"] },
   monitoring: { description: "Reads new orders, cause lists and developments and proposes their impact.", tools: [...R, ...L] },
-  memory: { description: "Proposes memory records after a run. The advocate decides each one.", tools: [...R, "propose_memory_note"] },
+  memory: { description: "Proposes memory records after a run. The advocate decides each one.", tools: [...R, "propose_memory_note", "propose_advocate_memory"] },
 };

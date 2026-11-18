@@ -5,6 +5,7 @@
  * reports "not available", never "passed" (lesson L2). Plain library.
  */
 import { AVAILABLE_CHECKS, type CheckResult, type OutputType } from "../../shared/skills.ts";
+import { severityOfKind } from "../verification/reviewer-note.ts";
 
 export const MAX_REWRITES = 2;
 
@@ -123,6 +124,27 @@ export function runGate(input: GateInput): GateResult {
       const claims = items.filter((i) => /(?<!un|not |never )\bverified\b/i.test(i.text) && !/validator/i.test(i.text));
       checks.push({ name, result: claims.length ? "failed" : "passed", detail: claims.length ? `${claims.length} item${claims.length === 1 ? " says" : "s say"} "verified" with no validator result` : "No item claims verification without the validator." });
       if (claims.length) defects.push('an item says "verified" without a validator result; say what the validator reported, or say "not verified"');
+    }
+    if (name === "severity_floor") {
+      // P9: an item that names a defect kind carries the severity the one mapping assigns. A
+      // downstream skill never lowers one: a blocking kind reported as not blocking fails here.
+      const o = value as Record<string, unknown> | null;
+      const key = ITEM_KEY[input.type];
+      const raw = o && Array.isArray(o[key]) ? (o[key] as Array<Record<string, unknown>>) : [];
+      const lowered: string[] = [];
+      for (const it of raw) {
+        if (typeof it.kind !== "string") continue;
+        const severity = severityOfKind(it.kind);
+        const blocks = it.blocks === true;
+        if (severity === "blocker" && !blocks) lowered.push(`${it.kind} (the mapping blocks; the item says it does not)`);
+        if (severity === "note" && blocks) lowered.push(`${it.kind} (the mapping says "for judgment"; the item blocks)`);
+      }
+      checks.push({
+        name,
+        result: lowered.length ? "failed" : "passed",
+        detail: lowered.length ? `Item(s) lower a severity the checks assigned: ${lowered.slice(0, 10).join("; ")}` : "No item lowers a severity the checks assigned.",
+      });
+      if (lowered.length) defects.push(`these items lower a severity the checks assigned; report each item's severity exactly as the tool's reviewer note gives it: ${lowered.slice(0, 10).join("; ")}`);
     }
   }
   return { ok: !checks.some((c) => c.result === "failed"), output: value, checks, defects };

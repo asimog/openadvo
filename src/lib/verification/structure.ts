@@ -97,13 +97,15 @@ export function checkStructure(input: StructureInput): StructureResult {
   const notRun: Array<{ check: string; reason: string }> = [];
   const texts = input.paragraphs.map((p) => ({ ...p, text: p.text.trim() }));
 
-  // 1. The template's parts, present and in order.
+  // 1. The template's parts, present and in order: a part that appears earlier than the part
+  // before it is out of order; a part that does not appear is missing.
   if (input.requiredHeadings.length === 0) {
     notRun.push({ check: "The template's parts are present", reason: "This kind has no template: the parts are the advocate's own." });
   } else {
-    let cursor = -1;
+    const norm = (s: string) => s.replace(/[^A-Za-z0-9 ]/g, "").toLowerCase();
+    let last = -1;
     for (const heading of input.requiredHeadings) {
-      const at = texts.findIndex((p, i) => i > cursor && p.text.replace(/[^A-Za-z0-9 ]/g, "").toLowerCase() === heading.replace(/[^A-Za-z0-9 ]/g, "").toLowerCase());
+      const at = texts.findIndex((p) => norm(p.text) === norm(heading));
       if (at < 0) {
         items.push({
           kind: "missing_part",
@@ -115,7 +117,7 @@ export function checkStructure(input: StructureInput): StructureResult {
         });
         continue;
       }
-      if (at <= cursor) {
+      if (at <= last) {
         items.push({
           kind: "part_order",
           paragraph: at + 1,
@@ -124,8 +126,9 @@ export function checkStructure(input: StructureInput): StructureResult {
           evidence: `The part "${heading}" appears out of the template's order.`,
           action: "Move the part to its place, or regenerate the draft.",
         });
+      } else {
+        last = at;
       }
-      cursor = Math.max(cursor, at);
     }
   }
 

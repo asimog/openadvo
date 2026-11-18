@@ -15,11 +15,12 @@ import type { ManifestSigner } from "./signing.ts";
 import { convertFile, FORMAT_PDF } from "../lib/converter/index.ts";
 import { conversionCheck, copyExclusion, disclosureBlockers, disclosureBlocks, extendDeadline, paperBook, protectedNamesIn } from "../lib/filing/v5.ts";
 import { generateStructured } from "../lib/drafting/structured.ts";
+import { packToDocuments } from "../lib/drafting/documents.ts";
 import { extractText } from "../lib/document-intelligence/index.ts";
 import { checkCompliance, computeLimitation, delayDays, isPdfA, LIMITATION_RULE, manifestDigest, RULES_VERSION, verifyManifest } from "../lib/filing/index.ts";
 import { readParagraphs } from "../lib/drafting/index.ts";
 import { MatterStoreError } from "../lib/matter-store/index.ts";
-import type { DraftKind } from "../shared/records.ts";
+import { court as directoryCourt } from "../lib/court-directory/index.ts";import type { DraftKind } from "../shared/records.ts";
 import type { ComplianceResult, FilingFile, FilingSetRecord, FilingState, ManifestApproval, ManifestCheck, MatterDetails } from "../shared/work.ts";
 
 const sha256 = (text: string | Uint8Array) => createHash("sha256").update(text).digest("hex");
@@ -38,9 +39,29 @@ const REQUIRED: Array<{ kind: DraftKind; title: string }> = [
 /** V2-6: the condonation application is required when the confirmed limitation shows a delay today. */
 export const CONDONATION = { kind: "condonation" as DraftKind, title: "Application for Condonation of Delay" };
 
-export function required(limitation: { deadline: string; confirmedAt: string | null } | null): Array<{ kind: DraftKind; title: string }> {
+/** The required documents of a filing target: the pack's parts mapped to documents, or the SLP set. */
+export interface RequiredDocuments {
+  documents: Array<{ kind: DraftKind; title: string }>;
+  /** Pack parts the annexure manager owns (the compliance row says which). */
+  annexureParts: string[];
+  /** Pack parts the application cannot map to a document: shown as the pack names them. */
+  unmapped: string[];
+  /** The case type the pack is for, or null when no target is set. */
+  caseType: string | null;
+}
+
+/**
+ * Phase 6 (L1, L3): the required documents. With no filing target, the Supreme Court SLP set is
+ * unchanged. With a target whose proceeding pack names its parts, each part maps to the document
+ * it names; a part with no mapping is reported, never dropped silently.
+ */
+export function requiredDocuments(limitation: { deadline: string; confirmedAt: string | null } | null, pack: { requiredParts: string[]; caseType: string } | null): RequiredDocuments {
+  if (pack) {
+    const mapped = packToDocuments(pack.requiredParts);
+    return { documents: mapped.documents, annexureParts: mapped.annexures, unmapped: mapped.unmapped, caseType: pack.caseType };
+  }
   const late = limitation?.confirmedAt && delayDays(limitation.deadline, new Date().toISOString()) > 0;
-  return late ? [...REQUIRED, CONDONATION] : REQUIRED;
+  return { documents: late ? [...REQUIRED, CONDONATION] : [...REQUIRED], annexureParts: [], unmapped: [], caseType: null };
 }
 
 /** The text of a PDF, every line of every page. */
@@ -56,11 +77,25 @@ export class Filing {
 
   /** B12: the court's checklist as compliance rows (phase 2). Set by the application. */
   courtRules: ((matterId: string) => Promise<ComplianceResult[]>) | null = null;
+  /** Phase 6 (L1): the proceeding pack of the matter's filing target, or null when none is set. */
+  proceedingPack: ((matterId: string) => Promise<{ requiredParts: string[]; caseType: string } | null>) | null = null;
+  /** Phase 6 (P5): the pack lists' freshness, for the rule-currency row. */
+  packFreshness: ((matterId: string) => Promise<Array<{ list: string; state: "fresh" | "stale"; since: string }>>) | null = null;
 
   constructor(matters: Matters, x2t: string, signer: ManifestSigner | null = null) {
     this.matters = matters;
     this.x2t = x2t;
     this.signer = signer;
+  }
+
+  /** The matter's filing target's proceeding pack, or null. */
+  private async pack(matterId: string): Promise<{ requiredParts: string[]; caseType: string } | null> {
+    return (await this.proceedingPack?.(matterId)) ?? null;
+  }
+
+  /** The required documents of the matter, from its pack or the SLP set. */
+  private async docs(matterId: string): Promise<RequiredDocuments> {
+    return requiredDocuments((await this.work(matterId)).limitation(), await this.pack(matterId));
   }
 
   /** B13: the PDFs of the newest filing set, with their paths. */
@@ -120,8 +155,9 @@ export class Filing {
   async state(matterId: string): Promise<FilingState> {
     const w = await this.work(matterId);
     const drafts = await this.matters.listDrafts(matterId);
+    const docs = await this.docs(matterId);
     const rows = [];
-    for (const r of required(w.limitation())) {
+    for (const r of docs.documents) {
       const d = drafts.find((x) => x.kind === r.kind);
       const approved = d?.approved ?? null;
       const text = approved ? readParagraphs(await this.matters.revisionBytes(matterId, approved.id)).map((p) => p.text).join("\n") : null;
@@ -141,11 +177,109 @@ export class Filing {
     // V5-15, V5-17: victim identity in an approved draft, the disclosure's blockers, the conversion check.
     const extra = await this.v5Rules(matterId, rows, filingSet);
     results.push(...extra);
+    // Phase 6 (L1, P5): the pack's own parts, the procedure checks, and the court's checklist.
+    const pack = await this.pack(matterId);
+    docs.annexureParts.forEach((part, n) => {
+      results.push({
+        rule: `PACK-A${n + 1}`,
+        title: `${part} is recorded as an annexure`,
+        source: pack ? `the ${pack.caseType} proceeding pack` : "the pack",
+        outcome: annexures.length > 0 ? "pass" : "not_checked",
+        detail:
+          annexures.length > 0
+            ? `The pack names "${part}", which the annexure manager owns: ${annexures.length} annexure(s) recorded.`
+            : `The pack names "${part}", which the annexure manager owns. Record the annexures below.`,
+      });
+    });
+    docs.unmapped.forEach((part, n) => {
+      results.push({
+        rule: `PACK-U${n + 1}`,
+        title: `${part} is not checked`,
+        source: pack ? `the ${pack.caseType} proceeding pack` : "the pack",
+        outcome: "not_checked",
+        detail: `The pack names "${part}", and the application maps it to no document of its catalogue. Check it by hand before filing.`,
+      });
+    });
+    results.push(...(await this.procedureRules(matterId)));
     // Phase 2: the court's checklist. An open item is "not checked"; the advocate files.
     if (this.courtRules) results.push(...(await this.courtRules(matterId).catch((e: Error) => [{ rule: "C-0", title: "The court's filing checklist", source: "court adapter", outcome: "not_checked" as const, detail: `It could not be read: ${e.message}` }])));
-    // P-5 and P-8 are checked on the set itself, so they cannot block making the set.
-    const blockers = results.filter((r) => r.outcome === "defect" && r.rule !== "P-5" && r.rule !== "P-8" && !r.rule.startsWith("C-")).map((r) => `${r.rule}: ${r.detail}`);
-    return { details, annexures, limitation, compliance: { version: RULES_VERSION, results }, blockers, filingSet };
+    // P-5 and P-8 are checked on the set itself, so they cannot block making the set. The pack's
+    // own unmapped parts name what the application does not know; they never count as passed.
+    const blockers = results.filter((r) => r.outcome === "defect" && r.rule !== "P-5" && r.rule !== "P-8" && !r.rule.startsWith("C-") && !r.rule.startsWith("PACK-")).map((r) => `${r.rule}: ${r.detail}`);
+    return {
+      details,
+      annexures,
+      limitation,
+      compliance: { version: pack ? `${RULES_VERSION} + ${pack.caseType} pack` : RULES_VERSION, results },
+      blockers,
+      filingSet,
+      required: docs.documents.map((d) => ({ kind: d.kind, title: d.title })),
+      unmapped: docs.unmapped,
+    };
+  }
+
+  /**
+   * Phase 6 (P5): the procedure checks of the filing target. Each row says what it read, and a
+   * check that could not be settled is "not checked" with its reason, never "passed".
+   */
+  private async procedureRules(matterId: string): Promise<ComplianceResult[]> {
+    const store = await this.matters.store(matterId);
+    const target = store.filingTarget();
+    const out: ComplianceResult[] = [];
+    if (!target) {
+      out.push({ rule: "PROC-forum", title: "The forum of the filing", source: "the filing target", outcome: "not_checked", detail: "Choose the court and the case type of the filing on the Court Intelligence tab." });
+      return out;
+    }
+    const courtName = directoryCourt(target.court)?.name ?? target.court;
+    const report = store.evidence.jurisdiction();
+    out.push({
+      rule: "PROC-forum",
+      title: "The forum of the filing",
+      source: "the jurisdiction report (phase 4)",
+      outcome: !report ? "not_checked" : report.undetermined ? "not_checked" : report.forum && courtName && report.forum.toLowerCase().includes(courtName.toLowerCase()) ? "pass" : "defect",
+      detail: !report
+        ? "No jurisdiction report is recorded. Run it on the Jurisdiction tab."
+        : report.undetermined
+          ? `The report is undetermined: ${report.unresolvedFacts.join("; ") || "a field could not be settled"}.`
+          : report.forum && courtName && report.forum.toLowerCase().includes(courtName.toLowerCase())
+            ? `The report's forum (${report.forum}) names the target court (${courtName}).`
+            : `The report's forum (${report.forum || "undetermined"}) does not name the target court (${courtName}).`,
+    });
+    out.push({
+      rule: "PROC-route",
+      title: "The appeal route of the matter",
+      source: "the jurisdiction report (phase 4)",
+      outcome: !report ? "not_checked" : report.appealRoute.trim() ? "pass" : "not_checked",
+      detail: !report ? "No jurisdiction report is recorded." : report.appealRoute.trim() ? `The report names the route: ${report.appealRoute}` : "The report names no appeal route. Record one, or mark the field undetermined.",
+    });
+    const pack = await this.pack(matterId);
+    const limitation = store.work.limitation();
+    out.push({
+      rule: "PROC-limitation",
+      title: "Limitation computed and confirmed for the proceeding",
+      source: pack ? `the ${pack.caseType} proceeding pack` : "the SLP pack",
+      outcome: limitation?.confirmedAt ? "pass" : "not_checked",
+      detail: limitation?.confirmedAt
+        ? `The last day is ${limitation.deadline}, confirmed by the advocate. ${limitation.working}`
+        : pack
+          ? "The pack states no limitation rule of its own, and no limitation working is confirmed. Compute it on the Filing tab when the proceeding has one."
+          : "Compute and confirm limitation on the Filing tab first.",
+    });
+    const freshness = (await this.packFreshness?.(matterId)) ?? [];
+    const stale = freshness.filter((f) => f.state === "stale");
+    out.push({
+      rule: "PROC-rules",
+      title: "The court rules behind the checklist are current",
+      source: "the pack lists and their sources (decision 16)",
+      outcome: freshness.length === 0 ? "not_checked" : stale.length > 0 ? "defect" : "pass",
+      detail:
+        freshness.length === 0
+          ? "No pack list is built for this target yet. Build it on the Court Intelligence tab."
+          : stale.length > 0
+            ? `Unconfirmed: ${stale.map((s) => `${s.list} is stale since ${s.since}`).join("; ")}.`
+            : `Every pack list behind the target is fresh (${freshness.map((f) => f.list).join(", ")}).`,
+    });
+    return out;
   }
 
   /** The citations the disclosure lists: the newest check of each, with attestations. */
@@ -197,6 +331,7 @@ export class Filing {
     if (st.blockers.length > 0) throw new MatterStoreError("FILING_BLOCKED", st.blockers.join(" "));
     const store = await this.matters.store(matterId);
     const drafts = await this.matters.listDrafts(matterId);
+    const docs = await this.docs(matterId);
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
     const folder = path.join(store.folder, "filing", stamp);
     await mkdir(folder, { recursive: true });
@@ -205,7 +340,7 @@ export class Filing {
     const work = path.join(folder, ".work");
     try {
       let n = 0;
-      for (const r of required(store.work.limitation())) {
+      for (const r of docs.documents) {
         const d = drafts.find((x) => x.kind === r.kind)!;
         const docxPath = path.join(work, `${r.kind}.docx`);
         await mkdir(work, { recursive: true });
@@ -282,7 +417,9 @@ export class Filing {
       matter: store.matter().title,
       createdAt,
       files,
-      rules: RULES_VERSION,
+      rules: st.compliance.version,
+      requiredDocuments: docs.documents.map((d) => `${d.kind}: ${d.title}`),
+      packCaseType: (await this.pack(matterId))?.caseType ?? null,
       limitation: lim ? `${lim.deadline} (confirmed ${lim.confirmedAt})` : null,
       approvals,
       // V5-1: the head of the matter's event chain when the set was made.

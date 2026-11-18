@@ -8,9 +8,11 @@ import type { Matters } from "./matters.ts";
 import type { Research } from "./research.ts";
 import type { Drafts } from "./drafts.ts";
 import type { Portal } from "./portal.ts";
+import type { AdvocateStore } from "../lib/advocate-store/index.ts";
 import { searchCitationIndex, type UlosPaths } from "../lib/ulos/index.ts";
+import { PREFERENCE_KEYS, preferenceKeyOf } from "../lib/preferences/index.ts";
 
-export function agentWorkHost(deps: { matters: Matters; research: Research; drafts: Drafts; portal: Portal; ulos: UlosPaths }): AgentWorkHost {
+export function agentWorkHost(deps: { matters: Matters; research: Research; drafts: Drafts; portal: Portal; ulos: UlosPaths; advocate?: AdvocateStore }): AgentWorkHost {
   const { matters, research, drafts, portal } = deps;
   /** Defect B1-4: every write records the session id, and a helper's call its own actor id. */
   const agent = (sessionId: string) => ({ actor: "agent" as const, sessionId });
@@ -91,6 +93,60 @@ export function agentWorkHost(deps: { matters: Matters; research: Research; draf
         default:
           throw new Error(`unknown portal action ${action}`);
       }
+    },
+    async insertCitation(matterId, input, sessionId) {
+      const r = await drafts.insertCitation(matterId, input, sessionId);
+      const proposal: ProposedCorrection = {
+        draftId: input.draftId,
+        title: (await matters.getDraft(matterId, input.draftId)).title,
+        revisionId: r.revision.id,
+        seq: r.revision.seq,
+        anchor: input.anchor,
+        before: r.before,
+        after: r.after,
+        substantive: r.substantive,
+        reason: `${r.reason} — the citation inserted: ${r.citation}`,
+      };
+      return {
+        text: `Inserted as a tracked change in revision ${r.revision.seq}: ${r.citation}. ${r.reason}. The advocate keeps or undoes it.`,
+        proposal,
+      };
+    },
+    async listPreferences() {
+      const store = deps.advocate;
+      if (!store) return "The advocate store is not available in this session.";
+      const lines: string[] = [];
+      const approved = store.preferences().filter((p) => p.status === "approved");
+      const proposed = store.preferences().filter((p) => p.status === "proposed");
+      lines.push(approved.length === 0 ? "No preference is approved yet." : `Approved preferences (${approved.length}):`);
+      for (const p of approved) lines.push(`- ${p.key}: ${p.value} (applied because ${p.reason})`);
+      if (proposed.length > 0) {
+        lines.push(`Waiting for the advocate (${proposed.length}):`);
+        for (const p of proposed) lines.push(`- ${p.key}: ${p.value} — ${p.reason}`);
+      }
+      const unknown = PREFERENCE_KEYS.filter((k) => !approved.some((p) => p.key === k.key)).map((k) => `${k.key} (${k.question})`);
+      if (unknown.length > 0) {
+        lines.push("Not answered yet (ask once, inside the first task where each matters):");
+        for (const u of unknown) lines.push(`- ${u}`);
+      }
+      return lines.join("\n");
+    },
+    async proposePreference(input, sessionId) {
+      const store = deps.advocate;
+      if (!store) return "The advocate store is not available in this session.";
+      const key = preferenceKeyOf(input.key);
+      if (!key) return `Unknown preference key "${input.key}".`;
+      const proposed = store.proposePreference({ key: input.key, value: input.value, reason: input.reason }, agent(sessionId));
+      return `Preference proposed: ${proposed.key} = ${proposed.value}. It is a proposal until the advocate approves it in the Review Inbox. Do not say it is set.`;
+    },
+    async proposeAdvocateMemory(input, sessionId) {
+      const store = deps.advocate;
+      if (!store) return "The advocate store is not available in this session.";
+      const proposed = store.proposeMemory(
+        { type: input.type, subject: input.subject, relation: input.relation, object: input.object, confidence: input.confidence },
+        agent(sessionId),
+      );
+      return `Advocate memory proposed [${proposed.memoryId}]: ${proposed.subject} ${proposed.relation} ${proposed.object}. The advocate confirms or rejects it on the profile. It holds no fact of any client's matter.`;
     },
   };
 }

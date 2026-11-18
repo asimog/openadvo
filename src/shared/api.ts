@@ -775,6 +775,6 @@ export interface OpenAdvoApi {
     matterId: string,
     draftId: string,
     baseRevisionId: string,
-    decisions: Array<{ anchor: string; decision: "keep" | "undo" }>,
+    decisions: Array<{ anchor: string; decision: "keep" | "undo"; reason?: string }>,
   ): Promise<RevisionRecord>;
 }

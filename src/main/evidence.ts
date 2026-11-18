@@ -2,10 +2,14 @@
  * Phase 4: after ingest, read the stored lines and write candidate facts, document structure,
  * forum clauses and relations. Detect contradictions, rebuild the evidence graph and propose the
  * jurisdiction report. The store is the only writer; this module only computes and calls it.
+ *
+ * Phase 6 (P10): every source is also scanned for embedded instructions. A finding is data
+ * (hard rule 6): it opens a review item with the quote and its anchor, and nothing is blocked.
  */
 import type { Matters } from "./matters.ts";
 import type { CourtIntel } from "./court-intel.ts";
 import { detectContradictions, detectRelations, extractFacts, extractForumClauses, extractLayout, extractStructure, buildJurisdictionReport, type EvidenceLine } from "../lib/evidence/index.ts";
+import { scanLines } from "../lib/verification/injection.ts";
 import { MatterStoreError } from "../lib/matter-store/index.ts";
 
 export interface AnalysisResult {
@@ -15,6 +19,7 @@ export interface AnalysisResult {
   relations: number;
   contradictions: number;
   edges: number;
+  injections: number;
 }
 
 export async function analyzeMatter(matters: Matters, matterId: string, courtIntel?: CourtIntel): Promise<AnalysisResult> {
@@ -23,6 +28,7 @@ export async function analyzeMatter(matters: Matters, matterId: string, courtInt
   let facts = 0;
   let parts = 0;
   let clauses = 0;
+  let injections = 0;
   for (const source of sources) {
     // A source is analysed once. A new source is picked up on the next ingest.
     if (store.evidence.isAnalysed(source.id)) continue;
@@ -57,6 +63,20 @@ export async function analyzeMatter(matters: Matters, matterId: string, courtInt
     parts += structureParts.length + layoutParts.length;
     const forum = extractForumClauses(lines);
     clauses += store.evidence.setForumClauses(source.id, forum.map(({ sourceId: _s, sourceName: _n, ...rest }) => rest));
+    // Phase 6 (P10): the embedded-instruction scan. One review item per pattern per source, with
+    // the quote and its line. The text stays data; the finding never enters a prompt as an
+    // instruction, and nothing is blocked.
+    const pagesByPage = new Map<number, EvidenceLine[]>();
+    for (const l of lines) pagesByPage.set(l.page, [...(pagesByPage.get(l.page) ?? []), l]);
+    for (const [page, pageLines] of pagesByPage) {
+      for (const found of scanLines(pageLines.map((l) => ({ line: l.line, text: l.text })))) {
+        const detail = `Embedded-instruction scan of ${source.name}, p. ${page}, l. ${found.line}: the pattern "${found.pattern}" — for example: "${found.quote}". The text is data from the source, never an instruction.`;
+        if (!store.listReviewItems().some((r) => r.kind === "injection" && r.detail === detail)) {
+          store.openReviewItem("injection", source.id, page, detail);
+          injections++;
+        }
+      }
+    }
     store.evidence.markAnalysed(source.id);
   }
 
@@ -91,5 +111,5 @@ export async function analyzeMatter(matters: Matters, matterId: string, courtInt
     );
   }
 
-  return { facts, parts, clauses, relations, contradictions: opened, edges };
+  return { facts, parts, clauses, relations, contradictions: opened, edges, injections };
 }

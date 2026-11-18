@@ -398,6 +398,25 @@ export function FilingView(props: { matterId: string; sources: SourceRecord[]; v
         <Button label="Compute limitation" size="sm" variant="ghost" isDisabled={busy} clickAction={() => run(() => api.computeLimitation(props.matterId))} />
       </section>
 
+      <section className="work-section" aria-label="Required documents">
+        <Heading level={3}>Required documents</Heading>
+        <Text type="supporting">
+          {f.required.length > 0 ? "The filing target's proceeding pack names these documents. Each is a draft: generate it on the Drafts tab, then approve its revision." : "No filing target is set, so the Supreme Court SLP set applies. Choose the court and the case type on the Court Intelligence tab for a pack's own documents."}
+        </Text>
+        <ul className="work-list" data-testid="required-documents">
+          {f.required.map((r) => (
+            <li key={r.kind}>
+              <Text>{r.title}</Text>
+            </li>
+          ))}
+        </ul>
+        {f.unmapped.length > 0 ? (
+          <Text type="supporting" data-testid="unmapped-parts">
+            The pack also names what the application cannot map to a document: {f.unmapped.join("; ")}. Check each by hand before filing.
+          </Text>
+        ) : null}
+      </section>
+
       <section className="work-section" aria-label="Filing compliance">
         <Heading level={3}>Filing compliance ({f.compliance.version})</Heading>
         <table className="table" data-testid="compliance">

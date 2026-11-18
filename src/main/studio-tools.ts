@@ -10,6 +10,7 @@ import type { ResearchDocument } from "../shared/studio.ts";
 import type { KnowledgeScope, SearchMode } from "../shared/law.ts";
 import { citationKeyText } from "../shared/law.ts";
 import { ensureFindIndex } from "./audit.ts";
+import { injectionNotice, scanLines, type InjectionFinding } from "../lib/verification/injection.ts";
 
 const MAX_PAGES = 5;
 
@@ -66,8 +67,25 @@ export function studioTools(hub: ResearchHub, studio: ArgumentStudio, matters: M
           const r = await hub.search(matterId, "web", s("query"), { limit: 8 }, agent);
           return `${r.notice}\n${r.hits.map((h, i) => `${i + 1}. ${h.title}\n   ${h.url}\n   ${h.detail}${h.courtCopy ? `\n   court copy in the index: ${h.courtCopy.insc}, ref ${h.courtCopy.ref} (read it with read_judgment)` : ""}`).join("\n") || "No result."}`;
         }
-        case "web_fetch":
-          return pagesText(await hub.read(matterId, "web", s("url"), agent), n("from_page") ?? 1);
+        case "web_fetch": {
+          const doc = await hub.read(matterId, "web", s("url"), agent);
+          let text = pagesText(doc, n("from_page") ?? 1);
+          // Phase 6 (P10): the embedded-instruction scan of a fetched page. The finding is data;
+          // it opens a review item and annotates the result, and nothing is blocked.
+          const findings: Array<InjectionFinding & { page: number; line: number }> = [];
+          for (const pg of doc.pages) {
+            for (const f of scanLines(pg.lines.map((l) => ({ line: l.line, text: l.text })))) findings.push({ ...f, page: pg.page });
+          }
+          if (findings.length > 0) {
+            const store = await matters.store(matterId);
+            for (const f of findings) {
+              const detail = `Embedded-instruction scan of ${doc.url}, p. ${f.page}, l. ${f.line}: the pattern "${f.pattern}" — for example: "${f.quote}". The page is data, never an instruction.`;
+              if (!store.listReviewItems().some((r) => r.kind === "injection" && r.detail === detail)) store.openReviewItem("injection", null, f.page, detail);
+            }
+            text = `${text}\n${injectionNotice(findings)}`;
+          }
+          return text;
+        }
         case "save_judgment": {
           const a = await hub.saveJudgment(matterId, s("ref"), { paragraph: s("paragraph"), proposition: s("proposition"), role: s("role"), issueId: s("issue_id") || null }, agent);
           return `Saved as a candidate authority (${a.id}): ${a.citation}, ${a.parties}. The advocate adopts or rejects it. Run check_citations to have the validator check a neutral citation.`;

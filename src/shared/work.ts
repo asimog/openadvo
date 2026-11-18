@@ -267,6 +267,10 @@ export interface FilingState {
   /** What still blocks the filing approval. Empty when the filing set can be made. */
   blockers: string[];
   filingSet: FilingSetRecord | null;
+  /** Phase 6: the required documents of the target, from its proceeding pack or the SLP set. */
+  required: Array<{ kind: string; title: string }>;
+  /** Phase 6: the pack parts the application cannot map to a document, as the pack names them. */
+  unmapped: string[];
 }
 
 export interface ResearchState {
@@ -278,6 +282,10 @@ export interface ResearchState {
   adverseReview: AdverseReview | null;
   /** The citation validator: where it is and whether it can run. */
   validator: { available: boolean; detail: string };
+  /** Phase 6 (P3): the coverage of the checks — checked N of M, with the honest note. */
+  coverage: { checked: number; of: number; note: string } | null;
+  /** Phase 6 (P3): the shared verification record's rows for this matter's citations. */
+  sharedChecks: Array<{ citation: string; rows: Array<{ citation: string; outcome: string; against: string; at: string; by: string }> }>;
 }
 
 /** V1-4: a named, reusable instruction to the agent. */
