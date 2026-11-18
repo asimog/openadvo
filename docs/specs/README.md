@@ -11,4 +11,5 @@ One spec per module, written when its work starts, at the depth the module needs
 | [documents-evidence-facts.md](documents-evidence-facts.md) | Phase 4: C7, D1, D3, F1, F3, F4, F6, G2, H3 to H10, H12, H13 |
 | [law-research-authority.md](law-research-authority.md) | Phase 5 RAG integration: D2, E1 to E7, G1, G4, G6 to G8, H11, J1 to J6; RAG-0 skeleton now, RAG-1 to RAG-5 deferred |
 | [drafting-and-verification.md](drafting-and-verification.md) | Phase 6: A7, F2, L1 to L6, L8, P1 to P11 |
+| [argument-and-hearings.md](argument-and-hearings.md) | Phase 7: K1 to K9, O5 |
 
