@@ -275,7 +275,7 @@ export function CourtIntelligence() {
               <Heading level={4}>Proceeding packs</Heading>
               <List density="compact">
                 {o.proceedings.map((p) => (
-                  <ListItem key={p.key} label={`${p.title} (${p.caseType})`} description={`${p.provisions.join("; ")}${p.limitation ? `. Limitation: ${p.limitation.days} days from ${p.limitation.from} (${p.limitation.ref ?? ""})` : ""}. Parts: ${p.requiredParts.join(", ")}. Stages: ${p.stages.join(" → ")}.`} />
+                  <ListItem key={p.key} label={`${p.title} (${p.caseType})`} description={`${p.provisions.join("; ")}${p.limitation ? `. Limitation: ${p.limitation.days} days from ${p.limitation.from} (${p.limitation.ref ?? ""})` : ""}${p.checklist ? `. Checklist: ${p.checklist}` : ""}${p.requiredParts.length ? `. Parts: ${p.requiredParts.join(", ")}.` : ". The practice pack holds the filing set, limitation, stages and workflow."}`} />
                 ))}
               </List>
             </>

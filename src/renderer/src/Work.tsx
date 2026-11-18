@@ -424,10 +424,32 @@ export function FilingView(props: { matterId: string; sources: SourceRecord[]; v
         <Button label="Compute limitation" size="sm" variant="ghost" isDisabled={busy} clickAction={() => run(() => api.computeLimitation(props.matterId))} />
       </section>
 
+      <section className="work-section" aria-label="Filing pack" data-testid="filing-pack">
+        <Heading level={3}>Filing pack</Heading>
+        {f.pack ? (
+          <>
+            <Text weight="semibold">{f.pack.title}: {f.pack.proceeding}{f.pack.source === "default" ? " (the default pack)" : ""}</Text>
+            <Text type="supporting">
+              {f.pack.limitation ? `Limitation: ${f.pack.limitation.days} days. ${f.pack.limitation.source}` : "The pack states no limitation rule of its own."}
+              {f.pack.source === "default" ? " No court target or practice pack is chosen, so the default pack applies. Choose the court and case type on the Court Intelligence tab, or set the practice area in your profile." : ""}
+            </Text>
+            {f.pack.workflow.length > 0 ? (
+              <ol className="work-list" data-testid="pack-workflow">
+                {f.pack.workflow.map((s, i) => <li key={i}><Text>{s.text}{s.skill ? ` (${s.skill})` : ""}</Text></li>)}
+              </ol>
+            ) : null}
+          </>
+        ) : <Text type="supporting">No filing pack applies. Choose the court and the case type on the Court Intelligence tab.</Text>}
+      </section>
+
       <section className="work-section" aria-label="Required documents">
         <Heading level={3}>Required documents</Heading>
         <Text type="supporting">
-          {f.required.length > 0 ? "The filing target's proceeding pack names these documents. Each is a draft: generate it on the Drafts tab, then approve its revision." : "No filing target is set, so the Supreme Court SLP set applies. Choose the court and the case type on the Court Intelligence tab for a pack's own documents."}
+          {f.required.length > 0
+            ? `The ${f.pack?.title ?? "filing"} pack names these documents${f.pack?.proceeding ? ` for ${f.pack.proceeding}` : ""}. Each is a draft: generate it on the Drafts tab, then approve its revision.`
+            : f.pack
+              ? "This pack names no document the application builds. Check what it requires on the pack's own terms."
+              : "No filing pack is chosen. Choose the court and the case type on the Court Intelligence tab."}
         </Text>
         <ul className="work-list" data-testid="required-documents">
           {f.required.map((r) => (

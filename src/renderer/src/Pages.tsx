@@ -12,6 +12,7 @@ import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import type { AdvocateProfile, Freshness, InboxItem, IntelSource, MatterSummary, MemoryRecord, PreferenceRecord, RoleSummary, SkillSummary, StoreChains } from "../../shared/api.ts";
+import type { PackSummary } from "../../shared/packs.ts";
 import { Docket } from "./Practice.tsx";
 import { CourtIntelligence, CourtProfileEditor } from "./Intel.tsx";
 import { IntakeDialog } from "./Intake.tsx";
@@ -163,32 +164,57 @@ export function CourtIntelPage() {
   );
 }
 
-/** N1, O2: the skills registry and the roles. */
+/** N1, O2, N4: the skills registry, the practice packs and the roles. */
 export function SkillsPage() {
-  const [data, setData] = useState<{ skills: SkillSummary[]; roles: RoleSummary[]; folders: { builtIn: string; advocate: string } } | null>(null);
+  const [data, setData] = useState<{ skills: SkillSummary[]; roles: RoleSummary[]; folders: { builtIn: string; advocate: string }; practicePacks: PackSummary[] } | null>(null);
+  const [pack, setPack] = useState("all");
   const load = useCallback(async (fresh: boolean) => setData(await api.listSkills(fresh)), []);
   useEffect(() => {
     void load(false);
   }, [load]);
   if (!data) return <PageFrame title="Workflows & Skills" testId="skills-page"><Text type="supporting">Reading…</Text></PageFrame>;
+  const packs = data.practicePacks ?? [];
+  const shown = data.skills.filter((s) => pack === "all" || s.packs.includes(pack));
   return (
     <PageFrame title="Workflows & Skills" testId="skills-page" intro="Skills are the unit of work. Call one with / in a matter's chat, or ask in plain words and the agent picks one and says which.">
       <div className="question-options">
         <Button label="Read the skill files again" size="sm" variant="ghost" clickAction={() => load(true)} />
       </div>
       <Text type="supporting">Built-in skills: {data.folders.builtIn}. Your own skills: {data.folders.advocate} (one folder per skill, with SKILL.md).</Text>
+      <Heading level={3}>Practice packs</Heading>
+      <Text type="supporting">A pack is content: its proceedings, acts, templates, stages, skills and terms. It owns no matter fact and takes no decision.</Text>
+      {packs.length === 0 ? <Text type="supporting">No practice pack is installed.</Text> : (
+        <List density="compact" data-testid="packs-list">
+          {packs.map((p) => (
+            <ListItem
+              key={p.id}
+              data-testid={`pack-${p.id}`}
+              startContent={<StatusDot variant={p.error ? "error" : "success"} label={p.error ? "Cannot read" : p.isDefault ? "Default" : "Ready"} />}
+              label={`${p.title} v${p.version}${p.isDefault ? " (default)" : ""}`}
+              description={p.error ? p.error : `${p.proceedings.length} proceeding${p.proceedings.length === 1 ? "" : "s"}: ${p.proceedings.map((x) => `${x.title} (${x.caseType})`).join(", ")}. Acts: ${p.acts.map((a) => `${a.act} (${a.version})`).join("; ")}. Skills: ${p.skills.length}.`}
+            />
+          ))}
+        </List>
+      )}
       <Heading level={3}>Skills</Heading>
+      <label className="field">Pack
+        <select aria-label="Filter the skills by pack" value={pack} onChange={(e) => setPack(e.target.value)} data-testid="skill-pack-filter">
+          <option value="all">Every pack</option>
+          {packs.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
+        </select>
+      </label>
+      <Text type="supporting">{shown.length} of {data.skills.length} skill{data.skills.length === 1 ? "" : "s"}. The score is the phase 8 review, kept with the version.</Text>
       <List density="compact" data-testid="skills-list">
-        {data.skills.map((s) => (
+        {shown.map((s) => (
           <ListItem
             key={`${s.id}:${s.version}:${s.file}`}
             data-testid={`skill-${s.id}`}
-            startContent={<StatusDot variant={s.error ? "error" : s.shadowed ? "neutral" : "success"} label={s.error ? "Cannot run" : s.shadowed ? "Older version" : "Ready"} />}
+            startContent={<StatusDot variant={s.error ? "error" : s.shadowed ? "neutral" : "success"} label={s.error ? "Cannot run" : s.shadowed ? "Older version" : s.reviewScore != null ? `${s.reviewScore}/${s.reviewMax}` : "Ready"} />}
             label={`${s.id} ${s.title} v${s.version}`}
             description={
               s.error
                 ? `Cannot run: ${s.error}`
-                : `${s.description} Role ${s.role}. Output ${s.output}. Tools: ${s.permittedTools.join(", ")}. Checks: ${s.checks.join(", ")}.${s.approvalPoints.length ? ` Stops for you: ${s.approvalPoints.join(", ").replace(/_/g, " ")}.` : ""} ${s.author}, ${s.review}.${s.shadowed ? " A higher version runs instead." : ""}`
+                : `${s.description} Pack${s.packs.length === 1 ? "" : "s"} ${s.packs.join(", ")}. Role ${s.role}. Output ${s.output}. Tools: ${s.permittedTools.join(", ")}. Checks: ${s.checks.join(", ")}.${s.approvalPoints.length ? ` Stops for you: ${s.approvalPoints.join(", ").replace(/_/g, " ")}.` : ""} ${s.author}, ${s.review}.${s.shadowed ? " A higher version runs instead." : ""}`
             }
           />
         ))}

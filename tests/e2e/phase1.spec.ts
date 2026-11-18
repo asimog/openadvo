@@ -138,9 +138,10 @@ test("navigation, the Review Inbox across matters, Workflows & Skills, the profi
   await page.getByTestId("nav-court").click();
   await expect(page.getByTestId("court-page").getByTestId("not-built")).toContainText("phase 9");
 
-  // Workflows & Skills: the four built-in skills and the twelve roles.
+  // Workflows & Skills: the phase 8 library, the practice packs and the twelve roles.
   await page.getByTestId("nav-skills").click();
-  for (const id of ["SK-008", "SK-011", "SK-012", "SK-027"]) await expect(page.getByTestId(`skill-${id}`)).toContainText("not reviewed");
+  for (const id of ["SK-008", "SK-011", "SK-012", "SK-027"]) await expect(page.getByTestId(`skill-${id}`)).toContainText("reviewed");
+  for (const id of ["criminal", "civil", "writ", "slp"]) await expect(page.getByTestId(`pack-${id}`)).toBeVisible();
   await expect(page.getByTestId("roles-list")).toContainText("chronology");
 
   // A skill run that fails the gate three times goes to the Review Inbox, which blocks.

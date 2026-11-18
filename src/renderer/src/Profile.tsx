@@ -11,6 +11,7 @@ import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import type { IntelSource, LibraryItem, MemoryRecord, PreferenceRecord, RoleSummary, SkillSummary } from "../../shared/api.ts";
+import type { PackSummary } from "../../shared/packs.ts";
 import type { AdvocateProfile, Freshness } from "../../shared/stores.ts";
 import { CourtProfileEditor } from "./Intel.tsx";
 
@@ -48,7 +49,7 @@ export function ProfilePage(props: { onChanged: () => void; onOnboarding?: () =>
   const [courts, setCourts] = useState<Awaited<ReturnType<typeof api.courtOverview>>>([]);
   const [sources, setSources] = useState<Array<IntelSource & { freshness: Freshness }>>([]);
   const [library, setLibrary] = useState<LibraryItem[]>([]);
-  const [skills, setSkills] = useState<{ skills: SkillSummary[]; roles: RoleSummary[]; folders: { builtIn: string; advocate: string } } | null>(null);
+  const [skills, setSkills] = useState<{ skills: SkillSummary[]; roles: RoleSummary[]; folders: { builtIn: string; advocate: string }; practicePacks: PackSummary[] } | null>(null);
   const [enrolmentState, setEnrolmentState] = useState<{ stored: boolean; last4: string | null }>({ stored: false, last4: null });
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
@@ -127,6 +128,8 @@ export function ProfilePage(props: { onChanged: () => void; onOnboarding?: () =>
   };
 
   const statutory = [...new Set(courts.flatMap((c) => c.proceedings.flatMap((p) => p.provisions)))].sort();
+  const packs = skills?.practicePacks ?? [];
+  const packActs = [...new Set(packs.flatMap((p) => p.acts.map((a) => `${a.act} (${a.version})`)))].sort();
   const builtLists = courts.flatMap((c) => c.lists.filter((l) => l.built).map((l) => ({ court: c.court.name, list: l })));
 
   return (
@@ -194,7 +197,14 @@ export function ProfilePage(props: { onChanged: () => void; onOnboarding?: () =>
               </select>
             </label>
           </div>
-          <Text type="supporting">{practice.length ? `Enabled packs: ${practice.join(", ")}.` : "No practice area is chosen yet."}</Text>
+          <Text type="supporting">{practice.length ? `Enabled practice areas: ${practice.join(", ")}.` : "No practice area is chosen yet."}</Text>
+          <List density="compact" data-testid="profile-practice-packs">
+            {packs.map((p) => {
+              const enabled = p.practice.some((x) => practice.some((y) => y.toLowerCase() === x.toLowerCase())) || (p.id === "writ" && practice.some((y) => /constitutional/i.test(y)));
+              return <ListItem key={p.id} startContent={<StatusDot variant={p.error ? "error" : enabled ? "success" : "neutral"} label={p.error ? "Cannot read" : enabled ? "Enabled" : "Not chosen"} />} label={`${p.title} v${p.version}${p.isDefault ? " (default)" : ""}`} description={`${p.proceedings.map((x) => `${x.title} (${x.caseType})`).join(", ")}. ${p.acts.length} act(s). ${p.skills.length} skill(s).`} />;
+            })}
+          </List>
+          {packs.length === 0 ? <Text type="supporting">No practice pack is installed.</Text> : null}
         </Section>
 
         <Section title="Court map" description="The courts you chose, the adapter that prepares their rules, and the lists that are built. Nothing is downloaded until a list is needed." testId="profile-court-map">
@@ -223,15 +233,15 @@ export function ProfilePage(props: { onChanged: () => void; onOnboarding?: () =>
           )}
         </Section>
 
-        <Section title="Statutory map" description="The main provisions of the proceedings in the chosen court packs. A version is shown only when a source records it." testId="profile-statutory-map">
-          {statutory.length === 0 ? <Text type="supporting">No provision is recorded in the chosen packs yet.</Text> : <div className="chip-row">{statutory.map((p) => <span key={p} className="chip">{p}</span>)}</div>}
+        <Section title="Statutory map" description="The main provisions of the proceedings in the chosen court packs, and the acts of the enabled practice packs. A version is shown only when a source records it." testId="profile-statutory-map">
+          {statutory.length === 0 && packActs.length === 0 ? <Text type="supporting">No provision is recorded in the chosen packs yet.</Text> : <div className="chip-row">{[...statutory, ...packActs].map((p) => <span key={p} className="chip">{p}</span>)}</div>}
         </Section>
 
         <Section title="Skills" description="The skills and workflows recommended for these courts and practice areas." testId="profile-skills">
           {skills ? (
             <List density="compact">
               {skills.skills.map((s) => (
-                <ListItem key={`${s.id}:${s.version}:${s.file}`} label={`${s.id} ${s.title} v${s.version}`} description={`${s.description} Role ${s.role}.`} startContent={<StatusDot variant={s.error ? "error" : "success"} label={s.error ? "Cannot run" : "Ready"} />} />
+                <ListItem key={`${s.id}:${s.version}:${s.file}`} label={`${s.id} ${s.title} v${s.version}`} description={`${s.description} Packs ${s.packs.join(", ")}. Role ${s.role}. ${s.review}.`} startContent={<StatusDot variant={s.error ? "error" : "success"} label={s.error ? "Cannot run" : s.reviewScore != null ? `${s.reviewScore}/${s.reviewMax}` : "Ready"} />} />
               ))}
             </List>
           ) : <Text type="supporting">The skill registry could not be read.</Text>}
