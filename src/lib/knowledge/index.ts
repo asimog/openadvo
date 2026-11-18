@@ -7,7 +7,8 @@
  * function refuses a scope it was not given. What was not searched is always reported.
  * No store is written here. Plain library (decision 6).
  */
-import type { KnowledgeHit, KnowledgeScope, RetrievalResult, SearchMode } from "../../shared/law.ts";
+import { KNOWLEDGE_SCOPES } from "../../shared/law.ts";
+import type { AdapterHealth, Coverage, KnowledgeHit, KnowledgeScope, RetrievalResult, SearchMode } from "../../shared/law.ts";
 import { findCitations, findProvisions } from "../legal-corpus/index.ts";
 
 // ---- the query ----
@@ -227,6 +228,12 @@ export interface AdapterContext {
   limit: number;
   /** The query's vector, when an embedder is installed. */
   vector: Float32Array | null;
+  /** The bound matter, when the caller is a matter session. A matter adapter must check it. */
+  matterId?: string | null;
+  /** The governing date, for currentness checks. */
+  governingDate?: string | null;
+  /** Cooperative cancellation. The orchestrator still times out an adapter that ignores it. */
+  signal?: AbortSignal;
 }
 
 export interface KnowledgeAdapter {
@@ -236,6 +243,8 @@ export interface KnowledgeAdapter {
   search(q: ParsedQuery, ctx: AdapterContext): Promise<RankedList[]> | RankedList[];
   /** Run after fusion on the hits that will be returned (verification at the time of use). */
   finish?(hits: KnowledgeHit[]): Promise<void>;
+  /** The adapter's own state, for the Index Health view. */
+  health?(): AdapterHealth;
 }
 
 export interface RetrieveOptions {
@@ -246,6 +255,13 @@ export interface RetrieveOptions {
   court?: string | null;
   question?: "law" | "fact" | "any";
   embedder?: Embedder | null;
+  /** The bound matter. A bound matter adapter refuses any other id, and a missing one. */
+  matterId?: string | null;
+  /** Per-adapter timeout for the search and for the finish hook. */
+  timeoutMs?: number;
+  /** The most adapters searched at once. */
+  concurrency?: number;
+  signal?: AbortSignal;
 }
 
 /** The scopes a mode searches when the caller names none. */
@@ -266,13 +282,137 @@ export const MODE_SCOPES: Record<SearchMode, KnowledgeScope[]> = {
   cross_jurisdiction: ["research", "statute"],
 };
 
-export async function retrieve(adapters: KnowledgeAdapter[], query: string, opts: RetrieveOptions = {}): Promise<RetrievalResult> {
+// ---- RAG-0: the one registry and the bounded run ----
+
+export class KnowledgeError extends Error {
+  code: string;
+
+  constructor(code: string, message: string) {
+    super(`${code}: ${message}`);
+    this.code = code;
+  }
+}
+
+/** One adapter per scope. A second adapter for the same scope is a configuration error. */
+export class KnowledgeRegistry {
+  private readonly byScope = new Map<KnowledgeScope, KnowledgeAdapter>();
+
+  constructor(adapters: readonly KnowledgeAdapter[] = []) {
+    for (const adapter of adapters) this.add(adapter);
+  }
+
+  add(adapter: KnowledgeAdapter): this {
+    if (this.byScope.has(adapter.scope)) throw new KnowledgeError("DUPLICATE_SCOPE", `A ${adapter.scope} adapter is already registered.`);
+    this.byScope.set(adapter.scope, adapter);
+    return this;
+  }
+
+  get(scope: KnowledgeScope): KnowledgeAdapter | undefined {
+    return this.byScope.get(scope);
+  }
+
+  has(scope: KnowledgeScope): boolean {
+    return this.byScope.has(scope);
+  }
+
+  scopes(): KnowledgeScope[] {
+    return KNOWLEDGE_SCOPES.filter((scope) => this.byScope.has(scope));
+  }
+
+  /** One health row per registered adapter, in the canonical scope order. */
+  health(): AdapterHealth[] {
+    return this.scopes().map((scope) => this.healthOf(scope));
+  }
+
+  healthOf(scope: KnowledgeScope): AdapterHealth {
+    const adapter = this.byScope.get(scope);
+    if (!adapter) return { scope, state: "deferred", detail: "No source is connected for this scope." };
+    try {
+      if (adapter.health) return adapter.health();
+      const why = adapter.unavailable();
+      return { scope, state: why ? "deferred" : "ready", detail: why ?? "The adapter is connected." };
+    } catch (e) {
+      return { scope, state: "error", detail: errorText(e).slice(0, 240) };
+    }
+  }
+}
+
+export function isKnowledgeScope(value: string): value is KnowledgeScope {
+  return (KNOWLEDGE_SCOPES as readonly string[]).includes(value);
+}
+
+/** The source fields a hit must have before fusion can use it. */
+function rawHitProblem(hit: unknown, expected?: KnowledgeScope): string | null {
+  if (typeof hit !== "object" || hit === null) return "the hit is not an object";
+  const value = hit as Partial<KnowledgeHit>;
+  for (const field of ["id", "title", "text", "anchor"] as const) {
+    if (typeof value[field] !== "string" || !value[field].trim()) return `no ${field}`;
+  }
+  if (typeof value.scope !== "string" || !isKnowledgeScope(value.scope)) return `unknown scope ${String(value.scope)}`;
+  if (expected && value.scope !== expected) return `scope ${value.scope} in a ${expected} adapter`;
+  return null;
+}
+
+/** The missing or empty contract field of a hit, or null when the hit is valid. */
+export function hitContractProblem(hit: KnowledgeHit): string | null {
+  const problem = rawHitProblem(hit);
+  if (problem) return problem;
+  return Array.isArray(hit.why) && hit.why.every((why) => typeof why === "string" && why.trim()) && hit.why.length > 0 ? null : "no retriever in why";
+}
+
+export const RETRIEVAL_TIMEOUT_MS = 4_000;
+export const RETRIEVAL_CONCURRENCY = 4;
+
+function errorText(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
+/** Reject when the work does not settle in time. The work's own rejection is never unhandled. */
+function withTimeout<T>(work: Promise<T>, ms: number, label: string, onTimeout?: () => void): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      onTimeout?.();
+      reject(new KnowledgeError("TIMEOUT", `${label} did not answer within ${ms} ms.`));
+    }, ms);
+    work.then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+/**
+ * RAG-0: parse, check the scope, search with bounded concurrency and a per-adapter timeout,
+ * fuse, apply policy, run the finish hooks, and state the coverage. A slow or failed adapter
+ * never removes another adapter's hits. Nothing is written here.
+ */
+export async function runRetrieval(registry: KnowledgeRegistry, query: string, opts: RetrieveOptions = {}): Promise<RetrievalResult> {
   const started = Date.now();
   const mode = opts.mode ?? "natural";
   const q = parseQuery(query, mode, { date: opts.date, court: opts.court });
-  const limit = Math.min(Math.max(opts.limit ?? 20, 1), 100);
-  const want = opts.scopes?.length ? opts.scopes : MODE_SCOPES[mode];
-  const notSearched: RetrievalResult["notSearched"] = [];
+  const requestedLimit = opts.limit ?? 20;
+  const requestedTimeout = opts.timeoutMs ?? RETRIEVAL_TIMEOUT_MS;
+  const requestedConcurrency = opts.concurrency ?? RETRIEVAL_CONCURRENCY;
+  const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100) : 20;
+  const timeoutMs = Number.isFinite(requestedTimeout) ? Math.min(Math.max(requestedTimeout, 1), 60_000) : RETRIEVAL_TIMEOUT_MS;
+  const concurrency = Number.isFinite(requestedConcurrency) ? Math.min(Math.max(Math.trunc(requestedConcurrency), 1), 16) : RETRIEVAL_CONCURRENCY;
+  const want = opts.scopes?.length ? [...new Set(opts.scopes)] : MODE_SCOPES[mode];
+  for (const scope of want) if (!isKnowledgeScope(scope)) throw new KnowledgeError("UNKNOWN_SCOPE", `"${String(scope)}" is not a knowledge scope.`);
+
+  const deferred: Coverage["deferred"] = [];
   let vector: Float32Array | null = null;
   if (opts.embedder && q.raw && mode !== "citation" && mode !== "phrase" && mode !== "boolean") {
     try {
@@ -281,28 +421,133 @@ export async function retrieve(adapters: KnowledgeAdapter[], query: string, opts
       vector = null;
     }
   }
-  const lists: RankedList[] = [];
-  const used: KnowledgeAdapter[] = [];
+
+  interface Task {
+    scope: KnowledgeScope;
+    adapter: KnowledgeAdapter;
+  }
+  const tasks: Task[] = [];
+  const failed: Coverage["failed"] = [];
   for (const scope of want) {
-    const adapter = adapters.find((a) => a.scope === scope);
+    const adapter = registry.get(scope);
     if (!adapter) {
-      notSearched.push({ scope, reason: "No source is connected for this scope." });
+      deferred.push({ scope, reason: "No source is connected for this scope." });
       continue;
     }
-    const why = adapter.unavailable();
-    if (why) {
-      notSearched.push({ scope, reason: why });
-      continue;
-    }
+    let why: string | null;
     try {
-      lists.push(...(await adapter.search(q, { limit: limit * 3, vector })));
-      used.push(adapter);
+      why = adapter.unavailable();
     } catch (e) {
-      notSearched.push({ scope, reason: (e as Error).message.slice(0, 200) });
+      failed.push({ scope, reason: `The ${scope} adapter could not report its state: ${errorText(e).slice(0, 240)}` });
+      continue;
+    }
+    if (why) {
+      deferred.push({ scope, reason: why });
+      continue;
+    }
+    tasks.push({ scope, adapter });
+  }
+
+  const listsByScope = new Map<KnowledgeScope, RankedList[]>();
+  const completed = new Set<KnowledgeScope>();
+  let next = 0;
+  const worker = async () => {
+    while (true) {
+      const index = next++;
+      if (index >= tasks.length) return;
+      const task = tasks[index];
+      const controller = new AbortController();
+      const abort = () => controller.abort();
+      if (opts.signal) {
+        if (opts.signal.aborted) controller.abort();
+        else opts.signal.addEventListener("abort", abort, { once: true });
+      }
+      try {
+        const ctx: AdapterContext = { limit: limit * 3, vector, matterId: opts.matterId ?? null, governingDate: q.date, signal: controller.signal };
+        const lists = await withTimeout(Promise.resolve().then(() => task.adapter.search(q, ctx)), timeoutMs, task.scope, abort);
+        // An adapter's own malformed hit is rejected before fusion, so it cannot break another
+        // adapter's result. The valid hits of the same adapter still take part.
+        const clean: RankedList[] = [];
+        const problems: string[] = [];
+        for (const list of Array.isArray(lists) ? lists : []) {
+          if (!list || !Array.isArray(list.hits)) {
+            problems.push("a result list has no hits");
+            continue;
+          }
+          const good = list.hits.filter((hit) => {
+            const problem = rawHitProblem(hit, task.scope);
+            if (problem) problems.push(problem);
+            return !problem;
+          });
+          if (good.length > 0) clean.push({ ...list, hits: good });
+        }
+        if (problems.length > 0) failed.push({ scope: task.scope, reason: `The ${task.scope} adapter returned ${problems.length} invalid hit(s): ${problems[0]}.` });
+        listsByScope.set(task.scope, clean);
+        completed.add(task.scope);
+      } catch (e) {
+        failed.push({ scope: task.scope, reason: errorText(e).slice(0, 300) });
+      } finally {
+        opts.signal?.removeEventListener("abort", abort);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, worker));
+
+  // Keep the caller's scope order even when the adapters finish in another order.
+  const lists: RankedList[] = [];
+  for (const task of tasks) lists.push(...(listsByScope.get(task.scope) ?? []));
+  const searched = tasks.filter((task) => completed.has(task.scope)).map((task) => task.scope);
+
+  const question = opts.question ?? (mode === "fact_pattern" || mode === "party" ? "fact" : mode === "natural" ? "any" : "law");
+  const ranked = applyPolicy(fuse(lists), question).slice(0, limit);
+
+  // A hit without a source and an anchor is not a knowledge hit (RAG-0, section 5.3).
+  const invalid = new Map<KnowledgeScope, string[]>();
+  const hits: KnowledgeHit[] = [];
+  for (const hit of ranked) {
+    const problem = hitContractProblem(hit);
+    if (problem) {
+      invalid.set(hit.scope, [...(invalid.get(hit.scope) ?? []), problem]);
+      continue;
+    }
+    hits.push(hit);
+  }
+  for (const [scope, problems] of invalid) failed.push({ scope, reason: `The ${scope} adapter returned an invalid hit: ${problems[0]}.` });
+
+  // Verification at the time of use runs after fusion, on the hits that will be returned.
+  for (const task of tasks) {
+    if (!task.adapter.finish) continue;
+    const scoped = hits.filter((hit) => hit.scope === task.scope);
+    if (scoped.length === 0) continue;
+    try {
+      await withTimeout(Promise.resolve().then(() => task.adapter.finish!(scoped)), timeoutMs, `${task.scope} verification`);
+    } catch (e) {
+      failed.push({ scope: task.scope, reason: `The ${task.scope} verification did not finish: ${errorText(e).slice(0, 240)}` });
+      for (const hit of scoped) hit.stale = true;
     }
   }
-  const question = opts.question ?? (mode === "fact_pattern" || mode === "party" ? "fact" : mode === "natural" ? "any" : "law");
-  const hits = applyPolicy(fuse(lists), question).slice(0, limit);
-  for (const a of used) if (a.finish) await a.finish(hits.filter((h) => h.scope === a.scope));
-  return { query: q.raw, mode, hits, notSearched, vectors: vector ? "on" : "off", ms: Date.now() - started };
+
+  // One reason per scope, in the order the caller asked for them.
+  const unique = (rows: Array<{ scope: KnowledgeScope; reason: string }>) => {
+    const seen = new Map<KnowledgeScope, string>();
+    for (const row of rows) if (!seen.has(row.scope)) seen.set(row.scope, row.reason);
+    return [...seen].sort((a, b) => want.indexOf(a[0]) - want.indexOf(b[0])).map(([scope, reason]) => ({ scope, reason }));
+  };
+  const deferredRows = unique(deferred);
+  const failedRows = unique(failed);
+  const coverage: Coverage = { searched, deferred: deferredRows, failed: failedRows, partial: deferredRows.length > 0 || failedRows.length > 0 };
+  return {
+    query: q.raw,
+    mode,
+    hits,
+    notSearched: [...deferredRows, ...failedRows.filter((row) => !searched.includes(row.scope))],
+    coverage,
+    vectors: vector ? "on" : "off",
+    ms: Date.now() - started,
+  };
+}
+
+/** The earlier call shape: one adapter list, one retrieval function. */
+export async function retrieve(adapters: KnowledgeAdapter[], query: string, opts: RetrieveOptions = {}): Promise<RetrievalResult> {
+  return runRetrieval(new KnowledgeRegistry(adapters), query, opts);
 }

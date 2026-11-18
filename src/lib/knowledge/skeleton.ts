@@ -1,0 +1,34 @@
+/**
+ * RAG-0: the integration skeleton for Phase 5. It composes one registry over the existing
+ * `LawStore` (statute, procedure, research), a matter adapter bound to one matter when a port is
+ * supplied, and the firm, advocate and session scopes as deferred. It builds no store, writes
+ * nothing, builds no vector index and exposes no tool. TypeScript only, no Rust Kernel (RAG-26).
+ *
+ * The spec is docs/specs/law-research-authority.md. Only RAG-0 is built here; RAG-1 to RAG-5 are
+ * deferred to their owning phases.
+ */
+import type { LawStore } from "../law-store/index.ts";
+import { KnowledgeRegistry } from "./index.ts";
+import { boundMatterAdapter, deferredAdapter, provisionAdapter, researchAdapter } from "./adapters.ts";
+import type { MatterKnowledgePort } from "./adapters.ts";
+
+export interface SkeletonKnowledgeOptions {
+  law: LawStore;
+  /** The one matter this session may search. Omit it and the matter scope is deferred. */
+  matter?: { id: string; port: MatterKnowledgePort } | null;
+}
+
+export function createSkeletonKnowledge(options: SkeletonKnowledgeOptions): KnowledgeRegistry {
+  const adapters = [
+    provisionAdapter("statute", options.law),
+    provisionAdapter("procedure", options.law),
+    researchAdapter(options.law),
+    options.matter
+      ? boundMatterAdapter(options.matter.id, options.matter.port)
+      : deferredAdapter("matter", "No matter is bound to this session. Open a matter to search its record."),
+    deferredAdapter("firm", "The firm library is deferred to RAG-3 (Phase 10). No firm store is connected."),
+    deferredAdapter("advocate", "Advocate memory is deferred to RAG-3 (Phase 12). No memory store is connected."),
+    deferredAdapter("session", "The session adapter is deferred to RAG-3 (Phase 12). No session log is connected."),
+  ];
+  return new KnowledgeRegistry(adapters);
+}
