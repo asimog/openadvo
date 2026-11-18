@@ -36,6 +36,7 @@ Date: 2026-11-18. Owner instruction: implement phase 8 of the build plan. The sp
 
 - `42458f8`: the phase-8 spec and the owning documents.
 - `76adb77`: the practice packs, the SLP pack out of the core and the four new document kinds.
+- `efa1d46`: the four criminal document kinds in the shared draft list (the follow-up to `76adb77`).
 - `9ae3767`: the 61 skills, their review records, the fixture tests and the role tools.
 - `b29a771`: the Practice map, the reviewed skill list, the Filing tab's pack and the window test.
 - `f6c986f`: the repo map, the agent guide and the add-a-skill recipe.

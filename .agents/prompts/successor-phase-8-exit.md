@@ -16,7 +16,7 @@ Phase 8 of the build plan (practice packs: N4, N6, Q3) is built and committed. R
 ## Changed this session
 
 - `42458f8`: the phase-8 spec (`docs/specs/practice-packs.md`) and the owning documents (`docs/skills.md`, the two phase specs, `skills/README.md`).
-- `76adb77`: `packs/` (criminal, civil, writ, slp), `src/lib/packs/` (checks, pack choice, skill gate, filing plan), `src/main/packs.ts`, the filing set and limitation now read the pack, `src/lib/packs/slp.ts` owns the SLP generators, the `in-sc` adapter keeps only the quoted rules and the checklist, and four criminal document kinds.
+- `76adb77`: `packs/` (criminal, civil, writ, slp), `src/lib/packs/` (checks, pack choice, skill gate, filing plan), `src/main/packs.ts`, the filing set and limitation now read the pack, `src/lib/packs/slp.ts` owns the SLP generators, the `in-sc` adapter keeps only the quoted rules and the checklist, and four criminal document kinds. `efa1d46` adds the kinds to the shared draft list.
 - `9ae3767`: 61 skills with `review.json`, `src/lib/skills/review.ts` (13 parameters, 3 legal failure modes), `src/lib/skills/skill-tests.ts` (three fixture briefs), `scripts/review-skills.ts`, the role tools of phases 4 and 7, and the tests.
 - `b29a771`: the Practice map with the packs and acts, the reviewed and filterable skill list, the Filing tab's pack and workflow, and `tests/e2e/phase8.spec.ts`.
 - `f6c986f`: the repo map (the `packs/` folders), the agent guide (the review record and the recipe).
