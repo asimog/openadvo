@@ -19,6 +19,8 @@ The owner instructed on 2026-11-18: phase 9 is skipped and merged with phase 13;
 - `0cdf9ac`: phase 9 is skipped and its 15 features are in phase 13; phase 10 is F5, G3, M2, M3; phase 11 is D4, H14, N5, N7, N8, S9, Y1, Y3; X1, X2, U1 to U3 and L7 are removed; L8 is L7; decision 19 (English only), 26 (no regional engine) and 13 (no analytics views); the two phase specs.
 - `46c3700`: phase 10. `src/lib/memory-answers/`, `src/lib/advocate-store/graph.ts`, `src/lib/library/positions.ts`, `src/lib/matter-store/outcomes.ts`, the Memory tab answers and outcomes, the Knowledge page roles and graph, the precedent offers in Drafts, and the tests.
 - `9492065`: phase 11. `src/lib/jurisdiction/foreign.ts`, `src/lib/document-intelligence/quality.ts`, `src/lib/builders/`, `src/main/workflow-runs.ts`, `src/main/skill-import.ts`, `src/lib/triggers/`, `src/lib/integrations/`, `src/lib/storage/`, the 17 packs, the 79 skills and their reviews, the 28 document kinds, the window panels, and the tests.
+- `908997b`: the session record and this prompt; the library roles are views; a quality or trigger proposal does not block Notebook readiness.
+- `f8a62df`: every skill has a proceeding; `run_agent`; the workflow inputs in the run form; the outcome correction; the phase 9 and 13 references and the phase 10 and 11 specs follow the code.
 
 ## Broken or not verified
 
