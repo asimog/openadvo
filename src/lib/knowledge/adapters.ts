@@ -9,6 +9,7 @@ import type { LawStore } from "../law-store/index.ts";
 import { citationKeyId } from "../../shared/law.ts";
 import { textHash } from "../statutes/structure.ts";
 import type { AdapterHealth, CitationKey, InForceResult, InstrumentKind, KnowledgeHit, KnowledgeScope, Provision, VerificationCheck } from "../../shared/law.ts";
+import type { LibraryItem, MemoryRecord, MemoryStatus, PreferenceRecord } from "../../shared/stores.ts";
 import { KnowledgeError } from "./index.ts";
 import type { AdapterContext, KnowledgeAdapter, ParsedQuery, RankedList, VectorIndex } from "./index.ts";
 
@@ -269,6 +270,155 @@ export function functionAdapter(scope: KnowledgeScope, search: (q: ParsedQuery, 
 /** Attach an adapter's health row for the Index Health view. */
 export function withHealth(adapter: KnowledgeAdapter, health: () => AdapterHealth): KnowledgeAdapter {
   return { ...adapter, health };
+}
+
+// ---- RAG-3: the Phase 10 Knowledge Library and advocate memory ----
+
+/** The library records the main process exposes to the firm scope. */
+export interface FirmKnowledgePort {
+  library(filter?: { q?: string; kind?: string; status?: string; limit?: number }): LibraryItem[];
+}
+
+/** The confirmed memory and approved preferences the main process exposes. */
+export interface AdvocateKnowledgePort {
+  memory(status?: MemoryStatus): MemoryRecord[];
+  preferences(): PreferenceRecord[];
+}
+
+const TERM_STOP = new Set([
+  "the", "a", "an", "of", "to", "and", "or", "in", "on", "for", "with", "by", "at", "from",
+  "is", "are", "was", "were", "be", "been", "it", "this", "that", "as", "my", "our", "your",
+  "me", "we", "i", "what", "which", "who", "how", "does", "did", "should", "would", "could",
+  "can", "may", "must", "not", "no", "about", "any", "all", "please", "tell", "show", "find",
+]);
+
+function queryTerms(raw: string): string[] {
+  return [...new Set(raw.toLowerCase().split(/[^a-z0-9]+/).filter((word) => word.length >= 3 && !TERM_STOP.has(word)))];
+}
+
+function matchedTerms(text: string, terms: string[]): number {
+  if (terms.length === 0) return 0;
+  const hay = text.toLowerCase();
+  return terms.reduce((n, term) => n + (hay.includes(term) ? 1 : 0), 0);
+}
+
+const LIBRARY_EXCLUDED = new Set(["rejected", "superseded", "withdrawn"]);
+const LIBRARY_STATUS_RANK: Record<string, number> = { filed: 5, approved: 4, reviewed: 3, drafted: 2, unreviewed: 1 };
+
+function libraryHit(item: LibraryItem): KnowledgeHit {
+  const parts = [item.title, `${item.kind} · ${item.status}`];
+  if (item.court) parts.push(`Court: ${item.court}`);
+  if (item.scope) parts.push(`Scope: ${item.scope}`);
+  if (item.notes) parts.push(item.notes);
+  if (item.tags.length) parts.push(`Tags: ${item.tags.join(", ")}`);
+  return {
+    id: `library:${item.id}`,
+    scope: "firm",
+    kind: item.kind,
+    title: item.title,
+    text: parts.join(". "),
+    anchor: `library:${item.id}`,
+    date: item.itemDate || null,
+    authority: 0,
+    verification: `Library record (${item.status}). The file is held in the Knowledge Library; this search reads the record, not the file text.`,
+    stale: false,
+    score: 0,
+    why: [],
+  };
+}
+
+function memoryHit(record: MemoryRecord): KnowledgeHit {
+  const today = new Date().toISOString().slice(0, 10);
+  const stale = !!record.validUntil && record.validUntil < today;
+  const validity = record.validFrom || record.validUntil ? ` Valid ${record.validFrom || "from the start"}${record.validUntil ? ` to ${record.validUntil}` : ""}.` : "";
+  return {
+    id: `advocate:memory:${record.memoryId}`,
+    scope: "advocate",
+    kind: record.type,
+    title: `${record.type.replace(/_/g, " ")}: ${record.subject}`,
+    text: `${record.subject} ${record.relation} ${record.object}.${validity}`,
+    anchor: `advocate:memory:${record.memoryId}`,
+    date: record.validFrom || record.recordedAt.slice(0, 10),
+    authority: 0,
+    verification: `Confirmed advocate memory.${stale ? " It is past its valid-until date." : ""}`,
+    stale,
+    score: 0,
+    why: [],
+  };
+}
+
+function preferenceHit(record: PreferenceRecord): KnowledgeHit {
+  return {
+    id: `advocate:preference:${record.id}`,
+    scope: "advocate",
+    kind: "preference",
+    title: `Preference: ${record.key}`,
+    text: `${record.key}: ${record.value}. Applied because ${record.reason || "the advocate approved it"}.`,
+    anchor: `advocate:preference:${record.id}`,
+    date: (record.decidedAt ?? record.createdAt).slice(0, 10),
+    authority: 0,
+    verification: "Approved by the advocate.",
+    stale: false,
+    score: 0,
+    why: [],
+  };
+}
+
+/**
+ * The firm scope: the Knowledge Library records. A rejected, superseded or withdrawn item is
+ * never returned, and an item tied to a matter is excluded so a client's facts never cross.
+ */
+export function libraryAdapter(port: FirmKnowledgePort): KnowledgeAdapter {
+  const items = () => port.library({ limit: 2000 }).filter((item) => !item.matterId && !LIBRARY_EXCLUDED.has(item.status));
+  return withHealth(
+    functionAdapter("firm", (q, limit) => {
+      const terms = queryTerms(q.raw);
+      return items()
+        .map((item) => ({ item, score: matchedTerms(`${item.title} ${item.notes} ${item.tags.join(" ")} ${item.sourceName} ${item.court} ${item.scope} ${item.kind}`, terms) }))
+        .filter((row) => row.score > 0 || terms.length === 0)
+        .sort((a, b) => b.score - a.score || (LIBRARY_STATUS_RANK[b.item.status] ?? 0) - (LIBRARY_STATUS_RANK[a.item.status] ?? 0) || b.item.updatedAt.localeCompare(a.item.updatedAt))
+        .slice(0, limit)
+        .map((row) => libraryHit(row.item));
+    }),
+    () => {
+      const rows = items().length;
+      return { scope: "firm", state: rows ? "ready" : "empty", detail: rows ? `${rows} library record(s) are searchable.` : "No library item is recorded. Import one in Knowledge.", rows };
+    },
+  );
+}
+
+/**
+ * The advocate scope: confirmed memory and approved preferences only. A proposed, tentative or
+ * rejected record is never returned as confirmed.
+ */
+export function advocateAdapter(port: AdvocateKnowledgePort): KnowledgeAdapter {
+  const memories = () => port.memory("confirmed");
+  const preferences = () => port.preferences().filter((record) => record.status === "approved");
+  return withHealth(
+    functionAdapter("advocate", (q, limit) => {
+      const terms = queryTerms(q.raw);
+      const rows = [
+        ...memories().map((record) => {
+          const hit = memoryHit(record);
+          return { hit, score: matchedTerms(`${hit.title} ${hit.text}`, terms) };
+        }),
+        ...preferences().map((record) => {
+          const hit = preferenceHit(record);
+          return { hit, score: matchedTerms(`${hit.title} ${hit.text}`, terms) };
+        }),
+      ];
+      return rows
+        .filter((row) => row.score > 0 || terms.length === 0)
+        .sort((a, b) => b.score - a.score || (b.hit.date ?? "").localeCompare(a.hit.date ?? "") || a.hit.title.localeCompare(b.hit.title))
+        .slice(0, limit)
+        .map((row) => row.hit);
+    }),
+    () => {
+      const memory = memories().length;
+      const prefs = preferences().length;
+      return { scope: "advocate", state: memory + prefs ? "ready" : "empty", detail: `${memory} confirmed memory record(s) and ${prefs} approved preference(s) are searchable.`, rows: memory + prefs };
+    },
+  );
 }
 
 /**

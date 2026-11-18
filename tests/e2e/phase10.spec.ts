@@ -93,6 +93,28 @@ test("phase 10: memory answers, an outcome, an approved precedent and the advoca
   expect(offers[0].title).toBe("Delhi bail application precedent");
   expect(offers[0].reason).toContain("approved");
   expect(offers[0].reason).toContain("in.hc.delhi");
+  // RAG-3: the same approved library item is searchable through the one knowledge search.
+  const firm = await call<{ hits: Array<{ scope: string; title: string; anchor: string }> }>("knowledgeSearch", id, "bail application precedent", { scopes: ["firm"], limit: 10 });
+  expect(firm.hits.some((hit) => hit.scope === "firm" && hit.title === "Delhi bail application precedent" && hit.anchor.startsWith("library:"))).toBe(true);
+  const health = await call<{ adapters: Array<{ scope: string; state: string }> }>("knowledgeHealth", id);
+  expect(health.adapters.find((row) => row.scope === "firm")?.state).toBe("ready");
+  expect(health.adapters.find((row) => row.scope === "advocate")?.state).toBe("empty");
+  expect(health.adapters.find((row) => row.scope === "session")?.state).toBe("deferred");
+
+  // RAG-3: an approved preference is searchable as confirmed advocate memory.
+  await call("setPreference", "citation_format", "neutral citation first", "the phase 10 test");
+  const advocate = await call<{ hits: Array<{ scope: string; title: string; anchor: string }> }>("knowledgeSearch", id, "citation format neutral", { scopes: ["advocate"], limit: 10 });
+  expect(advocate.hits.some((hit) => hit.scope === "advocate" && hit.title === "Preference: citation_format" && hit.anchor.startsWith("advocate:preference:"))).toBe(true);
+  const health2 = await call<{ adapters: Array<{ scope: string; state: string }> }>("knowledgeHealth", id);
+  expect(health2.adapters.find((row) => row.scope === "advocate")?.state).toBe("ready");
+
+  // The Studio searches the same library record.
+  await page.getByRole("tab", { name: "Studio" }).click();
+  await page.getByTestId("studio").getByRole("tab", { name: "Law library" }).click();
+  await page.getByLabel("Law scope").selectOption("firm");
+  await page.getByLabel("Law query").fill("bail application precedent");
+  await page.getByRole("button", { name: "Search the law library" }).click();
+  await expect(page.getByTestId("law-hits")).toContainText("Delhi bail application precedent");
   await page.getByRole("tab", { name: "Matter", exact: true }).click();
   await expect(page.getByTestId("precedent-offers")).toContainText("Delhi bail application precedent", { timeout: 20_000 });
 

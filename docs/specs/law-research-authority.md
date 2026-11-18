@@ -178,7 +178,7 @@ The Index Health view shows this. A deferred scope says "deferred" and why. It d
 | `procedure` | rule text in `corpus.db`; applicability in `intel.db` | exact rule, FTS5, court/date/case-type filters, interpretation links | checks court, proceeding and governing date |
 | `research` | `corpus.db` | exact citation, paragraph FTS5, treatment graph, optional vector | no treatment edge without its supporting paragraph |
 | `matter` | one bound `matter.db` | matter FTS5, record filters, evidence graph, optional matter-local vector | cannot open or search another matter |
-| `firm` | `advocate.db` | approved library text, scope/status filters, document links | rejects client facts at import and search |
+| `firm` | `advocate.db` | library records, approved first, scope/status filters, document links | rejects client facts at import and search; a matter-linked item is never returned |
 | `advocate` | `advocate.db` | confirmed memory and preference filters | proposed or tentative memory is never treated as confirmed |
 | `session` | current session JSONL | time/type filter, small log search | audit and prior decisions only; never case facts |
 
@@ -188,22 +188,24 @@ A matter adapter is constructed bound to one `matter_id`. It has no method that 
 
 ## 4. The phase split
 
-Only **RAG-0** is in this step. It is the integration skeleton for Phase 5. The other phases are named so the skeleton has stable extension points; they are not built now.
+RAG-0 to RAG-2 are built for Phase 5. RAG-3 is partly built: the firm and advocate scopes read the Phase 10 Knowledge Library and advocate memory. The session scope, annotations and the append-only migration remain deferred. RAG-4 and RAG-5 are not built.
 
 | Phase | Name | When | What it delivers | Status |
 |---|---|---|---|---|
-| RAG-0 | Contract and skeleton | Now, Phase 5 | contract, registry, scope guard, bounded retrieval, coverage, health, statute/procedure/research/matter adapters, quote verifier, deferred placeholders, tests | **This spec** |
-| RAG-1 | Law data and verification | Phase 5, after RAG-0 | The 28-instrument first wave, including repealed codes; rules PDFs, chapter maps, AKN export, verification at use, source manifests | Deferred to Phase 5 module work |
-| RAG-2 | Research and quote-first | Phase 5/6 | plan, retrieve, quote, verify, reason, adverse search, memo, review | Deferred to Phase 5/6 module work |
-| RAG-3 | Firm, advocate, session | Phase 10/12 | firm library, advocate memory, firm agent log, session adapter, annotations, append-only migration | Deferred until the owning phases |
-| RAG-4 | Scale | After Phase 5, when measured | court/year partitions, partition catalog, external-content FTS, multi-opinion paragraphs, optional vectors/ANN | Deferred |
-| RAG-5 | Review, sharing, evaluation | Phase 6/12/13 | Plannotator-style review, chamber sharing, golden set, benchmark, hardening | Deferred |
+| RAG-0 | Contract and skeleton | Phase 5 | contract, registry, scope guard, bounded retrieval, coverage, health, statute/procedure/research/matter adapters, quote verifier, deferred placeholders, tests | **Built** |
+| RAG-1 | Law data and verification | Phase 5 | The ten-instrument first wave, including the repealed codes; page and line anchors, CPC orders, Akoma Ntoso export, verification at use, source manifests | **Built for the ten-instrument first wave** |
+| RAG-2 | Research and quote-first | Phase 5/6 | plan, retrieve, quote, verify, adverse search, memo, review | **Built; agent-directed, not an automatic plan runner** |
+| RAG-3 | Firm, advocate, session | Phase 10/12 | firm library, advocate memory, firm agent log, session adapter, annotations, append-only migration | **Partly built: firm and advocate scopes over the Phase 10 stores; session, annotations and append-only migration deferred** |
+| RAG-4 | Scale | After Phase 5, when measured | court/year partitions, partition catalog, external-content FTS, multi-opinion paragraphs, optional vectors/ANN | **Not built** |
+| RAG-5 | Review, sharing, evaluation | Phase 6/12/13 | Plannotator-style review, chamber sharing, golden set, benchmark, hardening | **Not built; the research memo opens a review item** |
 
 **Deferred means not in RAG-0.** RAG-0 registers `firm`, `advocate` and `session` as deferred with a reason. It does not return invented data for them.
 
 RAG-0 does not prove the Phase 5 exit. It proves the contract, the scope guard, the coverage and the quote gate. The exit remains a real research memorandum the owner completes (RAG-20).
 
 ## 5. RAG-0: the skeleton scope
+
+This section owns the RAG-0 skeleton. The later scopes and their status are in section 4.
 
 ### 5.1 In scope
 

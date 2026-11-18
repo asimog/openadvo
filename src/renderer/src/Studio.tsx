@@ -275,21 +275,27 @@ function StrategyPart(props: { matterId: string; version: number }) {
 
 // ---- Phase 5: the law library ----
 
-const LAW_SCOPES: Record<string, Array<"statute" | "procedure" | "research" | "matter">> = {
-  all: ["statute", "procedure", "research", "matter"],
+const LAW_SCOPES: Record<string, Array<"statute" | "procedure" | "research" | "matter" | "firm" | "advocate">> = {
+  all: ["statute", "procedure", "research", "matter", "firm", "advocate"],
   statutes: ["statute"],
   procedure: ["procedure"],
   judgments: ["research"],
   matter: ["matter"],
+  firm: ["firm"],
+  advocate: ["advocate"],
 };
 
 /** With no matter open, the shared library is searched; the matter scope is not offered. */
-const SHARED_LAW_SCOPES: Record<string, Array<"statute" | "procedure" | "research" | "matter">> = {
-  all: ["statute", "procedure", "research"],
+const SHARED_LAW_SCOPES: Record<string, Array<"statute" | "procedure" | "research" | "matter" | "firm" | "advocate">> = {
+  all: ["statute", "procedure", "research", "firm", "advocate"],
   statutes: ["statute"],
   procedure: ["procedure"],
   judgments: ["research"],
+  firm: ["firm"],
+  advocate: ["advocate"],
 };
+
+const SCOPE_LABEL: Record<string, string> = { firm: "Knowledge library", advocate: "Advocate memory", session: "Session" };
 
 /** The law library and its search. A matter id of "" searches the shared library only. */
 export function LawPart(props: { matterId: string; version: number }) {
@@ -409,7 +415,8 @@ export function LawPart(props: { matterId: string; version: number }) {
           The shared library is the owner's ten-instrument first wave: the Constitution, BNS, BNSS, BSA, IPC, CrPC, the Evidence Act, the Civil Procedure Code, the General Clauses Act and the Limitation Act. It is read from India Code with page and line anchors and a source manifest.{" "}
           {props.matterId
             ? "A saved provision is a case-specific copy in this matter; the library row remains the shared source."
-            : "Open a matter's research studio to save a provision or an authority to that matter."}
+            : "Open a matter's research studio to save a provision or an authority to that matter."}{" "}
+          The Knowledge Library and confirmed advocate memory are searched as records, not as law. A proposed or rejected record is never returned as confirmed.
         </Text>
         {counts ? (
           <Text type="supporting">
@@ -424,8 +431,7 @@ export function LawPart(props: { matterId: string; version: number }) {
         {health ? (
           <Text type="supporting" data-testid="law-health">
             {health.adapters
-              .filter((row) => row.scope === "statute" || row.scope === "procedure" || row.scope === "research" || row.scope === "matter")
-              .map((row) => `${row.scope}: ${row.state} — ${row.detail}`)
+              .map((row) => `${SCOPE_LABEL[row.scope] ?? row.scope}: ${row.state} — ${row.detail}`)
               .join(" · ")}
           </Text>
         ) : null}
@@ -473,11 +479,13 @@ export function LawPart(props: { matterId: string; version: number }) {
             <option value="boolean">Boolean</option>
           </select>
           <select aria-label="Law scope" value={scope} onChange={(e) => setScope(e.target.value)}>
-            <option value="all">{props.matterId ? "Law, judgments and matter" : "Law and judgments"}</option>
+            <option value="all">{props.matterId ? "All sources" : "All shared sources"}</option>
             <option value="statutes">Statutes</option>
             <option value="procedure">Procedure</option>
             <option value="judgments">Judgments</option>
             {props.matterId ? <option value="matter">This matter</option> : null}
+            <option value="firm">Knowledge library</option>
+            <option value="advocate">Advocate memory</option>
           </select>
           <input aria-label="Governing date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           <Button label="Search the law library" size="sm" isDisabled={busy || !query.trim()} clickAction={search} />
@@ -489,14 +497,15 @@ export function LawPart(props: { matterId: string; version: number }) {
             </Text>
             <ol className="hit-list" data-testid="law-hits">
               {result.hits.map((hit) => {
-                const summary = hit.checks ? summariseVerification(hit.checks) : "unconfirmed";
+                const summary = hit.checks ? summariseVerification(hit.checks) : null;
+                const recordLabel = hit.scope === "firm" ? "library record" : hit.scope === "advocate" ? "advocate record" : "unconfirmed";
                 return (
                   <li key={`${hit.scope}:${hit.id}`}>
                     <div className="hit-main">
                       <div className="row-actions">
                         <Badge label={hit.scope} />
                         <strong>{hit.title}</strong>
-                        <Badge variant={summary === "verified" ? "success" : summary === "partial" ? "warning" : "error"} label={summary} />
+                        {summary ? <Badge variant={summary === "verified" ? "success" : summary === "partial" ? "warning" : "error"} label={summary} /> : <Badge variant={hit.scope === "firm" || hit.scope === "advocate" ? "neutral" : "error"} label={recordLabel} />}
                         {hit.stale ? <Badge variant="warning" label="stale" /> : null}
                       </div>
                       {hit.citationKey ? <Text type="supporting">{citationKeyText(hit.citationKey)}</Text> : null}

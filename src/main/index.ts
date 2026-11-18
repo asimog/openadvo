@@ -1838,7 +1838,7 @@ app.whenReady().then(() => {
   intelStore = IntelStore.open(app.getPath("userData"));
   workHost = agentWorkHost({ matters, research, drafts, portal, ulos, advocate: advocateStore });
   // V4: the Research and Argument Studio.
-  hub = new ResearchHub(matters, path.join(app.getPath("userData"), "corpus"), researchSettings, (text) => window?.webContents.send("studio:progress", text));
+  hub = new ResearchHub(matters, path.join(app.getPath("userData"), "corpus"), researchSettings, (text) => window?.webContents.send("studio:progress", text), advocateStore);
   studio = new ArgumentStudio(matters, () => agent.completer(), (id) => window?.webContents.send("studio:changed", id), (role) => agent.completerFor(roleModelKey(role)));
   // Phase 6 (P3): the shared verification record of public law and the indexed judgment
   // paragraphs, reached through the one corpus owner.

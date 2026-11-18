@@ -33,6 +33,7 @@ import { bindingEffect } from "../lib/authority/binding.ts";
 import { quoteHash, verifyQuote } from "../lib/knowledge/quote.ts";
 import { adverseQueries, composeResearchMemo, type VerifiedQuote } from "../lib/research-workflow/index.ts";
 import type { Matters } from "./matters.ts";
+import type { AdvocateStore } from "../lib/advocate-store/index.ts";
 import type { WriteContext } from "../shared/records.ts";
 import type { KnowledgeHealthView, KnowledgeHit, QuoteCheck, RetrievalResult } from "../shared/law.ts";
 import type { CorpusPart, ResearchDocument, ResearchHit, ResearchSettings, StudioState } from "../shared/studio.ts";
@@ -63,8 +64,10 @@ export class ResearchHub {
   private indexing: string | null = null;
   private lawIndexing: string | null = null;
   private onProgress: (text: string) => void;
+  /** The Phase 10 Knowledge Library and advocate memory, for the RAG-3 scopes. */
+  private advocateStore: AdvocateStore | null;
 
-  constructor(matters: Matters, corpusFolder: string, settings: () => ResearchSettings, onProgress: (text: string) => void = () => undefined) {
+  constructor(matters: Matters, corpusFolder: string, settings: () => ResearchSettings, onProgress: (text: string) => void = () => undefined, advocateStore: AdvocateStore | null = null) {
     this.matters = matters;
     // One owner for the corpus file. The judgment metadata and the law rows share the same
     // connection; no second module opens corpus.db. The folder is created here: a fresh user
@@ -76,6 +79,7 @@ export class ResearchHub {
     this.law = new LawStore(db);
     this.settings = settings;
     this.onProgress = onProgress;
+    this.advocateStore = advocateStore;
   }
 
   private allowed(source: SourceName): void {
@@ -135,6 +139,8 @@ export class ResearchHub {
       matter: store && matterId ? { id: matterId, port: this.matterPort(store) } : null,
       verify: (provision) => readProvisionForCheck(this.law, provision),
       procedureActIds: cpc ? [instrumentId("indiacode", cpc.itemUuid)] : [],
+      firm: this.advocateStore,
+      advocate: this.advocateStore,
     });
   }
 

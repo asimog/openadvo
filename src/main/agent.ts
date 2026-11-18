@@ -1212,7 +1212,7 @@ export class Agent {
       defineTool({
         name: "search_knowledge",
         label: "Search the law library",
-        description: "Search the shared law library (the ten-instrument first wave), the indexed judgment paragraphs and this matter's saved records in one run. Returns exact text, the citation key, the anchor, the verification state and the coverage. A hit is a candidate; the advocate decides. Use a mode for a citation, a provision, a paragraph, historical law or a connected case. The firm, advocate and session scopes are deferred and say why.",
+        description: "Search the shared law library (the ten-instrument first wave), the indexed judgment paragraphs, this matter's saved records, the Knowledge Library and confirmed advocate memory in one run. Returns exact text, the citation key, the anchor, the verification state and the coverage. A hit is a candidate; the advocate decides. A library or advocate-memory hit is a record, not law, and is never cited as authority. Use a mode for a citation, a provision, a paragraph, historical law or a connected case. The session scope is deferred and says why.",
         parameters: Type.Object({
           query: Type.String({ description: "The question, a citation, or words of the provision." }),
           mode: Type.Optional(choice(["natural", "phrase", "boolean", "citation", "statute", "paragraph", "historical", "connected", "party", "judge", "court", "proposition", "fact_pattern", "cross_jurisdiction"])),
@@ -1226,7 +1226,7 @@ export class Agent {
       defineTool({
         name: "verify_quote",
         label: "Verify an exact quote",
-        description: "Locate an exact quote in the source behind a search_knowledge hit. The verifier returns the offsets and a hash. A quote that is not present is NOT evidence and must not go into a memorandum.",
+        description: "Locate an exact quote in the law, judgment or matter source behind a search_knowledge hit. The verifier returns the offsets and a hash. A library or advocate-memory record is a record, not a legal source, and is not quoted into a memorandum. A quote that is not present is NOT evidence and must not go into a memorandum.",
         parameters: Type.Object({ hit_id: Type.String({ description: "The hit id or anchor from search_knowledge." }), quote: Type.String({ description: "The exact words to locate in that source." }) }),
         execute: studio("verify_quote"),
       }),
