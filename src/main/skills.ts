@@ -8,6 +8,7 @@ import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { buildRegistry, checkSkill, type LoadedSkill, type Registry } from "../lib/skills/index.ts";
+import type { ReviewRecord } from "../lib/skills/review.ts";
 
 function skillFiles(dir: string): string[] {
   if (!existsSync(dir)) return [];
@@ -28,7 +29,17 @@ export function loadSkillDir(dir: string, author: "built-in" | "advocate", agent
   return skillFiles(dir).map((file) => {
     try {
       const { frontmatter, body } = parseFrontmatter<Record<string, unknown>>(readFileSync(file, "utf8"));
-      return checkSkill({ frontmatter, body, file, author, agentTools });
+      // N6: the review record is kept with the version, beside SKILL.md.
+      const recordFile = path.join(path.dirname(file), "review.json");
+      let review: ReviewRecord | null = null;
+      if (existsSync(recordFile)) {
+        try {
+          review = JSON.parse(readFileSync(recordFile, "utf8")) as ReviewRecord;
+        } catch {
+          review = null;
+        }
+      }
+      return checkSkill({ frontmatter, body, file, author, agentTools, review });
     } catch (e) {
       const empty = checkSkill({ frontmatter: {}, body: "", file, author, agentTools });
       return { skill: null, summary: { ...empty.summary, error: `the file cannot be read: ${(e as Error).message}` } };

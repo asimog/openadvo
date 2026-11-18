@@ -1,0 +1,128 @@
+/**
+ * Phase 8 (N6): the deterministic skill tests. No model is called and no gold set exists
+ * (questions Q-3). Each skill names a fixture brief; the test checks the skill's specification
+ * and runs a sample output of its type through the evaluator gate with the fixture's anchors.
+ */
+import type { ContextKind, OutputType, SkillDefinition } from "../../shared/skills.ts";
+import { runGate } from "./gate.ts";
+import { WRITING_TOOLS } from "./roles.ts";
+
+export interface FixtureBrief {
+  id: "criminal-bail" | "civil-injunction" | "writ-maintainability";
+  title: string;
+  pack: "criminal" | "civil" | "writ";
+  /** The record ids the fixture holds. A sample output anchors to these. */
+  anchors: string[];
+  context: ContextKind[];
+}
+
+export const FIXTURE_BRIEFS: FixtureBrief[] = [
+  {
+    id: "criminal-bail",
+    title: "A bail application after four months in custody",
+    pack: "criminal",
+    anchors: ["src-fir:1:4", "ev-arrest", "ev-remand-1", "ev-remand-2", "fact-custody", "issue-bail"],
+    context: ["sources", "lines", "events", "conflicts", "issues", "authorities", "drafts", "memory", "rules", "preferences"],
+  },
+  {
+    id: "civil-injunction",
+    title: "An interim injunction over a threatened dispossession",
+    pack: "civil",
+    anchors: ["src-notice:2:8", "src-reply:1:3", "fact-title", "fact-threat", "issue-injunction"],
+    context: ["sources", "lines", "events", "conflicts", "issues", "authorities", "drafts", "memory", "rules", "preferences"],
+  },
+  {
+    id: "writ-maintainability",
+    title: "A writ against an order with a statutory appeal",
+    pack: "writ",
+    anchors: ["src-order:1:2", "src-appeal-order:2:5", "fact-order", "fact-remedy", "issue-maintainability"],
+    context: ["sources", "lines", "events", "conflicts", "issues", "authorities", "drafts", "memory", "rules", "preferences"],
+  },
+];
+
+export function fixtureById(id: string): FixtureBrief | null {
+  return FIXTURE_BRIEFS.find((f) => f.id === id) ?? null;
+}
+
+/** The fixture a skill names in `tests`, or the one of its pack, or null for a general skill. */
+export function fixtureForSkill(skill: SkillDefinition): FixtureBrief | null {
+  for (const t of skill.tests) {
+    const f = fixtureById(t);
+    if (f) return f;
+  }
+  const pack = skill.packs.find((p) => p !== "general");
+  return pack ? (FIXTURE_BRIEFS.find((f) => f.pack === pack) ?? null) : null;
+}
+
+export interface ExpectedProperties {
+  /** The pack is known and the skill's scope is stated. */
+  packScope: boolean;
+  /** The output carries anchors. */
+  anchors: boolean;
+  /** A writing skill stops before its first write. */
+  beforeWrite: boolean;
+  /** A witness or affidavit skill states the witness rule. */
+  witness: boolean;
+  /** The body never decides a legal point for the advocate. */
+  legalQuestion: boolean;
+  /** The output type's sample passes the gate with the fixture's anchors. */
+  gate: boolean;
+  /** The fixture holds every context kind the skill asks for. */
+  context: boolean;
+}
+
+const PACKS = ["general", "criminal", "civil", "writ", "slp"];
+
+/** A sample output of the skill's type, built from the fixture's anchors. */
+export function sampleOutput(type: OutputType, fixture: FixtureBrief): unknown {
+  const a = fixture.anchors[0] ?? "fixture-anchor";
+  const text = `The fixture brief ${fixture.id} supports this item.`;
+  switch (type) {
+    case "report":
+      return { summary: `${fixture.title}: the fixture report.`, findings: [{ text, anchors: [a] }], not_verified: [], not_read: [] };
+    case "list":
+      return { items: [{ title: "The fixture item", detail: text, anchors: [a], blocks: false }], not_read: [] };
+    case "chart":
+      return { columns: ["Question", "Record"], rows: [{ cells: ["What the record holds", text], anchors: [a] }], not_read: [] };
+    case "record":
+      return { records: [{ fields: { item: text }, anchors: [a] }], not_read: [] };
+    case "draft":
+      return { title: `The fixture ${fixture.id}`, paragraphs: [{ text, anchors: [a] }], not_read: [] };
+  }
+}
+
+/** The expected properties of one skill against its fixture. */
+export function expectedProperties(skill: SkillDefinition, fixture: FixtureBrief | null): ExpectedProperties {
+  const writes = skill.permittedTools.some((t) => WRITING_TOOLS.has(t));
+  const witness = /affidavit|deponent|witness/i.test(`${skill.title} ${skill.description}`);
+  const legalQuestion = /question for the advocate|not a conclusion|decides? nothing|never decide|legal point/i.test(skill.body);
+  const gate = fixture
+    ? runGate({ type: skill.output, checks: skill.checks, text: "```json\n" + JSON.stringify(sampleOutput(skill.output, fixture)) + "\n```", resolves: (x) => fixture.anchors.includes(x) }).ok
+    : false;
+  return {
+    packScope: skill.packs.length > 0 && skill.packs.every((p) => PACKS.includes(p)),
+    anchors: skill.checks.includes("anchors"),
+    beforeWrite: !writes || skill.approvalPoints.includes("before_write"),
+    witness: !witness || /witness rule|own recorded words|deponent/i.test(skill.body),
+    legalQuestion,
+    gate,
+    context: !!fixture && skill.requiredContext.every((k) => fixture.context.includes(k)),
+  };
+}
+
+/** Every property that failed, as the test message says. */
+export function propertyDefects(skill: SkillDefinition, fixture: FixtureBrief | null): string[] {
+  const e = expectedProperties(skill, fixture);
+  const out: string[] = [];
+  if (!e.packScope) out.push("the pack scope is missing or unknown");
+  if (!e.anchors) out.push("the anchors check is missing");
+  if (!e.beforeWrite) out.push("a writing skill has no before_write approval point");
+  if (!e.witness) out.push("the witness rule is not stated");
+  if (!e.legalQuestion) out.push("the body does not say that a legal point is a question for the advocate");
+  if (!fixture) out.push("no fixture brief is named");
+  else {
+    if (!e.gate) out.push(`a sample ${skill.output} output does not pass the gate`);
+    if (!e.context) out.push(`the fixture lacks a required context kind: ${skill.requiredContext.filter((k) => !fixture.context.includes(k)).join(", ")}`);
+  }
+  return out;
+}

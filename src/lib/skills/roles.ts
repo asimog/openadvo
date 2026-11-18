@@ -24,6 +24,14 @@ export const READ_MATTER_TOOLS = [
   "list_preferences",
   // Phase 7 (K8): the hearings with their directions.
   "list_hearings",
+  // Phase 8 (N4): the read tools of phases 4 and 7, for the practice-pack skills.
+  "list_facts",
+  "list_evidence",
+  "list_matter_memory",
+  "get_jurisdiction",
+  "get_timeline",
+  "list_document_parts",
+  "get_contradictions",
 ] as const;
 
 /** Tools that read public law and the web. */
@@ -70,6 +78,18 @@ export const WRITING_TOOLS = new Set([
   "record_treatment",
   "run_argument_loop",
   "run_rehearsal",
+  // Phase 8 (N4): the proposals and the plans a practice-pack skill may write.
+  "propose_fact",
+  "propose_evidence",
+  "propose_matter_memory",
+  "propose_theory",
+  "propose_elements",
+  "propose_cross_questions",
+  "propose_compliance_tasks",
+  "propose_research_plan",
+  "set_research_step",
+  "write_research_memo",
+  "propose_advocate_memory",
 ]);
 
 const R = [...READ_MATTER_TOOLS];

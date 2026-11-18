@@ -47,6 +47,13 @@ export interface SkillDefinition {
   author: "built-in" | "advocate";
   /** The review status of feature N6: "not reviewed" until reviewed. */
   review: string;
+  /** N6: the stored review score, its date and its legal failure modes. */
+  reviewScore?: number | null;
+  reviewMax?: number | null;
+  reviewAt?: string | null;
+  reviewFailureModes?: string[];
+  /** N6: the version of the review record, when one exists. */
+  reviewVersion?: string | null;
   /** The instructions (the body of SKILL.md). */
   body: string;
   file: string;
@@ -64,8 +71,15 @@ export interface SkillSummary {
   checks: string[];
   approvalPoints: string[];
   requiredContext: string[];
+  /** Phase 8: the packs the skill serves. */
+  packs: string[];
   author: string;
   review: string;
+  reviewScore?: number | null;
+  reviewMax?: number | null;
+  reviewAt?: string | null;
+  reviewFailureModes?: string[];
+  reviewVersion?: string | null;
   file: string;
   /** Why the skill cannot run, or null. */
   error: string | null;

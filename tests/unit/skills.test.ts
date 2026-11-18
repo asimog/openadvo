@@ -35,10 +35,12 @@ const load = (over: Record<string, unknown>, body = "Do the work.", file = "a/SK
 
 test("the built-in skills load with no error, each inside its role's tool scope", () => {
   const registry = new SkillRegistry({ builtIn: path.join(repo, "skills"), advocate: path.join(tmpdir(), "no-such-folder") }, AGENT_TOOLS).get();
-  assert.deepEqual(registry.all.map((s) => [s.id, s.error]), [["SK-008", null], ["SK-011", null], ["SK-012", null], ["SK-027", null]]);
+  // Phase 8 (N4): the practice-pack library. Every phase 8 row of docs/skills.md is present.
+  assert.equal(registry.all.length, 61);
+  assert.deepEqual(registry.all.filter((s) => s.error).map((s) => [s.id, s.error]), []);
   for (const s of registry.active.values()) {
     assert.equal(s.author, "built-in");
-    assert.equal(s.review, "not reviewed");
+    assert.match(s.review, /^reviewed \d{4}-\d{2}-\d{2}: \d+\/26; no legal failure mode$/);
     for (const t of s.permittedTools) assert.ok(ROLE_TABLE[s.role].tools.includes(t), `${s.id}: ${t} outside ${s.role}`);
     assert.ok(s.checks.includes("schema"));
   }

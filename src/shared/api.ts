@@ -37,6 +37,8 @@ import type { AGUIEvent } from "@ag-ui/core";
 import type { ContextCandidate, ContextPackageRecord, JobRow, ReportCard, RoleSummary, SideThread, SkillRunRecord, SkillSummary } from "./skills.ts";
 import type { AdvocateProfile, IntelSource, Freshness, LibraryImportResult, LibraryItem, LibraryStatus, MemoryRecord, PreferenceRecord, StoreChains } from "./stores.ts";
 import type { BrowserBookmark, BrowserBounds, BrowserShortcut, BrowserState, BrowserVisit, CaseListProposal, CaseListResult } from "./browser.ts";
+import type { PackSummary } from "./packs.ts";
+export type * from "./packs.ts";
 export type * from "./browser.ts";
 import type { Contradiction, DocumentOperation, DocumentPart, EvidenceRecord, FactRecord, ForumClause, JurisdictionReport, MatterEdge, PageMark, RecordTemplate, RelatedProposal, SourceRelation, TimelineEntry } from "./evidence.ts";
 export type * from "./evidence.ts";
@@ -510,7 +512,7 @@ export interface OpenAdvoApi {
   clearPlan(conversationId: string): Promise<void>;
   // ---- Phase 1: harness and stores ----
   /** N1, O2: the skill registry and the roles; fresh reads the skill files again. */
-  listSkills(fresh?: boolean): Promise<{ skills: SkillSummary[]; roles: RoleSummary[]; folders: { builtIn: string; advocate: string } }>;
+  listSkills(fresh?: boolean): Promise<{ skills: SkillSummary[]; roles: RoleSummary[]; folders: { builtIn: string; advocate: string }; practicePacks: PackSummary[] }>;
   /** N2: the skill runs of a matter, newest first, with their report cards. */
   listSkillRuns(matterId: string): Promise<SkillRunRecord[]>;
   /** I1: one recorded context package: what was included, what was left out, and why. */

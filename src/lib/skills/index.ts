@@ -22,6 +22,7 @@ import {
   type SkillSummary,
 } from "../../shared/skills.ts";
 import { HUMAN_ONLY_PATTERN, NEVER_IN_A_SKILL, ROLE_TABLE } from "./roles.ts";
+import { reviewLine, type ReviewRecord } from "./review.ts";
 
 export { ROLE_TABLE, READ_MATTER_TOOLS, READ_LAW_TOOLS, WRITING_TOOLS, NEVER_IN_A_SKILL } from "./roles.ts";
 
@@ -54,7 +55,7 @@ export function compareVersions(a: string, b: string): number {
  * Check one parsed skill file. Returns the skill, or null with the error on the summary.
  * `agentTools` are the tools the Matter Agent has; a skill may name only those.
  */
-export function checkSkill(input: { frontmatter: Record<string, unknown>; body: string; file: string; author: "built-in" | "advocate"; agentTools: readonly string[] }): LoadedSkill {
+export function checkSkill(input: { frontmatter: Record<string, unknown>; body: string; file: string; author: "built-in" | "advocate"; agentTools: readonly string[]; review?: ReviewRecord | null }): LoadedSkill {
   const f = input.frontmatter;
   const errors: string[] = [];
   const id = String(f.id ?? "").trim();
@@ -97,6 +98,20 @@ export function checkSkill(input: { frontmatter: Record<string, unknown>; body: 
   if (!input.body.trim()) errors.push("the instructions (the body of SKILL.md) are empty");
   const checks = list(f.checks);
   if (!checks.includes("schema")) checks.unshift("schema");
+  const record = input.review ?? null;
+  let review = reviewLine(record);
+  if (input.author === "built-in") {
+    if (!record) {
+      review = "not reviewed";
+      errors.push("review needed: no review record (feature N6); run scripts/review-skills.ts");
+    } else if (record.version !== version) {
+      review = `review needed: the record is for version ${record.version}`;
+      errors.push(`review needed: the review record is for version ${record.version}, not ${version}`);
+    } else if (record.max !== 26) {
+      errors.push(`review needed: the review record's maximum is ${record.max}, not 26`);
+    }
+    if (record?.failure_modes.length) errors.push(`the review found a legal failure mode: ${record.failure_modes.join(", ")}`);
+  }
   const summary: SkillSummary = {
     id: id || "(no id)",
     version: version || "0.0.0",
@@ -109,8 +124,14 @@ export function checkSkill(input: { frontmatter: Record<string, unknown>; body: 
     checks,
     approvalPoints,
     requiredContext,
+    packs: list(f.packs),
     author: input.author,
-    review: String(f.review ?? "not reviewed").trim() || "not reviewed",
+    review,
+    reviewScore: record?.score ?? null,
+    reviewMax: record?.max ?? null,
+    reviewAt: record?.reviewed_at ?? null,
+    reviewFailureModes: record?.failure_modes ?? [],
+    reviewVersion: record?.version ?? null,
     file: input.file,
     error: errors.length ? errors.join("; ") : null,
     shadowed: false,
@@ -139,7 +160,12 @@ export function checkSkill(input: { frontmatter: Record<string, unknown>; body: 
       questionType: q,
       tests: list(f.tests),
       author: input.author,
-      review: summary.review,
+      review,
+      reviewScore: record?.score ?? null,
+      reviewMax: record?.max ?? null,
+      reviewAt: record?.reviewed_at ?? null,
+      reviewFailureModes: record?.failure_modes ?? [],
+      reviewVersion: record?.version ?? null,
       body: input.body.trim(),
       file: input.file,
     },
