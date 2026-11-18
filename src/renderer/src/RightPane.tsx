@@ -26,6 +26,8 @@ export interface RightPaneHandle {
   /** Open the browser tabs, or make a new tab when none exists. */
   openBrowser: () => void;
   newTab: (url?: string) => void;
+  /** Return the pane to the matter's work view. */
+  showWork: () => void;
 }
 
 function errorText(e: unknown): string {
@@ -312,7 +314,7 @@ export const RightPane = forwardRef<RightPaneHandle, {
     void selectTab(target);
   }, [newTab, selectTab]);
 
-  useImperativeHandle(ref, () => ({ openBrowser: () => void openBrowser(), newTab: (url?: string) => void newTab(url) }), [openBrowser, newTab]);
+  useImperativeHandle(ref, () => ({ openBrowser: () => void openBrowser(), newTab: (url?: string) => void newTab(url), showWork: selectMatter }), [openBrowser, newTab, selectMatter]);
 
   const closeTab = useCallback(async (id: string) => {
     try {

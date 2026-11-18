@@ -283,7 +283,16 @@ const LAW_SCOPES: Record<string, Array<"statute" | "procedure" | "research" | "m
   matter: ["matter"],
 };
 
-function LawPart(props: { matterId: string; version: number }) {
+/** With no matter open, the shared library is searched; the matter scope is not offered. */
+const SHARED_LAW_SCOPES: Record<string, Array<"statute" | "procedure" | "research" | "matter">> = {
+  all: ["statute", "procedure", "research"],
+  statutes: ["statute"],
+  procedure: ["procedure"],
+  judgments: ["research"],
+};
+
+/** The law library and its search. A matter id of "" searches the shared library only. */
+export function LawPart(props: { matterId: string; version: number }) {
   const [health, setHealth] = useState<KnowledgeHealthView | null>(null);
   const [plans, setPlans] = useState<ResearchPlan[]>([]);
   const [progress, setProgress] = useState("");
@@ -305,6 +314,7 @@ function LawPart(props: { matterId: string; version: number }) {
   }, [props.matterId]);
 
   const refreshPlans = useCallback(async () => {
+    if (!props.matterId) return;
     try {
       setPlans(await api.knowledgePlans(props.matterId));
     } catch (e) {
@@ -349,10 +359,11 @@ function LawPart(props: { matterId: string; version: number }) {
     setError(null);
     setNote(null);
     try {
+      const scopes = props.matterId ? LAW_SCOPES : SHARED_LAW_SCOPES;
       setResult(
         await api.knowledgeSearch(props.matterId, query.trim(), {
           mode,
-          scopes: LAW_SCOPES[scope] ?? LAW_SCOPES.all,
+          scopes: scopes[scope] ?? scopes.all,
           date: date || null,
           limit: 20,
         }),
@@ -387,7 +398,7 @@ function LawPart(props: { matterId: string; version: number }) {
 
   const counts = health?.counts;
   return (
-    <div className="work-view" data-testid="studio-law">
+    <div className="work-view" data-testid="law-library" data-in-matter={props.matterId ? "yes" : "no"}>
       <section className="work-section" aria-label="Law library">
         <div className="row-actions">
           <Heading level={3}>Law library</Heading>
@@ -395,7 +406,10 @@ function LawPart(props: { matterId: string; version: number }) {
           {result ? <Badge variant={result.coverage.partial ? "warning" : "success"} label={result.coverage.partial ? "Partial coverage" : "Complete coverage"} /> : null}
         </div>
         <Text type="supporting">
-          The shared library is the owner's ten-instrument first wave: the Constitution, BNS, BNSS, BSA, IPC, CrPC, the Evidence Act, the Civil Procedure Code, the General Clauses Act and the Limitation Act. It is read from India Code with page and line anchors and a source manifest. A saved provision is a case-specific copy in this matter; the library row remains the shared source.
+          The shared library is the owner's ten-instrument first wave: the Constitution, BNS, BNSS, BSA, IPC, CrPC, the Evidence Act, the Civil Procedure Code, the General Clauses Act and the Limitation Act. It is read from India Code with page and line anchors and a source manifest.{" "}
+          {props.matterId
+            ? "A saved provision is a case-specific copy in this matter; the library row remains the shared source."
+            : "Open a matter's research studio to save a provision or an authority to that matter."}
         </Text>
         {counts ? (
           <Text type="supporting">
@@ -419,7 +433,7 @@ function LawPart(props: { matterId: string; version: number }) {
         {error ? <div className="notice" role="alert" data-testid="law-error">{error}</div> : null}
       </section>
 
-      {plans.length ? (
+      {props.matterId && plans.length ? (
         <section className="work-section" aria-label="Research plans" data-testid="research-plans">
           <Heading level={3}>Research plans</Heading>
           {plans.map((plan) => (
@@ -459,11 +473,11 @@ function LawPart(props: { matterId: string; version: number }) {
             <option value="boolean">Boolean</option>
           </select>
           <select aria-label="Law scope" value={scope} onChange={(e) => setScope(e.target.value)}>
-            <option value="all">Law, judgments and matter</option>
+            <option value="all">{props.matterId ? "Law, judgments and matter" : "Law and judgments"}</option>
             <option value="statutes">Statutes</option>
             <option value="procedure">Procedure</option>
             <option value="judgments">Judgments</option>
-            <option value="matter">This matter</option>
+            {props.matterId ? <option value="matter">This matter</option> : null}
           </select>
           <input aria-label="Governing date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           <Button label="Search the law library" size="sm" isDisabled={busy || !query.trim()} clickAction={search} />
@@ -492,8 +506,8 @@ function LawPart(props: { matterId: string; version: number }) {
                         anchor {hit.anchor} · {hit.why.join(", ")} · {hit.verification}
                       </Text>
                       <div className="row-actions">
-                        {hit.scope === "statute" || hit.scope === "procedure" ? <Button label="Save in this matter" size="sm" variant="ghost" clickAction={() => saveProvision(hit)} /> : null}
-                        {hit.scope === "research" ? <Button label="Save as a candidate authority" size="sm" variant="ghost" clickAction={() => saveAuthority(hit)} /> : null}
+                        {props.matterId && (hit.scope === "statute" || hit.scope === "procedure") ? <Button label="Save in this matter" size="sm" variant="ghost" clickAction={() => saveProvision(hit)} /> : null}
+                        {props.matterId && hit.scope === "research" ? <Button label="Save as a candidate authority" size="sm" variant="ghost" clickAction={() => saveAuthority(hit)} /> : null}
                       </div>
                     </div>
                   </li>

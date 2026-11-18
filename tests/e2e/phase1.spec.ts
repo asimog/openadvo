@@ -130,7 +130,13 @@ test("navigation, the Review Inbox across matters, Workflows & Skills, the profi
     await expect(page.getByRole("button", { name, exact: true }).first()).toBeVisible();
   }
   await page.getByTestId("nav-research").click();
-  await expect(page.getByTestId("research-page").getByTestId("not-built")).toContainText("phase 5");
+  await expect(page.getByTestId("research-page")).toBeVisible();
+  await expect(page.getByTestId("research-page")).toContainText("Law library");
+  await expect(page.getByTestId("research-page").getByTestId("not-built")).toHaveCount(0);
+  // The shared law library searches with no matter selected; coverage is always stated.
+  await page.getByTestId("research-page").getByLabel("Law query").fill("bail");
+  await page.getByTestId("research-page").getByRole("button", { name: "Search the law library" }).click();
+  await expect(page.getByTestId("research-page").getByTestId("law-coverage")).toBeVisible();
   await page.getByTestId("nav-browser").click();
   await expect(page.getByTestId("browser-page").getByTestId("browser-page-pane")).toBeVisible();
   await page.getByTestId("nav-knowledge").click();
@@ -165,6 +171,19 @@ test("navigation, the Review Inbox across matters, Workflows & Skills, the profi
   await page.getByTestId("firm-inbox-list").focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { level: 2, name: "Inbox v. Gate" })).toBeVisible();
+
+  // Research with a matter open opens its Studio; with no matter it opens the Research page.
+  await page.getByTestId("nav-research").click();
+  await expect(page.getByTestId("studio")).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Studio" })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("button", { name: "Home", exact: true }).click();
+  await page.getByTestId("nav-research").click();
+  await expect(page.getByTestId("research-page")).toBeVisible();
+  await expect(page.getByTestId("research-matters")).toContainText("Inbox v. Gate");
+  // The page opens a matter's Studio directly.
+  await page.getByTestId("research-matters").getByRole("button", { name: "Open research studio" }).click();
+  await expect(page.getByTestId("studio")).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Studio" })).toHaveAttribute("aria-selected", "true");
 
   // The advocate profile: the name goes to the foot of the pane; advocate.db's chain is intact.
   await page.getByRole("button", { name: "Home", exact: true }).click();

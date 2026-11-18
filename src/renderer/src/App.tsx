@@ -21,10 +21,11 @@ import { ArchivedMatters, MatterAdmin, MemoryEditor, RecordTableView } from "./V
 import { CommandBar, MatterProgress, ReviewInbox, SettingsPage, tabName, type Command } from "./V3.tsx";
 import { MailboxAccount } from "./Work.tsx";
 import { ResearchSourceSettings, StudioView } from "./Studio.tsx";
+import { ResearchPage } from "./ResearchPage.tsx";
 import { ContactsSettings, DiagnosticsSettings, Docket, PracticeSection } from "./Practice.tsx";
 import { DateAnchorForm, DisputeDecision, EntitiesView, FilesAndJobs, Inspector, RecordIntegrity, inspect } from "./V5.tsx";
 import { EventTable, SourceDetail, SourcesPanel } from "./Sources.tsx";
-import { CalendarPage, CourtIntelPage, FirmInbox, MattersPage, NotBuilt, SkillsPage, StoreChainsView, type Page } from "./Pages.tsx";
+import { CalendarPage, CourtIntelPage, FirmInbox, MattersPage, SkillsPage, StoreChainsView, type Page } from "./Pages.tsx";
 import { BrowserWorkspace, RightPane, type RightPaneHandle } from "./RightPane.tsx";
 import { LibraryPage } from "./Library.tsx";
 import { Onboarding } from "./Onboarding.tsx";
@@ -498,7 +499,18 @@ export function App() {
             onHome={goHome} onNewMatter={() => askNewMatter(null)} onOpenMatter={(id) => void openMatter(id)}
             settingsOpen={settingsOpen}
             page={page}
+            matterTab={tab}
             onPage={(p) => {
+              // With a matter open, Research is that matter's Studio tab. With none, it is the
+              // Research page, and no matter is selected for it.
+              if (p === "research" && matterId) {
+                setSettingsOpen(false);
+                setNotice(null);
+                closeDocument();
+                setTab("research");
+                rightPane.current?.showWork();
+                return;
+              }
               goHome();
               setPage(p);
             }}
@@ -529,7 +541,12 @@ export function App() {
         ) : !matter && page === "calendar" ? (
           <CalendarPage onOpen={(id) => void openMatter(id)} />
         ) : !matter && page === "research" ? (
-          <NotBuilt title="Research" phase={5} what="Research across every matter (research runs, the legal corpus beyond the Supreme Court, retrieval)" testId="research-page" />
+          <ResearchPage
+            matters={matters}
+            onOpenMatter={(id) => {
+              void openMatter(id).then(() => setTab("research"));
+            }}
+          />
         ) : !matter && page === "knowledge" ? (
           <LibraryPage />
         ) : !matter && page === "court" ? (

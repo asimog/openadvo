@@ -40,6 +40,8 @@ export function AppNav(props: {
   onSettings: () => void;
   page: Page;
   onPage: (page: Page) => void;
+  /** The open tab inside a matter. The Research item points at the Studio tab. */
+  matterTab: string;
   onSearch: () => void;
   /** A1 to A5: the setup flow, shown until the advocate has a name. */
   onOnboarding: () => void;
@@ -49,6 +51,8 @@ export function AppNav(props: {
   advocateName: string | null;
 }) {
   const at = (p: Page) => props.matterId === null && !props.settingsOpen && props.page === p;
+  /** The Research item is the matter's Studio tab when a matter is open. */
+  const atResearch = !props.settingsOpen && (props.matterId === null ? props.page === "research" : props.matterTab === "research");
   return (
     <SideNav
       collapsible={{ isCollapsed: props.isCollapsed, onCollapsedChange: props.onCollapsedChange, hasButton: false }}
@@ -85,7 +89,7 @@ export function AppNav(props: {
       <Divider />
       <SideNavSection title="Practice" isHeaderHidden>
         <SideNavItem label="Calendar" icon={CalendarDaysIcon} isSelected={at("calendar")} onClick={() => props.onPage("calendar")} data-testid="nav-calendar" />
-        <SideNavItem label="Research" icon={BookOpenIcon} isSelected={at("research")} onClick={() => props.onPage("research")} data-testid="nav-research" />
+        <SideNavItem label="Research" icon={BookOpenIcon} isSelected={atResearch} onClick={() => props.onPage("research")} data-testid="nav-research" />
         <SideNavItem label="Knowledge" icon={AcademicCapIcon} isSelected={at("knowledge")} onClick={() => props.onPage("knowledge")} data-testid="nav-knowledge" />
         <SideNavItem label="Court Intelligence" icon={BuildingLibraryIcon} isSelected={at("court")} onClick={() => props.onPage("court")} data-testid="nav-court" />
         <SideNavItem label="Browser" icon={GlobeAltIcon} isSelected={at("browser")} onClick={() => props.onPage("browser")} data-testid="nav-browser" />
