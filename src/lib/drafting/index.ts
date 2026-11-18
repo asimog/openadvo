@@ -24,14 +24,45 @@ export interface DraftEvent {
   line: number;
 }
 
-/** One generated paragraph: its anchor in the DOCX and the events that it links to. */
+/** One generated paragraph: its anchor in the DOCX and the records that it links to. */
 export interface GeneratedParagraph {
   anchor: string;
   text: string;
   eventIds: string[];
+  /** The facts this paragraph states (L2). */
+  factIds?: string[];
+  /** The evidence statements this paragraph organizes (L8). */
+  evidenceIds?: string[];
   /** V1: how the paragraph is set. Plain when absent. */
   style?: "heading" | "center" | "plain";
 }
+
+/** The page and text format a court's rules set (L1). Sizes are OOXML twips. */
+export interface DocxFormat {
+  id: string;
+  /** The rule the values come from, shown on the draft. */
+  source: string;
+  pageWidth: number;
+  pageHeight: number;
+  margin: { top: number; bottom: number; left: number; right: number };
+  font: string;
+  /** Half-points: 28 is 14 pt. */
+  sizeHalfPoints: number;
+  /** Line spacing in 240ths: 240 single, 360 one and a half. */
+  lineSpacing: number;
+}
+
+/** The format when a court's rules are not known: A4, one-inch margins, Times New Roman 12, single. */
+export const DEFAULT_FORMAT: DocxFormat = {
+  id: "default",
+  source: "No court format is recorded: A4, one-inch margins, Times New Roman 12, single spacing. Check the court's rules.",
+  pageWidth: 11906,
+  pageHeight: 16838,
+  margin: { top: 1440, bottom: 1440, left: 1440, right: 1440 },
+  font: "Times New Roman",
+  sizeHalfPoints: 24,
+  lineSpacing: 240,
+};
 
 /** The DOCX bytes and the paragraphs that they carry. */
 export interface GeneratedDocument {
@@ -171,10 +202,11 @@ function zipParts(parts: Map<string, string | Uint8Array>, when: Date): Buffer {
 
 /** Build one DOCX: a Heading 1 with the title, then one anchored paragraph per entry. */
 function buildDocx(
-  options: { title: string; generatedAt: string },
+  options: { title: string; generatedAt: string; format?: DocxFormat },
   paragraphs: GeneratedParagraph[],
 ): Buffer {
   const when = generatedDate(options.generatedAt);
+  const format = options.format ?? DEFAULT_FORMAT;
   const children: Paragraph[] = [
     new Paragraph({ text: options.title, heading: HeadingLevel.HEADING_1 }),
     ...paragraphs.map((p) => {
@@ -188,7 +220,20 @@ function buildDocx(
     title: options.title,
     creator: "Open Advocate",
     description: `Generated ${when.toISOString()} from confirmed Notebook events only.`,
-    sections: [{ children }],
+    styles: {
+      default: {
+        document: {
+          run: { font: format.font, size: format.sizeHalfPoints },
+          paragraph: { spacing: { line: format.lineSpacing } },
+        },
+      },
+    },
+    sections: [
+      {
+        properties: { page: { size: { width: format.pageWidth, height: format.pageHeight }, margin: { ...format.margin } } },
+        children,
+      },
+    ],
   });
   const parts = packageParts(doc);
   parts.set(DOCUMENT_PART, injectAnchors(partText(parts, DOCUMENT_PART)));
@@ -204,7 +249,7 @@ function buildDocx(
  */
 export function generateListOfDates(
   events: DraftEvent[],
-  options: { title: string; generatedAt: string },
+  options: { title: string; generatedAt: string; format?: DocxFormat },
 ): GeneratedDocument {
   const paragraphs = inDateOrder(events).map((e) => ({
     anchor: newAnchor(),
@@ -220,7 +265,7 @@ export function generateListOfDates(
  */
 export function generateSynopsis(
   events: DraftEvent[],
-  options: { title: string; generatedAt: string },
+  options: { title: string; generatedAt: string; format?: DocxFormat },
 ): GeneratedDocument {
   const paragraphs: GeneratedParagraph[] = inDateOrder(events).map((e) => ({
     anchor: newAnchor(),
@@ -351,12 +396,12 @@ export function readParagraphs(docx: Buffer): Array<{ anchor: string | null; tex
  */
 export function generateStructuredDocx(
   rows: Array<Omit<GeneratedParagraph, "anchor">>,
-  options: { title: string; generatedAt: string },
+  options: { title: string; generatedAt: string; format?: DocxFormat },
 ): GeneratedDocument {
   const paragraphs = rows.map((r) => ({ ...r, anchor: newAnchor() }));
   return { docx: buildDocx(options, paragraphs), paragraphs };
 }
 
-export function generateEmptyDraft(options: { title: string; generatedAt: string }): GeneratedDocument {
+export function generateEmptyDraft(options: { title: string; generatedAt: string; format?: DocxFormat }): GeneratedDocument {
   return { docx: buildDocx(options, []), paragraphs: [] };
 }

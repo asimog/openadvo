@@ -55,6 +55,17 @@ export interface PreferenceRecord {
   decidedAt: string | null;
 }
 
+/** One preference question a task returns when the key it needs has no approved value (A7). */
+export interface PreferenceQuestion {
+  key: string;
+  title: string;
+  question: string;
+  values: string[] | null;
+  free: boolean;
+  /** The value used until the advocate answers. */
+  default: string;
+}
+
 export interface AdvocateProfile {
   name: string | null;
   role: string | null;

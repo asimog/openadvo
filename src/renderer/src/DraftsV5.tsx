@@ -23,6 +23,7 @@ export function DraftTools(props: { matterId: string; draft: DraftRecord; onChan
   const [b, setB] = useState("");
   const [diff, setDiff] = useState<Diff | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [pdf, setPdf] = useState<{ ok: boolean; missing: string[]; extra: string[] } | null>(null);
   useEffect(() => {
     if (!open) return;
     void api.listRevisions(props.matterId, props.draft.id).then((r) => {
@@ -45,6 +46,7 @@ export function DraftTools(props: { matterId: string; draft: DraftRecord; onChan
         <Button label="Compare" size="sm" isDisabled={!a || !b || a === b} clickAction={async () => setDiff(await api.compareRevisions(props.matterId, a, b))} />
         {head ? (
           <>
+            <Button label="Compare with the rendered PDF" size="sm" variant="ghost" isDisabled={!head} clickAction={async () => { try { setPdf(await api.compareRevisionWithPdf(props.matterId, head.id)); } catch (e) { setNote(errorText(e)); } }} />
             <Button label="Open in Word" size="sm" variant="ghost" clickAction={async () => { const r = await api.openInWord(props.matterId, head.id); setNote(`A copy of revision ${head.seq} is open in Word (${r.file}). Save it there, then bring it back.`); }} />
             <Button
               label="Bring back the edited copy"
@@ -67,6 +69,22 @@ export function DraftTools(props: { matterId: string; draft: DraftRecord; onChan
         <Button label="Close" size="sm" variant="ghost" onClick={() => setOpen(false)} />
       </div>
       {note ? <Text type="supporting" data-testid="word-note">{note}</Text> : null}
+      {pdf ? (
+        <div className="pdf-compare" data-testid="pdf-compare">
+          {pdf.ok ? <Text>Every paragraph of the DOCX appears in the rendered PDF.</Text> : (
+            <>
+              <Text weight="semibold">{pdf.missing.length} paragraph(s) of the DOCX are missing from the rendered PDF:</Text>
+              <ul>{pdf.missing.map((m, i) => <li key={i}>{m}</li>)}</ul>
+            </>
+          )}
+          {pdf.extra.length > 0 ? (
+            <>
+              <Text weight="semibold">The PDF holds text the DOCX does not (check what the rendering added):</Text>
+              <ul>{pdf.extra.map((m, i) => <li key={i}>{m}</li>)}</ul>
+            </>
+          ) : null}
+        </div>
+      ) : null}
       {diff ? (
         <ol className="diff" data-testid="diff">
           {diff.filter((d) => d.op !== "same").length === 0 ? <li><Text type="supporting">The two revisions have the same paragraphs.</Text></li> : null}

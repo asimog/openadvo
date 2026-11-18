@@ -563,6 +563,52 @@ export class ResearchHub {
       ctx,
     );
   }
+
+  // ---- Phase 6: the rows the draft checks read ----
+
+  /**
+   * P4: the law library's stored versions of an act's section, or null when it holds none. The
+   * check reads through this port; it opens no store of its own.
+   */
+  statuteRows(actName: string, section: string): Array<{ act: string; section: string; status: string; version: number | null; validFrom: string | null; validUntil: string | null; current: number; checkState: string; sourceRef: string }> | null {
+    const wanted = actName.trim().toLowerCase();
+    const bare = wanted.replace(/\b(the|act|,)\b/g, " ").replace(/\s+/g, " ").trim();
+    if (!wanted || !section.trim()) return null;
+    const acts = this.law.acts().filter((a) => {
+      const title = a.title.toLowerCase();
+      const titleBare = title.replace(/\b(the|act|,)\b/g, " ").replace(/\s+/g, " ").trim();
+      return title === wanted || title.includes(wanted) || titleBare === bare || titleBare.includes(bare);
+    });
+    const rows = acts.flatMap((a) => this.law.versions(a.id, section.trim()));
+    if (rows.length === 0) return null;
+    return rows.map((r) => ({
+      act: r.actTitle,
+      section: r.number,
+      status: r.status,
+      version: r.version,
+      validFrom: r.validFrom,
+      validUntil: r.validUntil,
+      current: r.status === "superseded" ? 0 : 1,
+      checkState: r.check,
+      sourceRef: r.sourceRef,
+    }));
+  }
+
+  /**
+   * P1: each saved authority with the count of its indexed judgment's paragraphs, or null when
+   * the judgment is not indexed. A paragraph reference the count does not reach is an error.
+   */
+  async authorityParagraphs(matterId: string): Promise<Array<{ citation: string; maxParagraph: number | null }>> {
+    const store = await this.matters.store(matterId);
+    return store.work
+      .listAuthorities()
+      .filter((a) => a.status !== "rejected")
+      .map((a) => {
+        const id = this.law.byCitation(a.citation)[0] ?? null;
+        const judgment = id ? this.law.judgment(id) : null;
+        return { citation: a.citation, maxParagraph: judgment ? judgment.paragraphs : null };
+      });
+  }
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -3,19 +3,29 @@
  * Still no model writes text: form paragraphs are fixed text with recorded details filled in,
  * and legal text is copied from approved revisions.
  */
-import { generateStructuredDocx, type DraftEvent, type GeneratedDocument, type GeneratedParagraph } from "./index.ts";
+import { generateStructuredDocx, type DraftEvent, type DocxFormat, type GeneratedDocument, type GeneratedParagraph } from "./index.ts";
 
 /** One block of a structured document: one anchored paragraph. */
 export interface Block {
   text: string;
   style?: "heading" | "center" | "plain";
   eventIds?: string[];
+  /** The facts this paragraph states (L2). */
+  factIds?: string[];
+  /** The evidence statements this paragraph organizes (L8). */
+  evidenceIds?: string[];
 }
 
-export function generateStructured(blocks: Block[], options: { title: string; generatedAt: string }): GeneratedDocument {
+export function generateStructured(blocks: Block[], options: { title: string; generatedAt: string; format?: DocxFormat }): GeneratedDocument {
   const rows: Array<Omit<GeneratedParagraph, "anchor">> = blocks
     .filter((b) => b.text.trim() !== "")
-    .map((b) => ({ text: b.text.trim(), eventIds: b.eventIds ?? [], style: b.style ?? "plain" }));
+    .map((b) => ({
+      text: b.text.trim(),
+      eventIds: b.eventIds ?? [],
+      factIds: b.factIds ?? [],
+      evidenceIds: b.evidenceIds ?? [],
+      style: b.style ?? "plain",
+    }));
   return generateStructuredDocx(rows, options);
 }
 
@@ -26,7 +36,7 @@ export function missing(what: string): string {
   return `${TO_COMPLETE}: ${what}]`;
 }
 
-function dmy(iso: string): string {
+export function dmy(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
   return m ? `${m[3]}.${m[2]}.${m[1]}` : iso;
 }

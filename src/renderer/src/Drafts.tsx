@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Text } from "@astryxdesign/core/Text";
-import type { DraftRecord, RevisionRecord } from "../../shared/api.ts";
+import type { CatalogueEntry, DraftRecord, RevisionRecord } from "../../shared/api.ts";
 import { ListOfDatesRows } from "./V2.tsx";
 import { InspectButton } from "./V5.tsx";
 import { DraftTools } from "./DraftsV5.tsx";
@@ -15,11 +15,61 @@ function errorText(error: unknown): string {
   return text.replace(/^Error invoking remote method '[^']+': (Error: )?/, "");
 }
 
-function kindLabel(kind: DraftRecord["kind"]): string {
-  return { list_of_dates: "List of Dates", synopsis: "Synopsis", questions_of_law: "Questions of Law", grounds: "Grounds", petition: "Petition", conference: "Conference package", condonation: "Condonation application" }[kind];
+/** Every kind's label, one place: the catalogue's own words, then the records' kinds. */
+export function kindLabel(kind: DraftRecord["kind"]): string {
+  const fixed: Partial<Record<DraftRecord["kind"], string>> = {
+    list_of_dates: "List of Dates",
+    synopsis: "Synopsis",
+    questions_of_law: "Questions of Law",
+    grounds: "Grounds",
+    petition: "Petition",
+    conference: "Conference package",
+    condonation: "Condonation application",
+  };
+  return fixed[kind] ?? kind.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-/** The drafts of a matter, and the two generators that write the first revision (step 4). */
+const GROUPS: Array<{ id: string; label: string }> = [
+  { id: "petitions", label: "Petitions and appeals" },
+  { id: "pleadings", label: "Pleadings" },
+  { id: "applications", label: "Applications" },
+  { id: "evidence", label: "Affidavits and evidence" },
+  { id: "submissions", label: "Submissions" },
+  { id: "notices", label: "Notices" },
+  { id: "notes", label: "Notes and summaries" },
+  { id: "letters", label: "Client letters" },
+];
+
+/** Phase 6: pick a document of the catalogue and generate it from the matter's records. */
+function NewDraft(props: { matterId: string; onGenerate: (kind: DraftRecord["kind"]) => void; disabled: boolean }) {
+  const [entries, setEntries] = useState<CatalogueEntry[]>([]);
+  const [group, setGroup] = useState(GROUPS[0].id);
+  useEffect(() => {
+    void api.draftCatalogue().then(setEntries).catch(() => setEntries([]));
+  }, []);
+  const ofGroup = entries.filter((e) => e.group === group);
+  const [kind, setKind] = useState("");
+  const chosen = ofGroup.find((e) => e.kind === kind) ?? ofGroup[0];
+  return (
+    <div className="new-draft" data-testid="new-draft">
+      <select aria-label="Document group" value={group} onChange={(e) => setGroup(e.target.value)}>
+        {GROUPS.map((g) => (
+          <option key={g.id} value={g.id}>{g.label}</option>
+        ))}
+      </select>
+      <select aria-label="Document" value={chosen?.kind ?? ""} onChange={(e) => setKind(e.target.value)}>
+        {ofGroup.map((e) => (
+          <option key={e.kind} value={e.kind}>{e.title}</option>
+        ))}
+        {ofGroup.length === 0 ? <option value="">No document in this group</option> : null}
+      </select>
+      <Button label="New draft" size="sm" isDisabled={props.disabled || !chosen} clickAction={() => chosen && props.onGenerate(chosen.kind)} />
+      {chosen ? <Text type="supporting">{chosen.note}</Text> : null}
+    </div>
+  );
+}
+
+/** The drafts of a matter, and the generators that write the first revision. */
 export function DraftsSection(props: {
   matterId: string;
   drafts: DraftRecord[];
@@ -63,6 +113,7 @@ export function DraftsSection(props: {
           {working ? <Text type="supporting">Generating…</Text> : null}
         </div>
       </div>
+      <NewDraft matterId={props.matterId} onGenerate={generate} disabled={working} />
       <ListOfDatesRows matterId={props.matterId} version={props.drafts.length} />
       {error ? (
         <div className="notice" role="alert" data-testid="drafts-error">
@@ -70,7 +121,7 @@ export function DraftsSection(props: {
         </div>
       ) : null}
       {props.drafts.length === 0 ? (
-        <Text type="supporting">No drafts yet. Generate the List of Dates or the Synopsis.</Text>
+        <Text type="supporting">No drafts yet. Pick a document above, or generate the List of Dates.</Text>
       ) : (
         <ul className="draft-list" aria-label="Draft list">
           {props.drafts.map((draft) => {

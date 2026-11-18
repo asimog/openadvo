@@ -36,7 +36,52 @@ export type DefectKind =
   /** V5-14: a provision the matter records as repealed is relied on. */
   | "repealed_provision"
   /** V5-15: a protected victim's name appears in the draft. */
-  | "victim_identity";
+  | "victim_identity"
+  // ---- Phase 6 ----
+  /** P6: a paragraph links to a fact that is not confirmed. */
+  | "fact_not_confirmed"
+  /** P6: a paragraph states a disputed fact as a fact. */
+  | "fact_disputed"
+  /** P6: a paragraph states a fact with an open contradiction, which is never resolved silently. */
+  | "fact_contradiction"
+  /** P6: a paragraph's only source is an inference, so the advocate judges it. */
+  | "inference_source"
+  /** P8: an open [CITE] marker. */
+  | "marker_cite"
+  /** P8: an open [VERIFY] marker. */
+  | "marker_verify"
+  /** P8: an open [REVIEW] marker. */
+  | "marker_review"
+  /** P1: a quoted string appears in no anchored line, fact or statement. */
+  | "quote_unmatched"
+  /** P1: a quote too short for any source to verify. */
+  | "quote_too_short"
+  /** P1: a page reference names no page the record holds. */
+  | "page_missing"
+  /** P1: a paragraph number cited for a saved authority does not exist in it. */
+  | "authority_paragraph_missing"
+  /** P4: the law library holds no row for the statutory reference. */
+  | "statute_not_found"
+  /** P4: the provision is repealed or omitted. */
+  | "statute_repealed"
+  /** P4: the provision is not in force on the governing date. */
+  | "statute_not_yet_in_force"
+  /** P4: the provision ceased before the governing date. */
+  | "statute_ceased"
+  /** P4: the row is not the current version. */
+  | "statute_wrong_version"
+  /** P4: the row was never verified, or changed, or was unreachable (ruling R-3). */
+  | "statute_unconfirmed"
+  /** P7: a template part is missing or out of order, or a structural rule fails. */
+  | "missing_part"
+  | "part_order"
+  | "numbering"
+  | "cross_reference"
+  | "annexure_reference"
+  | "relief_mismatch"
+  | "page_format"
+  /** L8: an affidavit paragraph links to no recorded statement of the deponent. */
+  | "affidavit_unlinked";
 
 export interface Defect {
   kind: DefectKind;
@@ -57,6 +102,10 @@ export interface CheckParagraph {
   text: string;
   /** The Notebook events the anchor links to. Empty when there is no link. */
   eventIds: string[];
+  /** The facts the anchor links to (phase 6, L2). */
+  factIds?: string[];
+  /** The evidence statements the anchor organizes (phase 6, L8). */
+  evidenceIds?: string[];
 }
 
 export interface CheckEvent {
@@ -74,9 +123,32 @@ export interface CheckEvent {
   line: number;
 }
 
+/** A fact as the phase 6 checks read it (P6). */
+export interface CheckFact {
+  id: string;
+  text: string;
+  type: string;
+  status: string;
+  sourceName: string | null;
+  page: number | null;
+  line: number | null;
+}
+
+/** An open contradiction of the matter (phase 4), as the checks read it. */
+export interface CheckContradiction {
+  kind: string;
+  values: Array<{ factId: string | null; text: string; sourceName: string | null; page: number | null; line: number | null }>;
+}
+
 export interface CheckInput {
   paragraphs: CheckParagraph[];
   events: CheckEvent[];
+  /** The facts of the matter (phase 6, P6). */
+  facts?: CheckFact[];
+  /** The open contradictions (phase 6, P6): never resolved silently. */
+  contradictions?: CheckContradiction[];
+  /** The draft's kind, for the kind-specific rules (the witness rule, L8). */
+  kind?: string;
   /** The other draft of the pair (Synopsis for a List of Dates, and the reverse), when it exists. */
   other?: { title: string; paragraphs: CheckParagraph[] };
   /** False for drafts outside the List of Dates and Synopsis pair. Default true. */
@@ -119,6 +191,14 @@ function where(e: CheckEvent): string {
   return `${e.sourceName}, p. ${e.page}, l. ${e.line}`;
 }
 
+function whereFact(f: CheckFact): string {
+  return f.sourceName ? `${f.sourceName}${f.page != null ? `, p. ${f.page}` : ""}${f.line != null ? `, l. ${f.line}` : ""}` : "no source recorded";
+}
+
+/** The closing note the affidavit generator writes after the deponent's statements (L8). */
+const AFFIDAVIT_NOTE = "The statements above are the deponent's own recorded words";
+const AFFIDAVIT_KINDS = new Set(["affidavit", "counter_affidavit", "rejoinder"]);
+
 /** The dates each event is stated with, per event id, in one draft. */
 function datesByEvent(paragraphs: CheckParagraph[]): Map<string, Set<string>> {
   const map = new Map<string, Set<string>>();
@@ -139,13 +219,17 @@ function sameSet(a: Set<string>, b: Set<string>): boolean {
 
 /**
  * Check one draft. The rules, in order, for each paragraph:
- * 1. A paragraph that states a date must link to a Notebook event (9A: every factual statement has a source).
- * 2. A link must lead to an event the Notebook holds.
- * 3. A linked event must be confirmed and not excluded (Appendix B-C: only checked dates in prose).
+ * 1. A paragraph that states a date must link to a Notebook event or a fact (9A: every factual statement has a source).
+ * 2. A link must lead to a record the matter holds.
+ * 3. A linked event must be confirmed and not excluded; a linked fact must be confirmed, with its
+ *    disputes and open contradictions reported, never resolved silently, and an inference labelled
+ *    for the advocate to judge (P6).
  * 4. Every date the paragraph states must be a date of one of its linked events, or a date that
  *    the event's own source line states (9A: dates match the Factual Matrix).
  * 5. Where the other draft links the same event, both state it with the same dates, and an event
  *    stated here is stated there (9D: the Synopsis agrees with the List of Dates).
+ * For an affidavit kind, every numbered statement must link to a recorded statement of the
+ * deponent (L8, the witness rule).
  */
 export function checkDraft(input: CheckInput): CheckResult {
   const byId = new Map(input.events.map((e) => [e.id, e]));
@@ -158,18 +242,68 @@ export function checkDraft(input: CheckInput): CheckResult {
     const paragraph = index + 1;
     const text = p.text.trim();
     const dates = isoDatesOf(text);
-    if (dates.length === 0 && p.eventIds.length === 0) return;
+    const factIds = p.factIds ?? [];
+    if (dates.length === 0 && p.eventIds.length === 0 && factIds.length === 0) return;
     statementsChecked += 1;
     const base = { paragraph, anchor: p.anchor, text };
 
-    if (p.eventIds.length === 0) {
+    if (p.eventIds.length === 0 && factIds.length === 0) {
       defects.push({
         ...base,
         kind: "no_source",
-        evidence: `The paragraph states ${dates.map(display).join(", ")} and links to no Notebook event.`,
-        action: "Insert the statement from the Notebook, or remove it.",
+        evidence: `The paragraph states ${dates.map(display).join(", ") || "facts"} and links to no Notebook event and no fact.`,
+        action: "Insert the statement from the Notebook or the Facts tab, or remove it.",
       });
       return;
+    }
+
+    // Phase 6 (P6): the linked facts must be confirmed; a dispute or an open contradiction is
+    // never resolved silently, and an inference is labelled for the advocate to judge.
+    for (const id of factIds) {
+      const fact = input.facts?.find((f) => f.id === id);
+      if (!fact) {
+        defects.push({
+          ...base,
+          kind: "fact_not_confirmed",
+          evidence: `The paragraph links to fact ${id}, and the Facts tab does not hold it.`,
+          action: "Insert the statement from the Facts tab again, or remove it.",
+        });
+        continue;
+      }
+      if (fact.status === "disputed") {
+        defects.push({
+          ...base,
+          kind: "fact_disputed",
+          evidence: `The linked fact (${whereFact(fact)}) is disputed in the record: ${fact.text}`,
+          action: "Resolve the dispute on the Facts tab, or state the fact as disputed.",
+        });
+      } else if (fact.status !== "confirmed") {
+        defects.push({
+          ...base,
+          kind: "fact_not_confirmed",
+          evidence: `The linked fact (${whereFact(fact)}) is ${fact.status} in the record.`,
+          action: "Confirm the fact on the Facts tab, or remove the paragraph.",
+        });
+      }
+      if (fact.type === "inference") {
+        defects.push({
+          ...base,
+          kind: "inference_source",
+          evidence: `The linked fact is an inference (${whereFact(fact)}), not a record statement: ${fact.text}`,
+          action: "The paragraph rests on an inference; either ground it in the record or present it as the client's case.",
+        });
+      }
+      // P6: an open contradiction on a stated fact is never resolved silently.
+      const open = (input.contradictions ?? []).find((c) => c.values.some((v) => v.factId === fact.id));
+      if (open) {
+        const sides = open.values.map((v) => `"${v.text}" (${v.sourceName ? `${v.sourceName}${v.page != null ? `, p. ${v.page}` : ""}` : "no source"})`).join(" against ");
+        defects.push({
+          ...base,
+          kind: "fact_contradiction",
+          evidence: `The record contradicts itself on this fact (${open.kind}): ${sides}.`,
+          action: "Resolve the contradiction on the Facts tab, or state both readings in the draft.",
+        });
+      }
     }
 
     const linked: CheckEvent[] = [];
@@ -246,6 +380,34 @@ export function checkDraft(input: CheckInput): CheckResult {
   const notRun: NotRun[] = [];
   if (input.paired !== false && !input.other) notRun.push({ check: "The Synopsis agrees with the List of Dates", reason: "The other draft does not exist yet." });
 
+  // Phase 6 (L8, the witness rule): an affidavit's numbered statement paragraphs must each link
+  // to a recorded statement of the deponent. The generator's own lead paragraph, the markers
+  // and the closing note are exempt; every other composed paragraph is flagged, because the
+  // agent may organize the deponent's words, never compose the evidence.
+  if (input.kind && AFFIDAVIT_KINDS.has(input.kind)) {
+    let statements = 0;
+    let unlinked = 0;
+    input.paragraphs.forEach((p, i) => {
+      const text = p.text.trim();
+      const numbered = /^(\d{1,3})\.\s/.exec(text);
+      if (!numbered || Number(numbered[1]) < 2) return;
+      if (text.startsWith(AFFIDAVIT_NOTE) || text.includes("[TO BE COMPLETED") || text.includes("[REVIEW")) return;
+      statements += 1;
+      if ((p.evidenceIds ?? []).length === 0) {
+        unlinked += 1;
+        defects.push({
+          kind: "affidavit_unlinked",
+          paragraph: i + 1,
+          anchor: p.anchor,
+          text,
+          evidence: "The affidavit paragraph links to no recorded statement of the deponent. The witness rule holds: the agent organizes the deponent's own words, it does not compose the evidence.",
+          action: "Record the deponent's words on the Evidence tab and insert them, or write the paragraph yourself in the editor.",
+        });
+      }
+    });
+    if (statements === 0) notRun.push({ check: "Every affidavit statement is the deponent's own recorded words", reason: "The affidavit holds no numbered statement paragraph yet." });
+  }
+
   // Case numbers (9A): a number the draft states must be the matter's or appear in a source.
   if (input.recordCaseNumbers) {
     const known = new Set(input.recordCaseNumbers);
@@ -318,8 +480,8 @@ export function defectItemKind(kind: DefectKind): string {
   return `draft_defect.${kind}`;
 }
 
-/** Which state a defect holds the draft in. A defect about the source link blocks; the others need correction. */
-const DEFECT_STATE: Record<DefectKind, GateState> = {
+/** Which state a defect holds the draft in. A defect about the source link blocks; the others need correction. The severity of an item is this mapping (P9). */
+export const DEFECT_STATE: Record<DefectKind, GateState> = {
   no_source: "blocked_source_verification",
   broken_link: "blocked_source_verification",
   event_not_confirmed: "blocked_source_verification",
@@ -333,6 +495,32 @@ const DEFECT_STATE: Record<DefectKind, GateState> = {
   reporter_citation: "needs_instructions",
   repealed_provision: "needs_correction",
   victim_identity: "needs_correction",
+  // Phase 6: the same single mapping; nothing downstream may lower one (P9).
+  fact_not_confirmed: "blocked_source_verification",
+  fact_disputed: "needs_correction",
+  fact_contradiction: "needs_correction",
+  inference_source: "needs_instructions",
+  marker_cite: "needs_correction",
+  marker_verify: "blocked_source_verification",
+  marker_review: "blocked_legal_review",
+  quote_unmatched: "blocked_source_verification",
+  quote_too_short: "needs_correction",
+  page_missing: "needs_correction",
+  authority_paragraph_missing: "needs_correction",
+  statute_not_found: "needs_instructions",
+  statute_repealed: "needs_correction",
+  statute_not_yet_in_force: "needs_correction",
+  statute_ceased: "needs_correction",
+  statute_wrong_version: "needs_correction",
+  statute_unconfirmed: "blocked_legal_review",
+  missing_part: "needs_correction",
+  part_order: "needs_correction",
+  numbering: "needs_correction",
+  cross_reference: "needs_correction",
+  annexure_reference: "needs_correction",
+  relief_mismatch: "needs_correction",
+  page_format: "needs_correction",
+  affidavit_unlinked: "blocked_legal_review",
 };
 
 export interface GateInput {

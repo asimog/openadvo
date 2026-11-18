@@ -2,7 +2,7 @@
  * The bridge contract between the preload script and the renderer.
  * Types, and one constant name. The renderer calls these named functions; it has no other access.
  */
-import type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft, DraftCheck, DraftDefect, AgentChanges } from "./records.ts";
+import type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict, DraftKind, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft, DraftCheck, DraftDefect, AgentChanges } from "./records.ts";
 export type { AgentChanges, AgentChange } from "./records.ts";
 import type { InboxItem, ProgressStage, DuplicatePair, MemoryProposal, RecordColumn, RecordTable, Workflow, ManifestCheck, AdverseReview, AnnexureRecord, Attestation, AuthorityRecord, CitationCheck, FilingSetRecord, FilingState, IssueRecord, LimitationRecord, MatterDetails, MatterProfile, MatterProposal, MatterRelation, RelatedMatter, ResearchState } from "./work.ts";
 export type * from "./work.ts";
@@ -49,7 +49,10 @@ import type { ClassificationProposal } from "../lib/classification/index.ts";
 export type { DirectoryCourt };
 
 export type { AGUIEvent };
-export type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft, DraftCheck, DraftDefect };
+export type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict, DraftKind, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft, DraftCheck, DraftDefect };
+
+/** One entry of the phase 6 document catalogue (L3). */
+export type CatalogueEntry = { kind: DraftKind; title: string; group: string; note: string };
 
 export type ChatRole = "advocate" | "agent" | "tool" | "notice";
 
@@ -609,8 +612,14 @@ export interface OpenAdvoApi {
   reconcileFiling(matterId: string, outcome: "submitted" | "not_submitted", diary: string): Promise<{ state: string }>;
   /** V5-9: not verification. */
   quickCheckCitations(matterId: string): Promise<QuickCheck[]>;
-  /** V5-12: descriptive, advisory. */
+  /** Human-only (V5-12). */
   benchTrends(): Promise<Array<{ year: number; total: number; allowed: number; dismissed: number; disposed: number; other: number }>>;
+  /** The phase 6 document catalogue, for the picker. */
+  draftCatalogue(): Promise<CatalogueEntry[]>;
+  /** Phase 6 (L6): a revision against its rendered PDF, both ways. */
+  compareRevisionWithPdf(matterId: string, revisionId: string): Promise<{ ok: boolean; missing: string[]; extra: string[] }>;
+  /** Human-only (A7): the advocate answers a preference question inside a task. The answer is approved at once. */
+  setPreference(key: string, value: string, task: string): Promise<PreferenceRecord>;
   /** Human-only (V5-10): the advocate's value is confirmed. */
   assessAuthority(matterId: string, authorityId: string, field: "support" | "voice", value: string, basis: string): Promise<Assessment>;
   addTreatment(matterId: string, input: { authorityId: string; kind: Treatment["kind"]; byCitation: string; byDate?: string; byBench?: number | null; authorityDate?: string; authorityBench?: number | null; note?: string }): Promise<Treatment>;
@@ -692,7 +701,7 @@ export interface OpenAdvoApi {
   saveRevision(matterId: string, draftId: string, bytes: Uint8Array, baseRevisionId: string): Promise<RevisionRecord>;
   approveRevision(matterId: string, revisionId: string): Promise<DraftRecord>;
   /** Step 6: start the Questions of Law or Grounds draft (title only). */
-  generateDraft(matterId: string, kind: "questions_of_law" | "grounds" | "petition" | "conference" | "condonation"): Promise<GeneratedDraft>;
+  generateDraft(matterId: string, kind: DraftKind): Promise<GeneratedDraft>;
   getResearch(matterId: string): Promise<ResearchState>;
   addIssue(matterId: string, text: string): Promise<IssueRecord>;
   /** Human-only: the case conference decides an issue, with a reason. */

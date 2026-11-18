@@ -25,9 +25,9 @@ import { SKILL_RUN_SCHEMA, insertPackage, listRuns, packageById, packageByHash, 
 import type { ContextPackageRecord, ReportCard, RunState, SkillRunRecord } from "../../shared/skills.ts";
 import { AUDIT_SCHEMA, addRefusal, eventHash, find, findIndexSeq, inspect, listRefusals, replaceFindIndex, verifyChain, type ChainCheck, type FindHit, type FindRow, type Inspection, type Refusal } from "./audit.ts";
 import { ACCEPTED_TEXT, detectMediaType } from "../document-intelligence/formats.ts";
-import type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus, DraftKind, RevisionAuthor, DraftRecord, RevisionRecord, ParagraphLinkRecord } from "../../shared/records.ts";
+import type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus, DraftKind, RevisionAuthor, DraftRecord, RevisionRecord, ParagraphLinkRecord, ParagraphLinkInput } from "../../shared/records.ts";
 
-export type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus, DraftKind, RevisionAuthor, DraftRecord, RevisionRecord, ParagraphLinkRecord };
+export type { Actor, SourceStatus, MatterSummary, SourceRecord, OriginRecord, EventRecord, AddFileResult, WriteContext, IngestJob, AnchorRecord, PageRecord, PageInput, ReviewItem, ReviewStatus, TextKind, JobState, NotebookEvent, DateConflict, Readiness, Notebook, EventInput, EventDecision, EventStatus, DraftKind, RevisionAuthor, DraftRecord, RevisionRecord, ParagraphLinkRecord, ParagraphLinkInput };
 
 /** An anchor id: the source's SHA-256, the page and the line. It survives a rename. */
 export function anchorId(sha256: string, page: number, line: number): string {
@@ -220,6 +220,8 @@ CREATE TABLE IF NOT EXISTS paragraph_link (
   revision_id TEXT REFERENCES revision(id),
   event_ids TEXT NOT NULL,
   text TEXT NOT NULL,
+  fact_ids TEXT NOT NULL DEFAULT '[]',
+  evidence_ids TEXT NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL,
   PRIMARY KEY (draft_id, anchor)
 ) STRICT;
@@ -409,6 +411,12 @@ ALTER TABLE document_part_layout RENAME TO document_part;`);
       db.exec("ALTER TABLE matter_details ADD COLUMN victim_names TEXT NOT NULL DEFAULT '[]';");
       db.exec("ALTER TABLE matter_details ADD COLUMN copy_applied TEXT NOT NULL DEFAULT '';");
       db.exec("ALTER TABLE matter_details ADD COLUMN copy_received TEXT NOT NULL DEFAULT '';");
+    }
+    // Phase 6 (L2, L8): a generated paragraph may link to facts and evidence statements.
+    const pl = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'paragraph_link'").get() as { sql?: string } | undefined;
+    if (pl?.sql && !pl.sql.includes("fact_ids")) {
+      db.exec("ALTER TABLE paragraph_link ADD COLUMN fact_ids TEXT NOT NULL DEFAULT '[]';");
+      db.exec("ALTER TABLE paragraph_link ADD COLUMN evidence_ids TEXT NOT NULL DEFAULT '[]';");
     }
     return db;
   }
@@ -1490,7 +1498,7 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
     kind: DraftKind,
     title: string,
     docx: Buffer,
-    paragraphs: Array<{ anchor: string; text: string; eventIds: string[] }>,
+    paragraphs: ParagraphLinkInput[],
     ctx: WriteContext,
   ): Promise<{ draft: DraftRecord; revision: RevisionRecord }> {
     const { sha256, size } = await this.putBlob(docx);
@@ -1504,9 +1512,9 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
         .prepare("INSERT INTO revision (id, draft_id, seq, sha256, size, base_revision_id, author, created_at) VALUES (?, ?, 1, ?, ?, NULL, 'generator', ?)")
         .run(revisionId, draftId, sha256, size, at);
       const insert = this.db.prepare(
-        "INSERT INTO paragraph_link (draft_id, anchor, revision_id, event_ids, text, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO paragraph_link (draft_id, anchor, revision_id, event_ids, text, fact_ids, evidence_ids, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
       );
-      for (const p of paragraphs) insert.run(draftId, p.anchor, revisionId, JSON.stringify(p.eventIds), p.text, at);
+      for (const p of paragraphs) insert.run(draftId, p.anchor, revisionId, JSON.stringify(p.eventIds), p.text, JSON.stringify(p.factIds ?? []), JSON.stringify(p.evidenceIds ?? []), at);
       this.db.exec("COMMIT");
     } catch (e) {
       this.db.exec("ROLLBACK");
@@ -1523,7 +1531,7 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
   async addGeneratedRevision(
     draftId: string,
     docx: Buffer,
-    paragraphs: Array<{ anchor: string; text: string; eventIds: string[] }>,
+    paragraphs: ParagraphLinkInput[],
     ctx: WriteContext,
   ): Promise<RevisionRecord> {
     const head = this.getDraft(draftId).head;
@@ -1536,8 +1544,8 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
       this.db
         .prepare("INSERT INTO revision (id, draft_id, seq, sha256, size, base_revision_id, author, created_at) VALUES (?, ?, ?, ?, ?, ?, 'generator', ?)")
         .run(id, draftId, head.seq + 1, sha256, size, head.id, at);
-      const insert = this.db.prepare("INSERT INTO paragraph_link (draft_id, anchor, revision_id, event_ids, text, created_at) VALUES (?, ?, ?, ?, ?, ?)");
-      for (const p of paragraphs) insert.run(draftId, p.anchor, id, JSON.stringify(p.eventIds), p.text, at);
+      const insert = this.db.prepare("INSERT INTO paragraph_link (draft_id, anchor, revision_id, event_ids, text, fact_ids, evidence_ids, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+      for (const p of paragraphs) insert.run(draftId, p.anchor, id, JSON.stringify(p.eventIds), p.text, JSON.stringify(p.factIds ?? []), JSON.stringify(p.evidenceIds ?? []), at);
       this.db.exec("COMMIT");
     } catch (e) {
       this.db.exec("ROLLBACK");
@@ -1622,7 +1630,7 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
 
   listParagraphLinks(draftId: string): ParagraphLinkRecord[] {
     const rows = this.db
-      .prepare("SELECT draft_id, anchor, revision_id, event_ids, text, created_at FROM paragraph_link WHERE draft_id = ? ORDER BY created_at")
+      .prepare("SELECT draft_id, anchor, revision_id, event_ids, text, fact_ids, evidence_ids, created_at FROM paragraph_link WHERE draft_id = ? ORDER BY created_at")
       .all(draftId) as Array<Record<string, unknown>>;
     return rows.map((r) => ({
       draftId: String(r.draft_id),
@@ -1630,6 +1638,8 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
       revisionId: r.revision_id == null ? null : String(r.revision_id),
       text: String(r.text),
       eventIds: JSON.parse(String(r.event_ids)) as string[],
+      factIds: JSON.parse(String(r.fact_ids ?? "[]")) as string[],
+      evidenceIds: JSON.parse(String(r.evidence_ids ?? "[]")) as string[],
       createdAt: String(r.created_at),
     }));
   }
@@ -1639,11 +1649,11 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
   }
 
   /** Record the link for an anchor the editor inserted. One link per anchor per draft. */
-  recordParagraphLink(draftId: string, anchor: string, revisionId: string, eventIds: string[], text: string): void {
+  recordParagraphLink(draftId: string, anchor: string, revisionId: string, eventIds: string[], text: string, factIds: string[] = [], evidenceIds: string[] = []): void {
     this.getDraft(draftId);
     this.db
-      .prepare("INSERT INTO paragraph_link (draft_id, anchor, revision_id, event_ids, text, created_at) VALUES (?, ?, ?, ?, ?, ?)")
-      .run(draftId, anchor, revisionId, JSON.stringify(eventIds), text, now());
+      .prepare("INSERT INTO paragraph_link (draft_id, anchor, revision_id, event_ids, text, fact_ids, evidence_ids, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(draftId, anchor, revisionId, JSON.stringify(eventIds), text, JSON.stringify(factIds), JSON.stringify(evidenceIds), now());
   }
 
   listEvents(limit = 500): EventRecord[] {

@@ -175,7 +175,49 @@ export interface Notebook {
 
 // ---- Step 4: drafts and revisions (work products). The matter store writes them. ----
 
-export type DraftKind = "list_of_dates" | "synopsis" | "questions_of_law" | "grounds" | "petition" | "conference" | "condonation";
+export const DRAFT_KINDS = [
+  // Records of the matter (deterministic generation from confirmed records).
+  "list_of_dates",
+  "synopsis",
+  "questions_of_law",
+  "grounds",
+  // Pleadings and petitions (L3).
+  "petition",
+  "writ_petition",
+  "plaint",
+  "written_statement",
+  "replication",
+  "appeal_memo",
+  "revision_petition",
+  "counter_affidavit",
+  "rejoinder",
+  "memo_of_parties",
+  "vakalatnama",
+  "appendix_of_provisions",
+  // Applications (L3).
+  "application_interim",
+  "application_stay",
+  "application_exemption",
+  "application_early_hearing",
+  "condonation",
+  // Evidence and submissions (L3, L8).
+  "affidavit",
+  "written_submissions",
+  // Pre-litigation and notices (L3).
+  "legal_notice",
+  "notice_reply",
+  // Notes, summaries and indices (L3).
+  "chronology",
+  "briefing_note",
+  "case_summary",
+  "research_memo",
+  "index",
+  "conference",
+  // Letters to the client; the advocate sends them (L3).
+  "client_letter",
+  "hearing_update",
+] as const;
+export type DraftKind = (typeof DRAFT_KINDS)[number];
 
 /** A generator wrote the revision, or the advocate saved it from the editor. */
 export type RevisionAuthor = "generator" | "advocate" | "agent";
@@ -234,12 +276,39 @@ export interface ParagraphSourceEvent {
   line: number;
 }
 
+/** One fact behind a generated paragraph, for "Show source of this paragraph" (L2). */
+export interface ParagraphSourceFact {
+  id: string;
+  text: string;
+  type: string;
+  status: string;
+  sourceName: string | null;
+  anchorId: string | null;
+  page: number | null;
+  line: number | null;
+}
+
+/** One evidence statement behind a generated paragraph (the witness rule, L8). */
+export interface ParagraphSourceEvidence {
+  id: string;
+  statement: string;
+  givenBy: string;
+  givenAt: string;
+  witness: string;
+  exhibitNumber: string;
+  sourceName: string;
+}
+
 export interface ParagraphSource {
   draftId: string;
   anchor: string;
   text: string;
   eventIds: string[];
   events: ParagraphSourceEvent[];
+  factIds: string[];
+  facts: ParagraphSourceFact[];
+  evidenceIds: string[];
+  evidence: ParagraphSourceEvidence[];
 }
 
 /** One defect of a draft check (step 5). The plain library `lib/verification` owns the rules. */
@@ -251,6 +320,18 @@ export interface DraftDefect {
   text: string;
   evidence: string;
   action: string;
+}
+
+/** The reviewer note above the check result (P9): what was read, the items for judgment, the currency of what was used, and what to do before relying on it. */
+export interface ReviewerNote {
+  /** Sources with lines that the checks read, of all the sources of the matter. Null when not counted. */
+  sources: { read: number; of: number } | null;
+  /** The open items for judgment, by severity, the highest first. Nothing downstream may lower one. */
+  items: Array<{ severity: string; label: string; count: number }>;
+  /** Every rule, statute and source the check used, with its currency state. */
+  currency: string[];
+  /** What the advocate does before relying on this draft. */
+  beforeRelying: string[];
 }
 
 /** The result of the deterministic checks on one stored revision. */
@@ -268,6 +349,12 @@ export interface DraftCheck {
   reviewItems: { opened: number; alreadyOpen: number };
   /** The quality-gate state of this draft (workflow 9), from one tested mapping. */
   gate: { state: string; label: string; reasons: string[]; notAvailable: string[] };
+  /** The grounding check (P1): grounded statements of checked statements, or null when nothing to check. */
+  grounding: { score: number; checked: number; grounded: number } | null;
+  /** The reviewer note (P9). */
+  reviewerNote: ReviewerNote;
+  /** The preference questions this task asks once (A7): the keys it needs that have no approved value. */
+  preferenceQuestions: Array<{ key: string; title: string; question: string; values: string[] | null; free: boolean; default: string }>;
 }
 
 export interface GeneratedDraft {
@@ -275,7 +362,7 @@ export interface GeneratedDraft {
   revision: RevisionRecord;
 }
 
-/** One anchor written into a draft's DOCX, and the Notebook events it links to. */
+/** One anchor written into a draft's DOCX, and the records it links to. */
 export interface ParagraphLinkRecord {
   draftId: string;
   anchor: string;
@@ -284,7 +371,20 @@ export interface ParagraphLinkRecord {
   /** The paragraph text when the link was made. */
   text: string;
   eventIds: string[];
+  /** The facts this paragraph states (L2). */
+  factIds: string[];
+  /** The evidence statements this paragraph organizes (L8). */
+  evidenceIds: string[];
   createdAt: string;
+}
+
+/** One paragraph a generator hands the store, with the ids of the records it states (L2). */
+export interface ParagraphLinkInput {
+  anchor: string;
+  text: string;
+  eventIds: string[];
+  factIds?: string[];
+  evidenceIds?: string[];
 }
 
 /** An event as the extraction rules produce it (input to the matter store). */

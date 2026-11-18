@@ -396,7 +396,7 @@ export class Matters {
     kind: DraftKind,
     title: string,
     docx: Buffer,
-    paragraphs: Array<{ anchor: string; text: string; eventIds: string[] }>,
+    paragraphs: Array<{ anchor: string; text: string; eventIds: string[]; factIds?: string[]; evidenceIds?: string[] }>,
     ctx: WriteContext = { actor: "advocate" },
   ): Promise<{ draft: DraftRecord; revision: RevisionRecord }> {
     return (await this.store(matterId)).createDraftWithRevision(kind, title, docx, paragraphs, ctx);
@@ -407,7 +407,7 @@ export class Matters {
     matterId: string,
     draftId: string,
     docx: Buffer,
-    paragraphs: Array<{ anchor: string; text: string; eventIds: string[] }>,
+    paragraphs: Array<{ anchor: string; text: string; eventIds: string[]; factIds?: string[]; evidenceIds?: string[] }>,
     ctx: WriteContext = { actor: "advocate" },
   ): Promise<RevisionRecord> {
     return (await this.store(matterId)).addGeneratedRevision(draftId, docx, paragraphs, ctx);

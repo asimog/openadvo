@@ -16,7 +16,7 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { RecordTables } from "./record-table.ts";
 import { allWorkflows, parseCustom, remove as removeWorkflow, upsert as upsertWorkflow } from "../lib/workflows/index.ts";
 import { Ingest } from "./ingest.ts";
-import { Drafts } from "./drafts.ts";
+import { Drafts, catalogue as draftsCatalogue } from "./drafts.ts";
 import { EditorHost, registerEditorScheme, EO_ORIGIN } from "./editor-host.ts";
 import { euroOfficePaths, platformKey } from "../lib/euro-office/platform.ts";
 import { Research } from "./research.ts";
@@ -53,7 +53,8 @@ import { randomUUID } from "node:crypto";
 import type { AgentWorkHost } from "./agent.ts";
 import { FIRM_AGENT_ID, type ChatEvent } from "../shared/api.ts";
 import { appendFile, mkdir } from "node:fs/promises";
-import type { DraftKind } from "../shared/records.ts";
+import { DRAFT_KINDS, type DraftKind } from "../shared/records.ts";
+import { preferenceQuestions } from "../lib/preferences/index.ts";
 import { Browser } from "./browser.ts";
 import { BROWSER_STATE_EVENT, type BrowserBounds, type BrowserCapture, type CaseListProposal } from "../shared/browser.ts";
 import { Library } from "./library.ts";
@@ -580,20 +581,25 @@ function registerBridge(): void {
   });
   handle("drafts:check", (matterId: string, draftId: string) => drafts.check(matterId, String(draftId ?? "")));
   handle("drafts:agentChanges", (matterId: string) => drafts.agentChanges(matterId));
-  // Human-only (decision 5): keep or undo agent changes. Never an agent tool.
+  // Human-only (decision 5): keep or undo agent changes. Never an agent tool. An undo may carry
+  // the advocate's reason (A7): the second identical reason proposes a preference.
   handle("drafts:decideAgentChanges", (matterId: string, draftId: string, baseRevisionId: string, decisions: unknown) => {
     if (!Array.isArray(decisions)) throw new Error("BAD_DECISION: a list of decisions is needed");
-    const clean = decisions.map((d: { anchor?: unknown; decision?: unknown }) => {
+    const clean = decisions.map((d: { anchor?: unknown; decision?: unknown; reason?: unknown }) => {
       if (d?.decision !== "keep" && d?.decision !== "undo") throw new Error("BAD_DECISION: keep or undo");
-      return { anchor: String(d.anchor ?? ""), decision: d.decision as "keep" | "undo" };
+      return { anchor: String(d.anchor ?? ""), decision: d.decision as "keep" | "undo", reason: typeof d.reason === "string" ? d.reason : undefined };
     });
     return drafts.decideAgentChanges(matterId, String(draftId ?? ""), String(baseRevisionId ?? ""), clean);
   });
   handle("drafts:approveRevision", (matterId: string, revisionId: string) => drafts.approveRevision(matterId, revisionId));
   handle("drafts:generate", (matterId: string, kind: string) => {
-    if (!["questions_of_law", "grounds", "petition", "conference", "condonation"].includes(kind)) throw new Error("BAD_DRAFT_KIND: questions_of_law, grounds, petition, conference or condonation");
+    if (!(DRAFT_KINDS as readonly string[]).includes(kind)) throw new Error("BAD_DRAFT_KIND");
     return drafts.generate(matterId, kind as DraftKind);
   });
+  handle("drafts:catalogue", () => draftsCatalogue());
+  handle("drafts:compareRevisionWithPdf", (matterId: string, revisionId: string) =>
+    drafts.compareRevisionToPdf(matterId, String(revisionId ?? "")).then((r) => ({ ok: r.ok, missing: r.missing, extra: r.extra })),
+  );
 
   // Steps 6 and 7: research and legal review. Decisions are human-only bridge functions (decision 5).
   handle("research:get", (matterId: string) => research.state(matterId));
@@ -1412,6 +1418,67 @@ app.whenReady().then(() => {
     workingRoot,
     openInEditor: (file, name, kind, readOnly, meta) => editorHost.open(file, name, kind, readOnly, meta),
     legalBlockers: (id, draftId, revisionId) => research.legalBlockers(id, draftId, revisionId),
+    // Phase 6: the advocate's profile for the signature blocks and the vakalatnama.
+    profile: () => {
+      const fields = advocateStore.profile().fields;
+      return {
+        name: fields["name"] ?? "",
+        role: fields["role"] ?? "",
+        barCouncil: fields["bar_council"] ?? "",
+        address: fields["chamber_address"] ?? "",
+      };
+    },
+    // Phase 6 (A7): the approved preferences, with the reason each one applies.
+    approvedPreferences: () => {
+      const out: Record<string, { value: string; reason: string | null }> = {};
+      for (const p of advocateStore.preferences()) if (p.status === "approved") out[p.key] = { value: p.value, reason: p.reason };
+      return out;
+    },
+    // Phase 6 (A7): the same correction twice proposes a preference, and a lesson is proposed with it (F2).
+    onCorrectionRepeated: async (input) => {
+      try {
+        advocateStore.proposePreference({ key: input.key, value: input.value, reason: input.reason }, { actor: "agent" });
+        advocateStore.proposeMemory(
+          { type: "lesson", subject: "a correction the advocate made twice", relation: "led to", object: `${input.key}: ${input.value}`, confidence: 0.9 },
+          { actor: "agent" },
+        );
+      } catch {
+        // a refused proposal is recorded in the store's own refusal table; the undo still stands
+      }
+    },
+    // Phase 6 (F2): a citation inserted in more than one matter proposes an advocate memory record.
+    onCitationInserted: async (input) => {
+      let mattersWithIt = 0;
+      for (const summary of await matters.list()) {
+        try {
+          const store = await matters.store(summary.id);
+          const inserted = store.eventsWithAction("citation.inserted").some((e) => (e.data as { citation?: string } | null)?.citation === input.citation);
+          if (inserted) mattersWithIt += 1;
+        } catch {
+          // a matter that cannot be opened is not counted
+        }
+      }
+      if (mattersWithIt >= 2) {
+        try {
+          advocateStore.proposeMemory(
+            { type: "court_practice", subject: input.citation, relation: "frequently cited", object: `cited in ${mattersWithIt} matters`, confidence: mattersWithIt },
+            { actor: "agent" },
+          );
+        } catch {
+          // a refused proposal is recorded in the store's own refusal table
+        }
+      }
+    },
+    // Phase 6 (P4): the law library's rows for a statutory reference.
+    statuteLookup: (act, section) => hub.statuteRows(act, section),
+    // Phase 6 (P1): the highest indexed paragraph of each saved authority's judgment.
+    authorityParagraphs: (matterId) => hub.authorityParagraphs(matterId),
+    // Phase 6 (A7): the questions a task asks once.
+    preferenceQuestions: (keys) => {
+      const approved: Record<string, unknown> = {};
+      for (const p of advocateStore.preferences()) if (p.status === "approved") approved[p.key] = p.value;
+      return preferenceQuestions(keys, approved);
+    },
   });
   signer = KeyFileSigner.create(path.join(app.getPath("userData"), "manifest-signing.key"));
   filing = new Filing(matters, euroOfficePaths(euroOfficeRoot()).x2t, signer);

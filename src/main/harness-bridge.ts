@@ -115,6 +115,19 @@ export function registerHarnessBridge(handle: Handle, d: HarnessBridgeDeps): voi
     if (decision !== "approved" && decision !== "rejected") throw new Error("BAD_DECISION: approved or rejected");
     return d.advocate.decidePreference(str(id), decision, { actor: "advocate" });
   });
+  // Phase 6 (A7): the advocate answers a preference question inside a task (human-only, decision 5).
+  // The answer is approved at once: the advocate gave it. The reason names the task and the date.
+  handle("advocate:setPreference", (key: string, value: string, task: string) => {
+    const k = str(key);
+    const v = str(value).trim();
+    if (!k || !v) throw new Error("BAD_PREFERENCE: a key and a value are needed");
+    const ctx = { actor: "advocate" as const };
+    const proposed = d.advocate.proposePreference(
+      { key: k, value: v, reason: `answered inside ${str(task) || "a task"} on ${new Date().toISOString().slice(0, 10)}` },
+      ctx,
+    );
+    return d.advocate.decidePreference(proposed.id, "approved", ctx);
+  });
   // Q4: the local intelligence store: sources with their freshness (decision 16).
   handle("intel:sources", () => d.intel.sources().map((s) => ({ ...s, freshness: freshness(s) })));
   handle("stores:chains", () => {
