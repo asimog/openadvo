@@ -63,6 +63,8 @@ export interface Provision {
   order: number;
   /** The chapter, part or order the provision is under, as the source prints it; "" when none. */
   under: string;
+  /** The source item that keeps two same-numbered rules apart; "" when the number is unique. */
+  sourceKey: string;
   sourceRef: string;
   sourceUrl: string;
   retrievedAt: string;
@@ -468,6 +470,60 @@ export interface Coverage {
   partial: boolean;
 }
 
+/** The PDF and TEXT files one Act was read from, with their hashes. */
+export interface SourceFileRow {
+  actId: string;
+  itemUuid: string;
+  pdfUrl: string;
+  pdfSha256: string;
+  textUrl: string;
+  textSha256: string;
+  retrievedAt: string;
+  note: string;
+}
+
+export interface LawManifestAct {
+  actId: string;
+  title: string;
+  sourceRef: string;
+  sourceUrl: string;
+  retrievedAt: string;
+  checkedAt: string | null;
+  repealed: boolean;
+  provisions: number;
+  versions: number;
+  /** A stable hash of every current provision id and text hash, plus the source files. */
+  setHash: string;
+  sourceFiles: SourceFileRow[];
+}
+
+export interface LawManifest {
+  generatedAt: string;
+  acts: LawManifestAct[];
+  provisions: number;
+  /** A stable hash of the whole set. It changes when a provision, version or source file changes. */
+  setHash: string;
+}
+
+export interface LawCounts {
+  acts: number;
+  provisions: number;
+  versions: number;
+  stale: number;
+  judgments: number;
+  paragraphs: number;
+  edges: number;
+  vectors: number;
+  builds: Array<{ name: string; rows: number; builtAt: string }>;
+}
+
+/** The Index Health view: one row per scope, the law counts and the set manifest. */
+export interface KnowledgeHealthView {
+  adapters: AdapterHealth[];
+  counts: LawCounts;
+  manifest: LawManifest;
+}
+
 export interface KnowledgeHit {
   id: string;
   scope: KnowledgeScope;
@@ -488,6 +544,8 @@ export interface KnowledgeHit {
   citationKey?: CitationKey;
   authorityFacts?: AuthorityFacts;
   checks?: VerificationCheck[];
+  /** The binding/persuasive result for the question's court and date. It is a fact with reasons. */
+  binding?: BindingResult;
 }
 
 export interface RetrievalResult {

@@ -12,7 +12,7 @@ import { CHAIN_SCHEMA, StoreError, appendChained, inTransaction } from "../store
 import { inForceOn, isStale } from "../statutes/inforce.ts";
 import { textHash } from "../statutes/structure.ts";
 import type { WriteContext } from "../../shared/records.ts";
-import type { CheckState, InForceResult, InstrumentKind, LegalEdge, LegalRelation, Provision, ProvisionCheck, ProvisionKind, ProvisionStatus, StatuteAct, StatuteEvent, StatuteSource } from "../../shared/law.ts";
+import type { CheckState, InForceResult, InstrumentKind, LawCounts, LawManifest, LegalEdge, LegalRelation, Provision, ProvisionCheck, ProvisionKind, ProvisionStatus, SourceFileRow, StatuteAct, StatuteEvent, StatuteSource } from "../../shared/law.ts";
 
 export const LAW_SCHEMA = `
 CREATE TABLE IF NOT EXISTS statute_act (
@@ -25,9 +25,9 @@ CREATE TABLE IF NOT EXISTS statute_provision (
   id TEXT PRIMARY KEY, act_id TEXT NOT NULL, kind TEXT NOT NULL, number TEXT NOT NULL, heading TEXT NOT NULL,
   text TEXT NOT NULL, footnotes TEXT NOT NULL, version INTEGER NOT NULL, text_hash TEXT NOT NULL,
   valid_from TEXT, valid_until TEXT, status TEXT NOT NULL, ord INTEGER NOT NULL, under TEXT NOT NULL,
-  page INTEGER, line INTEGER, source_ref TEXT NOT NULL, source_url TEXT NOT NULL, retrieved_at TEXT NOT NULL,
+  source_key TEXT NOT NULL DEFAULT '', page INTEGER, line INTEGER, source_ref TEXT NOT NULL, source_url TEXT NOT NULL, retrieved_at TEXT NOT NULL,
   checked_at TEXT, check_state TEXT NOT NULL, current INTEGER NOT NULL,
-  UNIQUE (act_id, kind, number, under, version)
+  UNIQUE (act_id, kind, number, under, source_key, version)
 ) STRICT;
 CREATE INDEX IF NOT EXISTS statute_provision_act ON statute_provision (act_id, current, ord);
 CREATE VIRTUAL TABLE IF NOT EXISTS provision_fts USING fts5(id UNINDEXED, number, heading, text, act, tokenize = 'porter unicode61');
@@ -64,6 +64,11 @@ CREATE TABLE IF NOT EXISTS vector (
   PRIMARY KEY (scope, id)
 ) STRICT;
 CREATE TABLE IF NOT EXISTS index_build (name TEXT PRIMARY KEY, rows INTEGER NOT NULL, built_at TEXT NOT NULL) STRICT;
+CREATE TABLE IF NOT EXISTS source_file (
+  act_id TEXT NOT NULL, item_uuid TEXT NOT NULL, pdf_url TEXT NOT NULL, pdf_sha256 TEXT NOT NULL,
+  text_url TEXT NOT NULL, text_sha256 TEXT NOT NULL, retrieved_at TEXT NOT NULL, note TEXT NOT NULL,
+  PRIMARY KEY (act_id, item_uuid)
+) STRICT;
 `;
 
 export interface InstrumentInput {
@@ -88,6 +93,8 @@ export interface InstrumentInput {
     footnotes?: string;
     order: number;
     under?: string;
+    /** A stable source key for a rule whose number repeats under different orders. */
+    sourceKey?: string;
     page?: number | null;
     line?: number | null;
     sourceRef?: string;
@@ -198,6 +205,7 @@ export class LawStore {
       status: r.status as ProvisionStatus,
       order: Number(r.ord),
       under: String(r.under ?? ""),
+      sourceKey: String(r.source_key ?? ""),
       sourceRef: String(r.source_ref),
       sourceUrl: String(r.source_url),
       retrievedAt: String(r.retrieved_at),
@@ -235,17 +243,18 @@ export class LawStore {
              repealed = excluded.repealed, source_url = excluded.source_url, retrieved_at = excluded.retrieved_at, checked_at = excluded.checked_at`,
         )
         .run(id, input.kind, input.title, input.number, input.year, input.jurisdiction, input.enacted, input.enforced, input.enforcedText, input.repealed ? 1 : 0, input.source, input.sourceUrl, input.sourceRef, now, now, input.checkIntervalDays ?? 30);
-      const current = this.db.prepare("SELECT * FROM statute_provision WHERE act_id = ? AND kind = ? AND number = ? AND under = ? AND current = 1");
+      const current = this.db.prepare("SELECT * FROM statute_provision WHERE act_id = ? AND kind = ? AND number = ? AND under = ? AND source_key = ? AND current = 1");
       const insert = this.db.prepare(
-        `INSERT INTO statute_provision (id, act_id, kind, number, heading, text, footnotes, version, text_hash, valid_from, valid_until, status, ord, under, page, line, source_ref, source_url, retrieved_at, checked_at, check_state, current)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'verified', 1)`,
+        `INSERT INTO statute_provision (id, act_id, kind, number, heading, text, footnotes, version, text_hash, valid_from, valid_until, status, ord, under, source_key, page, line, source_ref, source_url, retrieved_at, checked_at, check_state, current)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'verified', 1)`,
       );
       const event = this.db.prepare("INSERT OR IGNORE INTO statute_event (id, act_id, provision, kind, scope, part, by_act, by_section, date, date_precision, quote, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
       for (const p of input.provisions) {
         const under = p.under ?? "";
+        const sourceKey = p.sourceKey ?? "";
         const hash = textHash(p.text);
         const status: ProvisionStatus = p.gone ?? "in_force";
-        const old = current.get(id, p.kind, p.number, under) as Record<string, unknown> | undefined;
+        const old = current.get(id, p.kind, p.number, under, sourceKey) as Record<string, unknown> | undefined;
         for (const e of p.events ?? []) event.run(randomUUID(), id, e.provision, e.kind, e.scope ?? "provision", e.part ?? "", e.byAct, e.bySection, e.date, e.datePrecision, e.quote, e.source);
         if (old && String(old.text_hash) === hash) {
           this.db.prepare("UPDATE statute_provision SET checked_at = ?, check_state = 'verified', footnotes = ?, heading = ?, status = ? WHERE id = ?").run(now, p.footnotes ?? "", p.heading, status, String(old.id));
@@ -258,9 +267,10 @@ export class LawStore {
           this.db.prepare("DELETE FROM provision_fts WHERE id = ?").run(String(old.id));
           changed++;
         } else added++;
-        const pid = `${id}#${p.kind}:${p.number}${under ? `@${createHash("sha256").update(under).digest("hex").slice(0, 8)}` : ""}:v${version}`;
+        const discriminator = `${under}|${sourceKey}`;
+        const pid = `${id}#${p.kind}:${p.number}${under || sourceKey ? `@${createHash("sha256").update(discriminator).digest("hex").slice(0, 8)}` : ""}:v${version}`;
         // The first version's start is the instrument's commencement; a later version starts the day the change was seen.
-        insert.run(pid, id, p.kind, p.number, p.heading, p.text, p.footnotes ?? "", version, hash, old ? today() : null, status, p.order, under, p.page ?? null, p.line ?? null, p.sourceRef ?? input.sourceRef, p.sourceUrl ?? input.sourceUrl, now, now);
+        insert.run(pid, id, p.kind, p.number, p.heading, p.text, p.footnotes ?? "", version, hash, old ? today() : null, status, p.order, under, sourceKey, p.page ?? null, p.line ?? null, p.sourceRef ?? input.sourceRef, p.sourceUrl ?? input.sourceUrl, now, now);
         this.index({ id: pid, number: p.number, heading: p.heading, text: p.text }, input.title);
       }
       appendChained(this.db, ctx, had ? "statute.refreshed" : "statute.added", id, { title: input.title, source: input.source, added, unchanged, changed });
@@ -378,14 +388,22 @@ export class LawStore {
   }
 
   /** Full text over the current provisions. `kinds` and `jurisdiction` filter the instruments. */
-  searchProvisions(query: string, opts: { phrase?: boolean; raw?: boolean; kinds?: InstrumentKind[]; jurisdiction?: string; actId?: string; limit?: number } = {}): ProvisionHit[] {
+  searchProvisions(query: string, opts: { phrase?: boolean; raw?: boolean; kinds?: InstrumentKind[]; actIds?: string[]; jurisdiction?: string; actId?: string; limit?: number } = {}): ProvisionHit[] {
     const q = opts.raw ? query : ftsTerms(query, opts.phrase);
     if (!q) return [];
     const where = ["provision_fts MATCH ?"];
     const args: Array<string | number> = [q];
-    if (opts.kinds?.length) {
-      where.push(`a.kind IN (${opts.kinds.map(() => "?").join(", ")})`);
-      args.push(...opts.kinds);
+    if (opts.kinds?.length || opts.actIds?.length) {
+      const allowed: string[] = [];
+      if (opts.kinds?.length) {
+        allowed.push(`a.kind IN (${opts.kinds.map(() => "?").join(", ")})`);
+        args.push(...opts.kinds);
+      }
+      if (opts.actIds?.length) {
+        allowed.push(`a.id IN (${opts.actIds.map(() => "?").join(", ")})`);
+        args.push(...opts.actIds);
+      }
+      where.push(`(${allowed.join(" OR ")})`);
     }
     if (opts.jurisdiction) {
       where.push("a.jurisdiction = ? COLLATE NOCASE");
@@ -589,7 +607,7 @@ export class LawStore {
     return { provisions, paragraphs };
   }
 
-  counts(): { acts: number; provisions: number; versions: number; stale: number; judgments: number; paragraphs: number; edges: number; vectors: number; builds: Array<{ name: string; rows: number; builtAt: string }> } {
+  counts(): LawCounts {
     const n = (sql: string) => Number((this.db.prepare(sql).get() as { n: number }).n);
     const acts = this.acts();
     let stale = 0;
@@ -605,6 +623,57 @@ export class LawStore {
       vectors: n("SELECT count(*) AS n FROM vector"),
       builds: (this.db.prepare("SELECT * FROM index_build").all() as Array<Record<string, unknown>>).map((r) => ({ name: String(r.name), rows: Number(r.rows), builtAt: String(r.built_at) })),
     };
+  }
+
+  // ---- RAG-1: source files and the static set manifest ----
+
+  putSourceFile(row: Omit<SourceFileRow, "retrievedAt"> & { retrievedAt?: string }): void {
+    this.db
+      .prepare("INSERT OR REPLACE INTO source_file (act_id, item_uuid, pdf_url, pdf_sha256, text_url, text_sha256, retrieved_at, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(row.actId, row.itemUuid, row.pdfUrl, row.pdfSha256, row.textUrl, row.textSha256, row.retrievedAt ?? new Date().toISOString(), row.note);
+  }
+
+  sourceFiles(actId?: string): SourceFileRow[] {
+    const rows = (actId ? this.db.prepare("SELECT * FROM source_file WHERE act_id = ? ORDER BY item_uuid").all(actId) : this.db.prepare("SELECT * FROM source_file ORDER BY act_id, item_uuid").all()) as Array<Record<string, unknown>>;
+    return rows.map((r) => ({
+      actId: String(r.act_id),
+      itemUuid: String(r.item_uuid),
+      pdfUrl: String(r.pdf_url),
+      pdfSha256: String(r.pdf_sha256),
+      textUrl: String(r.text_url),
+      textSha256: String(r.text_sha256),
+      retrievedAt: String(r.retrieved_at),
+      note: String(r.note),
+    }));
+  }
+
+  /**
+   * The static set manifest. The set hash covers current provision ids and text hashes and the
+   * PDF/TEXT file hashes, so a changed source or a new version changes the manifest.
+   */
+  manifest(): LawManifest {
+    const acts = this.acts().map((act) => {
+      const provisions = this.provisions(act.id);
+      const sourceFiles = this.sourceFiles(act.id);
+      const versions = Number((this.db.prepare("SELECT count(*) AS n FROM statute_provision WHERE act_id = ?").get(act.id) as { n: number }).n);
+      const body = provisions.map((p) => `${p.id}|${p.textHash}|${p.sourceRef}`).join("\n");
+      const files = sourceFiles.map((f) => `${f.itemUuid}|${f.pdfSha256}|${f.textSha256}`).join("\n");
+      return {
+        actId: act.id,
+        title: act.title,
+        sourceRef: act.sourceRef,
+        sourceUrl: act.sourceUrl,
+        retrievedAt: act.retrievedAt,
+        checkedAt: act.checkedAt,
+        repealed: act.repealed,
+        provisions: provisions.length,
+        versions,
+        setHash: createHash("sha256").update(`${act.id}\n${body}\n${files}`).digest("hex"),
+        sourceFiles,
+      };
+    });
+    const setHash = createHash("sha256").update(acts.map((act) => `${act.actId}|${act.setHash}`).join("\n")).digest("hex");
+    return { generatedAt: new Date().toISOString(), acts, provisions: acts.reduce((n, act) => n + act.provisions, 0), setHash };
   }
 }
 
