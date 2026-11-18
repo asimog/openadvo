@@ -61,6 +61,8 @@ export interface Provision {
   validUntil: string | null;
   status: ProvisionStatus;
   order: number;
+  /** The chapter, part or order the provision is under, as the source prints it; "" when none. */
+  under: string;
   sourceRef: string;
   sourceUrl: string;
   retrievedAt: string;
@@ -290,22 +292,202 @@ export const SEARCH_MODES = [
 ] as const;
 export type SearchMode = (typeof SEARCH_MODES)[number];
 
+// ---- RAG-0: the knowledge contract (Phase 5) ----
+//
+// TypeScript only, no Rust Kernel (owner instruction, RAG-26). These types and pure functions
+// have no Electron import, no Pi import and no store import. They compile in the main and web
+// projects (decision 6). The spec is docs/specs/law-research-authority.md.
+
+export const CITATION_KINDS = ["section", "article", "rule", "order", "schedule", "regulation", "notification", "practice_direction", "preamble"] as const;
+export type CitationKind = (typeof CITATION_KINDS)[number];
+
+/** A structured citation. It is the chunk id, the anchor and the audit key. */
+export interface CitationKey {
+  instrument: string;
+  kind: CitationKind;
+  number: string;
+  chapter?: string | null;
+  part?: string | null;
+  order?: string | null;
+  sub?: string | null;
+  clause?: string | null;
+  proviso?: string | null;
+  version?: number;
+}
+
+/** A component of the machine id. A separator inside a value cannot start another field. */
+function idPart(value: string): string {
+  return value.trim().replace(/%/g, "%25").replace(/#/g, "%23").replace(/\s+/g, " ");
+}
+
+/** A value without its label or its own brackets: "Chapter VII" and "(1)" become "VII" and "1". */
+function barePart(value: string, label?: string): string {
+  const text = value.trim().replace(/\s+/g, " ");
+  const withoutLabel = label ? text.replace(new RegExp(`^${label}\\s+`, "i"), "") : text;
+  return /^\(.*\)$/.test(withoutLabel) ? withoutLabel.slice(1, -1).trim() : withoutLabel;
+}
+
+/** A stable machine id. It never depends on the display string. */
+export function citationKeyId(key: CitationKey): string {
+  const fields = [`${idPart(key.instrument)}#${key.kind}:${idPart(key.number)}`];
+  const qualifiers: Array<[string, string | null | undefined, string | undefined]> = [
+    ["chapter", key.chapter, "Chapter"],
+    ["part", key.part, "Part"],
+    ["order", key.order, "Order"],
+    ["sub", key.sub, undefined],
+    ["clause", key.clause, undefined],
+    ["proviso", key.proviso, "Proviso"],
+  ];
+  for (const [name, value, label] of qualifiers) {
+    if (!value?.trim()) continue;
+    const bare = barePart(value, label);
+    if (bare) fields.push(`${name}:${idPart(bare)}`);
+  }
+  if (key.version && Number.isFinite(key.version) && key.version > 0) fields.push(`v${Math.trunc(key.version)}`);
+  return fields.join("#");
+}
+
+const CITATION_LABELS: Record<CitationKind, string> = {
+  section: "Section",
+  article: "Article",
+  rule: "Rule",
+  order: "Order",
+  schedule: "Schedule",
+  regulation: "Regulation",
+  notification: "Notification",
+  practice_direction: "Practice Direction",
+  preamble: "Preamble",
+};
+
+/** A human citation. A chapter or part is shown only when the key carries one. */
+export function citationKeyText(key: CitationKey, title?: string): string {
+  const number = barePart(key.number);
+  let head: string;
+  if (key.kind === "rule" && key.order) head = `Order ${barePart(key.order, "Order")} Rule ${number}`;
+  else if (key.kind === "order") head = `Order ${number || barePart(key.order ?? "", "Order")}`;
+  else if (key.kind === "preamble") head = "Preamble";
+  else head = `${CITATION_LABELS[key.kind]} ${number}`;
+  if (key.sub) head += `(${barePart(key.sub)})`;
+  if (key.clause) head += `(${barePart(key.clause)})`;
+  if (key.proviso) head += `, proviso ${barePart(key.proviso, "Proviso")}`;
+  const parts = [head.trim()];
+  if (key.part) parts.push(`Part ${barePart(key.part, "Part")}`);
+  if (key.chapter) parts.push(`Chapter ${barePart(key.chapter, "Chapter")}`);
+  parts.push(title?.trim() || key.instrument);
+  return parts.join(", ");
+}
+
+export const VERIFICATION_DIMENSIONS = ["source", "text", "currentness", "citation", "quote", "support", "treatment"] as const;
+export type VerificationDimension = (typeof VERIFICATION_DIMENSIONS)[number];
+/** "not_applicable" says the dimension does not apply here. It is not a pass and not a failure. */
+export type VerificationState = CheckState | "not_applicable";
+
+/** One check, for one dimension. There is no single `verified` flag for the whole record. */
+export interface VerificationCheck {
+  dimension: VerificationDimension;
+  state: VerificationState;
+  detail: string;
+  checkedAt: string;
+  sourceRef?: string;
+}
+
+export type VerificationSummary = "verified" | "partial" | "unconfirmed";
+
+function verificationRank(state: VerificationState): number {
+  if (state === "changed" || state === "unreachable" || state === "never") return 3;
+  if (state === "verified") return 2;
+  return 1;
+}
+
+/**
+ * A derived summary for code and badges. It never replaces the individual checks.
+ * `changed`, `unreachable` and `never` make the record unconfirmed. A missing dimension or a
+ * `not_applicable` dimension makes it partial: it is not unconfirmed, and it is not verified.
+ */
+export function summariseVerification(checks: readonly VerificationCheck[]): VerificationSummary {
+  if (checks.length === 0) return "unconfirmed";
+  const byDimension = new Map<VerificationDimension, VerificationState>();
+  for (const check of checks) {
+    const prior = byDimension.get(check.dimension);
+    if (!prior || verificationRank(check.state) > verificationRank(prior)) byDimension.set(check.dimension, check.state);
+  }
+  for (const state of byDimension.values()) if (verificationRank(state) === 3) return "unconfirmed";
+  return VERIFICATION_DIMENSIONS.every((dimension) => byDimension.get(dimension) === "verified") ? "verified" : "partial";
+}
+
+/** The facts a binding-effect decision needs. Do not reduce authority to one number. */
+export interface AuthorityFacts {
+  court: string;
+  courtName?: string | null;
+  jurisdiction?: string | null;
+  territory?: string | null;
+  benchStrength?: number | null;
+  decisionDate?: string | null;
+  role?: PassageRole | null;
+  treatment?: string | null;
+}
+
+/** The deterministic result of checking one quote against one source text. Offsets are 0-based, end-exclusive. */
+export interface QuoteCheck {
+  quote: string;
+  quoteHash: string;
+  start: number | null;
+  end: number | null;
+  verified: boolean;
+  detail: string;
+}
+
+/** An exact source passage. A summary never replaces it. */
+export interface SourcePassage {
+  hit: KnowledgeHit;
+  text: string;
+  start: number;
+  end: number;
+  page: number | null;
+  line: number | null;
+  sourceRef: string;
+  sourceUrl: string;
+  check: CheckState;
+  checkedAt: string | null;
+}
+
+/** The state of one adapter, for the Index Health view. A deferred scope says why. */
+export interface AdapterHealth {
+  scope: KnowledgeScope;
+  state: "ready" | "empty" | "deferred" | "off" | "error";
+  detail: string;
+  rows?: number;
+  builtAt?: string | null;
+}
+
+/** What a retrieval run searched, and what it did not. A bounded run says it is partial. */
+export interface Coverage {
+  searched: KnowledgeScope[];
+  deferred: Array<{ scope: KnowledgeScope; reason: string }>;
+  failed: Array<{ scope: KnowledgeScope; reason: string }>;
+  partial: boolean;
+}
+
 export interface KnowledgeHit {
   id: string;
   scope: KnowledgeScope;
   kind: string;
   title: string;
   text: string;
-  /** Where to open it: a provision id, "<judgment id>#p<n>", a source line anchor, a record id. */
+  /** Where to open it: the citation key id, "<judgment id>#p<n>", a source line anchor, a record id. */
   anchor: string;
   date: string | null;
-  /** 3 the Supreme Court, 2 a High Court, 1 other; 0 when it is not an authority. */
+  /** Legacy coarse rank. New code uses authorityFacts and the binding evaluator. */
   authority: number;
+  /** Legacy display string. New code uses checks. */
   verification: string;
   stale: boolean;
   score: number;
-  /** Which retrievers found it: "text", "vector", "graph", "filter". */
+  /** Which retrievers found it: "exact", "text", "graph", "vector", "filter". */
   why: string[];
+  citationKey?: CitationKey;
+  authorityFacts?: AuthorityFacts;
+  checks?: VerificationCheck[];
 }
 
 export interface RetrievalResult {
@@ -314,6 +496,8 @@ export interface RetrievalResult {
   hits: KnowledgeHit[];
   /** What was not searched, and why. Coverage is always stated (J2). */
   notSearched: Array<{ scope: KnowledgeScope; reason: string }>;
+  /** The structured coverage of the run. A deferred or failed scope makes it partial. */
+  coverage: Coverage;
   vectors: "on" | "off";
   ms: number;
 }

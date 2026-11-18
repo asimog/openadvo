@@ -197,6 +197,7 @@ export class LawStore {
       validUntil: (r.valid_until as string | null) ?? null,
       status: r.status as ProvisionStatus,
       order: Number(r.ord),
+      under: String(r.under ?? ""),
       sourceRef: String(r.source_ref),
       sourceUrl: String(r.source_url),
       retrievedAt: String(r.retrieved_at),
@@ -443,9 +444,9 @@ export class LawStore {
     });
   }
 
-  judgment(id: string): { id: string; court: string; courtName: string; title: string; decisionDate: string; citations: string[]; judges: string[]; benchStrength: number; paragraphs: number } | null {
+  judgment(id: string): { id: string; court: string; courtName: string; title: string; decisionDate: string; citations: string[]; judges: string[]; benchStrength: number; paragraphs: number; indexedAt: string } | null {
     const r = this.db.prepare("SELECT * FROM judgment_identity WHERE id = ?").get(id) as Record<string, unknown> | undefined;
-    return r ? { id: String(r.id), court: String(r.court), courtName: String(r.court_name), title: String(r.title), decisionDate: String(r.decision_date), citations: JSON.parse(String(r.citations)) as string[], judges: JSON.parse(String(r.judges)) as string[], benchStrength: Number(r.bench_strength), paragraphs: Number(r.paragraphs) } : null;
+    return r ? { id: String(r.id), court: String(r.court), courtName: String(r.court_name), title: String(r.title), decisionDate: String(r.decision_date), citations: JSON.parse(String(r.citations)) as string[], judges: JSON.parse(String(r.judges)) as string[], benchStrength: Number(r.bench_strength), paragraphs: Number(r.paragraphs), indexedAt: String(r.indexed_at) } : null;
   }
 
   /** The judgment a citation names, when it is indexed. */
