@@ -57,7 +57,7 @@ The nodes are `advocate`, `court`, `practice_area`, `preference`, `precedent`, `
 - outcome records: `outcome → succeeded_when | failed_because → proposition`, with the outcome's own words and the court;
 - approved library items: `advocate → approved → precedent`, and `precedent → used_in → court` when the item names one.
 
-The graph holds no client fact. An outcome contributes its result and its legal subject, never the parties or the evidence. The rebuild is one `AdvocateStore.rebuildGraph()` call; the Profile shows the edges and their count.
+The graph holds no client fact. An outcome contributes its result and its legal subject, never the parties or the evidence. The rebuild is one `AdvocateStore.rebuildGraph()` call; the Knowledge page shows the edges, their counts and the date of the last build.
 
 `graphWalk(edges, start)` answers neighbours and two-step paths. The bridge returns the edges for the Profile and the Knowledge page.
 
@@ -98,7 +98,6 @@ outcome (id, result, subject, court, decided_on, source_id, summary, entered_at,
 - **Memory tab**: the six standard questions as buttons; the answer with its records and anchors; the gaps and `not_read`; the outcome records with their add form and history.
 - **Knowledge page**: the four roles (positions, playbooks, drafting styles, common errors), the approved precedents, and the advocate graph with its edges and rebuild button.
 - **Drafts**: the first three approved precedents for the matter, each with its court, scope, date and reason. A rejected precedent is not shown.
-- **Profile**: the advocate graph's edges, with a link from each edge to its record.
 
 ## 6. Tests
 
@@ -119,7 +118,7 @@ Between the steps: the type check and the unit tests. The end-to-end suite runs 
 - No analytics (owner, 2026-11-18). There is no legal or quality panel.
 - The answerer is deterministic. It does not paraphrase with a model; a chat answer may use the model, but it must carry the same record links.
 - Cross-matter facts are never read (architecture section 6). An outcome contributes its result and legal subject to the advocate graph, never the parties or the evidence.
-- The graph is rebuilt on demand, not on every write. The Profile says when it was last built.
+- The graph is rebuilt on demand, not on every write. The Knowledge page says when it was last built.
 
 ## 8. Done
 
