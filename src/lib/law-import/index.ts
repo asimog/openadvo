@@ -14,6 +14,7 @@ import { instrumentId } from "../law-store/index.ts";
 import type { Provision } from "../../shared/law.ts";
 import { FIRST_WAVE, firstWaveInstrument, type FirstWaveInstrument } from "../statutes/first-wave.ts";
 import { fetchAct, fetchActText, readProvisionSource, type FetchedAct, type FetchedActText, type FetchedProvision } from "../statutes/indiacode.ts";
+import { fetchIndianKanoonAct, readIndianKanoonSection, type IndianKanoonAct } from "../statutes/indiankanoon.ts";
 import { parseActText, parseStatutePages, type ActTextOptions, type ParsedActProvision, type PdfPage } from "../statutes/act-text.ts";
 import { processPdf } from "../document-intelligence/index.ts";
 import { toAkn } from "../statutes/akn.ts";
@@ -38,6 +39,8 @@ export interface ImportedAct {
   changed: number;
   unchanged: number;
   textBased: boolean;
+  /** True when the official source was incomplete and Indian Kanoon supplied the section text. */
+  fallback: boolean;
 }
 
 export interface ImportResult {
@@ -52,18 +55,20 @@ export interface LawSource {
   fetchAct(uuid: string, onPage: (done: number, total: number) => void): Promise<{ act: FetchedAct; provisions: FetchedProvision[] }>;
   fetchActText(uuid: string): Promise<FetchedActText>;
   processPdf(bytes: Uint8Array): Promise<PdfPage[]>;
+  fetchIndianKanoonAct(url: string): Promise<{ html: string; act: IndianKanoonAct }>;
 }
 
 const defaultSource: LawSource = {
   fetchAct,
   fetchActText,
   processPdf: (bytes) => processPdf(bytes),
+  fetchIndianKanoonAct,
 };
 
 const system = { actor: "system" as const };
 
 function minimumProvisions(item: FirstWaveInstrument): number {
-  return item.kind === "constitution" ? 300 : 50;
+  return item.minimumProvisions ?? (item.kind === "constitution" ? 300 : 50);
 }
 
 function textHashOf(pages: PdfPage[]): string {
@@ -92,11 +97,8 @@ function parseForItem(item: FirstWaveInstrument, text: FetchedActText, pages: Pd
   return parseStatutePages(pages ?? [], kind);
 }
 
-function textActInput(item: FirstWaveInstrument, text: FetchedActText, parsed: ParsedActProvision[]): { act: FetchedAct; provisions: FetchedProvision[] } {
-  if (parsed.length < minimumProvisions(item)) {
-    throw new Error(`PARSE_INCOMPLETE: ${item.title}: the source gave ${parsed.length} provisions; the body was not found.`);
-  }
-  const act: FetchedAct = {
+function actFor(item: FirstWaveInstrument, text: FetchedActText): FetchedAct {
+  return {
     sourceRef: item.itemUuid,
     sourceUrl: text.sourceUrl,
     title: item.title,
@@ -109,7 +111,10 @@ function textActInput(item: FirstWaveInstrument, text: FetchedActText, parsed: P
     enforcedText: "",
     repealed: item.repealed,
   };
-  const provisions: FetchedProvision[] = parsed.map((row) => ({
+}
+
+function provisionsFor(item: FirstWaveInstrument, text: FetchedActText, parsed: ParsedActProvision[]): FetchedProvision[] {
+  return parsed.map((row) => ({
     kind: row.kind,
     number: row.number,
     heading: row.heading,
@@ -125,7 +130,13 @@ function textActInput(item: FirstWaveInstrument, text: FetchedActText, parsed: P
     gone: row.gone,
     events: [],
   }));
-  return { act, provisions };
+}
+
+function textActInput(item: FirstWaveInstrument, text: FetchedActText, parsed: ParsedActProvision[]): { act: FetchedAct; provisions: FetchedProvision[] } {
+  if (parsed.length < minimumProvisions(item)) {
+    throw new Error(`PARSE_INCOMPLETE: ${item.title}: the source gave ${parsed.length} provisions; the body was not found.`);
+  }
+  return { act: actFor(item, text), provisions: provisionsFor(item, text, parsed) };
 }
 
 /**
@@ -133,8 +144,9 @@ function textActInput(item: FirstWaveInstrument, text: FetchedActText, parsed: P
  * read from the Act PDF's text layer. The source file hashes are stored for text-based Acts.
  */
 export async function importInstrument(law: LawStore, item: FirstWaveInstrument, onProgress: (progress: ImportProgress) => void = () => undefined, source: LawSource = defaultSource): Promise<ImportedAct> {
-  let act: FetchedAct;
-  let provisions: FetchedProvision[];
+  let act: FetchedAct | null = null;
+  let provisions: FetchedProvision[] = [];
+  let usedFallback = false;
   if (item.source === "indiacode-sections") {
     onProgress({ itemUuid: item.itemUuid, title: item.title, stage: "fetch", done: 0, total: 0 });
     const fetched = await source.fetchAct(item.itemUuid, (done, total) => onProgress({ itemUuid: item.itemUuid, title: item.title, stage: "fetch", done, total }));
@@ -157,10 +169,6 @@ export async function importInstrument(law: LawStore, item: FirstWaveInstrument,
       textSha = textHashOf(pages);
       note = "PDF text layer, with page and line anchors. The PDF is the source of record.";
     }
-    const built = textActInput(item, text, parseForItem(item, text, pages));
-    act = built.act;
-    provisions = built.provisions;
-    onProgress({ itemUuid: item.itemUuid, title: item.title, stage: "parse", done: provisions.length, total: provisions.length });
     law.putSourceFile({
       actId: instrumentId("indiacode", item.itemUuid),
       itemUuid: item.itemUuid,
@@ -171,9 +179,36 @@ export async function importInstrument(law: LawStore, item: FirstWaveInstrument,
       retrievedAt: text.retrievedAt,
       note,
     });
+    const parsed = parseForItem(item, text, pages);
+    if (parsed.length < minimumProvisions(item) && item.fallbackUrl) {
+      onProgress({ itemUuid: item.itemUuid, title: item.title, stage: "fetch", done: parsed.length, total: minimumProvisions(item) });
+      const fallback = await source.fetchIndianKanoonAct(item.fallbackUrl);
+      if (fallback.act.sections.length >= minimumProvisions(item)) {
+        act = actFor(item, text);
+        provisions = fallback.act.sections;
+        usedFallback = true;
+        law.putSourceFile({
+          actId: instrumentId("indiacode", item.itemUuid),
+          itemUuid: item.fallbackUrl,
+          pdfUrl: "",
+          pdfSha256: "",
+          textUrl: item.fallbackUrl,
+          textSha256: createHash("sha256").update(fallback.html).digest("hex"),
+          retrievedAt: new Date().toISOString(),
+          note: "Secondary source: Indian Kanoon. The official India Code PDF is recorded but its OCR was incomplete. The rows are never verified until the advocate checks them against the PDF.",
+        });
+      }
+    }
+    if (!usedFallback) {
+      const built = textActInput(item, text, parsed);
+      act = built.act;
+      provisions = built.provisions;
+    }
+    onProgress({ itemUuid: item.itemUuid, title: item.title, stage: "parse", done: provisions.length, total: provisions.length });
   }
+  if (!act) throw new Error(`NO_ACT: ${item.title}`);
   onProgress({ itemUuid: item.itemUuid, title: item.title, stage: "store", done: 0, total: provisions.length });
-  const put = law.putInstrument({ kind: "act", ...act, source: "indiacode", provisions }, system);
+  const put = law.putInstrument({ kind: "act", ...act, source: "indiacode", provisions, ...(usedFallback ? { checkState: "never" as const, replace: true } : {}) }, system);
   onProgress({ itemUuid: item.itemUuid, title: item.title, stage: "done", done: provisions.length, total: provisions.length });
   return {
     itemUuid: item.itemUuid,
@@ -184,6 +219,7 @@ export async function importInstrument(law: LawStore, item: FirstWaveInstrument,
     changed: put.changed,
     unchanged: put.unchanged,
     textBased: item.source === "indiacode-text",
+    fallback: usedFallback,
   };
 }
 
@@ -201,6 +237,7 @@ export async function importFirstWave(law: LawStore, onProgress: (progress: Impo
  * Act re-reads its section item. A text-based Act re-reads the PDF and parses the same provision.
  */
 export async function readProvisionForCheck(law: LawStore, provision: Provision, source: LawSource = defaultSource): Promise<{ text: string; heading?: string; footnotes?: string }> {
+  if (provision.sourceRef.startsWith("ik:")) return readIndianKanoonSection(provision.sourceRef);
   const files = law.sourceFiles(provision.actId);
   if (files.length === 0) return readProvisionSource(provision);
   const item = firstWaveInstrument(files[0].itemUuid);

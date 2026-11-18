@@ -7,7 +7,7 @@ Date: 2026-11-18. Owner instruction: implement Phase 5 with the RAG components a
 - **Ten instruments:** the Constitution of India; Bharatiya Nyaya Sanhita, 2023; Bharatiya Nagarik Suraksha Sanhita, 2023; Bharatiya Sakshya Adhiniyam, 2023; Indian Penal Code, 1860; Code of Criminal Procedure, 1973; Indian Evidence Act, 1872; Code of Civil Procedure, 1908; General Clauses Act, 1897; Limitation Act, 1963.
 - **The Studio is the research workspace.** The shared law library is in `corpus.db`. A provision or authority saved to a matter stays in `matter.db` as a case-specific copy. The shared row remains the source.
 - **The repealed codes are separate dated instruments.** IPC, CrPC and the Evidence Act are loaded as repealed; BNS, BNSS and BSA are loaded as the current codes.
-- **OCR is accepted for the repealed codes, with page and line anchors.** The CrPC is partial and says so; section 482 is recovered.
+- **OCR is accepted for the repealed codes, with page and line anchors.** The CrPC official PDF OCR is incomplete. The importer now falls back to Indian Kanoon for the CrPC section text, keeps the official PDF as the source of record, and marks the fallback rows `never` verified until the advocate checks them.
 
 ## What was built
 
@@ -16,6 +16,7 @@ Date: 2026-11-18. Owner instruction: implement Phase 5 with the RAG components a
 | Ten-instrument list | `src/lib/statutes/first-wave.ts` |
 | PDF/text body parser, page and line anchors, OCR repair | `src/lib/statutes/act-text.ts` |
 | India Code PDF/TEXT bundles, CPC orders and rules, source hashes | `src/lib/statutes/indiacode.ts` |
+| Indian Kanoon fallback for the incomplete CrPC OCR | `src/lib/statutes/indiankanoon.ts` |
 | Import, manifest, verification at use, Akoma Ntoso export | `src/lib/law-import/index.ts` |
 | `source_file`, `source_key`, stable set manifest | `src/lib/law-store/index.ts` |
 | Production knowledge registry with verification and the CPC in procedure | `src/lib/knowledge/skeleton.ts`, `adapters.ts` |
@@ -57,17 +58,19 @@ The first wave was imported from India Code into a scratch `LawStore`:
 | Bharatiya Nagarik Suraksha Sanhita, 2023 | 533 |
 | Bharatiya Sakshya Adhiniyam, 2023 | 171 |
 | Indian Penal Code, 1860 (repealed) | 580 |
-| Code of Criminal Procedure, 1973 (repealed) | 227 |
+| Code of Criminal Procedure, 1973 (repealed) | 521 from Indian Kanoon after the official OCR gave 227 |
 | Indian Evidence Act, 1872 (repealed) | 186 |
 | Code of Civil Procedure, 1908 | 960 after the source-key fix (733 rules, 171 sections, 51 orders, 5 schedules) |
 | General Clauses Act, 1897 | 37 |
 | Limitation Act, 1963 | 33 |
 
-The sum is 3,566 current provisions. The full live import was run before the CPC source-key fix and reported 2,983; the CPC-only re-import after the fix reported 960. The other nine counts did not change.
+The sum is 3,860 current provisions with the CrPC fallback (3,566 before it). The full live import was run before the CPC source-key fix and reported 2,983; the CPC-only re-import after the fix reported 960. The CrPC fallback was tested separately: the official PDF gave 227 sections, Indian Kanoon gave 521, and the 227 partial rows were closed as superseded. The official PDF and the Indian Kanoon page are both in `source_file`; every fallback row is `check_state = never`.
+
+Verification at use was tested on CrPC section 482: the row was re-read from its Indian Kanoon section page, the text matched, and `LawStore.verify` returned `verified`. The source detail names Indian Kanoon as a secondary source; the India Code PDF remains the source of record.
 
 ## Known gaps and limits
 
-- **CrPC OCR is partial.** 227 current rows, not the full 484 sections. Section 482 is present. The PDF is the source of record and the page and line are kept. The advocate must confirm a quote from an OCR section before it is filed.
+- **CrPC is a secondary text.** The official PDF OCR is incomplete (227 sections). The full section text now comes from Indian Kanoon (521 sections, including 482 and 484), all `never` verified. The India Code PDF remains the source of record and the page and line of the OCR rows are kept as history. The advocate must check a CrPC quote against the PDF before it is filed.
 - **IPC, Evidence and the Constitution include schedules, amendments and extra items.** The parser keeps the longest body entry per number; an item that is not an operative provision remains possible. The first wave is a working corpus, not a certified set.
 - **Not built in this step:** E4 passage-role confirmation, E6 conflict rows, E7 propositions, H11 Evidence Vault, the J5 matrix deliverables other than the research memorandum, and G6 vectors. Firm, advocate and session scopes remain deferred to RAG-3.
 - **The Phase 5 exit has not been run.** The owner must still complete a real research memorandum and confirm the quotes, the governing-date law, the adverse authority and the coverage.

@@ -19,6 +19,10 @@ export interface FirstWaveInstrument {
   source: FirstWaveSource;
   /** For a text-based instrument: read the PDF text layer, or the TEXT bundle. */
   reader?: "pdf" | "text";
+  /** A secondary full-text source, used only when the official parse is incomplete. */
+  fallbackUrl?: string;
+  /** The official parse must reach this many provisions before the fallback is not used. */
+  minimumProvisions?: number;
   /** The India Code act id used by the section items, when the source is section-based. */
   actId?: string;
   number: string;
@@ -96,6 +100,8 @@ export const FIRST_WAVE: readonly FirstWaveInstrument[] = [
     kind: "act",
     source: "indiacode-text",
     reader: "pdf",
+    fallbackUrl: "https://indiankanoon.org/doc/445276/",
+    minimumProvisions: 400,
     number: "2",
     year: "1974",
     repealed: true,

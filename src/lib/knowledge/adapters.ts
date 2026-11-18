@@ -34,12 +34,19 @@ function provisionCitationKey(p: Provision): CitationKey {
 /** The checks this store can answer without reading the source again. RAG-0 never fakes one. */
 function provisionChecks(p: Provision, governing: InForceResult | null): VerificationCheck[] {
   const at = p.checkedAt ?? p.retrievedAt;
-  const sourceDetail = {
-    verified: "The last check of this provision matched its source.",
-    never: "This provision has never been checked against its source.",
-    changed: "The source gave a different text at the last check; the new version is stored.",
-    unreachable: "The source could not be reached at the last check.",
-  }[p.check];
+  const secondary = p.sourceRef.startsWith("ik:");
+  const sourceDetail = secondary
+    ? p.check === "verified"
+      ? "The last check matched the Indian Kanoon text, a secondary source. The India Code PDF is the source of record."
+      : p.check === "never"
+        ? "This provision comes from Indian Kanoon, a secondary source. It has not been checked against the India Code PDF."
+        : "The Indian Kanoon secondary source is unconfirmed at the last check."
+    : {
+        verified: "The last check of this provision matched its source.",
+        never: "This provision has never been checked against its source.",
+        changed: "The source gave a different text at the last check; the new version is stored.",
+        unreachable: "The source could not be reached at the last check.",
+      }[p.check];
   const hashMatches = textHash(p.text) === p.textHash;
   const checks: VerificationCheck[] = [
     { dimension: "source", state: p.check, detail: sourceDetail, checkedAt: at, sourceRef: p.sourceRef },

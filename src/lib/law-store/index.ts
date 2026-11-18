@@ -85,6 +85,10 @@ export interface InstrumentInput {
   sourceUrl: string;
   sourceRef: string;
   checkIntervalDays?: number;
+  /** A secondary-source import is "never" verified until it is checked. */
+  checkState?: CheckState;
+  /** Close current rows that the new import does not contain, as superseded versions. */
+  replace?: boolean;
   provisions: Array<{
     kind: ProvisionKind;
     number: string;
@@ -230,6 +234,9 @@ export class LawStore {
     if (!input.sourceRef.trim()) throw new StoreError("NO_SOURCE", "an instrument needs its source reference");
     const id = instrumentId(input.source, input.sourceRef);
     const now = new Date().toISOString();
+    const checkState = input.checkState ?? "verified";
+    const checkedAt = checkState === "never" ? null : now;
+    const seen = new Set<string>();
     let added = 0;
     let unchanged = 0;
     let changed = 0;
@@ -242,11 +249,11 @@ export class LawStore {
            ON CONFLICT (id) DO UPDATE SET title = excluded.title, enacted = excluded.enacted, enforced = excluded.enforced, enforced_text = excluded.enforced_text,
              repealed = excluded.repealed, source_url = excluded.source_url, retrieved_at = excluded.retrieved_at, checked_at = excluded.checked_at`,
         )
-        .run(id, input.kind, input.title, input.number, input.year, input.jurisdiction, input.enacted, input.enforced, input.enforcedText, input.repealed ? 1 : 0, input.source, input.sourceUrl, input.sourceRef, now, now, input.checkIntervalDays ?? 30);
+        .run(id, input.kind, input.title, input.number, input.year, input.jurisdiction, input.enacted, input.enforced, input.enforcedText, input.repealed ? 1 : 0, input.source, input.sourceUrl, input.sourceRef, now, checkedAt, input.checkIntervalDays ?? 30);
       const current = this.db.prepare("SELECT * FROM statute_provision WHERE act_id = ? AND kind = ? AND number = ? AND under = ? AND source_key = ? AND current = 1");
       const insert = this.db.prepare(
         `INSERT INTO statute_provision (id, act_id, kind, number, heading, text, footnotes, version, text_hash, valid_from, valid_until, status, ord, under, source_key, page, line, source_ref, source_url, retrieved_at, checked_at, check_state, current)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'verified', 1)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
       );
       const event = this.db.prepare("INSERT OR IGNORE INTO statute_event (id, act_id, provision, kind, scope, part, by_act, by_section, date, date_precision, quote, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
       for (const p of input.provisions) {
@@ -254,10 +261,11 @@ export class LawStore {
         const sourceKey = p.sourceKey ?? "";
         const hash = textHash(p.text);
         const status: ProvisionStatus = p.gone ?? "in_force";
+        seen.add(`${p.kind}|${p.number}|${under}|${sourceKey}`);
         const old = current.get(id, p.kind, p.number, under, sourceKey) as Record<string, unknown> | undefined;
         for (const e of p.events ?? []) event.run(randomUUID(), id, e.provision, e.kind, e.scope ?? "provision", e.part ?? "", e.byAct, e.bySection, e.date, e.datePrecision, e.quote, e.source);
         if (old && String(old.text_hash) === hash) {
-          this.db.prepare("UPDATE statute_provision SET checked_at = ?, check_state = 'verified', footnotes = ?, heading = ?, status = ? WHERE id = ?").run(now, p.footnotes ?? "", p.heading, status, String(old.id));
+          this.db.prepare("UPDATE statute_provision SET checked_at = ?, check_state = ?, footnotes = ?, heading = ?, status = ? WHERE id = ?").run(checkedAt, checkState, p.footnotes ?? "", p.heading, status, String(old.id));
           unchanged++;
           continue;
         }
@@ -270,8 +278,18 @@ export class LawStore {
         const discriminator = `${under}|${sourceKey}`;
         const pid = `${id}#${p.kind}:${p.number}${under || sourceKey ? `@${createHash("sha256").update(discriminator).digest("hex").slice(0, 8)}` : ""}:v${version}`;
         // The first version's start is the instrument's commencement; a later version starts the day the change was seen.
-        insert.run(pid, id, p.kind, p.number, p.heading, p.text, p.footnotes ?? "", version, hash, old ? today() : null, status, p.order, under, sourceKey, p.page ?? null, p.line ?? null, p.sourceRef ?? input.sourceRef, p.sourceUrl ?? input.sourceUrl, now, now);
+        insert.run(pid, id, p.kind, p.number, p.heading, p.text, p.footnotes ?? "", version, hash, old ? today() : null, status, p.order, under, sourceKey, p.page ?? null, p.line ?? null, p.sourceRef ?? input.sourceRef, p.sourceUrl ?? input.sourceUrl, now, checkedAt, checkState);
         this.index({ id: pid, number: p.number, heading: p.heading, text: p.text }, input.title);
+      }
+      if (input.replace) {
+        // A better source replaced a partial source. The rows it does not hold stay as history,
+        // closed today, never deleted.
+        for (const row of this.db.prepare("SELECT id, kind, number, under, source_key FROM statute_provision WHERE act_id = ? AND current = 1").all(id) as Array<Record<string, unknown>>) {
+          const key = `${String(row.kind)}|${String(row.number)}|${String(row.under)}|${String(row.source_key)}`;
+          if (seen.has(key)) continue;
+          this.db.prepare("UPDATE statute_provision SET current = 0, valid_until = ?, status = 'superseded' WHERE id = ?").run(today(), String(row.id));
+          this.db.prepare("DELETE FROM provision_fts WHERE id = ?").run(String(row.id));
+        }
       }
       appendChained(this.db, ctx, had ? "statute.refreshed" : "statute.added", id, { title: input.title, source: input.source, added, unchanged, changed });
     });

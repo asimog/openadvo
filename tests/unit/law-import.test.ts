@@ -19,6 +19,7 @@ test("RAG-1: the owner's first wave is ten instruments, with the current and rep
   assert.equal(FIRST_WAVE.find((item) => item.short === "BNS")?.replaces, "Indian Penal Code, 1860");
   assert.equal(FIRST_WAVE.find((item) => item.short === "Constitution")?.kind, "constitution");
   assert.equal(FIRST_WAVE.find((item) => item.short === "CPC")?.source, "indiacode-sections");
+  assert.match(FIRST_WAVE.find((item) => item.short === "CrPC")?.fallbackUrl ?? "", /indiankanoon\.org/);
 });
 
 test("RAG-1: the PDF body parser skips the arrangement and keeps page, line and chapter", () => {
@@ -117,6 +118,7 @@ function fakeProvisions(count: number): FetchedProvision[] {
 }
 
 function sourceWith(sectionCount: number, textPages: PdfPage[]): LawSource {
+  const ik = fakeProvisions(400).map((row) => ({ ...row, sourceRef: `ik:${row.number}`, sourceUrl: `https://indiankanoon.org/doc/${row.number}/` }));
   return {
     fetchAct: async () => ({ act: fakeSectionAct(), provisions: fakeProvisions(sectionCount) }),
     fetchActText: async () => ({
@@ -133,6 +135,7 @@ function sourceWith(sectionCount: number, textPages: PdfPage[]): LawSource {
       retrievedAt: "2026-11-18T00:00:00Z",
     }),
     processPdf: async () => textPages,
+    fetchIndianKanoonAct: async () => ({ html: "<h1>Indian Kanoon test</h1>", act: { title: "Indian Kanoon test", sourceUrl: "https://indiankanoon.org/", sections: ik } }),
   };
 }
 
@@ -164,6 +167,33 @@ test("RAG-1: two same-numbered rules under different source items are both curre
   assert.deepEqual(law.provisions(put.act.id).map((row) => [row.number, row.sourceKey]), [["4A", "item-a"], ["4A", "item-b"]]);
 });
 
+test("RAG-1: a secondary import is never verified, and a replacement closes rows the new source does not hold", () => {
+  const law = new LawStore(new DatabaseSync(":memory:"));
+  const input = {
+    kind: "act" as const,
+    title: "The Test Act, 2026",
+    number: "1",
+    year: "2026",
+    jurisdiction: "CENTRAL",
+    enacted: null,
+    enforced: null,
+    enforcedText: "",
+    repealed: false,
+    source: "indiacode" as const,
+    sourceUrl: "https://indiacode.gov.in/items/test",
+    sourceRef: "test-act",
+    provisions: fakeProvisions(2),
+  };
+  const first = law.putInstrument(input, { actor: "system" });
+  assert.equal(law.provisions(first.act.id).length, 2);
+  const replaced = law.putInstrument({ ...input, provisions: fakeProvisions(1), checkState: "never", replace: true }, { actor: "system" });
+  const current = law.provisions(replaced.act.id);
+  assert.equal(current.length, 1);
+  assert.equal(current[0].check, "never");
+  assert.equal(current[0].checkedAt, null);
+  assert.ok(law.versions(replaced.act.id, "2").some((row) => row.status === "superseded"));
+});
+
 test("RAG-1: a section-based instrument imports through the section items, with no source file", async () => {
   const law = new LawStore(new DatabaseSync(":memory:"));
   const item = FIRST_WAVE.find((entry) => entry.short === "BNS")!;
@@ -183,8 +213,10 @@ test("RAG-1: a text-based instrument imports through the PDF pages and records t
   ];
   const result = await importInstrument(law, item, () => undefined, sourceWith(0, pages));
   assert.equal(result.textBased, true);
-  assert.equal(result.provisions, 50);
-  assert.equal(law.sourceFiles().length, 1);
-  assert.equal(law.sourceFiles()[0].pdfSha256, "c".repeat(64));
-  assert.match(law.sourceFiles()[0].textSha256, /^[a-f0-9]{64}$/);
+  assert.equal(result.fallback, true);
+  assert.equal(result.provisions, 400);
+  assert.equal(law.sourceFiles().length, 2);
+  assert.ok(law.sourceFiles().some((file) => file.pdfSha256 === "c".repeat(64)));
+  assert.ok(law.sourceFiles().some((file) => file.note.includes("Indian Kanoon")));
+  assert.ok(law.provisions(result.actId).every((row) => row.check === "never"));
 });
