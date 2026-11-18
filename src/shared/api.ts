@@ -52,7 +52,7 @@ export type { AGUIEvent };
 export type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict, DraftKind, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft, DraftCheck, DraftDefect };
 
 /** One entry of the phase 6 document catalogue (L3). */
-export type CatalogueEntry = { kind: DraftKind; title: string; group: string; note: string };
+export type CatalogueEntry = { kind: DraftKind; title: string; group: string; groupLabel: string; note: string };
 
 export type ChatRole = "advocate" | "agent" | "tool" | "notice";
 

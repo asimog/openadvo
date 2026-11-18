@@ -22,6 +22,7 @@ const INPUT: DraftingInput = {
   proceeding: { caseType: "W.P.(C)", provisions: [] },
   approved: { questions: [], grounds: [] },
   stage: "Notice issued",
+  proceedingType: "interim injunction",
   hearings: [
     { date: "2026-11-10", bench: "Justice X", directions: "Reply affidavit within four weeks.", nextDate: "2026-12-15", nextDateStatus: "confirmed" },
   ],
@@ -43,10 +44,11 @@ test("K6: the hearing brief is one page from the records, with the anchors, and 
   const blocks = hearingBriefPart(INPUT);
   const text = blocks.map((b) => b.text).join("\n");
   assert.match(text, /HEARING BRIEF/);
-  assert.match(text, /Posture: Notice issued/);
+  assert.match(text, /Posture: Notice issued; interim injunction/);
   assert.match(text, /What is listed/);
   assert.match(text, /2026-12-15/, "the next date is shown");
   assert.match(text, /order\.pdf, p\. 2, l\. 4/, "the direction carries its anchor");
+  assert.match(text, /Reply affidavit within four weeks\. \[recorded at the hearing of 2026-11-10\]/, "the hearing's recorded directions are shown");
   assert.match(text, /Open items/);
   assert.match(text, /Bench questions and answers/);
   assert.match(text, /Was the impugned order served/);

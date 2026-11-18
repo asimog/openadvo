@@ -1367,8 +1367,19 @@ function exposeTestHooks(): void {
       return true;
     },
     // V4-3: the loop with a scripted model (labels to answers), so tests need no model.
-    runStudioScripted: async (matterId: string, issueId: string, script: Array<{ match: string; answer: string }>) => {
-      const fake = new ArgumentStudio(matters, async () => ({ model: "test/scripted", complete: async (_s: string, user: string) => script.find((x) => user.includes(x.match))?.answer ?? "{}" }), (id) => window?.webContents.send("studio:changed", id));
+    // O5 (K2): an optional second script runs the critic and opposing-counsel passes on a
+    // distinct critic model, so the end-to-end path exercises the role's model too.
+    runStudioScripted: async (matterId: string, issueId: string, script: Array<{ match: string; answer: string }>, criticScript?: Array<{ match: string; answer: string }>) => {
+      const answer = (model: string, rows: Array<{ match: string; answer: string }>) => ({
+        model,
+        complete: async (_s: string, user: string) => rows.find((x) => user.includes(x.match))?.answer ?? "{}",
+      });
+      const fake = new ArgumentStudio(
+        matters,
+        async () => answer("test/scripted", script),
+        (id) => window?.webContents.send("studio:changed", id),
+        criticScript ? async (role) => (role === "critic" ? answer("test/critic", criticScript) : null) : null,
+      );
       await fake.start(matterId, issueId, { rounds: 1, generators: 2 });
       await fake.idle(matterId);
       return (await matters.store(matterId)).studio.runs().at(-1);

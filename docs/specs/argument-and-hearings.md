@@ -78,7 +78,7 @@ A cross-examination question is a proposed row tied to the record: it names the 
 - **Record table**: the gaps under the grid; the template picker gains the element templates.
 - **Issues (the Conference section)**: the facts and the relief under each issue.
 - **Proceedings (the Matter tab)**: the compliance tasks beside the hearing form, and the cross-examination plan.
-- **Drafts**: the catalogue picker gains `hearing_brief` and `oral_outline` in the Notes group.
+- **Drafts**: the catalogue picker gains `hearing_brief` and `oral_outline` in the Hearing preparation group.
 - **Settings**: the role models.
 
 ## 11. Tests
@@ -86,13 +86,10 @@ A cross-examination question is a proposed row tied to the record: it names the 
 | Test | Checks |
 |---|---|
 | `tests/unit/studio.test.ts` | The loop's attacking passes on the second completer; the rest on the first |
-| `tests/unit/theory.test.ts` | Theory rows proposed and decided; no status outside the three; the view assembles standing, weaknesses and dependencies |
+| `tests/unit/theory.test.ts` | K1 and K4: the issue row keeps the agent's fact ids; theory rows proposed and decided, no status outside the three; the view assembles standing, the attack that fells an out argument, weaknesses and dependencies |
 | `tests/unit/dissent.test.ts` | Each model answers once; an unanchored answer is refused, not dropped; a split opens one review item; no split when the answers agree |
-| `tests/unit/hearing-brief.test.ts` | The brief from records: posture, directions with anchors, bench questions, register; no outcome text |
-| `tests/unit/oral-outline.test.ts` | Three or four points strongest first; the rebuttal notes; the compilation with the paragraphs |
-| `tests/unit/compliance.test.ts` | A task proposal accepted becomes a reminder; rejected stays refused; the advocate's own task |
-| `tests/unit/cross-exam.test.ts` | A question names its contradiction or statement; a question with no target is refused; accept and reject |
-| `tests/unit/issues.test.ts` | The issue row keeps the agent's fact ids; the view's facts and relief |
+| `tests/unit/hearing-brief.test.ts` | K6 and K7: the brief from records (posture, directions with anchors, bench questions, register; no outcome text); three or four points strongest first, the rebuttal notes, the compilation with the paragraphs |
+| `tests/unit/compliance.test.ts` | K8 and K9: a task proposal accepted becomes a reminder, rejected stays refused, the advocate's own task; a question names its contradiction or statement, a question with no target is refused, accept and reject, and the plan resolves the target's anchors |
 | `tests/unit/record-gaps.test.ts` | A column with no confirmed cell is a gap; a confirmed cell closes it; the interim-relief template |
 | `tests/e2e/phase7.spec.ts` | The exit path: the loop run with a critic model, the theory decided, the brief before the date, the oral outline, the hearing recorded with directions, the compliance tasks, the cross-exam questions decided |
 | `tests/e2e/app.spec.ts` | The new bridge functions and agent tools in the exact lists |

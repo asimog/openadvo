@@ -129,6 +129,8 @@ export interface CrossQuestion {
   question: string;
   targetKind: "contradiction" | "evidence";
   targetId: string;
+  /** The record the question springs from, with its anchor; null when the row has gone. */
+  target: { text: string; sourceName: string; page: number | null; line: number | null; givenBy: string; givenAt: string } | null;
   author: "advocate" | "agent";
   status: "candidate" | "accepted" | "rejected";
   createdAt: string;
@@ -265,17 +267,31 @@ export function decideTask(db: DatabaseSync, id: string, accept: boolean): { tas
 // ---- Phase 7 (K9): the cross-examination plan ----
 
 export function crossQuestions(db: DatabaseSync): CrossQuestion[] {
-  return (db.prepare("SELECT * FROM cross_question ORDER BY created_at, rowid").all() as Array<Record<string, unknown>>).map((r) => ({
-    id: String(r.id),
-    witness: String(r.witness ?? ""),
-    question: String(r.question),
-    targetKind: r.target_kind as CrossQuestion["targetKind"],
-    targetId: String(r.target_id),
-    author: r.author as "advocate" | "agent",
-    status: r.status as CrossQuestion["status"],
-    createdAt: String(r.created_at),
-    decidedAt: String(r.decided_at ?? ""),
-  }));
+  return (db.prepare("SELECT * FROM cross_question ORDER BY created_at, rowid").all() as Array<Record<string, unknown>>).map((r) => {
+    const targetId = String(r.target_id);
+    const targetKind = r.target_kind as CrossQuestion["targetKind"];
+    // K9: the plan lists each question with the record it springs from and its anchors.
+    let target: CrossQuestion["target"] = null;
+    if (targetKind === "evidence") {
+      const e = db.prepare("SELECT e.statement AS text, e.given_by, e.given_at, s.name AS source_name FROM evidence e LEFT JOIN source s ON s.id = e.source_id WHERE e.id = ?").get(targetId) as Record<string, unknown> | undefined;
+      if (e) target = { text: String(e.text ?? ""), sourceName: String(e.source_name ?? ""), page: null, line: null, givenBy: String(e.given_by ?? ""), givenAt: String(e.given_at ?? "") };
+    } else {
+      const f = db.prepare("SELECT f.text, f.page, f.line, s.name AS source_name FROM fact f LEFT JOIN source s ON s.id = f.source_id WHERE f.id = ?").get(targetId) as Record<string, unknown> | undefined;
+      if (f) target = { text: String(f.text ?? ""), sourceName: String(f.source_name ?? ""), page: f.page == null ? null : Number(f.page), line: f.line == null ? null : Number(f.line), givenBy: "", givenAt: "" };
+    }
+    return {
+      id: String(r.id),
+      witness: String(r.witness ?? ""),
+      question: String(r.question),
+      targetKind,
+      targetId,
+      target,
+      author: r.author as "advocate" | "agent",
+      status: r.status as CrossQuestion["status"],
+      createdAt: String(r.created_at),
+      decidedAt: String(r.decided_at ?? ""),
+    };
+  });
 }
 
 /**

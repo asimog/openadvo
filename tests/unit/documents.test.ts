@@ -39,6 +39,7 @@ const INPUT: DraftingInput = {
   proceeding: { caseType: "W.P.(C)", provisions: [] },
   approved: { questions: [], grounds: [] },
   stage: "Drafting",
+  proceedingType: "writ petition",
   hearings: [
     { date: "2026-11-10", bench: "Justice X", directions: "Reply affidavit within four weeks.", nextDate: "2026-12-15", nextDateStatus: "confirmed" },
   ],

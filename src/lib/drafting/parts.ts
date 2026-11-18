@@ -61,8 +61,9 @@ export interface DraftingInput {
   proceeding: { caseType: string; provisions: string[] } | null;
   /** Approved Questions of Law and Grounds, as the SLP petition generator uses them. */
   approved: { questions: string[]; grounds: string[] };
-  /** Phase 7 (K6): the matter's stage, from the matter profile. */
+  /** Phase 7 (K6): the matter's stage and proceeding, from the matter profile. */
   stage: string;
+  proceedingType: string;
   /** Phase 7 (K6): the hearings, newest last. */
   hearings: Array<{ date: string; bench: string; directions: string; nextDate: string; nextDateStatus: string }>;
   /** Phase 7 (K6): the directions the last orders carry, with their anchors, newest first. */
@@ -410,7 +411,7 @@ export function hearingBriefPart(i: DraftingInput): Block[] {
   const objections = i.challenges.filter((c) => c.kind === "objection" && c.status === "accepted");
   const out: Block[] = [
     { text: "HEARING BRIEF", style: "center" },
-    { text: `Posture: ${i.stage || "[TO BE COMPLETED: the stage of the matter]"}. ${i.details.petitioner || "…"} versus ${i.details.respondent || "…"}.` },
+    { text: `Posture: ${i.stage || "[TO BE COMPLETED: the stage of the matter]"}; ${i.proceedingType || "[TO BE COMPLETED: the proceeding]"}. ${i.details.petitioner || "…"} versus ${i.details.respondent || "…"}.` },
   ];
   if (listed) {
     out.push({ text: "What is listed", style: "heading" });
@@ -420,8 +421,10 @@ export function hearingBriefPart(i: DraftingInput): Block[] {
     out.push({ text: "[TO BE COMPLETED: no hearing is recorded yet]" });
   }
   out.push({ text: "The last order's directions", style: "heading" });
-  if (i.orderDirections.length === 0) out.push({ text: "No direction of a recorded order is extracted yet." });
+  const recordedDirection = [...i.hearings].reverse().find((h) => h.directions.trim() !== "");
+  if (i.orderDirections.length === 0 && !recordedDirection) out.push({ text: "No direction of a recorded order is extracted yet." });
   for (const d of i.orderDirections.slice(0, BRIEF_ROWS)) out.push({ text: `- ${d.text} [${d.sourceName}, p. ${d.page}, l. ${d.line}]` });
+  if (recordedDirection) out.push({ text: `- ${recordedDirection.directions} [recorded at the hearing of ${recordedDirection.date}]` });
   out.push({ text: "Open items", style: "heading" });
   if (i.openItems.length === 0) out.push({ text: "None open." });
   for (const o of i.openItems.slice(0, BRIEF_ROWS)) out.push({ text: `- [${o.kind}] ${o.detail}` });

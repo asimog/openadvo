@@ -11,7 +11,7 @@ import { Badge } from "@astryxdesign/core/Badge";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Text } from "@astryxdesign/core/Text";
-import type { FactRecord, FilingState, ManifestCheck, MatterDetails, Notebook, ResearchState, SourceRecord } from "../../shared/api.ts";
+import type { FactRecord, FilingState, ManifestCheck, MatterDetails, MatterProfile, Notebook, ResearchState, SourceRecord } from "../../shared/api.ts";
 
 const api = window.openadvo;
 
@@ -171,10 +171,12 @@ const ROLES = ["supporting", "adverse", "distinguishable", "other"] as const;
 export function ResearchView(props: { matterId: string; version: number }) {
   const [s, setS] = useState<ResearchState | null>(null);
   const [facts, setFacts] = useState<FactRecord[]>([]);
+  const [profile, setProfile] = useState<MatterProfile | null>(null);
   const load = useCallback(async () => {
-    const [research, factRows] = await Promise.all([api.getResearch(props.matterId), api.evidenceFacts(props.matterId)]);
+    const [research, factRows, matterProfile] = await Promise.all([api.getResearch(props.matterId), api.evidenceFacts(props.matterId), api.getMatterProfile(props.matterId)]);
     setS(research);
     setFacts(factRows);
+    setProfile(matterProfile);
   }, [props.matterId]);
   useEffect(() => {
     void load();
@@ -222,6 +224,7 @@ export function ResearchView(props: { matterId: string; version: number }) {
                     ))}
                   </ul>
                   {relief.length ? <Text type="supporting">Relief sought through these facts: {relief.join("; ")}.</Text> : null}
+                  {profile ? <Text type="supporting">The matter records this relief: {profile.relief.trim() || "none recorded"}.</Text> : null}
                 </div>
               ) : null}
             </li>

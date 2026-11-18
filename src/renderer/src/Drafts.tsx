@@ -29,31 +29,26 @@ export function kindLabel(kind: DraftRecord["kind"]): string {
   return fixed[kind] ?? kind.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-const GROUPS: Array<{ id: string; label: string }> = [
-  { id: "petitions", label: "Petitions and appeals" },
-  { id: "pleadings", label: "Pleadings" },
-  { id: "applications", label: "Applications" },
-  { id: "evidence", label: "Affidavits and evidence" },
-  { id: "submissions", label: "Submissions" },
-  { id: "notices", label: "Notices" },
-  { id: "notes", label: "Notes and summaries" },
-  { id: "letters", label: "Client letters" },
-];
-
 /** Phase 6: pick a document of the catalogue and generate it from the matter's records. */
 function NewDraft(props: { matterId: string; onGenerate: (kind: DraftRecord["kind"]) => void; disabled: boolean }) {
   const [entries, setEntries] = useState<CatalogueEntry[]>([]);
-  const [group, setGroup] = useState(GROUPS[0].id);
+  const [pickedGroup, setPickedGroup] = useState("");
   useEffect(() => {
     void api.draftCatalogue().then(setEntries).catch(() => setEntries([]));
   }, []);
+  // The catalogue owns the group ids and their labels, in catalogue order.
+  const groups: Array<{ id: string; label: string }> = [];
+  for (const entry of entries) {
+    if (!groups.some((g) => g.id === entry.group)) groups.push({ id: entry.group, label: entry.groupLabel });
+  }
+  const group = groups.some((g) => g.id === pickedGroup) ? pickedGroup : (groups[0]?.id ?? "");
   const ofGroup = entries.filter((e) => e.group === group);
   const [kind, setKind] = useState("");
   const chosen = ofGroup.find((e) => e.kind === kind) ?? ofGroup[0];
   return (
     <div className="new-draft" data-testid="new-draft">
-      <select aria-label="Document group" value={group} onChange={(e) => setGroup(e.target.value)}>
-        {GROUPS.map((g) => (
+      <select aria-label="Document group" value={group} onChange={(e) => setPickedGroup(e.target.value)}>
+        {groups.map((g) => (
           <option key={g.id} value={g.id}>{g.label}</option>
         ))}
       </select>

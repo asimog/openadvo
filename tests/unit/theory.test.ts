@@ -8,6 +8,8 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { MatterStore, MatterStoreError } from "../../src/lib/matter-store/index.ts";
+import { strategyView } from "../../src/lib/studio/strategy.ts";
+import type { ArgumentRecord, ArgumentStatus } from "../../src/shared/studio.ts";
 
 async function store(): Promise<MatterStore> {
   return MatterStore.create(mkdtempSync(path.join(tmpdir(), "p7-theory-")), "Theory", { actor: "advocate" });
@@ -49,4 +51,53 @@ test("K4: a theory is proposed — the agent's waits, the advocate's is primary;
   // Only the advocate decides.
   assert.throws(() => s.studio.decideTheory(own.id, "rejected", "why", { actor: "agent" }), (e: Error) => (e as MatterStoreError).code === "HUMAN_ONLY");
   assert.ok(s.studio.theories().length >= 2);
+});
+
+test("K4: the Strategy view assembles the standing, the attack that fells an out argument, the dependencies and the weaknesses", () => {
+  const arg = (id: string, claim: string, computed: ArgumentStatus, over: Partial<ArgumentRecord & { computed: ArgumentStatus }> = {}): ArgumentRecord & { computed: ArgumentStatus } => ({
+    id,
+    runId: "r1",
+    issueId: "i1",
+    round: 1,
+    ground: "precedent",
+    stance: "petitioner",
+    claim,
+    reasoning: "From the record.",
+    events: [],
+    authorities: [],
+    provisions: [],
+    questions: [],
+    elo: 1000,
+    attacks: null,
+    attackKind: null,
+    status: "accepted",
+    decidedAt: null,
+    createdAt: "2026-11-18T00:00:00Z",
+    ...over,
+    computed,
+  });
+  const standing = arg("a1", "The order was passed without a hearing.", "in");
+  const felled = arg("a2", "The petition is within time.", "out");
+  const attack = arg("x1", "The record shows the petition was filed late.", "in", { attacks: "a2", attackKind: "undercut" });
+  const rejected = arg("a3", "A theory the advocate rejected.", "in", { status: "rejected" });
+  const theory = { id: "t1", title: "No notice", statement: "No notice was issued.", issueIds: ["i1"], burden: "the petitioner", standard: "preponderance", author: "advocate" as const, status: "primary" as const, reason: null, createdAt: "", decidedAt: null };
+  const dropped = { ...theory, id: "t2", title: "Dropped", status: "rejected" as const };
+  const view = strategyView({
+    arguments: [standing, felled, attack, rejected],
+    theories: [theory, dropped],
+    weakPoints: [{ claim: standing.claim, questions: ["Was notice issued?"], attacks: [] }],
+    gaps: [{ columnId: "c2", question: "Balance of convenience" }],
+  });
+  // Only the live theories, and only the advocate's accepted main arguments, stand.
+  assert.deepEqual(view.theories.map((t) => t.id), ["t1"]);
+  assert.deepEqual(view.standing.map((a) => a.id), ["a1", "a2"]);
+  assert.equal(view.standing[0].felledBy, null);
+  // The attack that fells the out argument is named in its own words.
+  assert.equal(view.standing[1].standing, "out");
+  assert.equal(view.standing[1].felledBy, attack.claim);
+  // The attack graph's dependency is listed, and the rejected argument is not.
+  assert.deepEqual(view.dependencies.map((d) => [d.attackerId, d.targetId, d.kind]), [["x1", "a2", "undercut"]]);
+  // The weaknesses are the loop's weak points and the record-table gaps.
+  assert.deepEqual(view.weaknesses.weakPoints.map((w) => w.claim), [standing.claim]);
+  assert.deepEqual(view.weaknesses.gaps.map((g) => g.question), ["Balance of convenience"]);
 });

@@ -57,9 +57,15 @@ test("K9: a question names its contradiction or statement; a question with no ta
   // A question on a recorded statement.
   const q1 = s.proposeCrossQuestion({ witness: "W1", question: "You say the accused was with you; the record of your statement says otherwise. Which is true?", targetKind: "evidence", targetId: ev.id }, { actor: "agent" });
   assert.equal(q1.status, "candidate");
+  // The plan lists the question with the record it springs from and its anchors.
+  assert.equal(q1.target?.sourceName, "w.txt");
+  assert.equal(q1.target?.text, "I was at the shop on 12.03.2024. The accused was not with me.");
+  assert.equal(q1.target?.givenBy, "W1");
   // A question on a contradiction (the fact it joins).
   const q2 = s.proposeCrossQuestion({ question: "Your two versions of 12.03.2024 cannot both be true, can they?", targetKind: "contradiction", targetId: fact.id }, { actor: "agent" });
   assert.equal(q2.status, "candidate");
+  assert.equal(q2.target?.page, 1);
+  assert.equal(q2.target?.line, 1);
 
   // A question with no target in the record is refused.
   assert.throws(() => s.proposeCrossQuestion({ question: "Where were you?", targetKind: "evidence", targetId: "no-such-statement" }, { actor: "agent" }), (e: Error) => (e as MatterStoreError).code === "BAD_CROSS_QUESTION");

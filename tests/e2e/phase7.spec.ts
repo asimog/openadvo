@@ -64,7 +64,7 @@ test("phase 7: issue ties, the element chart, the theory, the tasks, the cross-e
   await app.evaluate(() => (globalThis as any).__openadvoTest.ingestIdle());
   const notebook = await call<{ events: Array<{ id: string }> }>("getNotebook", matterId);
   for (const event of notebook.events) await call("confirmEvent", matterId, event.id);
-  await call("setMatterProfile", matterId, { stage: "Notice issued", proceeding: "interim injunction" });
+  await call("setMatterProfile", matterId, { stage: "Notice issued", proceeding: "interim injunction", relief: "Quash the impugned order" });
 
   // ---- K1: the issue names its facts; the Conference view shows the ties ----
   const facts = await call<Array<{ id: string; text: string }>>("evidenceFacts", matterId);
@@ -81,6 +81,7 @@ test("phase 7: issue ties, the element chart, the theory, the tasks, the cross-e
   // The issues and their fact ties are shown in the Studio's Conference part.
   await page.getByRole("tab", { name: "Studio" }).click();
   await expect(page.getByTestId("issue-facts")).toContainText("brief.pdf", { timeout: 15_000 });
+  await expect(page.getByTestId("issue-facts")).toContainText("Quash the impugned order");
 
   // ---- K3: the interim-relief element chart; a gap closed by an anchored cell; a proposed element confirmed ----
   await call("applyRecordTemplate", matterId, "interim_relief");
@@ -135,12 +136,18 @@ test("phase 7: issue ties, the element chart, the theory, the tasks, the cross-e
   // ---- K2: the argument loop, then the standing on the Strategy view ----
   const acceptedIssue = (await call<{ issues: Array<{ id: string; status: string }> }>("getResearch", matterId)).issues.find((i) => i.status === "accepted")!;
   await app.evaluate(
-    (_e, input) => (globalThis as any).__openadvoTest.runStudioScripted(input.matterId, input.issueId, [
-      { match: "TASK: Propose", answer: JSON.stringify({ arguments: [{ claim: "The order was passed without hearing the petitioner.", reasoning: "E1 records the order and E2 records the petition; the record holds no notice.", events: [{ ref: "E1", quote: "without hearing the petitioner" }] }] }) },
-      { match: "critical questions", answer: '{"questions":["Was any notice issued before the order?"]}' },
-      { match: "counsel for the respondent", answer: JSON.stringify({ arguments: [{ kind: "undercut", claim: "The record's silence on notice does not prove none was issued.", reasoning: "E1 records only that the order does not mention a hearing.", events: [{ ref: "E1", quote: "without hearing the petitioner" }] }] }) },
-      { match: "better", answer: '{"better":"A"}' },
-    ]),
+    (_e, input) => (globalThis as any).__openadvoTest.runStudioScripted(
+      input.matterId,
+      input.issueId,
+      [
+        { match: "TASK: Propose", answer: JSON.stringify({ arguments: [{ claim: "The order was passed without hearing the petitioner.", reasoning: "E1 records the order and E2 records the petition; the record holds no notice.", events: [{ ref: "E1", quote: "without hearing the petitioner" }] }] }) },
+        { match: "better", answer: '{"better":"A"}' },
+      ],
+      [
+        { match: "critical questions", answer: '{"questions":["Was any notice issued before the order?"]}' },
+        { match: "counsel for the respondent", answer: JSON.stringify({ arguments: [{ kind: "undercut", claim: "The record's silence on notice does not prove none was issued.", reasoning: "E1 records only that the order does not mention a hearing.", events: [{ ref: "E1", quote: "without hearing the petitioner" }] }] }) },
+      ],
+    ),
     { matterId, issueId: acceptedIssue.id },
   );
   const studio = await call<{ arguments: Array<{ id: string; status: string; attacks: string | null }> }>("getStudio", matterId);
@@ -209,7 +216,9 @@ test("phase 7: issue ties, the element chart, the theory, the tasks, the cross-e
   const briefText = (await call<{ paragraphs: Array<{ text: string }> }>("getRevision", matterId, briefHead.id)).paragraphs.map((p) => p.text).join("\n");
   expect(briefText).toContain("HEARING BRIEF");
   expect(briefText).toContain("Notice issued");
+  expect(briefText).toContain("interim injunction");
   expect(briefText).toContain("2026-12-15");
+  expect(briefText).toContain("Reply affidavit within four weeks");
   expect(briefText).toContain("brief.pdf, p. 1, l. 4");
   expect(briefText).toContain("Was the petitioner heard before the order?");
   expect(briefText).toContain("The petition is late.");
@@ -225,6 +234,7 @@ test("phase 7: issue ties, the element chart, the theory, the tasks, the cross-e
 
   // The window shows the hearing prep group in the picker on the Matter tab.
   await page.getByRole("tab", { name: "Matter", exact: true }).click();
+  await expect(page.getByTestId("cross-examination").getByTestId("cross-target")).toContainText("brief.pdf");
   await expect(page.getByTestId("new-draft").getByLabel("Document group")).toContainText("Hearing preparation");
   await page.screenshot({ path: path.join(repo, "test-results", "phase7-strategy.png") });
   await app.close();

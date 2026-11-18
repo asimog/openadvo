@@ -39,6 +39,8 @@ export interface CrossQuestion {
   question: string;
   targetKind: "contradiction" | "evidence";
   targetId: string;
+  /** The record the question springs from, with its anchor; null when the row has gone. */
+  target: { text: string; sourceName: string; page: number | null; line: number | null; givenBy: string; givenAt: string } | null;
   author: "advocate" | "agent";
   status: "candidate" | "accepted" | "rejected";
   createdAt: string;

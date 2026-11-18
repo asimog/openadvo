@@ -136,7 +136,17 @@ export function PracticeSection(props: { matterId: string; version: number }) {
           {cross.map((q) => (
             <li key={q.id} data-testid="cross-question" data-status={q.status}>
               <Badge variant={q.status === "accepted" ? "success" : q.status === "rejected" ? "neutral" : "warning"} label={q.status} /> {q.witness ? <Text weight="semibold">{q.witness}: </Text> : null}
-              <Text>{q.question}</Text> <Text type="supporting">(from {q.targetKind === "contradiction" ? "a contradiction" : "a recorded statement"})</Text>
+              <Text>{q.question}</Text>
+              {q.target ? (
+                <Text type="supporting" data-testid="cross-target">
+                  From {q.targetKind === "contradiction" ? "the contradiction" : "the recorded statement"} at {q.target.sourceName}
+                  {q.target.page != null ? `, p. ${q.target.page}` : ""}
+                  {q.target.line != null ? `, l. ${q.target.line}` : ""}: {q.target.text}
+                  {q.target.givenBy ? ` (${q.target.givenBy}${q.target.givenAt ? `, ${q.target.givenAt}` : ""})` : ""}
+                </Text>
+              ) : (
+                <Text type="supporting">The target row is missing from the record.</Text>
+              )}
               {q.status === "candidate" ? (
                 <span className="row-actions">
                   <Button label="Accept" size="sm" clickAction={() => act(() => api.decideCrossQuestion(props.matterId, q.id, "accepted"))} />

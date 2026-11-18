@@ -12,6 +12,7 @@ import type { ArgumentRecord, ArgumentStatus, CorpusPart, EventRecord, IssueReco
 import { GROUNDS, STANCES } from "../../shared/studio.ts";
 import { citationKeyText, summariseVerification } from "../../shared/law.ts";
 import { recordGaps } from "../../lib/evidence/templates.ts";
+import { strategyView } from "../../lib/studio/strategy.ts";
 import { InspectButton } from "./V5.tsx";
 import { AuthorityReview, RehearsalPart } from "./StudioV5.tsx";
 
@@ -132,8 +133,7 @@ function StrategyPart(props: { matterId: string; version: number }) {
     }
   };
   if (!s) return null;
-  const live = s.theories.filter((t) => t.status !== "rejected");
-  const accepted = s.arguments.filter((a) => a.status === "accepted" && !a.attacks);
+  const view = strategyView({ arguments: s.arguments, theories: s.theories, weakPoints: weak, gaps });
   return (
     <section className="work-section" aria-label="Case strategy" data-testid="strategy-panel">
       <Heading level={3}>Case theory</Heading>
@@ -141,9 +141,9 @@ function StrategyPart(props: { matterId: string; version: number }) {
         A theory is what the case is really about: the issues it rests on, the burden it says your side bears, the standard it faces. The agent may propose one; you set its place. No theory states a probability of success.
       </Text>
       {error ? <div className="notice" role="alert">{error}</div> : null}
-      {live.length === 0 ? <Text type="supporting">No theory yet. Add yours, or ask the agent to propose one in the chat.</Text> : null}
+      {view.theories.length === 0 ? <Text type="supporting">No theory yet. Add yours, or ask the agent to propose one in the chat.</Text> : null}
       <ul className="plain-list" data-testid="theory-list">
-        {live.map((t) => (
+        {view.theories.map((t) => (
           <li key={t.id} className="phase4-row" data-testid="theory-row" data-status={t.status}>
             <div className="phase4-main">
               <div className="phase4-head">
@@ -181,13 +181,26 @@ function StrategyPart(props: { matterId: string; version: number }) {
         The accepted arguments with their standing from the attack graph, the weak points the loop found, and the elements of the record-table chart that have no confirmed evidence.
       </Text>
       <ul className="plain-list" data-testid="standing-list">
-        {accepted.length === 0 ? <Text type="supporting">No accepted argument yet. Run the loop on the Arguments tab and accept the arguments that hold.</Text> : null}
-        {accepted.slice(0, 12).map((a) => (
-          <li key={a.id} data-testid="standing-row" data-standing={a.computed}>
-            <Badge variant={a.computed === "in" ? "success" : a.computed === "out" ? "error" : "warning"} label={a.computed === "in" ? "stands" : a.computed === "out" ? "felled" : "undecided"} /> {a.claim}
+        {view.standing.length === 0 ? <Text type="supporting">No accepted argument yet. Run the loop on the Arguments tab and accept the arguments that hold.</Text> : null}
+        {view.standing.slice(0, 12).map((a) => (
+          <li key={a.id} data-testid="standing-row" data-standing={a.standing}>
+            <Badge variant={a.standing === "in" ? "success" : a.standing === "out" ? "error" : "warning"} label={a.standing === "in" ? "stands" : a.standing === "out" ? "felled" : "undecided"} /> {a.claim}
+            {a.felledBy ? <Text type="supporting"> — felled by: {a.felledBy}</Text> : null}
           </li>
         ))}
       </ul>
+      {view.dependencies.length > 0 ? (
+        <div data-testid="argument-dependencies">
+          <Text weight="semibold">Dependencies, from the attack graph:</Text>
+          <ul className="plain-list">
+            {view.dependencies.slice(0, 12).map((d) => (
+              <li key={d.attackerId}>
+                <Badge variant="neutral" label={d.kind} /> {d.attacker} → attacks → {d.target}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {weak.length > 0 ? (
         <div className="notice" data-testid="weak-points">
           <Text weight="semibold">Weak points of the accepted arguments:</Text>

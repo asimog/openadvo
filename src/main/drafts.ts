@@ -26,7 +26,7 @@ import { delayDays } from "../lib/filing/index.ts";
 import { protectedNamesIn, reporterOnlyCitations } from "../lib/filing/v5.ts";
 import { groundedStatus } from "../lib/studio/index.ts";
 import { bodyParagraphs, conferenceBlocks, condonationBlocks, generateStructured, petitionBlocks, prayerDefect, TITLES, TO_COMPLETE } from "../lib/drafting/structured.ts";
-import { CATALOGUE, COURT_FORMATS, courtFormat, templateOf, type DocumentTemplate } from "../lib/drafting/documents.ts";
+import { CATALOGUE, COURT_FORMATS, courtFormat, GROUP_LABEL, templateOf, type DocumentTemplate } from "../lib/drafting/documents.ts";
 import type { DraftingInput } from "../lib/drafting/parts.ts";
 import { appliedBecause, defaultUsed, formatCitation, normaliseReason, correctionPreference } from "../lib/preferences/index.ts";
 import { extractText } from "../lib/document-intelligence/index.ts";
@@ -90,11 +90,12 @@ export interface CatalogueEntry {
   kind: DraftKind;
   title: string;
   group: string;
+  groupLabel: string;
   note: string;
 }
 
 export function catalogue(): CatalogueEntry[] {
-  return CATALOGUE.map((t) => ({ kind: t.kind, title: t.title, group: t.group, note: t.note }));
+  return CATALOGUE.map((t) => ({ kind: t.kind, title: t.title, group: t.group, groupLabel: GROUP_LABEL[t.group], note: t.note }));
 }
 
 const KINDS: Record<"list_of_dates" | "synopsis", { title: string; generate: typeof generateListOfDates }> = {
@@ -290,6 +291,7 @@ export class Drafts {
         grounds: await approvedText("grounds", TITLES.grounds),
       },
       stage: matterProfile.stage ?? "",
+      proceedingType: matterProfile.proceeding ?? "",
       hearings: hearings.map((h) => ({ date: h.date, bench: h.bench, directions: h.directions, nextDate: h.nextDate, nextDateStatus: h.nextDateStatus })),
       orderDirections: store.evidence
         .parts()
