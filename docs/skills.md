@@ -57,7 +57,7 @@ P is the phase. The output types are draft, chart (a record table or an element 
 | SK-025 | Defect reply and re-filing | draft | 8 |
 | SK-026 | Draft review against the court template | list | 8 |
 | SK-027 | Citation and grounding review | list | 8 |
-| SK-028 | Matter Change Report | report | 9 |
+| SK-028 | Matter Change Report | report | 13 |
 | SK-029 | Legal notice and reply to notice | draft | 8 |
 | SK-030 | Condonation of delay application | draft | 8 |
 | SK-031 | Exemption, early hearing and urgent mentioning applications | draft | 8 |
