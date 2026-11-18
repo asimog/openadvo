@@ -22,8 +22,8 @@ Status: started 2026-11-18. The phase, its scope and its exit are in [../build-p
 | Element | Proposed from | Routes it may open |
 |---|---|---|
 | Foreign party | A party's recorded name or note, or the advocate | Section 9 CPC read with the forum clause; a foreign plaintiff's security for costs; service outside India |
-| Foreign judgment | A judgment from a court outside India, or the advocate | Section 13 and Section 44A CPC; enforcement, and the defences Section 13 names |
-| Foreign award | An award with a foreign seat, or the advocate | The New York Convention, Sections 44 to 52 of the Arbitration and Conciliation Act, 1996 |
+| Foreign judgment | The advocate, or a source the advocate marks as a foreign judgment | Section 13 and Section 44A CPC; enforcement, and the defences Section 13 names |
+| Foreign award | The advocate, or a source the advocate marks as a foreign award | The New York Convention, Sections 44 to 52 of the Arbitration and Conciliation Act, 1996 |
 | Foreign seat or venue | A forum clause that names a seat outside India | The law of the arbitration, the supervisory court, and Section 9 or Section 17 interim relief |
 | Foreign asset | The advocate | Enforcement and the assets named in the order |
 
@@ -35,7 +35,7 @@ Detection is narrow and honest:
 
 - a party whose recorded name or note names a country other than India;
 - a forum clause from D3 whose seat, venue or law is outside India;
-- a source the advocate marks as a foreign judgment or a foreign award.
+- a foreign judgment or a foreign award the advocate adds, or the agent proposes from the record.
 
 A missed element is added by the advocate. The window never guesses the nationality of a name.
 

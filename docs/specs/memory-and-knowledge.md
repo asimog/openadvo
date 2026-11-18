@@ -24,7 +24,7 @@ Two modules are built: **memory answers and the advocate graph** (F5, G3) and **
 | Which facts are disputed | confirmed and disputed facts, `disputed_fact` memory, date conflicts and contradictions | The fact, the two readings, and the anchors of both |
 | Which instructions were given | `client_instruction` memory and the communications records | The instruction, who gave it, when, and whether the advocate accepted it |
 | What changed since the last hearing | the last hearing, then orders, directions, compliance tasks, stage changes, new sources, drafts and memory records after its date | One line per change, with its record and date |
-| Which assumptions expired | memory records whose `valid_until` is before today, superseded records, stale court rules and unconfirmed limitations | The record, the date it expired, and what now depends on it |
+| Which assumptions expired | memory records whose `valid_until` is before today, superseded records, and unconfirmed limitations. The freshness of the court rules is outside this snapshot and is named as not read. | The record, the date it expired, and what now depends on it |
 
 `answerMemoryQuestion(snapshot, question)` classifies the question by its words, with the six standard questions first. A question outside the six searches the memory records and the issues for its words and says that it is a search, not one of the six.
 
@@ -52,7 +52,7 @@ The nodes are `advocate`, `court`, `practice_area`, `preference`, `precedent`, `
 
 - approved preferences: `advocate → prefers → preference`, and `preference → applies_in → court` when the reason names a court;
 - confirmed memory: `advocate → approved → precedent | lesson | court_practice`;
-- superseded memory: `memory → supersedes → memory`;
+- superseded memory: `advocate → supersedes → proposition`, read from the new record;
 - rejected memory: `advocate → rejected → proposition`;
 - outcome records: `outcome → succeeded_when | failed_because → proposition`, with the outcome's own words and the court;
 - approved library items: `advocate → approved → precedent`, and `precedent → used_in → court` when the item names one.
@@ -65,7 +65,7 @@ The graph holds no client fact. An outcome contributes its result and its legal 
 
 ### 4.1 Positions, playbooks, styles and errors
 
-The Knowledge Library already holds files with a kind and a precedent status (M1). M2 gives those rows a use. `src/lib/library/positions.ts` derives one role per item from its kind, its status, its court and its tags:
+The Knowledge Library already holds files with a kind and a precedent status (M1). M2 gives those rows a use. `src/lib/library/positions.ts` derives the roles of each item from its kind, its status, its court and its tags. The roles are views: an approved court template appears under both Approved precedents and Court-specific drafting styles.
 
 | Role | Kinds and status | What it is |
 |---|---|---|

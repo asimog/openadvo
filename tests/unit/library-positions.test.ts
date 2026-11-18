@@ -47,6 +47,9 @@ test("M2: an item gets one role from its kind, status, court and tags", () => {
   const groups = libraryRoles(items);
   assert.deepEqual(groups.map((g) => g.role), ["position", "playbook", "drafting_style", "common_error", "precedent", "other"]);
   assert.equal(groups.find((g) => g.role === "position")!.items.length, 2);
+  // The approved Delhi template is both a precedent and a court-specific drafting style.
+  assert.ok(groups.find((g) => g.role === "precedent")!.items.some((i) => i.id === "s-1"));
+  assert.ok(groups.find((g) => g.role === "drafting_style")!.items.some((i) => i.id === "s-1"));
 });
 
 test("M2: the approved precedent of the matter's court is offered first, with its scope", () => {

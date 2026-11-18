@@ -19,9 +19,19 @@ export function libraryRole(item: LibraryItem): LibraryRole {
   return "other";
 }
 
+/** The roles are views: an approved court template is both a precedent and a drafting style. */
 export function libraryRoles(items: LibraryItem[]): LibraryRoleGroup[] {
   const roles: LibraryRole[] = ["position", "playbook", "drafting_style", "common_error", "precedent", "other"];
-  return roles.map((role) => ({ role, title: ROLE_TITLE[role], items: items.filter((i) => libraryRole(i) === role) }));
+  return roles.map((role) => ({ role, title: ROLE_TITLE[role], items: items.filter((i) => inRole(i, role)) }));
+}
+
+function inRole(item: LibraryItem, role: LibraryRole): boolean {
+  if (role === "position") return item.kind === "proposition";
+  if (role === "playbook") return item.kind === "checklist";
+  if (role === "common_error") return item.kind === "note" && item.tags.some((t) => t.toLowerCase() === "common-error");
+  if (role === "drafting_style") return (item.kind === "template" || item.kind === "pleading") && item.court.trim().length > 0;
+  if (role === "precedent") return PRECEDENT_KINDS.includes(item.kind) && APPROVED.includes(item.status);
+  return libraryRole(item) === "other";
 }
 
 export const ROLE_TITLE: Record<LibraryRole, string> = {
