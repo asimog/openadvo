@@ -73,7 +73,7 @@ The roles gain the read tools of phases 4 and 7 (`list_facts`, `list_evidence`, 
 
 - Every skill has the check `schema` and `anchors`; every output item carries an anchor, and an anchor that names no record of the matter fails the gate.
 - A drafting skill writes proposals only (`propose_paragraph`, `propose_correction`, `insert_citation`). It never approves, keeps or files.
-- The witness rule (L8) is in every affidavit and evidence skill: the skill organises the deponent's own recorded words and composes none.
+- The witness rule (L7) is in every affidavit and evidence skill: the skill organises the deponent's own recorded words and composes none.
 - A skill that finds a legal point states it as a question for the advocate. It never decides it.
 - A skill whose output names a defect carries the severity the phase 6 mapping assigns (`severity_floor`).
 - A skill outside its pack, court or proceeding stops with the reason (D5), in the runner.

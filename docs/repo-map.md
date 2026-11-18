@@ -15,16 +15,23 @@ This file owns the folders, the write boundaries, the data outside the repositor
 | `src/shared/` | Types shared by main, preload and renderer. No runtime code with side effects. | — |
 | `src/lib/court-adapters/` | The court-rule adapter library: checks of an adapter, the quote match, section extraction, format checks ([specs/court-adapters.md](specs/court-adapters.md)). **Planned (S12):** the court-portal adapters and their Playwright scripts. | — |
 | `src/lib/browser/` | The browser's plain logic: address normalisation, the URL rule, bookmarks, recent pages, the new-tab page and the case-list answer (S10). | — |
-| `src/lib/library/` | The Knowledge Library's kind proposal, title and folder scope (M1). | — |
+| `src/lib/library/` | The Knowledge Library's kind proposal, title and folder scope (M1), and the four roles of an item: position, playbook, drafting style and common error; the precedent order (M2). | — |
 | `src/lib/classification/` | The classification proposal from the title, files, parties and profile (C3). | — |
 | `src/lib/stages/` | The stage list of each proceeding (C4). | — |
+| `src/lib/memory-answers/` | The six memory questions and their deterministic answers with record links (F5). | — |
+| `src/lib/jurisdiction/` | The foreign elements and the route facts they may open (D4). | — |
+| `src/lib/document-intelligence/` | Reading a document: PDF text, OCR, the second engine, the comparison, marks and the page and document quality metrics (H3, H14). | — |
 | `src/lib/evidence/` | Phase 4's plain rules: facts, structure, layout, relations, contradictions, timelines, templates, jurisdiction and related matters. |
 | `src/lib/drafting/` | Phase 6's plain drafting rules: the document catalogue (`documents.ts`), the part library (`parts.ts`), the DOCX builder and the SLP blocks. |
 | `src/lib/preferences/` | The learned preferences (A7): the keys, the ask-once questions, the correction-driven proposals. |
 | `src/lib/verification/` | The draft checks of phase 6 (P1 to P10): the one defect mapping, grounding, provenance, statutes, structure, markers, injection and the reviewer note. | — |
 | `src/lib/court-directory/` | The offline directory of courts and tribunals (B1). | Engineers; the advocate's corrections come with the pack editor. |
-| `src/lib/packs/` | The practice-pack registry (N4, Q3): checks, the pack of a matter, the skill gate and the filing plan; `slp.ts` holds the SLP generators. | Engineers. |
-| `packs/` | Built-in practice packs, one JSON file per pack: criminal, civil, writ and slp. Content only, no matter fact. | Engineers, with the official source. |
+| `src/lib/packs/` | The practice-pack registry (N4, N8, Q3): checks, the pack of a matter, the skill gate and the filing plan; `slp.ts` holds the SLP generators. | Engineers. |
+| `src/lib/builders/` | The workflow and agent schema, their checks, the conditions and the versioned records (N5). | — |
+| `src/lib/triggers/` | The trigger table, the events, the fire and its proposals (S9). | — |
+| `src/lib/integrations/` | The integration manifest schema and its check (Y1). | — |
+| `src/lib/storage/` | The local, OneDrive and Google Drive synced-folder detection and import rules (Y3). | — |
+| `packs/` | Built-in practice packs, one JSON file per pack (21): criminal, civil, writ, slp, commercial, family, property, insolvency, banking, tax, service, consumer, ip, environmental, competition, administrative, insurance, immigration, rera, motor and cheque. Content only, no matter fact. | Engineers, with the official source. |
 | `adapters/` | Built-in court adapters, one folder per adapter with `adapter.json` (data, never code). | Engineers, with every quote read in the official document. |
 | `src/main/browser.ts` | The built-in browser (S10): tabs, bookmarks, recent pages, hidden agent pages, DevTools Protocol control and downloads into the matter. | Main-process code only. |
 | `src/main/library.ts` | The Knowledge Library's file import and blob folder (M1). | Main-process code only. |
@@ -33,7 +40,7 @@ This file owns the folders, the write boundaries, the data outside the repositor
 | `src/main/document-ops.ts` | PDF extract, split, merge, reorder, annotate, highlight and redact, each writing a new source (H13). | Main-process code only. |
 | `skills/` | Built-in skills, one folder per skill with `SKILL.md` and its `review.json` ([specs/harness-and-stores.md](specs/harness-and-stores.md) section 2; [specs/practice-packs.md](specs/practice-packs.md) section 4). | Engineers, through a reviewed change (N6). |
 | `tests/unit/` | `node:test` tests of the plain libraries. | — |
-| `tests/e2e/` | Playwright tests against the built application. The native harness parts have one file each: `native-policy.spec.ts`, `native-helpers.spec.ts`, `native-plan.spec.ts`, `native-context.spec.ts`. Phase 1 is `phase1.spec.ts`; phase 2 is `phase2.spec.ts`; phase 3 is `phase3.spec.ts`; phase 4 is `phase4.spec.ts`; phase 6 is `phase6.spec.ts`; phase 7 is `phase7.spec.ts`; phase 8 is `phase8.spec.ts`. | — |
+| `tests/e2e/` | Playwright tests against the built application. The native harness parts have one file each: `native-policy.spec.ts`, `native-helpers.spec.ts`, `native-plan.spec.ts`, `native-context.spec.ts`. Phase 1 is `phase1.spec.ts`; phase 2 is `phase2.spec.ts`; phase 3 is `phase3.spec.ts`; phase 4 is `phase4.spec.ts`; phase 6 is `phase6.spec.ts`; phase 7 is `phase7.spec.ts`; phase 8 is `phase8.spec.ts`; phase 10 is `phase10.spec.ts`; phase 11 is `phase11.spec.ts`. | — |
 | `scripts/` | Node scripts. No PowerShell (decision 9). | — |
 | `spikes/` | Small proofs that settle one question. Each has a result file. Not product code. | — |
 | `docs/` | Durable documents. See [README.md](README.md). | — |
@@ -59,8 +66,8 @@ This file owns the folders, the write boundaries, the data outside the repositor
 | User data: `pi-agent/` | The application's Pi folder, which is also Pi's agent folder (`PI_CODING_AGENT_DIR`, decision 22): `settings.json` (packages the advocate added, Pi settings), `npm/` and `git/` (installed packages), the added extensions' own files, and any Pi skills, prompt templates, context files or extensions placed there. |
 | User data: `tool-policy.json`, `logs/tool-policy.jsonl` | The tool policy and its review log (decision 23; [harness-build.md](harness-build.md) section 1.3). |
 | User data: `adapters/`, `intel/docs/` | The advocate's own court adapters (copies made with Edit a copy, and adapters added from a file, with `adapters.lock.json`), and the court documents downloaded or uploaded for a list, by SHA-256. |
-| User data: `advocate.db`, `intel.db`, `skills/` | `advocate.db` (profile, preferences, advocate memory, the Knowledge Library) and `intel.db` (sources and their freshness; the court directory and packs from phase 2), each with its own hash-chained `event` table (Q4). `skills/` holds the advocate's own skills, one folder per skill (N1). |
-| User data: `library/`, `browser-bookmarks.json`, `browser-history.json`, `matter-proposals.json`, `enrolment.bin` | The Knowledge Library's files by SHA-256 (M1); the browser's bookmarks and recent pages (S10); the matters the agent proposed (C2); the enrolment number encrypted with `safeStorage` (A2). |
+| User data: `advocate.db`, `intel.db`, `skills/` | `advocate.db` (profile, preferences, advocate memory, the Knowledge Library, the advocate memory graph, the built workflows and agents, the trigger table and the integration registry) and `intel.db` (sources and their freshness; the court directory and packs from phase 2), each with its own hash-chained `event` table (Q4). `skills/` holds the advocate's own skills, one folder per skill (N1, N7). |
+| User data: `library/`, `browser-bookmarks.json`, `browser-history.json`, `matter-proposals.json`, `enrolment.bin`, `integrations/` | The Knowledge Library's files by SHA-256 (M1); the browser's bookmarks and recent pages (S10); the matters the agent proposed (C2); the enrolment number encrypted with `safeStorage` (A2); the installed integration manifests, one folder each (Y1). |
 | Pi credentials | Pi's own credential store. The application does not read or copy it (choice EC-6). |
 
 ## Reference repositories

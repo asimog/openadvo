@@ -1,5 +1,5 @@
 /**
- * Phase 6 (L1, L2, L3, L8): the document catalogue. Every kind builds from the records, the
+ * Phase 6 (L1, L2, L3, L7): the document catalogue. Every kind builds from the records, the
  * record parts keep the ids of their records, the witness rule organizes only the deponent's own
  * words, the court format matches the adapter's own rules, and the pack's parts map to documents.
  */
@@ -96,7 +96,7 @@ test("the prayers are generated from the recorded relief (L2)", () => {
   assert.match(joined, /\(b\) pass such other order/);
 });
 
-test("the witness rule: the affidavit organizes only the deponent's own recorded words (L8)", () => {
+test("the witness rule: the affidavit organizes only the deponent's own recorded words (L7)", () => {
   const blocks = affidavitPart(INPUT, "X");
   const statements = blocks.filter((b) => (b.evidenceIds ?? []).length > 0);
   assert.equal(statements.length, 2);
@@ -109,7 +109,7 @@ test("the witness rule: the affidavit organizes only the deponent's own recorded
   assert.ok(note, "the affidavit says its words are the deponent's");
 });
 
-test("the witness rule: no recorded statement is a marker, never invented prose (L8)", () => {
+test("the witness rule: no recorded statement is a marker, never invented prose (L7)", () => {
   const blocks = affidavitPart({ ...INPUT, evidence: [] }, "X");
   assert.ok(blocks.some((b) => b.text.includes(TO_COMPLETE)));
   assert.ok(blocks.some((b) => b.text.includes("the deponent's own words")));

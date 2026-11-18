@@ -102,7 +102,7 @@ The replacement for pi-btw, built in the window.
 
 ## 3. HB-2: browser: A built, B and C planned (features S10, S11, S12)
 
-The assessment is in [../.agents/logs/2026-11-15-browser-and-harness-assessment.md](../.agents/logs/2026-11-15-browser-and-harness-assessment.md). A is built in phase 3; B and C are phase 9.
+The assessment is in [../.agents/logs/2026-11-15-browser-and-harness-assessment.md](../.agents/logs/2026-11-15-browser-and-harness-assessment.md). A is built in phase 3; B and C are phase 13.
 
 ### 3.1 A: the built-in browser (one engine, two kinds of browsing; S10, phase 3, built)
 
@@ -130,7 +130,7 @@ It also carries the import of the advocate's case list from eCourts and court po
 - **The court portal window** stays a separate window for filing until phase 13. It keeps its origin list and its two confirmations. The built-in browser is the general browser; it does not carry the filing guards. Moving the portal onto it is part of phase 13.
 - **Not used:** a remote debugging port with Playwright `connectOverCDP` into the application. It would expose every application window to any local program.
 
-### 3.2 B: agent-browser through MCP (S11, phase 9)
+### 3.2 B: agent-browser through MCP (S11, phase 13)
 
 - **What.** vercel-labs/agent-browser (Rust, Apache-2.0), with a Windows x64 build. `agent-browser mcp` runs an MCP server over stdio. The application's Pi already loads MCP.
 - **Use.** Heavy or parallel background browsing that should not run inside the application process.
@@ -141,7 +141,7 @@ It also carries the import of the advocate's case list from eCourts and court po
   - it uses its own browser profile, never the advocate's.
 - **To settle in a spike:** Chrome for Testing (a large download) against attaching to a hidden Electron page; behaviour on Windows.
 
-### 3.3 C: Playwright scripts (S12, phase 9)
+### 3.3 C: Playwright scripts (S12, phase 13)
 
 - **What.** Fixed, testable scripts per court for scheduled work: cause lists, case status, new orders (features S2 to S5).
 - **Where.** `src/lib/court-adapters/<court>/` in TypeScript. A Python Playwright script is allowed where a court needs it, behind the same adapter interface.

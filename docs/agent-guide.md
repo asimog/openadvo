@@ -135,6 +135,16 @@ Key files:
 | `src/lib/drafting/documents.ts`, `src/lib/drafting/parts.ts` | Phase 6's document catalogue, its parts, the court DOCX formats and the pack-part mapping (L1 to L3) |
 | `src/lib/preferences/` | The learned preference keys, the ask-once questions and the correction-driven proposals (A7) |
 | `src/lib/verification/` | The draft checks: `index.ts` (the one defect mapping), `grounding.ts` (P1), `provenance.ts` (P2), `statute.ts` (P4), `structure.ts` (P7, P8), `injection.ts` (P10), `reviewer-note.ts` (P9) |
+| `src/lib/memory-answers/` | The six memory questions and their answers with record links (F5) |
+| `src/lib/library/positions.ts` | The four roles of a library item and the precedent order (M2); the acts they serve are in `src/lib/library/` |
+| `src/lib/jurisdiction/` | The foreign elements and the route facts (D4) |
+| `src/lib/document-intelligence/quality.ts` | The page and document quality metrics (H14) |
+| `src/lib/builders/` | The workflow and agent schema, checks, conditions and versioned records (N5) |
+| `src/lib/triggers/` | The trigger table and its fire (S9) |
+| `src/lib/integrations/` | The integration manifest schema (Y1) |
+| `src/lib/storage/` | The OneDrive and Google Drive synced-folder detection (Y3) |
+| `src/main/workflow-runs.ts` | The workflow runner: the steps, the gates and the report (N5) |
+| `src/main/skill-import.ts` | The skill import preview, the scan and the install (N7) |
 
 ### 6.2 Patterns to keep
 

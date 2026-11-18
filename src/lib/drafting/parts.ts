@@ -1,5 +1,5 @@
 /**
- * Phase 6 (L1, L2, L3, L8): the part library of the drafting templates. A part is a function
+ * Phase 6 (L1, L2, L3, L7): the part library of the drafting templates. A part is a function
  * from the matter's records to blocks. Plain library: no Electron import, no Pi import
  * (decision 6). No model writes text: a form part is fixed text with recorded details filled
  * in, a record part is generated from confirmed records with the ids kept, and a slot part
@@ -35,7 +35,7 @@ export interface DraftingInput {
     page: number | null;
     line: number | null;
   }>;
-  /** The deponent's recorded statements (L8). */
+  /** The deponent's recorded statements (L7). */
   evidence: Array<{
     id: string;
     statement: string;
@@ -272,7 +272,7 @@ export function interimPrayers(i: DraftingInput): Block[] {
 }
 
 /**
- * The affidavit (L8, the witness rule): the deponent's own recorded words, organized. The
+ * The affidavit (L7, the witness rule): the deponent's own recorded words, organized. The
  * generator sorts the statements by the date they were given, numbers them, and composes
  * nothing. A statement the matter does not record is a marker, never invented prose.
  */

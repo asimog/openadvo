@@ -134,23 +134,146 @@ P is the phase. The output types are draft, chart (a record table or an element 
 
 ### 2.6 Other packs (phase 11)
 
-| Pack | Skills (ids SK-5xx onward) |
-|---|---|
-| Family | Divorce petition, maintenance application, domestic violence application, custody and guardianship, transfer of matrimonial case, matrimonial evidence chart, stridhan claim |
-| Property | Title chain chart, land record review by state, partition suit, possession and eviction, injunction against dispossession, registration objections |
-| Insolvency | Section 7, 9 and 10 applications, claim forms, objection to a resolution plan, appeal to NCLAT |
-| Banking and debt recovery | SARFAESI Section 17 application, DRT original application, DRAT appeal, pre-deposit waiver |
-| Tax | Reply to a notice, appeal memo (CIT(A), ITAT, CESTAT, GST appellate), stay of demand, writ against an assessment |
-| Service and employment | CAT original application, writ in service matters, disciplinary proceedings review, industrial dispute reference |
-| Consumer | Complaint with pecuniary jurisdiction facts, written version, appeal |
-| Intellectual property | Infringement and passing-off suit, interim injunction, evidence preservation of online infringement, rectification and opposition proceedings |
-| Environmental | NGT application, appeal, expert evidence chart |
-| Competition | Information to CCI, reply to an investigation report, appeal to NCLAT |
-| Administrative and regulatory | Show-cause reply, statutory appeal, writ against an order, RTI first and second appeals |
-| Insurance | Repudiation challenge before a consumer commission or ombudsman, policy clause chart |
-| Immigration and citizenship | Writ against a deportation or visa order, Foreigners Tribunal record review |
-| RERA | Complaint, appeal to the appellate tribunal |
-| Motor accident and compensation | Claim petition, compensation computation sheet, appeal |
-| Cheque dishonour | Statutory notice, complaint, compounding application |
+Each row is one skill of its pack. The output types are those of section 2.
+
+**Family**
+
+| ID | Skill | Output | P |
+|---|---|---|---|
+| SK-501 | Divorce petition | draft | 11 |
+| SK-502 | Maintenance application | draft | 11 |
+| SK-503 | Domestic violence application | draft | 11 |
+| SK-504 | Custody and guardianship petition | draft | 11 |
+| SK-505 | Transfer of matrimonial case | draft | 11 |
+| SK-506 | Matrimonial evidence chart | chart | 11 |
+| SK-507 | Stridhan claim | draft | 11 |
+
+**Property**
+
+| ID | Skill | Output | P |
+|---|---|---|---|
+| SK-511 | Title chain chart | chart | 11 |
+| SK-512 | Land record review by state | record | 11 |
+| SK-513 | Partition suit | draft | 11 |
+| SK-514 | Possession and eviction | draft | 11 |
+| SK-515 | Injunction against dispossession | draft | 11 |
+| SK-516 | Registration objections | draft | 11 |
+
+**Insolvency**
+
+| ID | Skill | Output | P |
+|---|---|---|---|
+| SK-521 | Section 7 application | draft | 11 |
+| SK-522 | Section 9 application | draft | 11 |
+| SK-523 | Section 10 application | draft | 11 |
+| SK-524 | Claim forms and objection to a resolution plan | draft | 11 |
+| SK-525 | Appeal to NCLAT | draft | 11 |
+
+**Banking and debt recovery**
+
+| ID | Skill | Output | P |
+|---|---|---|---|
+| SK-531 | SARFAESI Section 17 application | draft | 11 |
+| SK-532 | DRT original application | draft | 11 |
+| SK-533 | DRAT appeal | draft | 11 |
+| SK-534 | Pre-deposit waiver | draft | 11 |
+
+**Tax**
+
+| ID | Skill | Output | P |
+|---|---|---|---|
+| SK-541 | Reply to a tax notice | draft | 11 |
+| SK-542 | Appeal memo to CIT(A) | draft | 11 |
+| SK-543 | Appeal memo to ITAT | draft | 11 |
+| SK-544 | Appeal to CESTAT and the GST appellate authority | draft | 11 |
+| SK-545 | Stay of demand and writ against an assessment | draft | 11 |
+
+**Service and employment**
+
+| ID | Skill | Output | P |
+|---|---|---|---|
+| SK-551 | CAT original application | draft | 11 |
+| SK-552 | Writ in a service matter | draft | 11 |
+| SK-553 | Disciplinary proceedings review | report | 11 |
+| SK-554 | Industrial dispute reference | draft | 11 |
+
+**Consumer**
+
+| ID | Skill | Output | P |
+|---|---|---|---|
+| SK-561 | Consumer complaint with pecuniary jurisdiction facts | draft | 11 |
+| SK-562 | Written version | draft | 11 |
+| SK-563 | Consumer appeal | draft | 11 |
+
+**Intellectual property**
+
+| ID | Skill | Output | P |
+|---|---|---|---|
+| SK-571 | Infringement and passing-off suit | draft | 11 |
+| SK-572 | Interim injunction in an IP suit | draft | 11 |
+| SK-573 | Evidence preservation of online infringement | draft | 11 |
+| SK-574 | Rectification and opposition proceedings | draft | 11 |
+
+**Environmental**
+
+| ID | Skill | Output | P |
+|---|---|---|---|
+| SK-581 | NGT application | draft | 11 |
+| SK-582 | NGT appeal | draft | 11 |
+| SK-583 | Expert evidence chart | chart | 11 |
+
+**Competition**
+
+| ID | Skill | Output | P |
+|---|---|---|---|
+| SK-591 | Information to CCI | draft | 11 |
+| SK-592 | Reply to an investigation report | draft | 11 |
+| SK-593 | Appeal to NCLAT under the Competition Act | draft | 11 |
+
+**Administrative and regulatory**
+
+| ID | Skill | Output | P |
+|---|---|---|---|
+| SK-601 | Show-cause reply | draft | 11 |
+| SK-602 | Statutory appeal | draft | 11 |
+| SK-603 | Writ against an administrative order | draft | 11 |
+| SK-604 | RTI first and second appeals | draft | 11 |
+
+**Insurance**
+
+| ID | Skill | Output | P |
+|---|---|---|---|
+| SK-611 | Repudiation challenge before a consumer commission or the ombudsman | draft | 11 |
+| SK-612 | Policy clause chart | chart | 11 |
+
+**Immigration and citizenship**
+
+| ID | Skill | Output | P |
+|---|---|---|---|
+| SK-621 | Writ against a deportation or visa order | draft | 11 |
+| SK-622 | Foreigners Tribunal record review | report | 11 |
+
+**RERA**
+
+| ID | Skill | Output | P |
+|---|---|---|---|
+| SK-631 | RERA complaint | draft | 11 |
+| SK-632 | RERA appeal to the appellate tribunal | draft | 11 |
+
+**Motor accident and compensation**
+
+| ID | Skill | Output | P |
+|---|---|---|---|
+| SK-641 | Motor accident claim petition | draft | 11 |
+| SK-642 | Compensation computation sheet | record | 11 |
+| SK-643 | Motor accident appeal | draft | 11 |
+
+**Cheque dishonour**
+
+| ID | Skill | Output | P |
+|---|---|---|---|
+| SK-651 | Statutory notice under Section 138 | draft | 11 |
+| SK-652 | Cheque dishonour complaint | draft | 11 |
+| SK-653 | Compounding application | draft | 11 |
 
 Each pack file holds: proceedings, courts, governing acts by version (from E3), templates (L1), checklists (B11), record-table columns (H12), stage lists (C4), intake questions, skills, evidence requirements and terms. A pack is content. It owns no matter fact.

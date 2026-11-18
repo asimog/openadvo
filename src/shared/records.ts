@@ -205,7 +205,7 @@ export const DRAFT_KINDS = [
   "application_exemption",
   "application_early_hearing",
   "condonation",
-  // Evidence and submissions (L3, L8).
+  // Evidence and submissions (L3, L7).
   "affidavit",
   "written_submissions",
   // Pre-litigation and notices (L3).
@@ -296,7 +296,7 @@ export interface ParagraphSourceFact {
   line: number | null;
 }
 
-/** One evidence statement behind a generated paragraph (the witness rule, L8). */
+/** One evidence statement behind a generated paragraph (the witness rule, L7). */
 export interface ParagraphSourceEvidence {
   id: string;
   statement: string;
@@ -381,7 +381,7 @@ export interface ParagraphLinkRecord {
   eventIds: string[];
   /** The facts this paragraph states (L2). */
   factIds: string[];
-  /** The evidence statements this paragraph organizes (L8). */
+  /** The evidence statements this paragraph organizes (L7). */
   evidenceIds: string[];
   createdAt: string;
 }

@@ -75,14 +75,6 @@ export const PREFERENCE_KEYS: PreferenceKey[] = [
     default: "docx",
   },
   {
-    key: "languages",
-    title: "Languages",
-    question: "Which languages do you work in? English first; Hindi and other Indian languages come in phase 11.",
-    mattersIn: ["drafting", "records"],
-    default: "English",
-    free: true,
-  },
-  {
     key: "briefs_other_counsel",
     title: "Briefing other counsel",
     question: "Do you brief other counsel to argue your matters?",

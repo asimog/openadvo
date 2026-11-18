@@ -12,7 +12,7 @@ export interface Block {
   eventIds?: string[];
   /** The facts this paragraph states (L2). */
   factIds?: string[];
-  /** The evidence statements this paragraph organizes (L8). */
+  /** The evidence statements this paragraph organizes (L7). */
   evidenceIds?: string[];
 }
 

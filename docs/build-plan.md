@@ -21,11 +21,11 @@ Accepted by the owner on 2026-11-15. This file owns the phases, their scope, the
 | 6 | Drafting and verification | 20 |
 | 7 | Argument and hearings | 10 |
 | 8 | Practice packs: criminal, civil, writ and SLP | 3 |
-| 9 | Court monitoring and communications | 15 |
-| 10 | Memory, knowledge and analytics | 6 |
-| 11 | Builders, automation, languages and the remaining packs | 11 |
+| 9 | — Skipped; merged with phase 13 | — |
+| 10 | Memory and knowledge | 4 |
+| 11 | Builders, automation, integrations and the remaining packs | 8 |
 | 12 | Chamber work | 4 |
-| 13 | Portal filing by the agent | 1 |
+| 13 | Court monitoring, communications and portal filing | 16 |
 
 ### Phase 1: Harness and stores
 
@@ -71,7 +71,7 @@ Exit: A research memorandum on a real question: adverse authority found, binding
 
 Templates per proceeding and court, generated parts, documents, tracked changes, comparison, citation insertion in the advocate's format, the witness rule, every verification check, the reviewer note, markers, the injection scan, the AI-use disclosure, and learned preferences with the advocate's memory.
 
-Scope: A7, F2, L1–L6, L8, P1–P11.
+Scope: A7, F2, L1–L6, L7, P1–P11.
 
 Exit: Draft review on a real draft: every error found is supported by a source with an accurate reference. A filing-ready Delhi High Court set that the advocate files without changes.
 
@@ -91,29 +91,29 @@ Scope: N4, N6, Q3.
 
 Exit: Real briefs: an SLP with no loss against what the code does today; a Delhi bail application; a quashing petition with an ingredients chart; a writ with maintainability questions; a civil injunction with a conditions chart.
 
-### Phase 9: Court monitoring and communications
+### Phase 9: Skipped
 
-Pack checks, the Court Intelligence dashboard, the advocate's research services, case status, new orders, cause lists, legal developments, matter impact and the Matter Change Report, alerts, agent-browser through MCP and Playwright scripts ([harness-build.md](harness-build.md) HB-2 B and C), audio and video, messages as instructions, the communication chronology, and calendar sync.
+Skipped by the owner on 2026-11-18. Its scope is built with phase 13, so court monitoring and communications come after the builders and the remaining packs.
 
-Scope: B8, B9, E8, H2, S3–S8, S11, S12, V2, V3, Y2.
+Scope: none.
 
-Exit: Four weeks of real practice. A new order in a monitored case is ingested, with its directions and deadlines proposed. A new adverse judgment is traced to every affected matter and draft, and nothing changes without approval.
+Exit: none.
 
-### Phase 10: Memory, knowledge and analytics
+### Phase 10: Memory and knowledge
 
-Retrieval answers over memory, the advocate memory graph, approved and rejected positions and playbooks, outcome records, and legal and quality analytics.
+Retrieval answers over memory, the advocate memory graph, approved and rejected positions and playbooks, outcome records, and the use of an approved precedent in drafting.
 
-Scope: F5, G3, M2, M3, X1, X2.
+Scope: F5, G3, M2, M3.
 
-Exit: Returning to an old matter: prior decisions, instructions, open items and posture are recovered correctly.
+Exit: Returning to an old matter: prior decisions, instructions, open items and posture are recovered correctly. An approved precedent is offered first for a new draft, with its scope. An outcome record is entered and the advocate memory graph shows it.
 
-### Phase 11: Builders, automation, languages and the remaining packs
+### Phase 11: Builders, automation, integrations and the remaining packs
 
-The workflow and agent builder, event triggers, skill import, integration manifests, cloud storage import, foreign elements, Hindi and other Indian languages, OCR comparison and a regional second engine, bilingual drafting, and the packs in [skills.md](skills.md) sections 2.5 and 2.6.
+The workflow and agent builder, event triggers, skill import, integration manifests, cloud storage import, foreign elements, OCR comparison and quality checks, and the packs in [skills.md](skills.md) sections 2.5 and 2.6.
 
-Scope: D4, H14, L7, N5, N7, S9, U1–U3, Y1, Y3.
+Scope: D4, H14, N5, N7, N8, S9, Y1, Y3.
 
-Exit: Hindi records read with anchors. One real brief per new pack, including a Section 34 challenge, completed by the owner or by an advocate the owner names.
+Exit: One real brief per new pack, including a Section 34 challenge, completed by the owner or by an advocate the owner names. A built workflow runs its skills in order with its approval gates. A clipped scan shows its quality score and its pages are found.
 
 ### Phase 12: Chamber work
 
@@ -123,13 +123,13 @@ Scope: A8, W1–W3.
 
 Exit: A matter moved between two installations with its roles, comments and review, and nothing lost or exposed.
 
-### Phase 13: Portal filing by the agent
+### Phase 13: Court monitoring, communications and portal filing
 
-The agent prepares, uploads and submits on a portal after the advocate's two confirmations. Until this phase, Open Advocate produces filing-ready sets and the advocate files them.
+Pack checks, the Court Intelligence dashboard, the advocate's research services, case status, new orders, cause lists, legal developments, matter impact and the Matter Change Report, alerts, agent-browser through MCP and Playwright scripts ([harness-build.md](harness-build.md) HB-2 B and C), audio and video, messages as instructions, the communication chronology, and calendar sync. The agent also prepares, uploads and submits on a portal after the advocate's two confirmations. Until this phase, Open Advocate produces filing-ready sets and the advocate files them.
 
-Scope: T1.
+Scope: B8, B9, E8, H2, S3–S8, S11, S12, T1, V2, V3, Y2.
 
-Exit: One real filing on each first-court portal, with the advocate's two confirmations, and nothing submitted without them.
+Exit: Four weeks of real practice. A new order in a monitored case is ingested, with its directions and deadlines proposed. A new adverse judgment is traced to every affected matter and draft, and nothing changes without approval. One real filing on each first-court portal, with the advocate's two confirmations, and nothing submitted without them.
 
 ## 3. Where the work starts
 

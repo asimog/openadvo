@@ -2,7 +2,7 @@
 
 Status: started 2026-11-18. The phase, its scope and its exit are in [../build-plan.md](../build-plan.md) section 2. The features are in [../features.md](../features.md). The advocate sees the workflow steps 7 and 8 of [../advocate-workflow.md](../advocate-workflow.md) section 4.
 
-Two modules are built: **drafting** (A7, F2, L1 to L6, L8) and **verification** (P1 to P11). The filing set is generalized from the Supreme Court SLP package to the court-adapter proceeding packs, because the phase exit needs a filing-ready Delhi High Court set.
+Two modules are built: **drafting** (A7, F2, L1 to L6, L7) and **verification** (P1 to P11). The filing set is generalized from the Supreme Court SLP package to the court-adapter proceeding packs, because the phase exit needs a filing-ready Delhi High Court set.
 
 ## 1. What already exists, and what this phase adds
 
@@ -46,7 +46,7 @@ Every kind is a real draft: generation builds it, the editor opens it, the check
 | Para-wise reply | record | admission and denial facts, ids kept |
 | Grounds, Questions of law | slot | the existing approved-draft flow |
 | Prayers, interim prayers | form + record | recorded relief, the kind's defaults |
-| Affidavit | record | the deponent's recorded evidence statements (the witness rule, L8) |
+| Affidavit | record | the deponent's recorded evidence statements (the witness rule, L7) |
 | Verification | form | the deponent recorded in the matter details |
 | Signature block, vakalatnama | form | the advocate profile |
 | Index of annexures and authorities | record | the annexure manager, the authority table |
@@ -54,7 +54,7 @@ Every kind is a real draft: generation builds it, the editor opens it, the check
 | Research memo | record | the stored memorandum |
 | Letter or notice frame | form | the recipient and subject; the body is a slot |
 
-**The witness and deponent rule (L8).** The affidavit part only organizes the deponent's own recorded words (the `evidence` rows: statement, given_by, given_at). It sorts them by date, numbers them, and never composes a sentence of its own. A draft check flags an affidavit paragraph that links to no evidence record. The system prompt states the rule to the agent; the affidavit drafting skill of phase 8 (SK-033) inherits it.
+**The witness and deponent rule (L7).** The affidavit part only organizes the deponent's own recorded words (the `evidence` rows: statement, given_by, given_at). It sorts them by date, numbers them, and never composes a sentence of its own. A draft check flags an affidavit paragraph that links to no evidence record. The system prompt states the rule to the agent; the affidavit drafting skill of phase 8 (SK-033) inherits it.
 
 **Ids kept (L2).** `paragraph_link` gains `fact_ids` and `evidence_ids` columns (the `event_ids` column exists). "Show source of this paragraph" shows the facts and the evidence statements behind a paragraph, with their source lines.
 
@@ -84,7 +84,7 @@ Two revisions: exists. A revision against its rendered PDF: `compareRevisionToPd
 | `paragraph_length` | drafting | `short`, `medium`, `long` |
 | `research_depth` | research | `quick`, `standard`, `deep` |
 | `output_format` | drafting output | `docx` (default), `pdf` |
-| `languages` | drafting, records | free text; English first (decision 19) |
+| `languages` | drafting, records | removed: English only (decision 19) |
 | `briefs_other_counsel` | hearing work | `yes`, `no` |
 
 Three flows put a value in place, and the advocate decides in all of them:
@@ -179,7 +179,7 @@ Between the steps of the phase: the type check and the unit tests. The end-to-en
 - The practice-pack drafting skills (SK-201, SK-304 and the rest) are phase 8. This phase builds the documents, templates, parts and checks they run on.
 - The affidavit goes as far as the recorded evidence statements go. Statements the matter does not record are markers, not composed prose (the witness rule).
 - A shared verification record is a log, never a substitute for the online check (ruling R-4).
-- Bilingual drafting is phase 11 (L7). The `languages` preference records the advocate's choice now; nothing translates yet.
+- Bilingual drafting is not built (owner, 2026-11-18: "do not implement any hindi or other regional languages"; decision 19).
 
 ## 9. Done
 

@@ -28,7 +28,7 @@ Every feature also obeys the hard rules in [product.md](product.md) section 3. T
 | A4 | Practice areas (multiple, with one primary); trial, appellate or both; civil, criminal or both | 3 | N | Practice map; enabled packs | Q1 |
 | A5 | Import of past work: judgments, pleadings, templates, written submissions, memos, notes, checklists, statutory material; each tagged with a precedent status (default "unreviewed") | 3 | N | Knowledge Library entries | M1 |
 | A6 | Practice Profile page, built automatically from the onboarding answers, imported work and imported matters: court map, practice map, territorial map, statutory map, sources plan, local intelligence plan, recommended skills and workflows, library structure; the advocate corrects any field, never fills it in; also territory: states, districts, the High Court territory, other states, foreign parties, international arbitration, cross-border enforcement | 3 | N | One page | A1, A2, A3, A4, A5, A9, B1, Q1 |
-| A7 | Preferences learned later: citation format, drafting style, pleading structure, paragraph length, research depth, output format, languages; asked inside the first task where each matters, or proposed after repeated corrections; also "Applied because" note on every preference the agent uses | 6 | X | Advocate memory records | F2 |
+| A7 | Preferences learned later: citation format, drafting style, pleading structure, paragraph length, research depth, output format; asked inside the first task where each matters, or proposed after repeated corrections; also "Applied because" note on every preference the agent uses | 6 | X | Advocate memory records | F2 |
 | A8 | Team list for a chamber: juniors, clerks, briefing counsel, arguing counsel (names and roles only) | 12 | N | Team records | W2 |
 | A9 | Import existing matters (optional, at onboarding or later): the advocate signs in to eCourts (ecourts.gov.in) or a High Court or Supreme Court portal in the app's browser; the agent reads the advocate's case list there and proposes one matter per case, with CNR, court, parties, stage and next date; the advocate chooses which to create | 3 | N | Proposed matters | S10, C2, B2 |
 
@@ -45,8 +45,8 @@ Filing readiness is part of local intelligence: the court's registry rules (B5) 
 | B5 | Registry pack: filing checklists per case type, document order, index, pagination, annexures, affidavits, vakalatnama, court fee, PDF rules (size, OCR, bookmarks, naming), defect list and defect classes, re-filing rules, listing and mentioning, urgent listing, certified copies, inspection, paper-book rules, formatting rules | 2 | X | Checklist rows; feeds T-section filing | B4 |
 | B6 | Procedural pack: governing procedural law by date, limitation periods, exclusions and extensions, condonation requirements, appeal, revision, review and curative routes, interim applications, service and notice, evidence rules, post-order compliance, execution | 2 | X | Rule rows; feeds limitation and route checks | B4 |
 | B7 | Bench data: current and past bench composition, rosters, sittings, bench strength (for authority research only) | 2 | N | Bench rows | B3 |
-| B8 | Pack check task: re-read each source by its access method; show changes as a diff for the advocate to accept | 9 | N | Change list in the Review Inbox | B2, R1 |
-| B9 | Court Intelligence dashboard: selected courts, current rules and circulars, recent judgments, today's cause lists, amendments, filing-rule changes, holidays, procedural updates, new favourable and adverse authorities, failed sources, rows waiting for verification; also freshness of every monitored source on screen; no promise of monitoring where access is not permitted | 9 | N | One view | B2, B3, B4, B5, B6, B7 |
+| B8 | Pack check task: re-read each source by its access method; show changes as a diff for the advocate to accept | 13 | N | Change list in the Review Inbox | B2, R1 |
+| B9 | Court Intelligence dashboard: selected courts, current rules and circulars, recent judgments, today's cause lists, amendments, filing-rule changes, holidays, procedural updates, new favourable and adverse authorities, failed sources, rows waiting for verification; also freshness of every monitored source on screen; no promise of monitoring where access is not permitted | 13 | N | One view | B2, B3, B4, B5, B6, B7 |
 | B10 | Pack editor: the advocate adds or corrects a rule with its source; marked "advocate-entered" | 2 | N | Rule rows | B4 |
 | B11 | Filing checklist per court and case type, from the registry pack | 2 | X | Checklist with states | B5 |
 | B12 | Filing-ready set: required documents, document order, index, pagination, annexures, affidavits, vakalatnama, court fee, limitation | 2 | X | Filing set, ready for the advocate to file | B11 |
@@ -92,7 +92,7 @@ Filing readiness is part of local intelligence: the court's registry rules (B5) 
 | E5 | Binding-effect check: the hierarchy, the territory, bench strength, coordinate benches, larger benches, prospective overruling; the result is a fact with its reasoning, for the advocate | 5 | N | Binding or persuasive label per authority per matter | E1, G1, B1 |
 | E6 | Conflicts: decisions in conflict across benches or High Courts, references pending before larger benches | 5 | N | Conflict review items | G1 |
 | E7 | Proposition records: a legal proposition, its supporting passages, its adverse passages, verified on a date; also legal memory: propositions, interpretations, tests, burdens, procedural principles, remedies, limitation and jurisdiction principles, each with sources | 5 | N | Proposition table | E1, F |
-| E8 | Connector to the advocate's research services through their own session (SCC Online, Manupatra, Indian Kanoon API with the advocate's key) | 9 | N | Fetched judgments with provenance | E1, L1 |
+| E8 | Connector to the advocate's research services through their own session (SCC Online, Manupatra, Indian Kanoon API with the advocate's key) | 13 | N | Fetched judgments with provenance | E1, L1 |
 
 ## F. Memory
 
@@ -123,7 +123,7 @@ Filing readiness is part of local intelligence: the court's registry rules (B5) 
 | ID | Feature | Ph | Base | Output | Needs |
 |---|---|---|---|---|---|
 | H1 | Intake of PDF, DOCX, DOC, ODT, XLSX, CSV, PPTX, images, scans, photos, EML, MSG, HTML, ZIP bundles, court downloads | 3 | X | Sources with origins | — |
-| H2 | Audio and video intake with transcription (Whisper), speaker turns, time anchors | 9 | X | Transcript sources | — |
+| H2 | Audio and video intake with transcription (Whisper), speaker turns, time anchors | 13 | X | Transcript sources | — |
 | H3 | Understanding: OCR with Tesseract, and docTR as the second engine (in place of PP-OCR, which the code uses now); layout, tables, headers and footers, footnotes, page and paragraph anchors, classification, entities, dates, amounts, citations | 4 | B/X | — | — |
 | H4 | Signature, stamp and seal detection; handwriting flagged for the advocate | 4 | N | Marks on pages | H3 |
 | H5 | Duplicate, version and relationship detection (annexure of, reply to, certified copy of) | 4 | X | Links | H3 |
@@ -135,7 +135,7 @@ Filing readiness is part of local intelligence: the court's registry rules (B5) 
 | H11 | Matter Evidence Vault: bulk ingestion into the thousands; questions across the collection; review tables; grouping by issue; anomaly report | 5 | X | Vault view over the record table | H1, G7 |
 | H12 | Record table templates per proceeding (for example charge-sheet witnesses, FIR ingredients, plaint and written-statement admissions) | 4 | N | Column sets | Q1 |
 | H13 | Document operations: annotate, highlight, split, merge, reorder, convert, extract pages, redact (with a redaction log), export; also merge documents, reorder, split; annexure manager with marks (Annexure P-1 and so on, per court) | 4 | X | New revisions or exports | H1 |
-| H14 | OCR comparison between the engines (critical-token disputes, built today with PP-OCR), a second engine for regional languages, and OCR quality checks; also document quality score (blur, skew, missing pages) | 11 | X | Dispute review items | H3, U2 |
+| H14 | OCR comparison between the engines (critical-token disputes), OCR quality checks; also document quality score (blur, skew, missing pages) | 11 | X | Dispute review items; quality score | H3 |
 
 ## I. Context assembly
 
@@ -178,8 +178,7 @@ Filing readiness is part of local intelligence: the court's registry rules (B5) 
 | L4 | Agent edits as tracked changes; keep or undo by the advocate; revisions; approved revisions are immutable | 6 | B | — | — |
 | L5 | Citation insertion from saved authorities in the advocate's format | 6 | N | Citations in the draft | A7, E1 |
 | L6 | Compare any two revisions; compare a revision with the rendered PDF | 6 | B/X | — | — |
-| L7 | Bilingual drafting (English with Hindi parts) | 11 | N | Drafts | U1 |
-| L8 | Witness and deponent rule: the agent prepares questions and organises the deponent's own words; it does not compose the evidence | 6 | N | Skill rule | Q2 |
+| L7 | Witness and deponent rule: the agent prepares questions and organises the deponent's own words; it does not compose the evidence | 6 | N | Skill rule | Q2 |
 
 ## M. Knowledge Library
 
@@ -196,10 +195,11 @@ Filing readiness is part of local intelligence: the court's registry rules (B5) 
 | N1 | Skills registry: built-in skills from the repository; the advocate's own skills from user data; index; versions; also skill format: id, version, title, description with triggers, packs, courts, proceedings, inputs, required context, permitted tools, output schema, checks, approval points, tests, author | 1 | N | Registry | — |
 | N2 | Skill runner: builds the context package, starts a scoped Pi session, validates the output, runs the checks, writes the report card | 1 | N | Run records | N1, I1, Q2, R |
 | N3 | `/` to call a skill, `@` to add context, and skill choice from a plain request | 1 | N | Chat gestures | N1 |
-| N4 | Skill library ([skills.md](skills.md)): about 140 skills | 8 | X | Skills | N1 |
+| N4 | Skill library ([skills.md](skills.md)): the phase 8 skills of sections 2.1 to 2.4 | 8 | X | Skills | N1 |
 | N5 | Workflow builder: chain skills, with approval gates, conditions and inputs; visual editor; also agent builder: a named agent from a task, instructions, skills, a template, sources, required context, tools, output, checks and approvals; versioned and testable | 11 | X | Workflows | N2 |
 | N6 | Skill review before ship: thirteen parameters, three legal failure modes; score kept with the version; also skill tests: fixture briefs and expected properties; run on every change | 8 | N | Review record | N1 |
 | N7 | Import of a skill from a file: show the raw text, scan for embedded instructions, ask before install | 11 | N | Installed skill | N1 |
+| N8 | Remaining packs: the phase 11 skills of [skills.md](skills.md) sections 2.1 to 2.6 in 17 packs (commercial and arbitration, family, property, insolvency, banking and debt recovery, tax, service and employment, consumer, intellectual property, environmental, competition, administrative and regulatory, insurance, immigration and citizenship, RERA, motor accident, cheque dishonour) | 11 | N | Skills and packs | N4, Q1, N1 |
 
 ## O. Harness and agent controls
 
@@ -245,16 +245,16 @@ Filing readiness is part of local intelligence: the court's registry rules (B5) 
 |---|---|---|---|---|---|
 | S1 | Court adapter interface: capabilities and access method per court | 3 | X | Adapter registry | B2 |
 | S2 | Adapters: Supreme Court (from the current portal code), Delhi High Court, Delhi district courts (eCourts) in phase 1; more by phase | 3 | X | Adapters | S1 |
-| S3 | Case status: next date, listing, adjournments, transfers, bench changes, connected cases; through the advocate's session where needed | 9 | X | Status records | S1 |
-| S4 | New orders and judgments for the advocate's matters; ingested as sources; impact check | 9 | X | Sources; review items | S3, K8 |
-| S5 | Cause lists for the advocate's courts and matters on a date | 9 | N | Today's list | S1 |
-| S6 | Legal developments: new Supreme Court and High Court judgments in the advocate's areas, new legislation, amendments, repeals, notifications, circulars, practice directions, filing-rule changes, limitation changes | 9 | N | Development records | B2, E |
-| S7 | Matter impact analysis: affected provisions, matters, propositions, drafts and arguments; a change report; the advocate approves every change; also matter Change Report: what changed since the last review, why it matters, which decisions it may affect, what action is needed | 9 | X | Impact review items | S6, G4 |
-| S8 | Alerts: relevant new judgment, new adverse authority, amendment, filing-rule change, limitation approaching, new order, hearing date change, missing document, unanswered direction, citation treatment change, run waiting for approval | 9 | X | Notifications | S3, S4, S5, S6, S7 |
+| S3 | Case status: next date, listing, adjournments, transfers, bench changes, connected cases; through the advocate's session where needed | 13 | X | Status records | S1 |
+| S4 | New orders and judgments for the advocate's matters; ingested as sources; impact check | 13 | X | Sources; review items | S3, K8 |
+| S5 | Cause lists for the advocate's courts and matters on a date | 13 | N | Today's list | S1 |
+| S6 | Legal developments: new Supreme Court and High Court judgments in the advocate's areas, new legislation, amendments, repeals, notifications, circulars, practice directions, filing-rule changes, limitation changes | 13 | N | Development records | B2, E |
+| S7 | Matter impact analysis: affected provisions, matters, propositions, drafts and arguments; a change report; the advocate approves every change; also matter Change Report: what changed since the last review, why it matters, which decisions it may affect, what action is needed | 13 | X | Impact review items | S6, G4 |
+| S8 | Alerts: relevant new judgment, new adverse authority, amendment, filing-rule change, limitation approaching, new order, hearing date change, missing document, unanswered direction, citation treatment change, run waiting for approval | 13 | X | Notifications | S3, S4, S5, S6, S7 |
 | S9 | Event triggers: new document, email, order, hearing date, instruction, amendment, deadline approaching, citation status change, stage change, defect received; each starts named skills; also automated responses (proposals only): rebuild the chronology, update the context, flag affected issues, create research tasks, draft a letter or update, recalculate deadlines, reassess arguments | 11 | N | Trigger table | N5 |
 | S10 | Built-in browser ([harness-build.md](harness-build.md) HB-2 A): a tabbed browser pane for the advocate, hidden agent pages in the same engine, handover for logins and CAPTCHAs, agent tools over the DevTools Protocol, downloads into the matter; the court portal window moves onto it | 3 | X | Browser pane; `browser_*` tools | Q2 |
-| S11 | agent-browser through MCP for heavy background browsing (HB-2 B) | 9 | N | MCP server | S10 |
-| S12 | Playwright scripts per court for scheduled work: cause lists, case status, new orders (HB-2 C) | 9 | N | Adapter scripts | S1 |
+| S11 | agent-browser through MCP for heavy background browsing (HB-2 B) | 13 | N | MCP server | S10 |
+| S12 | Playwright scripts per court for scheduled work: cause lists, case status, new orders (HB-2 C) | 13 | N | Adapter scripts | S1 |
 
 ## T. Portal filing by the agent (last phase)
 
@@ -264,21 +264,13 @@ Open Advocate produces filing-ready sets (B11 to B17) and the advocate files the
 |---|---|---|---|---|---|
 | T1 | E-filing on a portal by the agent: prepare the bundle, fill and upload, and submit only after the advocate's two confirmations; the advocate signs in and solves the CAPTCHA | 13 | X | Captured result | S10, B12 |
 
-## U. Languages
-
-| ID | Feature | Ph | Base | Output | Needs |
-|---|---|---|---|---|---|
-| U1 | Hindi OCR and display (Tesseract Hindi data), language detection per page | 11 | N | Hindi readings | H3 |
-| U2 | Regional languages, added per state the advocate selects | 11 | N | Readings | U1 |
-| U3 | Line translation beside the original; also translation of a line or a document, kept beside the original, never as the source | 11 | N | Reading layer | — |
-
-## V. Communications as evidence and instructions
+## U. Communications as evidence and instructions
 
 | ID | Feature | Ph | Base | Output | Needs |
 |---|---|---|---|---|---|
 | V1 | Mail import into a matter, thread rebuild, attachments as sources | 3 | X | Sources | H1 |
-| V2 | Classification of a message: instruction, notice, admission, commitment, deadline; an instruction is recorded with who gave it and whether the advocate accepted it | 9 | N | Records | V1, F1 |
-| V3 | WhatsApp and SMS exports, voice notes; communication chronology | 9 | N | Sources and timeline | H2, H10 |
+| V2 | Classification of a message: instruction, notice, admission, commitment, deadline; an instruction is recorded with who gave it and whether the advocate accepted it | 13 | N | Records | V1, F1 |
+| V3 | WhatsApp and SMS exports, voice notes; communication chronology | 13 | N | Sources and timeline | H2, H10 |
 | V4 | Questions document for the client | 3 | B | — | — |
 
 ## W. Collaboration (chamber, no server)
@@ -290,19 +282,12 @@ Open Advocate produces filing-ready sets (B11 to B17) and the advocate files the
 | W3 | Comments, annotations, assignments, review queue for a senior | 12 | N | Queue | W1 |
 | W4 | Receiving documents from a client into a matter (folder drop, mail) | 3 | X | Sources | V1 |
 
-## X. Analytics (no business figures)
-
-| ID | Feature | Ph | Base | Output | Needs |
-|---|---|---|---|---|---|
-| X1 | Legal analytics: frequently cited authorities, conflicts, court-wise and issue-wise trends, amendment impact, treatment of authorities; descriptive only | 10 | X | Research panels | G1 |
-| X2 | Quality analytics: citation corrections, draft rejections, fact corrections, missing sources, run failures, context quality, advocate overrides, format defects | 10 | N | Quality panel | N2 |
-
 ## Y. Integrations
 
 | ID | Feature | Ph | Base | Output | Needs |
 |---|---|---|---|---|---|
 | Y1 | Integration manifest: version, capabilities, permissions, inputs and outputs, events, lifecycle, audit, failure and disable behaviour | 11 | N | Manifest schema | — |
-| Y2 | Calendar export and sync of hearings and deadlines (ICS first, then Google and Outlook) | 9 | N | Calendar entries | C5 |
+| Y2 | Calendar export and sync of hearings and deadlines (ICS first, then Google and Outlook) | 13 | N | Calendar entries | C5 |
 | Y3 | Storage: local folders first; OneDrive and Google Drive import | 11 | N | Sources | H1 |
 | Y4 | Models: local inference, OpenRouter and other providers through Pi; embeddings; reranking | 1 | B/X | — | — |
 | Y5 | Microsoft Word round trip | 1 | B | — | — |

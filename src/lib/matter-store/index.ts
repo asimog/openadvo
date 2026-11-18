@@ -414,7 +414,7 @@ ALTER TABLE document_part_layout RENAME TO document_part;`);
       db.exec("ALTER TABLE matter_details ADD COLUMN copy_applied TEXT NOT NULL DEFAULT '';");
       db.exec("ALTER TABLE matter_details ADD COLUMN copy_received TEXT NOT NULL DEFAULT '';");
     }
-    // Phase 6 (L2, L8): a generated paragraph may link to facts and evidence statements.
+    // Phase 6 (L2, L7): a generated paragraph may link to facts and evidence statements.
     const pl = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'paragraph_link'").get() as { sql?: string } | undefined;
     if (pl?.sql && !pl.sql.includes("fact_ids")) {
       db.exec("ALTER TABLE paragraph_link ADD COLUMN fact_ids TEXT NOT NULL DEFAULT '[]';");

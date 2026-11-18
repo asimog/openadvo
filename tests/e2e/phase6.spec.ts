@@ -300,7 +300,7 @@ test("phase 6: a Delhi High Court W.P.(C) filing set, from templates to the sign
   expect(learned?.reason).toContain("the same correction twice");
   await call("decidePreference", learned!.id, "approved");
 
-  // The affidavit from the deponent's recorded words (L8), and the relief recorded so the
+  // The affidavit from the deponent's recorded words (L7), and the relief recorded so the
   // prayers are generated from it (L2).
   const sources = await call<Array<{ id: string; name: string }>>("listSources", matterId);
   await call("evidenceAdd", matterId, { sourceId: sources[0].id, statement: "I received the impugned order on 15.03.2024 and fell ill the same week.", givenBy: "X", givenAt: "2024-03-16" });
@@ -311,7 +311,7 @@ test("phase 6: a Delhi High Court W.P.(C) filing set, from templates to the sign
   const writRegen = await call<{ draft: { id: string } }>("generateDraft", matterId, "writ_petition");
   expect(writRegen.draft.id).toBe(writ.id);
 
-  // The affidavit's paragraphs link to the recorded statement (L8 ids kept).
+  // The affidavit's paragraphs link to the recorded statement (L7 ids kept).
   const affidavitHead = (await call<Array<{ id: string; kind: string; head: { id: string } }>>("listDrafts", matterId)).find((d) => d.id === affidavit.draft.id)!.head;
   const affidavitDetail = await call<{ paragraphs: Array<{ anchor: string | null; text: string }> }>("getRevision", matterId, affidavitHead.id);
   expect(affidavitDetail.paragraphs.some((p) => p.text.includes("fell ill the same week"))).toBe(true);

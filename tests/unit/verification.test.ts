@@ -130,9 +130,9 @@ test("P6: a paragraph whose facts are all confirmed and uncontradicted has no fa
   assert.deepEqual(result.defects, []);
 });
 
-// ---- Phase 6 (L8): the witness rule on the affidavit kinds ----
+// ---- Phase 6 (L7): the witness rule on the affidavit kinds ----
 
-test("L8: an affidavit statement without a recorded statement of the deponent is a defect; one with it passes", () => {
+test("L7: an affidavit statement without a recorded statement of the deponent is a defect; one with it passes", () => {
   const affidavit = { anchor: "a", text: "AFFIDAVIT", eventIds: [], factIds: [] };
   const lead = { anchor: "b", text: "1. I am the petitioner. I am competent to swear this affidavit.", eventIds: [], factIds: [] };
   const linked = { anchor: "c", text: "2. I received the order.", eventIds: [], factIds: [], evidenceIds: ["ev1"] };

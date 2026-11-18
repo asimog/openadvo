@@ -1,7 +1,6 @@
 # Architecture
 
 Accepted by the owner on 2026-11-15. This file owns the layers, the stores and what each one owns, the three graphs, context assembly, memory, the harness, local intelligence, court adapters and languages. The engineering choices under it are in [engineering.md](engineering.md).
-
 ## 1. Base
 
 The plan keeps the code's base: Electron with TypeScript, React with Astryx, Pi in the main process, `node:sqlite`, Euro-Office, Tesseract and PP-OCR through ONNX Runtime, and Whisper. Reasons:
@@ -22,7 +21,7 @@ Browser service       advocate tabs · hidden agent pages · DevTools Protocol c
 Intelligence services Jurisdiction · Local intelligence · Context assembly · Memory · Research
                       Document · Evidence · Drafting · Verification · Filing readiness · Monitoring · Automation
 Canonical stores      matter.db (per matter) · blobs · corpus.db · intel.db · advocate.db · skills/
-Derived indexes       FTS5 · vectors · graph edges · analytics views   (rebuildable, own nothing)
+Derived indexes       FTS5 · vectors · graph edges   (rebuildable, own nothing)
 ```
 
 ## 3. One owner for each kind of information
@@ -39,7 +38,7 @@ Derived indexes       FTS5 · vectors · graph edges · analytics views   (rebui
 | Execution state | Agent runtime | Pi session files per matter (current) |
 | Permissions and policy | Policy module in the main process | code plus `advocate.db` settings |
 | Audit | Hash chain inside each store | current pattern, extended to `advocate.db` and `intel.db` |
-| Search, vectors, graph, analytics | Derived indexes | one rebuild command each |
+| Search, vectors, graph | Derived indexes | one rebuild command each |
 
 Rule: a module writes only to its own store. Another module asks it through a function. The agent writes nothing directly. It proposes, and the advocate decides through a bridge function.
 
@@ -104,6 +103,6 @@ An adapter is a module per court or portal. It declares what it can do: case sta
 
 ## 10. Languages
 
-English first. Hindi and other Indian languages come in phase 11 (Tesseract has Hindi data), through OCR data for each language and translation of each line. A translation is a reading of a line, kept beside the original. It is never the source.
+English only. Hindi and other Indian languages are not built (owner, 2026-11-18: "do not implement any hindi or other regional languages"). OCR reads the English text layer and English scans. A translation, if it were added, would be a reading of a line kept beside the original. It would never be the source.
 
 ---

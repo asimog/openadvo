@@ -80,7 +80,7 @@ export type DefectKind =
   | "annexure_reference"
   | "relief_mismatch"
   | "page_format"
-  /** L8: an affidavit paragraph links to no recorded statement of the deponent. */
+  /** L7: an affidavit paragraph links to no recorded statement of the deponent. */
   | "affidavit_unlinked";
 
 export interface Defect {
@@ -104,7 +104,7 @@ export interface CheckParagraph {
   eventIds: string[];
   /** The facts the anchor links to (phase 6, L2). */
   factIds?: string[];
-  /** The evidence statements the anchor organizes (phase 6, L8). */
+  /** The evidence statements the anchor organizes (phase 6, L7). */
   evidenceIds?: string[];
 }
 
@@ -147,7 +147,7 @@ export interface CheckInput {
   facts?: CheckFact[];
   /** The open contradictions (phase 6, P6): never resolved silently. */
   contradictions?: CheckContradiction[];
-  /** The draft's kind, for the kind-specific rules (the witness rule, L8). */
+  /** The draft's kind, for the kind-specific rules (the witness rule, L7). */
   kind?: string;
   /** The other draft of the pair (Synopsis for a List of Dates, and the reverse), when it exists. */
   other?: { title: string; paragraphs: CheckParagraph[] };
@@ -195,7 +195,7 @@ function whereFact(f: CheckFact): string {
   return f.sourceName ? `${f.sourceName}${f.page != null ? `, p. ${f.page}` : ""}${f.line != null ? `, l. ${f.line}` : ""}` : "no source recorded";
 }
 
-/** The closing note the affidavit generator writes after the deponent's statements (L8). */
+/** The closing note the affidavit generator writes after the deponent's statements (L7). */
 const AFFIDAVIT_NOTE = "The statements above are the deponent's own recorded words";
 const AFFIDAVIT_KINDS = new Set(["affidavit", "counter_affidavit", "rejoinder"]);
 
@@ -229,7 +229,7 @@ function sameSet(a: Set<string>, b: Set<string>): boolean {
  * 5. Where the other draft links the same event, both state it with the same dates, and an event
  *    stated here is stated there (9D: the Synopsis agrees with the List of Dates).
  * For an affidavit kind, every numbered statement must link to a recorded statement of the
- * deponent (L8, the witness rule).
+ * deponent (L7, the witness rule).
  */
 export function checkDraft(input: CheckInput): CheckResult {
   const byId = new Map(input.events.map((e) => [e.id, e]));
@@ -380,7 +380,7 @@ export function checkDraft(input: CheckInput): CheckResult {
   const notRun: NotRun[] = [];
   if (input.paired !== false && !input.other) notRun.push({ check: "The Synopsis agrees with the List of Dates", reason: "The other draft does not exist yet." });
 
-  // Phase 6 (L8, the witness rule): an affidavit's numbered statement paragraphs must each link
+  // Phase 6 (L7, the witness rule): an affidavit's numbered statement paragraphs must each link
   // to a recorded statement of the deponent. The generator's own lead paragraph, the markers
   // and the closing note are exempt; every other composed paragraph is flagged, because the
   // agent may organize the deponent's words, never compose the evidence.
