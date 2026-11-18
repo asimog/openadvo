@@ -20,6 +20,8 @@ export interface RecordGap {
 export interface StrategyInput {
   arguments: Array<ArgumentRecord & { computed: ArgumentStatus }>;
   theories: TheoryRecord[];
+  /** The issues, so each argument's standing is read per issue. */
+  issues: Array<{ id: string; text: string }>;
   weakPoints: WeakPoint[];
   gaps: RecordGap[];
 }
@@ -27,6 +29,8 @@ export interface StrategyInput {
 export interface StandingRow {
   id: string;
   claim: string;
+  /** The issue the argument was made on; empty when the issue is not in the list. */
+  issue: string;
   standing: ArgumentStatus;
   /** The attack that fells an "out" argument, in its own words; null otherwise. */
   felledBy: string | null;
@@ -49,12 +53,13 @@ export interface StrategyView {
 
 export function strategyView(input: StrategyInput): StrategyView {
   const live = input.arguments.filter((a) => a.status !== "rejected");
+  const issueText = new Map(input.issues.map((i) => [i.id, i.text]));
   const standing = live
     .filter((a) => a.status === "accepted" && !a.attacks)
     .map((a) => {
       const attackers = live.filter((x) => x.attacks === a.id);
       const fell = attackers.find((x) => x.computed === "in") ?? attackers[0] ?? null;
-      return { id: a.id, claim: a.claim, standing: a.computed, felledBy: a.computed === "out" ? (fell?.claim ?? null) : null };
+      return { id: a.id, claim: a.claim, issue: issueText.get(a.issueId) ?? "", standing: a.computed, felledBy: a.computed === "out" ? (fell?.claim ?? null) : null };
     });
   const byId = new Map(live.map((a) => [a.id, a]));
   const dependencies = live
