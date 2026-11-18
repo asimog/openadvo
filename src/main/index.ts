@@ -1317,6 +1317,12 @@ function registerBridge(): void {
     return { sent: true };
   });
   handle("builders:agents", () => advocateStore.agents());
+  handle("builders:run-agent", async (matterId: string, agentId: string) => {
+    const profile = advocateStore.agent(String(agentId));
+    if (!profile) throw new Error(`NOT_FOUND: no agent ${String(agentId)}`);
+    void agent.send(String(matterId), `Run the agent "${profile.title}" (${profile.id}). Call run_agent now with the agent "${profile.id}". Then tell me each step's result in short.`).catch((e) => console.error(`agent start: ${(e as Error).message}`));
+    return { sent: true };
+  });
   handle("builders:save-agent", (input: Record<string, unknown>) => {
     if (!input || typeof input !== "object") throw new Error("BAD_AGENT: an agent is needed");
     return advocateStore.saveAgent(input, builderDeps(), { actor: "advocate" });
@@ -2028,6 +2034,8 @@ app.whenReady().then(() => {
         // Phase 11 (N5): the workflows the advocate built.
         workflow: (id) => advocateStore.workflow(id),
         workflows: () => advocateStore.workflows(),
+        agentProfile: (id) => advocateStore.agent(id),
+        agents: () => advocateStore.agents(),
       },
       browser: {
         open: async ({ url, visible }) => {

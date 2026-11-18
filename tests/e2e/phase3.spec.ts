@@ -322,7 +322,7 @@ test("C2, H1, W4, R2: add a matter from a folder, a CNR and an email; Home shows
   // Home shows the dashboard and every matter.
   await expect(page.getByTestId("home-dashboard")).toBeVisible();
   await expect(page.getByTestId("dash-matters")).toContainText("3");
-  await expect(page.getByTestId("dash-updates")).toContainText("phase 9");
+  await expect(page.getByTestId("dash-updates")).toContainText("phase 13");
   await app.close();
 });
 

@@ -291,6 +291,9 @@ export interface HarnessHost {
   workflow?(id: string): WorkflowDefinition | null;
   /** Phase 11 (N5): every built workflow. */
   workflows?(): WorkflowDefinition[];
+  /** Phase 11 (N5): a built agent and every built agent. */
+  agentProfile?(id: string): import("../shared/builders.ts").AgentProfile | null;
+  agents?(): import("../shared/builders.ts").AgentProfile[];
 }
 
 export interface AgentWorkHost {
@@ -2431,6 +2434,58 @@ export class Agent {
             description: "The workflows the advocate built, with their ids, versions, inputs and steps. Run one with run_workflow.",
             parameters: Type.Object({}),
             execute: async () => ({ content: [{ type: "text" as const, text: JSON.stringify(harness.workflows?.() ?? []) }], details: {} }),
+          }),
+          defineTool({
+            name: "run_agent",
+            label: "Run an agent",
+            description:
+              "Run a named agent the advocate built: its skills in order, with its instructions, template and sources, and a gate before each step where the agent requires one. It records each step in the matter.",
+            parameters: Type.Object({ agent: Type.String({ description: "The agent id (agent-...)." }) }),
+            execute: async (_id, p, signal, _update, ctx) => {
+              if (!runner) throw new Error("The skill runner is not available in this session.");
+              const profile = harness.agentProfile?.(p.agent);
+              if (!profile) throw new Error(`There is no agent ${p.agent}.`);
+              const workflow: WorkflowDefinition = {
+                id: `run-${profile.id}`,
+                version: profile.version,
+                title: profile.title,
+                description: profile.task,
+                inputs: [],
+                steps: profile.skills.map((skill, i) => ({
+                  id: `step-${i + 1}`,
+                  skill,
+                  request: `${profile.instructions}\n\nThe task: ${profile.task}\nTemplate: ${profile.template ?? "none"}.\nSources: ${profile.sources.join(", ") || "the record"}.`,
+                  when: "always",
+                  gate: profile.approvals.length ? "before" : "none",
+                  onFailure: "stop",
+                })),
+                createdAt: "",
+                supersededBy: null,
+              };
+              const store = await harness.store(matterId);
+              const run = await executeWorkflow({
+                workflow,
+                inputs: {},
+                store,
+                runSkill: async (step, request, s) => {
+                  const skill = harness.registry().active.get(step.skill);
+                  if (!skill) throw new Error(`The agent names ${step.skill}, which is not in the registry.`);
+                  return runner.run(skill, { request, reason: `agent ${profile.title}, step ${step.id}`, pinned: [] }, ctx, s);
+                },
+                confirm: async (title, message) => {
+                  try {
+                    return await ctx.ui.confirm(title, message);
+                  } catch {
+                    return false;
+                  }
+                },
+                signal,
+              });
+              return {
+                content: [{ type: "text" as const, text: JSON.stringify({ runId: run.id, state: run.state, notice: run.notice, steps: run.steps.map((s) => ({ id: s.id, skill: s.skill, state: s.state, runId: s.runId, report: s.report })) }) }],
+                details: { runId: run.id, state: run.state },
+              };
+            },
           }),
         ]
       : [];

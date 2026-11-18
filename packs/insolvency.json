@@ -2,74 +2,355 @@
   "id": "insolvency",
   "version": "1.0.0",
   "title": "Insolvency",
-  "practice": ["insolvency", "ibc", "company"],
-  "courts": ["in.t.nclt", "in.t.nclat", "in.sc"],
+  "practice": [
+    "insolvency",
+    "ibc",
+    "company"
+  ],
+  "courts": [
+    "in.t.nclt",
+    "in.t.nclat",
+    "in.sc"
+  ],
   "acts": [
-    { "act": "Insolvency and Bankruptcy Code, 2016", "version": "2016, as amended", "source": "the Code; the law store records the version when it is imported" },
-    { "act": "Companies Act, 2013", "version": "2013, as amended", "source": "the Act; the law store records the version when it is imported" },
-    { "act": "IBBI regulations", "version": "not recorded", "source": "the regulations; the law store records the version when it is imported" }
+    {
+      "act": "Insolvency and Bankruptcy Code, 2016",
+      "version": "2016, as amended",
+      "source": "the Code; the law store records the version when it is imported"
+    },
+    {
+      "act": "Companies Act, 2013",
+      "version": "2013, as amended",
+      "source": "the Act; the law store records the version when it is imported"
+    },
+    {
+      "act": "IBBI regulations",
+      "version": "not recorded",
+      "source": "the regulations; the law store records the version when it is imported"
+    }
   ],
   "templates": [
-    { "kind": "ibc_application", "title": "Application under the Code", "note": "A Section 7, 9 or 10 application." },
-    { "kind": "nclt_petition", "title": "Petition before the NCLT", "note": "A company petition." },
-    { "kind": "appeal_memo", "title": "Appeal memo", "note": "The appeal to the NCLAT." },
-    { "kind": "affidavit", "title": "Affidavit", "note": "The deponent's own recorded words." },
-    { "kind": "vakalatnama", "title": "Vakalatnama", "note": "The appointment form." }
+    {
+      "kind": "ibc_application",
+      "title": "Application under the Code",
+      "note": "A Section 7, 9 or 10 application."
+    },
+    {
+      "kind": "nclt_petition",
+      "title": "Petition before the NCLT",
+      "note": "A company petition."
+    },
+    {
+      "kind": "appeal_memo",
+      "title": "Appeal memo",
+      "note": "The appeal to the NCLAT."
+    },
+    {
+      "kind": "affidavit",
+      "title": "Affidavit",
+      "note": "The deponent's own recorded words."
+    },
+    {
+      "kind": "vakalatnama",
+      "title": "Vakalatnama",
+      "note": "The appointment form."
+    }
   ],
   "proceedings": [
     {
       "key": "section_7",
       "title": "Section 7 application",
       "caseType": "Financial creditor application",
-      "courts": ["in.t.nclt"],
-      "provisions": ["Sections 7 and 8 of the Insolvency and Bankruptcy Code, 2016"],
-      "limitation": null,
-      "requiredParts": ["Application under the Code", "Affidavit", "Vakalatnama", "Annexures"],
-      "documents": [
-        { "kind": "ibc_application", "title": "Application under the Code" },
-        { "kind": "affidavit", "title": "Affidavit" },
-        { "kind": "vakalatnama", "title": "Vakalatnama" }
+      "courts": [
+        "in.t.nclt"
       ],
-      "annexureParts": ["Annexures"],
+      "provisions": [
+        "Sections 7 and 8 of the Insolvency and Bankruptcy Code, 2016"
+      ],
+      "limitation": null,
+      "requiredParts": [
+        "Application under the Code",
+        "Affidavit",
+        "Vakalatnama",
+        "Annexures"
+      ],
+      "documents": [
+        {
+          "kind": "ibc_application",
+          "title": "Application under the Code"
+        },
+        {
+          "kind": "affidavit",
+          "title": "Affidavit"
+        },
+        {
+          "kind": "vakalatnama",
+          "title": "Vakalatnama"
+        }
+      ],
+      "annexureParts": [
+        "Annexures"
+      ],
       "unmappedParts": [],
       "workflow": [
-        { "text": "Read the debt, the default and the financial records.", "skill": "SK-521" },
-        { "text": "Chart the claims and the security.", "skill": "SK-524" },
-        { "text": "Review the draft against the record.", "skill": "SK-027" }
+        {
+          "text": "Read the debt, the default and the financial records.",
+          "skill": "SK-521"
+        },
+        {
+          "text": "Chart the claims and the security.",
+          "skill": "SK-524"
+        },
+        {
+          "text": "Review the draft against the record.",
+          "skill": "SK-027"
+        }
       ],
-      "stages": ["Default", "Demand notice", "Section 7 application", "Admission", "Moratorium", "Resolution plan", "Approval"],
-      "intakeQuestions": ["What is the debt and when did the default occur?", "Is the creditor a financial creditor?", "Is there a security interest?", "Is there an earlier proceeding before another forum?"],
-      "skills": ["SK-521", "SK-524", "SK-525"],
-      "recordColumns": ["Date", "Debt event", "Amount", "Source", "Page", "Line"],
-      "evidence": ["The loan agreement", "The ledger and the bank statements", "The demand notice", "The security documents"],
-      "terms": [{ "term": "Financial debt", "meaning": "The debt the Code defines, with interest and a commercial effect of borrowing." }]
+      "stages": [
+        "Default",
+        "Demand notice",
+        "Section 7 application",
+        "Admission",
+        "Moratorium",
+        "Resolution plan",
+        "Approval"
+      ],
+      "intakeQuestions": [
+        "What is the debt and when did the default occur?",
+        "Is the creditor a financial creditor?",
+        "Is there a security interest?",
+        "Is there an earlier proceeding before another forum?"
+      ],
+      "skills": [
+        "SK-521",
+        "SK-524",
+        "SK-525"
+      ],
+      "recordColumns": [
+        "Date",
+        "Debt event",
+        "Amount",
+        "Source",
+        "Page",
+        "Line"
+      ],
+      "evidence": [
+        "The loan agreement",
+        "The ledger and the bank statements",
+        "The demand notice",
+        "The security documents"
+      ],
+      "terms": [
+        {
+          "term": "Financial debt",
+          "meaning": "The debt the Code defines, with interest and a commercial effect of borrowing."
+        }
+      ]
     },
     {
       "key": "nclat_appeal",
       "title": "Appeal to the NCLAT",
       "caseType": "NCLAT appeal",
-      "courts": ["in.t.nclat"],
-      "provisions": ["Section 61 of the Insolvency and Bankruptcy Code, 2016", "Section 421 of the Companies Act, 2013"],
-      "limitation": null,
-      "requiredParts": ["Appeal memo", "Vakalatnama", "Annexures"],
-      "documents": [
-        { "kind": "appeal_memo", "title": "Appeal memo" },
-        { "kind": "vakalatnama", "title": "Vakalatnama" }
+      "courts": [
+        "in.t.nclat"
       ],
-      "annexureParts": ["Annexures"],
+      "provisions": [
+        "Section 61 of the Insolvency and Bankruptcy Code, 2016",
+        "Section 421 of the Companies Act, 2013"
+      ],
+      "limitation": null,
+      "requiredParts": [
+        "Appeal memo",
+        "Vakalatnama",
+        "Annexures"
+      ],
+      "documents": [
+        {
+          "kind": "appeal_memo",
+          "title": "Appeal memo"
+        },
+        {
+          "kind": "vakalatnama",
+          "title": "Vakalatnama"
+        }
+      ],
+      "annexureParts": [
+        "Annexures"
+      ],
       "unmappedParts": [],
       "workflow": [
-        { "text": "Analyse the NCLT order under appeal.", "skill": "SK-008" },
-        { "text": "Draft the appeal with the grounds.", "skill": "SK-525" },
-        { "text": "Review the draft against the record.", "skill": "SK-027" }
+        {
+          "text": "Analyse the NCLT order under appeal.",
+          "skill": "SK-008"
+        },
+        {
+          "text": "Draft the appeal with the grounds.",
+          "skill": "SK-525"
+        },
+        {
+          "text": "Review the draft against the record.",
+          "skill": "SK-027"
+        }
       ],
-      "stages": ["NCLT order", "Appeal", "Notice", "Hearing", "Order"],
-      "intakeQuestions": ["What did the NCLT decide and on what record?", "When was the order received?", "What is the pre-deposit requirement?"],
-      "skills": ["SK-525", "SK-008"],
-      "recordColumns": ["Date", "Finding", "Record", "Page", "Line"],
-      "evidence": ["The NCLT order", "The application and replies", "The resolution professional's report"],
-      "terms": [{ "term": "Pre-deposit", "meaning": "The amount the appellant must deposit before the appeal is heard, as the Code requires." }]
+      "stages": [
+        "NCLT order",
+        "Appeal",
+        "Notice",
+        "Hearing",
+        "Order"
+      ],
+      "intakeQuestions": [
+        "What did the NCLT decide and on what record?",
+        "When was the order received?",
+        "What is the pre-deposit requirement?"
+      ],
+      "skills": [
+        "SK-525",
+        "SK-008"
+      ],
+      "recordColumns": [
+        "Date",
+        "Finding",
+        "Record",
+        "Page",
+        "Line"
+      ],
+      "evidence": [
+        "The NCLT order",
+        "The application and replies",
+        "The resolution professional's report"
+      ],
+      "terms": [
+        {
+          "term": "Pre-deposit",
+          "meaning": "The amount the appellant must deposit before the appeal is heard, as the Code requires."
+        }
+      ]
+    },
+    {
+      "key": "section_9",
+      "title": "Section 9 application",
+      "caseType": "Operational creditor application",
+      "courts": [
+        "in.hc.delhi"
+      ],
+      "provisions": [
+        "Section 9 of the Insolvency and Bankruptcy Code, 2016"
+      ],
+      "limitation": null,
+      "requiredParts": [
+        "Application under the Code",
+        "Affidavit"
+      ],
+      "documents": [
+        {
+          "kind": "ibc_application",
+          "title": "Application under the Code"
+        },
+        {
+          "kind": "affidavit",
+          "title": "Affidavit"
+        }
+      ],
+      "annexureParts": [
+        "Annexures"
+      ],
+      "unmappedParts": [],
+      "workflow": [
+        {
+          "text": "Read the record for section 9 application.",
+          "skill": "SK-522"
+        }
+      ],
+      "stages": [
+        "Supply",
+        "Invoice",
+        "Demand notice",
+        "Application"
+      ],
+      "intakeQuestions": [
+        "What is the operational debt and when did the default occur?"
+      ],
+      "skills": [
+        "SK-522",
+        "SK-524"
+      ],
+      "recordColumns": [
+        "Date",
+        "Event",
+        "Source",
+        "Page",
+        "Line"
+      ],
+      "evidence": [
+        "The record of section 9 application"
+      ],
+      "terms": []
+    },
+    {
+      "key": "section_10",
+      "title": "Section 10 application",
+      "caseType": "Corporate debtor application",
+      "courts": [
+        "in.hc.delhi"
+      ],
+      "provisions": [
+        "Section 10 of the Insolvency and Bankruptcy Code, 2016"
+      ],
+      "limitation": null,
+      "requiredParts": [
+        "Application under the Code",
+        "Affidavit"
+      ],
+      "documents": [
+        {
+          "kind": "ibc_application",
+          "title": "Application under the Code"
+        },
+        {
+          "kind": "affidavit",
+          "title": "Affidavit"
+        }
+      ],
+      "annexureParts": [
+        "Annexures"
+      ],
+      "unmappedParts": [],
+      "workflow": [
+        {
+          "text": "Read the record for section 10 application.",
+          "skill": "SK-523"
+        }
+      ],
+      "stages": [
+        "Default",
+        "Board resolution",
+        "Application"
+      ],
+      "intakeQuestions": [
+        "What is the default and who is the proposed resolution professional?"
+      ],
+      "skills": [
+        "SK-523",
+        "SK-524"
+      ],
+      "recordColumns": [
+        "Date",
+        "Event",
+        "Source",
+        "Page",
+        "Line"
+      ],
+      "evidence": [
+        "The record of section 10 application"
+      ],
+      "terms": []
     }
   ],
-  "terms": [{ "term": "Moratorium", "meaning": "The protection the Code gives once insolvency is admitted." }]
+  "terms": [
+    {
+      "term": "Moratorium",
+      "meaning": "The protection the Code gives once insolvency is admitted."
+    }
+  ]
 }

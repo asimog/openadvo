@@ -133,7 +133,7 @@ export function HomeDashboard(props: { matters: MatterSummary[]; onOpenMatter: (
           )}
         </Card>
         <Card title="Court updates and new judgments" testId="dash-updates">
-          <Text type="supporting">Court monitoring, new orders and new relevant judgments come in phase 9. Nothing is connected yet.</Text>
+          <Text type="supporting">Court monitoring, new orders and new relevant judgments come in phase 13. Nothing is connected yet.</Text>
         </Card>
         <Card title="Active matters" count={props.matters.length} testId="dash-matters">
           {props.matters.length === 0 ? <Text type="supporting">No matter is open.</Text> : (

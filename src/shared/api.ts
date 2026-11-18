@@ -866,6 +866,8 @@ export interface OpenAdvoApi {
   listWorkflowRuns(matterId: string): Promise<WorkflowRun[]>;
   /** N5, human-only: ask the Matter Agent to run the workflow. It calls run_workflow. */
   runWorkflow(matterId: string, workflowId: string, inputs: Record<string, string>): Promise<{ sent: boolean }>;
+  /** N5, human-only: ask the Matter Agent to run the agent's skills. It calls run_agent. */
+  runAgent(matterId: string, agentId: string): Promise<{ sent: boolean }>;
   /** N5: the agents the advocate built. */
   listAgents(): Promise<AgentProfile[]>;
   /** N5, human-only: save an agent. An edit is a new version. */

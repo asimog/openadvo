@@ -137,7 +137,7 @@ export function MattersPage(props: { matters: MatterSummary[]; onOpen: (id: stri
 
 export function CalendarPage(props: { onOpen: (id: string) => void }) {
   return (
-    <PageFrame title="Calendar" testId="calendar-page" intro="Hearings, deadlines and reminders of every matter. Calendar sync comes in phase 9.">
+    <PageFrame title="Calendar" testId="calendar-page" intro="Hearings, deadlines and reminders of every matter. Calendar sync comes in phase 13.">
       <Docket onOpen={props.onOpen} />
     </PageFrame>
   );
@@ -152,7 +152,7 @@ export function CourtIntelPage() {
   return (
     <PageFrame title="Court Intelligence" testId="court-page" intro="Courts, rules, cause lists, developments and the freshness of each source.">
       <div className="notice" data-testid="not-built">
-        Cause lists, developments, the pack check task and the dashboard come in phase 9. The court rules below are built.
+        Cause lists, developments, the pack check task and the dashboard come in phase 13. The court rules below are built.
       </div>
       <CourtIntelligence />
       <Heading level={3}>Sources</Heading>

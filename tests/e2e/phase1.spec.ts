@@ -136,7 +136,7 @@ test("navigation, the Review Inbox across matters, Workflows & Skills, the profi
   await page.getByTestId("nav-knowledge").click();
   await expect(page.getByTestId("library-page")).toBeVisible();
   await page.getByTestId("nav-court").click();
-  await expect(page.getByTestId("court-page").getByTestId("not-built")).toContainText("phase 9");
+  await expect(page.getByTestId("court-page").getByTestId("not-built")).toContainText("phase 13");
 
   // Workflows & Skills: the phase 8 library, the practice packs and the twelve roles.
   await page.getByTestId("nav-skills").click();

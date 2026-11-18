@@ -212,6 +212,33 @@ function AgentEditor(props: { agent: Partial<AgentProfile>; skills: SkillSummary
   );
 }
 
+function WorkflowRow(props: { workflow: WorkflowDefinition; matterId: string; onEdit: () => void; onRemove: () => void; onRun: (inputs: Record<string, string>) => void }) {
+  const [values, setValues] = useState<Record<string, string>>(Object.fromEntries(props.workflow.inputs.map((i) => [i.key, i.default])));
+  const missing = props.workflow.inputs.filter((i) => i.required && !(values[i.key] ?? "").trim());
+  return (
+    <li className="phase4-row" data-testid="workflow-row">
+      <div className="phase4-main">
+        <div className="phase4-head"><StatusDot variant="success" label={`v${props.workflow.version}`} /><Text weight="semibold">{props.workflow.title}</Text></div>
+        <Text type="supporting">{props.workflow.steps.length} step{props.workflow.steps.length === 1 ? "" : "s"}: {props.workflow.steps.map((s) => `${s.id} → ${s.skill}`).join(", ")}. {props.workflow.description}</Text>
+        {props.workflow.inputs.length ? (
+          <div className="phase4-form">
+            {props.workflow.inputs.map((i) => (
+              <label key={i.key} className="field">{i.title}{i.required ? " *" : ""}
+                <input aria-label={`Workflow input ${i.key}`} value={values[i.key] ?? ""} onChange={(e) => setValues({ ...values, [i.key]: e.target.value })} />
+              </label>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      <div className="row-actions">
+        <Button label="Run" size="sm" isDisabled={!props.matterId || missing.length > 0} clickAction={() => props.onRun(values)} data-testid={`workflow-run-${props.workflow.id}`} />
+        <Button label="Edit" size="sm" variant="ghost" onClick={props.onEdit} />
+        <Button label="Remove" size="sm" variant="ghost" onClick={props.onRemove} />
+      </div>
+    </li>
+  );
+}
+
 export function BuildersPanel(props: { onChanged?: () => void }) {
   const [workflows, setWorkflows] = useState<WorkflowDefinition[]>([]);
   const [agents, setAgents] = useState<AgentProfile[]>([]);
@@ -250,12 +277,12 @@ export function BuildersPanel(props: { onChanged?: () => void }) {
     void api.listWorkflowRuns(matterId).then(setRuns, () => setRuns([]));
   }, [matterId, workflows.length]);
 
-  const run = async (id: string) => {
+  const run = async (id: string, inputs: Record<string, string> = {}) => {
     try {
       setError(null);
       setNote(null);
       if (!matterId) throw new Error("Choose a matter first.");
-      await api.runWorkflow(matterId, id, {});
+      await api.runWorkflow(matterId, id, inputs);
       setNote("Sent to the matter's chat. The agent runs the steps and stops at each gate.");
     } catch (e) {
       setError(errorText(e));
@@ -271,6 +298,17 @@ export function BuildersPanel(props: { onChanged?: () => void }) {
   const removeAgent = async (id: string) => {
     try {
       setAgents(await api.deleteAgent(id));
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  const runAgent = async (id: string) => {
+    try {
+      setError(null);
+      setNote(null);
+      if (!matterId) throw new Error("Choose a matter first.");
+      await api.runAgent(matterId, id);
+      setNote("Sent to the matter's chat. The agent runs its skills and stops at each gate.");
     } catch (e) {
       setError(errorText(e));
     }
@@ -293,17 +331,14 @@ export function BuildersPanel(props: { onChanged?: () => void }) {
       {workflows.length === 0 ? <Text type="supporting">No workflow yet. Build one from the skills above.</Text> : (
         <ul className="plain-list" data-testid="workflow-list">
           {workflows.map((w) => (
-            <li key={`${w.id}:${w.version}`} className="phase4-row" data-testid="workflow-row">
-              <div className="phase4-main">
-                <div className="phase4-head"><StatusDot variant="success" label={`v${w.version}`} /><Text weight="semibold">{w.title}</Text></div>
-                <Text type="supporting">{w.steps.length} step{w.steps.length === 1 ? "" : "s"}: {w.steps.map((s) => `${s.id} → ${s.skill}`).join(", ")}. {w.description}</Text>
-              </div>
-              <div className="row-actions">
-                <Button label="Run" size="sm" isDisabled={!matterId} clickAction={() => run(w.id)} data-testid={`workflow-run-${w.id}`} />
-                <Button label="Edit" size="sm" variant="ghost" onClick={() => setEditWorkflow(w)} />
-                <Button label="Remove" size="sm" variant="ghost" onClick={() => removeWorkflow(w.id)} />
-              </div>
-            </li>
+            <WorkflowRow
+              key={`${w.id}:${w.version}`}
+              workflow={w}
+              matterId={matterId}
+              onRun={(inputs) => run(w.id, inputs)}
+              onEdit={() => setEditWorkflow(w)}
+              onRemove={() => removeWorkflow(w.id)}
+            />
           ))}
         </ul>
       )}
@@ -335,6 +370,7 @@ export function BuildersPanel(props: { onChanged?: () => void }) {
                 <Text type="supporting">{a.task}. Skills: {a.skills.join(", ")}. Output {a.output}; checks {a.checks.join(", ") || "none"}. {a.template ? `Template ${a.template}.` : ""}</Text>
               </div>
               <div className="row-actions">
+                <Button label="Run" size="sm" isDisabled={!matterId} clickAction={() => runAgent(a.id)} data-testid={`agent-run-${a.id}`} />
                 <Button label="Edit" size="sm" variant="ghost" onClick={() => setEditAgent(a)} />
                 <Button label="Remove" size="sm" variant="ghost" onClick={() => removeAgent(a.id)} />
               </div>

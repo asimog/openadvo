@@ -251,7 +251,7 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
       "listForeignElements", "addForeignElement", "decideForeignElement", "foreignRoutes", "documentQuality",
       "storageFolders", "storageImportLibrary", "storageImportMatter", "intakeStorage",
       "listIntegrations", "syncIntegrations", "addIntegration", "setIntegrationEnabled",
-      "listBuiltWorkflows", "saveBuiltWorkflow", "deleteBuiltWorkflow", "listWorkflowRuns", "runWorkflow", "listAgents", "saveAgent", "deleteAgent", "testAgentProfile",
+      "listBuiltWorkflows", "saveBuiltWorkflow", "deleteBuiltWorkflow", "listWorkflowRuns", "runWorkflow", "runAgent", "listAgents", "saveAgent", "deleteAgent", "testAgentProfile",
       "previewSkillImport", "installSkillImport",
       "listTriggers", "saveTrigger", "setTriggerEnabled", "deleteTrigger", "listTriggerFires", "decideTriggerFire",
     ].sort(),
@@ -373,6 +373,7 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
     "propose_foreign_element",
     "run_workflow",
     "list_workflows",
+    "run_agent",
   ].sort());
   const sessionId = await app.evaluate((_e, m) => (globalThis as any).__openadvoTest.agentSessionId(m), id);
   const events = await page.evaluate((m) => (globalThis as any).openadvo.listEvents(m), id);

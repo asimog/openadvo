@@ -262,6 +262,7 @@ const api: OpenAdvoApi = {
   deleteBuiltWorkflow: (id) => ipcRenderer.invoke("builders:delete-workflow", id),
   listWorkflowRuns: (matterId) => ipcRenderer.invoke("builders:runs", matterId),
   runWorkflow: (matterId, workflowId, inputs) => ipcRenderer.invoke("builders:run-workflow", matterId, workflowId, inputs),
+  runAgent: (matterId, agentId) => ipcRenderer.invoke("builders:run-agent", matterId, agentId),
   listAgents: () => ipcRenderer.invoke("builders:agents"),
   saveAgent: (input) => ipcRenderer.invoke("builders:save-agent", input),
   deleteAgent: (id) => ipcRenderer.invoke("builders:delete-agent", id),

@@ -77,16 +77,16 @@ workflow (id, version, title, description, inputs, steps, created_at, superseded
 | `step.gate` | `none`, `before` or `after`; a gate waits for the advocate |
 | `step.onFailure` | `stop` or `continue` |
 
-A run is a matter record (`workflow_run` in `matter.db`): the workflow version, the inputs, one row per step with its state and report card, and the state of the run (`planned`, `running`, `waiting`, `done`, `failed`, `stopped`). The runner:
+A run is a matter record (`workflow_run` in `matter.db`): the workflow version, the inputs, one row per step with its state and report card, and the state of the run (`running`, `done`, `failed`, `stopped`). The runner:
 
-1. builds the plan and shows it in the chat;
+1. records the run and its steps in the matter;
 2. runs each step through the skill runner at the skill's own role, tools and checks;
-3. waits at a gate, and says what it waits for;
+3. waits at a gate, and says what it waits for (the approval card);
 4. evaluates `when` before a step, and skips a step whose condition is false;
 5. stops on a failed step when `onFailure` is `stop`, and says why;
 6. writes a report line for each step and a final line for the run.
 
-The advocate's functions: `startWorkflow`, `approveWorkflowGate`, `stopWorkflow`. A run never changes another run. A workflow with a step outside its inputs is refused before it starts.
+The advocate's functions: `runWorkflow` sends the workflow to the Matter Agent, which calls `run_workflow`; the gate is the approval card inside that run; Stop ends the Matter Agent's run and the skill run with it. A run never changes another run. A workflow with a step outside its inputs is refused before it starts.
 
 ### 4.2 The agent
 
@@ -96,9 +96,9 @@ An agent is a named composition, also versioned in `advocate.db`:
 agent (id, version, title, task, instructions, skills, template, sources, context, tools, output, checks, approvals, created_at, superseded_by)
 ```
 
-`checkAgent(agent, registry)` refuses: a skill not in the registry; a tool outside every named skill's role and the agent's own allowed set; a human-only tool; a template kind not in the drafting catalogue; an output type or a check the skill format does not know; an approval point the format does not know. A test (`testAgent`) runs the same checks and the skill fixture test for each named skill, and writes a test record.
+`checkAgent(agent, registry)` refuses: a skill not in the registry; a tool outside every named skill's role and the agent's own allowed set; a human-only tool; a template kind not in the drafting catalogue; an output type or a check the skill format does not know; an approval point the format does not know. A test (`testAgent`) runs the same checks and the skill fixture test for each named skill, and returns the result.
 
-An agent runs as a workflow: each skill becomes a step with the agent's instructions prepended and the agent's template and sources named. The agent's approvals become gates.
+An agent runs as a workflow: each skill becomes a step with the agent's instructions prepended and the agent's template and sources named. The agent's approvals become gates. The Matter Agent gets `run_agent`; it builds the agent's steps and runs them through the same runner.
 
 ### 4.3 The editor
 
@@ -128,7 +128,7 @@ trigger (id, event, title, skills, responses, enabled, created_at, updated_at)
 
 The events are `new_document`, `email`, `order`, `hearing_date`, `stage_change`, `deadline_approaching`, `instruction`, `amendment`, `citation_change` and `defect_received`. The responses are the automated proposals: `rebuild_chronology`, `update_context`, `flag_issues`, `research_task`, `letter`, `recalculate_deadlines`, `reassess_arguments`.
 
-`fireTriggers(event, subject)` matches the enabled triggers and writes a `trigger_fire` row: the event, the matter, the subject, the skills, the responses and the state (`proposed`, `started`, `dismissed`). It starts nothing. The Review Inbox lists each fire with "Start the skills" and "Dismiss". The start runs the named skills through the skill runner, one after the other, and records the runs. A response becomes a proposal in the matter: a review item, a research task, or a proposed letter; it never changes a draft or a deadline.
+`fireTriggers(event, subject)` matches the enabled triggers and writes a `trigger_fire` row: the event, the matter, the subject, the skills, the responses and the state (`proposed`, `started`, `dismissed`). It starts nothing. The Review Inbox lists each fire with "Start the skills" and "Dismiss". The start asks the Matter Agent to run the named skills, one after the other, and records the runs. A response becomes a proposal in the matter: a review item, a research task, or a proposed letter; it never changes a draft or a deadline.
 
 The seams that fire: a finished ingest with a new source; a mail import; a source typed as an order or a judgment; a hearing added; a stage change; a reminder due; a communication classified as an instruction; an amendment or citation change recorded; a defect list imported.
 
@@ -205,7 +205,8 @@ The wrong-jurisdiction guard (D5) uses the matter's pack as before. A matter's p
 - **Matter → Jurisdiction**: the foreign elements and their routes.
 - **Matter → Documents & Evidence**: the document quality score, its issues and the pages.
 - **Settings**: the integrations with their permissions and enable switch; the storage folders; the trigger table.
-- **Review Inbox**: a trigger fire, with "Start the skills" and "Dismiss"; a workflow gate, with "Approve the next step" and "Stop".
+- **Review Inbox**: a trigger fire, with "Start the skills" and "Dismiss".
+- **The chat**: a workflow gate, as the approval card with "Yes" and "No"; Stop ends the run.
 
 ## 11. Tests
 

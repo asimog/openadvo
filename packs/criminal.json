@@ -2,8 +2,14 @@
   "id": "criminal",
   "version": "1.0.0",
   "title": "Criminal",
-  "practice": ["criminal"],
-  "courts": ["in.dj.delhi", "in.hc.delhi", "in.sc"],
+  "practice": [
+    "criminal"
+  ],
+  "courts": [
+    "in.dj.delhi",
+    "in.hc.delhi",
+    "in.sc"
+  ],
   "acts": [
     {
       "act": "Bharatiya Nyaya Sanhita, 2023",
@@ -32,37 +38,107 @@
     }
   ],
   "templates": [
-    { "kind": "bail_application", "title": "Application for regular bail", "note": "The facts of the arrest and custody, the grounds and the bail prayer." },
-    { "kind": "anticipatory_bail_application", "title": "Application for anticipatory bail", "note": "The apprehension of arrest, the grounds and the prayer." },
-    { "kind": "quashing_petition", "title": "Petition for quashing", "note": "The FIR or complaint, the grounds and the quashing prayer." },
-    { "kind": "discharge_application", "title": "Application for discharge", "note": "The charge-sheet material, the grounds and the discharge prayer." },
-    { "kind": "appeal_memo", "title": "Memorandum of appeal", "note": "The grounds and the prayer against the conviction or order." },
-    { "kind": "revision_petition", "title": "Petition for revision", "note": "The grounds and the prayer against the order." },
-    { "kind": "vakalatnama", "title": "Vakalatnama", "note": "The appointment form, with the advocate's recorded details." }
+    {
+      "kind": "bail_application",
+      "title": "Application for regular bail",
+      "note": "The facts of the arrest and custody, the grounds and the bail prayer."
+    },
+    {
+      "kind": "anticipatory_bail_application",
+      "title": "Application for anticipatory bail",
+      "note": "The apprehension of arrest, the grounds and the prayer."
+    },
+    {
+      "kind": "quashing_petition",
+      "title": "Petition for quashing",
+      "note": "The FIR or complaint, the grounds and the quashing prayer."
+    },
+    {
+      "kind": "discharge_application",
+      "title": "Application for discharge",
+      "note": "The charge-sheet material, the grounds and the discharge prayer."
+    },
+    {
+      "kind": "appeal_memo",
+      "title": "Memorandum of appeal",
+      "note": "The grounds and the prayer against the conviction or order."
+    },
+    {
+      "kind": "revision_petition",
+      "title": "Petition for revision",
+      "note": "The grounds and the prayer against the order."
+    },
+    {
+      "kind": "vakalatnama",
+      "title": "Vakalatnama",
+      "note": "The appointment form, with the advocate's recorded details."
+    }
   ],
   "proceedings": [
     {
       "key": "bail",
       "title": "Regular bail",
       "caseType": "Bail application",
-      "courts": ["in.dj.delhi", "in.hc.delhi", "in.sc"],
-      "provisions": ["Section 480 of the Bharatiya Nagarik Suraksha Sanhita, 2023", "Section 439 of the Code of Criminal Procedure, 1973, for matters before it"],
-      "limitation": null,
-      "requiredParts": ["Bail application", "Vakalatnama", "Memo of parties"],
-      "documents": [
-        { "kind": "bail_application", "title": "Application for Regular Bail" },
-        { "kind": "vakalatnama", "title": "Vakalatnama" }
+      "courts": [
+        "in.dj.delhi",
+        "in.hc.delhi",
+        "in.sc"
       ],
-      "annexureParts": ["Annexures"],
+      "provisions": [
+        "Section 480 of the Bharatiya Nagarik Suraksha Sanhita, 2023",
+        "Section 439 of the Code of Criminal Procedure, 1973, for matters before it"
+      ],
+      "limitation": null,
+      "requiredParts": [
+        "Bail application",
+        "Vakalatnama",
+        "Memo of parties"
+      ],
+      "documents": [
+        {
+          "kind": "bail_application",
+          "title": "Application for Regular Bail"
+        },
+        {
+          "kind": "vakalatnama",
+          "title": "Vakalatnama"
+        }
+      ],
+      "annexureParts": [
+        "Annexures"
+      ],
       "unmappedParts": [],
       "workflow": [
-        { "text": "Analyse the FIR or complaint and chart the ingredients of each offence.", "skill": "SK-101" },
-        { "text": "Record the arrest, remand and custody events and compute the custody period.", "skill": "SK-102" },
-        { "text": "Draft the bail application from the record, with the grounds as proposals.", "skill": "SK-103" },
-        { "text": "Review the draft against the conditions of bail and the record.", "skill": "SK-027" },
-        { "text": "Run the filing checklist.", "skill": "SK-023" }
+        {
+          "text": "Analyse the FIR or complaint and chart the ingredients of each offence.",
+          "skill": "SK-101"
+        },
+        {
+          "text": "Record the arrest, remand and custody events and compute the custody period.",
+          "skill": "SK-102"
+        },
+        {
+          "text": "Draft the bail application from the record, with the grounds as proposals.",
+          "skill": "SK-103"
+        },
+        {
+          "text": "Review the draft against the conditions of bail and the record.",
+          "skill": "SK-027"
+        },
+        {
+          "text": "Run the filing checklist.",
+          "skill": "SK-023"
+        }
       ],
-      "stages": ["Arrest", "Remand", "Bail application", "Bail order", "Charge", "Trial", "Judgment"],
+      "stages": [
+        "Arrest",
+        "Remand",
+        "Bail application",
+        "Bail order",
+        "Charge",
+        "Trial",
+        "Judgment"
+      ],
       "intakeQuestions": [
         "What is the FIR number, police station and the offences named?",
         "When was the accused arrested, and what is the custody period?",
@@ -70,8 +146,23 @@
         "Are there antecedents or a previous bail order?",
         "What sureties can the accused offer?"
       ],
-      "skills": ["SK-101", "SK-102", "SK-103", "SK-105", "SK-110", "SK-113", "SK-114"],
-      "recordColumns": ["Date", "Custody event", "Authority", "Source", "Page", "Line"],
+      "skills": [
+        "SK-101",
+        "SK-102",
+        "SK-103",
+        "SK-105",
+        "SK-110",
+        "SK-113",
+        "SK-114"
+      ],
+      "recordColumns": [
+        "Date",
+        "Custody event",
+        "Authority",
+        "Source",
+        "Page",
+        "Line"
+      ],
       "evidence": [
         "The FIR and the complaint",
         "The arrest and remand orders",
@@ -80,147 +171,437 @@
         "The accused's antecedents and sureties"
       ],
       "terms": [
-        { "term": "Bail", "meaning": "Release of an accused person from custody while the case continues, with conditions." },
-        { "term": "Custody period", "meaning": "The time from the arrest to the date of the application, computed from the custody record." },
-        { "term": "Surety", "meaning": "A person who undertakes to the court for the accused's appearance." }
+        {
+          "term": "Bail",
+          "meaning": "Release of an accused person from custody while the case continues, with conditions."
+        },
+        {
+          "term": "Custody period",
+          "meaning": "The time from the arrest to the date of the application, computed from the custody record."
+        },
+        {
+          "term": "Surety",
+          "meaning": "A person who undertakes to the court for the accused's appearance."
+        }
       ]
     },
     {
       "key": "anticipatory_bail",
       "title": "Anticipatory bail",
       "caseType": "Anticipatory bail",
-      "courts": ["in.dj.delhi", "in.hc.delhi", "in.sc"],
-      "provisions": ["Section 482 of the Bharatiya Nagarik Suraksha Sanhita, 2023", "Section 438 of the Code of Criminal Procedure, 1973, for matters before it"],
-      "limitation": null,
-      "requiredParts": ["Anticipatory bail application", "Vakalatnama"],
-      "documents": [
-        { "kind": "anticipatory_bail_application", "title": "Application for Anticipatory Bail" },
-        { "kind": "vakalatnama", "title": "Vakalatnama" }
+      "courts": [
+        "in.dj.delhi",
+        "in.hc.delhi",
+        "in.sc"
       ],
-      "annexureParts": ["Annexures"],
+      "provisions": [
+        "Section 482 of the Bharatiya Nagarik Suraksha Sanhita, 2023",
+        "Section 438 of the Code of Criminal Procedure, 1973, for matters before it"
+      ],
+      "limitation": null,
+      "requiredParts": [
+        "Anticipatory bail application",
+        "Vakalatnama"
+      ],
+      "documents": [
+        {
+          "kind": "anticipatory_bail_application",
+          "title": "Application for Anticipatory Bail"
+        },
+        {
+          "kind": "vakalatnama",
+          "title": "Vakalatnama"
+        }
+      ],
+      "annexureParts": [
+        "Annexures"
+      ],
       "unmappedParts": [],
       "workflow": [
-        { "text": "Analyse the FIR or complaint and chart the ingredients of each offence.", "skill": "SK-101" },
-        { "text": "Draft the anticipatory bail application with the apprehension of arrest stated.", "skill": "SK-104" },
-        { "text": "Review the draft against the record.", "skill": "SK-027" }
+        {
+          "text": "Analyse the FIR or complaint and chart the ingredients of each offence.",
+          "skill": "SK-101"
+        },
+        {
+          "text": "Draft the anticipatory bail application with the apprehension of arrest stated.",
+          "skill": "SK-104"
+        },
+        {
+          "text": "Review the draft against the record.",
+          "skill": "SK-027"
+        }
       ],
-      "stages": ["FIR", "Anticipatory bail application", "Order", "Investigation", "Charge", "Trial"],
+      "stages": [
+        "FIR",
+        "Anticipatory bail application",
+        "Order",
+        "Investigation",
+        "Charge",
+        "Trial"
+      ],
       "intakeQuestions": [
         "What is the FIR number and the offences named?",
         "Has the applicant been called for interrogation?",
         "Is there an apprehension of arrest?",
         "What conditions can the applicant offer?"
       ],
-      "skills": ["SK-101", "SK-104", "SK-105"],
-      "recordColumns": ["Date", "Event", "Source", "Page", "Line", "Proceeding"],
-      "evidence": ["The FIR and the complaint", "The notice or summons for interrogation", "The applicant's antecedents"],
+      "skills": [
+        "SK-101",
+        "SK-104",
+        "SK-105"
+      ],
+      "recordColumns": [
+        "Date",
+        "Event",
+        "Source",
+        "Page",
+        "Line",
+        "Proceeding"
+      ],
+      "evidence": [
+        "The FIR and the complaint",
+        "The notice or summons for interrogation",
+        "The applicant's antecedents"
+      ],
       "terms": [
-        { "term": "Anticipatory bail", "meaning": "A direction that a person not be arrested in a case, with conditions, before arrest." }
+        {
+          "term": "Anticipatory bail",
+          "meaning": "A direction that a person not be arrested in a case, with conditions, before arrest."
+        }
       ]
     },
     {
       "key": "quashing",
       "title": "Quashing petition",
       "caseType": "Quashing petition",
-      "courts": ["in.hc.delhi", "in.sc"],
-      "provisions": ["Section 528 of the Bharatiya Nagarik Suraksha Sanhita, 2023", "Section 482 of the Code of Criminal Procedure, 1973, for matters before it"],
-      "limitation": null,
-      "requiredParts": ["Quashing petition", "Vakalatnama", "Annexures"],
-      "documents": [
-        { "kind": "quashing_petition", "title": "Petition for Quashing" },
-        { "kind": "vakalatnama", "title": "Vakalatnama" }
+      "courts": [
+        "in.hc.delhi",
+        "in.sc"
       ],
-      "annexureParts": ["Annexures"],
+      "provisions": [
+        "Section 528 of the Bharatiya Nagarik Suraksha Sanhita, 2023",
+        "Section 482 of the Code of Criminal Procedure, 1973, for matters before it"
+      ],
+      "limitation": null,
+      "requiredParts": [
+        "Quashing petition",
+        "Vakalatnama",
+        "Annexures"
+      ],
+      "documents": [
+        {
+          "kind": "quashing_petition",
+          "title": "Petition for Quashing"
+        },
+        {
+          "kind": "vakalatnama",
+          "title": "Vakalatnama"
+        }
+      ],
+      "annexureParts": [
+        "Annexures"
+      ],
       "unmappedParts": [],
       "workflow": [
-        { "text": "Analyse the FIR or complaint and chart the ingredients of each offence.", "skill": "SK-101" },
-        { "text": "Draft the quashing petition from the record, against the ingredient gaps.", "skill": "SK-106" },
-        { "text": "Review the draft against the record and the ingredients chart.", "skill": "SK-027" }
+        {
+          "text": "Analyse the FIR or complaint and chart the ingredients of each offence.",
+          "skill": "SK-101"
+        },
+        {
+          "text": "Draft the quashing petition from the record, against the ingredient gaps.",
+          "skill": "SK-106"
+        },
+        {
+          "text": "Review the draft against the record and the ingredients chart.",
+          "skill": "SK-027"
+        }
       ],
-      "stages": ["FIR", "Quashing petition", "Notice", "Hearing", "Order"],
+      "stages": [
+        "FIR",
+        "Quashing petition",
+        "Notice",
+        "Hearing",
+        "Order"
+      ],
       "intakeQuestions": [
         "What is the FIR number and the offences named?",
         "Has the charge-sheet been filed?",
         "Which ingredient of the offence is said to be absent?",
         "Is there a private dispute the criminal case is said to dress up?"
       ],
-      "skills": ["SK-101", "SK-106", "SK-107"],
-      "recordColumns": ["Ingredient", "Provision", "Record", "Source", "Page", "Line"],
-      "evidence": ["The FIR and the complaint", "The charge-sheet and its documents", "The statements relied on", "The documents said to be suppressed or misread"],
+      "skills": [
+        "SK-101",
+        "SK-106",
+        "SK-107"
+      ],
+      "recordColumns": [
+        "Ingredient",
+        "Provision",
+        "Record",
+        "Source",
+        "Page",
+        "Line"
+      ],
+      "evidence": [
+        "The FIR and the complaint",
+        "The charge-sheet and its documents",
+        "The statements relied on",
+        "The documents said to be suppressed or misread"
+      ],
       "terms": [
-        { "term": "Quashing", "meaning": "The High Court's power to end a criminal proceeding that discloses no offence or is an abuse of the process." },
-        { "term": "Ingredients chart", "meaning": "One column per ingredient of the offence; each cell says what the record holds for it." }
+        {
+          "term": "Quashing",
+          "meaning": "The High Court's power to end a criminal proceeding that discloses no offence or is an abuse of the process."
+        },
+        {
+          "term": "Ingredients chart",
+          "meaning": "One column per ingredient of the offence; each cell says what the record holds for it."
+        }
       ]
     },
     {
       "key": "discharge",
       "title": "Discharge application",
       "caseType": "Discharge application",
-      "courts": ["in.dj.delhi", "in.hc.delhi"],
-      "provisions": ["Section 250 of the Bharatiya Nagarik Suraksha Sanhita, 2023", "Section 239 of the Code of Criminal Procedure, 1973, for matters before it"],
-      "limitation": null,
-      "requiredParts": ["Discharge application", "Vakalatnama"],
-      "documents": [
-        { "kind": "discharge_application", "title": "Application for Discharge" },
-        { "kind": "vakalatnama", "title": "Vakalatnama" }
+      "courts": [
+        "in.dj.delhi",
+        "in.hc.delhi"
       ],
-      "annexureParts": ["Annexures"],
+      "provisions": [
+        "Section 250 of the Bharatiya Nagarik Suraksha Sanhita, 2023",
+        "Section 239 of the Code of Criminal Procedure, 1973, for matters before it"
+      ],
+      "limitation": null,
+      "requiredParts": [
+        "Discharge application",
+        "Vakalatnama"
+      ],
+      "documents": [
+        {
+          "kind": "discharge_application",
+          "title": "Application for Discharge"
+        },
+        {
+          "kind": "vakalatnama",
+          "title": "Vakalatnama"
+        }
+      ],
+      "annexureParts": [
+        "Annexures"
+      ],
       "unmappedParts": [],
       "workflow": [
-        { "text": "Analyse the charge-sheet and chart the ingredients with the material for each.", "skill": "SK-107" },
-        { "text": "Draft the discharge application from the chart.", "skill": "SK-108" },
-        { "text": "Review the draft against the record.", "skill": "SK-027" }
+        {
+          "text": "Analyse the charge-sheet and chart the ingredients with the material for each.",
+          "skill": "SK-107"
+        },
+        {
+          "text": "Draft the discharge application from the chart.",
+          "skill": "SK-108"
+        },
+        {
+          "text": "Review the draft against the record.",
+          "skill": "SK-027"
+        }
       ],
-      "stages": ["Charge-sheet", "Discharge application", "Order", "Charge", "Trial"],
+      "stages": [
+        "Charge-sheet",
+        "Discharge application",
+        "Order",
+        "Charge",
+        "Trial"
+      ],
       "intakeQuestions": [
         "Which offences does the charge-sheet name?",
         "What material does the charge-sheet rely on for each ingredient?",
         "Is any co-accused discharged?"
       ],
-      "skills": ["SK-107", "SK-108", "SK-109"],
-      "recordColumns": ["Ingredient", "Provision", "Charge-sheet material", "Source", "Page", "Line"],
-      "evidence": ["The charge-sheet", "The statements and documents relied on", "The orders on co-accused, if any"],
+      "skills": [
+        "SK-107",
+        "SK-108",
+        "SK-109"
+      ],
+      "recordColumns": [
+        "Ingredient",
+        "Provision",
+        "Charge-sheet material",
+        "Source",
+        "Page",
+        "Line"
+      ],
+      "evidence": [
+        "The charge-sheet",
+        "The statements and documents relied on",
+        "The orders on co-accused, if any"
+      ],
       "terms": [
-        { "term": "Discharge", "meaning": "The court's finding that the material does not make out the offence, before the charge is framed." }
+        {
+          "term": "Discharge",
+          "meaning": "The court's finding that the material does not make out the offence, before the charge is framed."
+        }
       ]
     },
     {
       "key": "criminal_appeal",
       "title": "Criminal appeal",
       "caseType": "Criminal appeal",
-      "courts": ["in.hc.delhi", "in.sc"],
-      "provisions": ["Section 415 of the Bharatiya Nagarik Suraksha Sanhita, 2023", "Section 374 of the Code of Criminal Procedure, 1973, for matters before it"],
-      "limitation": null,
-      "requiredParts": ["Memorandum of appeal", "Vakalatnama", "Certified copy of the judgment"],
-      "documents": [
-        { "kind": "appeal_memo", "title": "Memorandum of Appeal" },
-        { "kind": "vakalatnama", "title": "Vakalatnama" }
+      "courts": [
+        "in.hc.delhi",
+        "in.sc"
       ],
-      "annexureParts": ["Certified copy of the judgment", "Annexures"],
+      "provisions": [
+        "Section 415 of the Bharatiya Nagarik Suraksha Sanhita, 2023",
+        "Section 374 of the Code of Criminal Procedure, 1973, for matters before it"
+      ],
+      "limitation": null,
+      "requiredParts": [
+        "Memorandum of appeal",
+        "Vakalatnama",
+        "Certified copy of the judgment"
+      ],
+      "documents": [
+        {
+          "kind": "appeal_memo",
+          "title": "Memorandum of Appeal"
+        },
+        {
+          "kind": "vakalatnama",
+          "title": "Vakalatnama"
+        }
+      ],
+      "annexureParts": [
+        "Certified copy of the judgment",
+        "Annexures"
+      ],
       "unmappedParts": [],
       "workflow": [
-        { "text": "Analyse the judgment and its findings.", "skill": "SK-008" },
-        { "text": "Draft the appeal and the suspension application.", "skill": "SK-113" },
-        { "text": "Review the draft against the record.", "skill": "SK-027" }
+        {
+          "text": "Analyse the judgment and its findings.",
+          "skill": "SK-008"
+        },
+        {
+          "text": "Draft the appeal and the suspension application.",
+          "skill": "SK-113"
+        },
+        {
+          "text": "Review the draft against the record.",
+          "skill": "SK-027"
+        }
       ],
-      "stages": ["Judgment", "Appeal", "Suspension of sentence", "Notice", "Hearing", "Order"],
+      "stages": [
+        "Judgment",
+        "Appeal",
+        "Suspension of sentence",
+        "Notice",
+        "Hearing",
+        "Order"
+      ],
       "intakeQuestions": [
         "What is the conviction and sentence?",
         "Is the appellant in custody?",
         "What is the date of the judgment?",
         "Is a suspension of sentence sought?"
       ],
-      "skills": ["SK-008", "SK-113", "SK-114"],
-      "recordColumns": ["Date", "Event", "Source", "Page", "Line", "Proceeding"],
-      "evidence": ["The judgment", "The trial record", "The sentence order"],
+      "skills": [
+        "SK-008",
+        "SK-113",
+        "SK-114"
+      ],
+      "recordColumns": [
+        "Date",
+        "Event",
+        "Source",
+        "Page",
+        "Line",
+        "Proceeding"
+      ],
+      "evidence": [
+        "The judgment",
+        "The trial record",
+        "The sentence order"
+      ],
       "terms": [
-        { "term": "Suspension of sentence", "meaning": "A prayer that the sentence not run while the appeal is heard." }
+        {
+          "term": "Suspension of sentence",
+          "meaning": "A prayer that the sentence not run while the appeal is heard."
+        }
       ]
+    },
+    {
+      "key": "trial",
+      "title": "Trial",
+      "caseType": "Criminal trial",
+      "courts": [
+        "in.hc.delhi"
+      ],
+      "provisions": [
+        "Bharatiya Nagarik Suraksha Sanhita, 2023",
+        "Bharatiya Sakshya Adhiniyam, 2023"
+      ],
+      "limitation": null,
+      "requiredParts": [
+        "Vakalatnama",
+        "Application"
+      ],
+      "documents": [
+        {
+          "kind": "vakalatnama",
+          "title": "Vakalatnama"
+        },
+        {
+          "kind": "application_interim",
+          "title": "Application"
+        }
+      ],
+      "annexureParts": [
+        "Annexures"
+      ],
+      "unmappedParts": [],
+      "workflow": [
+        {
+          "text": "Read the record for trial.",
+          "skill": "SK-111"
+        }
+      ],
+      "stages": [
+        "Charge",
+        "Evidence",
+        "Arguments",
+        "Judgment"
+      ],
+      "intakeQuestions": [
+        "What is the charge, and which witnesses and exhibits does the record hold?"
+      ],
+      "skills": [
+        "SK-111",
+        "SK-112",
+        "SK-115"
+      ],
+      "recordColumns": [
+        "Date",
+        "Event",
+        "Source",
+        "Page",
+        "Line"
+      ],
+      "evidence": [
+        "The record of trial"
+      ],
+      "terms": []
     }
   ],
   "terms": [
-    { "term": "FIR", "meaning": "The first information report of an offence." },
-    { "term": "Charge-sheet", "meaning": "The report the police file in court after the investigation." },
-    { "term": "Custody record", "meaning": "The arrest, remand and custody events, each with its source." }
+    {
+      "term": "FIR",
+      "meaning": "The first information report of an offence."
+    },
+    {
+      "term": "Charge-sheet",
+      "meaning": "The report the police file in court after the investigation."
+    },
+    {
+      "term": "Custody record",
+      "meaning": "The arrest, remand and custody events, each with its source."
+    }
   ]
 }

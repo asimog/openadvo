@@ -8,7 +8,7 @@ Two modules are built: **practice packs** (N4, Q3) and **skill review** (N6).
 
 | Feature | This phase builds |
 |---|---|
-| N4 | The phase 8 skills of [../skills.md](../skills.md): SK-001 to SK-033 (except SK-028, phase 9), SK-101 to SK-110, SK-113 and SK-114, SK-201 to SK-208 and SK-210, SK-301 to SK-305 and SK-307 to SK-309. Each is a versioned `SKILL.md` in `skills/`, with its instructions, tools, checks, approval points and tests. |
+| N4 | The phase 8 skills of [../skills.md](../skills.md): SK-001 to SK-033 (except SK-028, phase 13), SK-101 to SK-110, SK-113 and SK-114, SK-201 to SK-208 and SK-210, SK-301 to SK-305 and SK-307 to SK-309. Each is a versioned `SKILL.md` in `skills/`, with its instructions, tools, checks, approval points and tests. |
 | N6 | The thirteen-parameter review, the three legal failure modes, a review record kept with the version, and the fixture skill tests that run on every change. |
 | Q3 | The SLP generators, filing set, limitation rule and workflow move from the core to `packs/slp.json` and `src/lib/packs/slp.ts`. The core asks the pack registry; it holds no SLP constant. |
 

@@ -557,7 +557,7 @@ export function MemoryPanel(props: { matterId: string; version: number; onChange
   const [answer, setAnswer] = useState<MemoryAnswer | null>(null);
   const [asking, setAsking] = useState(false);
   const [outcomes, setOutcomes] = useState<OutcomeRecord[]>([]);
-  const [outcomeForm, setOutcomeForm] = useState({ result: "disposed" as OutcomeResult, subject: "", court: "", decidedOn: new Date().toISOString().slice(0, 10), summary: "" });
+  const [outcomeForm, setOutcomeForm] = useState({ result: "disposed" as OutcomeResult, subject: "", court: "", decidedOn: new Date().toISOString().slice(0, 10), summary: "", supersedes: "" });
   const load = useCallback(async () => {
     try {
       setError(null);
@@ -606,8 +606,9 @@ export function MemoryPanel(props: { matterId: string; version: number; onChange
         court: outcomeForm.court,
         decidedOn: outcomeForm.decidedOn,
         summary: outcomeForm.summary,
+        supersedes: outcomeForm.supersedes || null,
       });
-      setOutcomeForm({ ...outcomeForm, subject: "", summary: "" });
+      setOutcomeForm({ result: "disposed", subject: "", court: "", decidedOn: new Date().toISOString().slice(0, 10), summary: "", supersedes: "" });
       await load();
       props.onChanged();
     } catch (e) {
@@ -678,6 +679,7 @@ export function MemoryPanel(props: { matterId: string; version: number; onChange
       </ul>
       <Heading level={4}>Outcome records</Heading>
       <Text type="supporting">What the court did, in your words. Only you enter it. A correction supersedes the old record; the history stays. The advocate memory graph reads the result and the legal subject, never a party or a piece of evidence.</Text>
+      {outcomeForm.supersedes ? <Text type="supporting" data-testid="outcome-correcting">Correcting the outcome of {outcomeForm.decidedOn}. The old record stays and is marked superseded.</Text> : null}
       <div className="phase4-form">
         <select aria-label="Outcome result" value={outcomeForm.result} onChange={(e) => setOutcomeForm({ ...outcomeForm, result: e.target.value as OutcomeResult })}>
           {OUTCOME_RESULTS.map((r) => <option key={r} value={r}>{r.replace(/_/g, " ")}</option>)}
@@ -696,6 +698,11 @@ export function MemoryPanel(props: { matterId: string; version: number; onChange
               <Text weight="semibold">{o.subject}</Text>
               <Text type="supporting">{[o.court || null, o.decidedOn, o.summary || null, `entered ${o.enteredAt.slice(0, 10)}`].filter(Boolean).join(" · ")}</Text>
             </div>
+            {o.status === "active" ? (
+              <div className="row-actions">
+                <Button label="Correct" size="sm" variant="ghost" clickAction={() => setOutcomeForm({ result: o.result, subject: o.subject, court: o.court, decidedOn: o.decidedOn, summary: o.summary, supersedes: o.id })} data-testid="outcome-correct" />
+              </div>
+            ) : null}
           </li>
         ))}
         {outcomes.length === 0 ? <li><Text type="supporting">No outcome recorded yet.</Text></li> : null}

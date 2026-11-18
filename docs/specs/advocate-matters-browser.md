@@ -156,11 +156,11 @@ Built in this step:
 Not built, and said on screen or in this spec:
 
 - the court portal window has **not** moved onto the built-in browser. It stays separate with its filing guards until phase 13. The built-in browser is the general browser.
-- the case-status adapter is not a Playwright script. The browser opens the portal page and the agent reads it; the Playwright adapters are phase 9 (S12).
+- the case-status adapter is not a Playwright script. The browser opens the portal page and the agent reads it; the Playwright adapters are phase 13 (S12).
 - the Practice Profile does not yet show the territorial map or the local intelligence plan; it shows the court map, the practice map, the sources plan, the statutory map, the recommended skills and the library.
 - the browser does not show a site favicon; it uses a globe and an agent marker.
 - H1's accepted formats are the existing ingest formats: PDF, DOCX, plain text, PNG, JPEG and EML. DOC, ODT, XLSX, CSV, PPTX, MSG, HTML and ZIP bundles are not read yet.
-- new judgments and court updates on Home say that they come with monitoring in phase 9.
+- new judgments and court updates on Home say that they come with monitoring in phase 13.
 
 ## 11. Done
 

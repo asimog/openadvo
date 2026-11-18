@@ -237,7 +237,7 @@ Filing readiness is part of local intelligence: the court's registry rules (B5) 
 | ID | Feature | Ph | Base | Output | Needs |
 |---|---|---|---|---|---|
 | R1 | Review Inbox: drafts to approve, research to verify, facts to confirm, conflicting authorities, unverified citations, missing documents, memory proposals, workflow exceptions, filing defects, proposed strategy changes, rule-pack changes; keyboard operable; "blocks the work" first | 1 | X | One queue | — |
-| R2 | Practice Intelligence Dashboard (Home): active matters, today's and next hearings, pending filings, court updates, new relevant judgments, changes in law, matters needing attention, open legal questions, research and drafts awaiting review, filing defects, incomplete evidence, runs waiting for the advocate; no business figures; also matter analytics: open matters, age, stage, deadlines, open items, pending instructions, document and research completeness | 3 | X | Home view | R1, C5 |
+| R2 | Practice Intelligence Dashboard (Home): active matters, today's and next hearings, pending filings, court updates, new relevant judgments, changes in law, matters needing attention, open legal questions, research and drafts awaiting review, filing defects, incomplete evidence, runs waiting for the advocate; no business figures; also matter counts: open matters, age, stage, deadlines, open items, pending instructions, document and research completeness | 3 | X | Home view | R1, C5 |
 
 ## S. Court operations, monitoring and automation
 
