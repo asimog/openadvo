@@ -279,7 +279,6 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
     "search_citation_index",
     "propose_issue",
     "add_authority",
-    "write_memorandum",
     "propose_paragraph",
     "check_citations",
     "open_court_portal",
@@ -294,9 +293,9 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
     "list_record_table",
     "fill_record_cell",
     "propose_memory_note",
-    "search_judgments",
+    "discover_judgments",
     "read_judgment",
-    "search_statutes",
+    "discover_statutes",
     "read_statute_section",
     // Phase 5: the Studio knowledge search and research tools (law-research-authority.md).
     // Added to the exact list after they were found missing from it (the phase 6 full-suite run

@@ -29,7 +29,9 @@ The contract is TypeScript. It has no Electron import, no Pi import and no store
 type KnowledgeScope = "advocate" | "firm" | "statute" | "procedure" | "matter" | "research" | "session";
 ```
 
-One registry per session. One retrieval function. The agent sees one tool, `search_knowledge`.
+One registry per session. One retrieval function. The agent sees one retrieval tool, `search_knowledge`. Discovery is a separate step with its own tools: `discover_judgments`, `discover_statutes`, `web_search` and `web_fetch` return a source to open, never a citable passage. `read_judgment` and `read_statute_section` open and index the source. Only then does `search_knowledge` retrieve it, with its anchor, verification and coverage. A discovery result is never quoted as if it had been retrieved.
+
+The agent has one memorandum tool, `write_research_memo`. It locates every selected quote in its source, resolves every matter reference in the body, and refuses a memorandum with neither a verified quote nor a resolved reference. There is no second, unverified memorandum path.
 
 ### 2.2 Citation key
 

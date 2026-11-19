@@ -1,7 +1,7 @@
 ---
 name: issues-for-determination
 id: SK-207
-version: 1.0.0
+version: 1.0.1
 title: Issues for determination
 description: "Proposes the issues for determination in a civil suit from the pleadings and the record, each with its burden and the evidence it needs. Use it when the advocate asks for the issues or before the framing of issues."
 role: strategy
@@ -9,7 +9,7 @@ packs: [civil]
 proceedings: [Civil suit]
 inputs: [the plaint, the written statement, the record]
 required_context: [events, issues, conflicts, drafts]
-permitted_tools: [list_sources, read_source_text, search_sources, list_events, get_chronology, read_draft, get_paragraph_source, list_research, list_research_plans, list_record_table, read_matter_memory, find_in_matter, list_arguments, list_preferences, list_hearings, list_facts, list_evidence, list_matter_memory, get_jurisdiction, get_timeline, list_document_parts, get_contradictions, search_knowledge, verify_quote, find_adverse_authority, search_judgments, read_judgment, search_statutes, read_statute_section, search_citation_index, web_search, web_fetch, propose_issue]
+permitted_tools: [list_sources, read_source_text, search_sources, list_events, get_chronology, read_draft, get_paragraph_source, list_research, list_research_plans, list_record_table, read_matter_memory, find_in_matter, list_arguments, list_preferences, list_hearings, list_facts, list_evidence, list_matter_memory, get_jurisdiction, get_timeline, list_document_parts, get_contradictions, search_knowledge, verify_quote, find_adverse_authority, discover_judgments, read_judgment, discover_statutes, read_statute_section, search_citation_index, web_search, web_fetch, propose_issue]
 output: list
 checks: [schema, anchors]
 approval_points: [before_write]

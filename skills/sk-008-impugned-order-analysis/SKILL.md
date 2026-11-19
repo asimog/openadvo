@@ -1,14 +1,14 @@
 ---
 name: impugned-order-analysis
 id: SK-008
-version: 1.0.0
+version: 1.0.1
 title: Impugned order or judgment analysis
 description: "Reads the impugned order or judgment in the sources and reports its findings and reasoning, each with its source anchor, and the findings that look unsupported by the record. Use it when the advocate asks to analyse, summarise or test the impugned order, judgment or decision."
 role: research
 packs: [general]
 inputs: [the impugned order or judgment among the sources]
 required_context: [sources, lines, events, issues]
-permitted_tools: [list_sources, read_source_text, search_sources, list_events, get_chronology, read_draft, get_paragraph_source, list_research, list_research_plans, list_record_table, read_matter_memory, find_in_matter, list_arguments, list_preferences, list_hearings, list_facts, list_evidence, list_matter_memory, get_jurisdiction, get_timeline, list_document_parts, get_contradictions, search_knowledge, verify_quote, find_adverse_authority, search_judgments, read_judgment, search_statutes, read_statute_section, search_citation_index, web_search, web_fetch]
+permitted_tools: [list_sources, read_source_text, search_sources, list_events, get_chronology, read_draft, get_paragraph_source, list_research, list_research_plans, list_record_table, read_matter_memory, find_in_matter, list_arguments, list_preferences, list_hearings, list_facts, list_evidence, list_matter_memory, get_jurisdiction, get_timeline, list_document_parts, get_contradictions, search_knowledge, verify_quote, find_adverse_authority, discover_judgments, read_judgment, discover_statutes, read_statute_section, search_citation_index, web_search, web_fetch]
 output: report
 checks: [schema, anchors, no_unverified_claims]
 approval_points: []

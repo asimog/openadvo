@@ -35,7 +35,7 @@ export const READ_MATTER_TOOLS = [
 ] as const;
 
 /** Tools that read public law and the web. */
-export const READ_LAW_TOOLS = ["search_knowledge", "verify_quote", "find_adverse_authority", "search_judgments", "read_judgment", "search_statutes", "read_statute_section", "search_citation_index", "web_search", "web_fetch"] as const;
+export const READ_LAW_TOOLS = ["search_knowledge", "verify_quote", "find_adverse_authority", "discover_judgments", "read_judgment", "discover_statutes", "read_statute_section", "search_citation_index", "web_search", "web_fetch"] as const;
 
 /**
  * Tools no skill may have: the portal and filing steps (decision 25: filing by the agent is the
@@ -68,7 +68,6 @@ export const WRITING_TOOLS = new Set([
   "propose_correction",
   "propose_issue",
   "add_authority",
-  "write_memorandum",
   "propose_paragraph",
   "fill_record_cell",
   "propose_memory_note",
@@ -98,7 +97,7 @@ const L = [...READ_LAW_TOOLS];
 export const ROLE_TABLE: Record<Role, { description: string; tools: string[] }> = {
   intake: { description: "Takes in a new matter or document and proposes its classification and what is missing.", tools: [...R, "propose_memory_note"] },
   jurisdiction: { description: "Settles the forum, limitation and the law on the governing date, as questions and workings.", tools: [...R, ...L] },
-  research: { description: "Finds and assesses law, supporting and adverse, and records candidates and memoranda.", tools: [...R, ...L, "save_judgment", "save_provision", "add_authority", "assess_authority", "record_treatment", "write_memorandum", "write_research_memo", "propose_research_plan", "set_research_step", "propose_issue"] },
+  research: { description: "Finds and assesses law, supporting and adverse, and records candidates and memoranda.", tools: [...R, ...L, "save_judgment", "save_provision", "add_authority", "assess_authority", "record_treatment", "write_research_memo", "propose_research_plan", "set_research_step", "propose_issue"] },
   evidence: { description: "Reads the record and answers questions of each source with exact anchors.", tools: [...R, "fill_record_cell"] },
   chronology: { description: "Builds and tests the chronology: dates, conflicts and contradictions.", tools: [...R] },
   drafting: { description: "Proposes text as tracked changes from confirmed records.", tools: [...R, "propose_correction", "propose_paragraph", "insert_citation", "propose_preference"] },

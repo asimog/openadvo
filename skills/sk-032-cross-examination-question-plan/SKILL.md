@@ -1,14 +1,14 @@
 ---
 name: cross-examination-question-plan
 id: SK-032
-version: 1.0.0
+version: 1.0.1
 title: Cross-examination question plan
 description: "Builds the cross-examination plan from the contradictions and the recorded statements: each question names its witness, the target and the answer it seeks. Use it when the advocate asks for the cross-examination questions or the plan for a witness."
 role: hearing
 packs: [general]
 inputs: [the witness, the contradictions and the statements]
 required_context: [lines, conflicts, events]
-permitted_tools: [list_sources, search_sources, read_source_text, list_events, get_chronology, list_facts, list_evidence, get_contradictions, read_draft, get_paragraph_source, list_preferences, find_in_matter, search_knowledge, verify_quote, find_adverse_authority, search_judgments, read_judgment, search_statutes, read_statute_section, search_citation_index, web_search, web_fetch, list_hearings, propose_cross_questions]
+permitted_tools: [list_sources, search_sources, read_source_text, list_events, get_chronology, list_facts, list_evidence, get_contradictions, read_draft, get_paragraph_source, list_preferences, find_in_matter, search_knowledge, verify_quote, find_adverse_authority, discover_judgments, read_judgment, discover_statutes, read_statute_section, search_citation_index, web_search, web_fetch, list_hearings, propose_cross_questions]
 output: draft
 checks: [schema, anchors]
 approval_points: [before_write]

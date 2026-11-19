@@ -127,7 +127,7 @@ test("v4: index, search, read and save from the sources; the argument loop; deci
     await call("setResearchSettings", { aws: true, indiaCode: true, web: true });
 
     // ---- The agent's tool reaches the same index ----
-    const toolText = await app.evaluate((_e, id) => (globalThis as any).__openadvoTest.studioTool(id, "search_judgments", { court: "sc", query: "2023 INSC 1043" }), matterId);
+    const toolText = await app.evaluate((_e, id) => (globalThis as any).__openadvoTest.studioTool(id, "discover_judgments", { court: "sc", query: "2023 INSC 1043" }), matterId);
     expect(toolText).toContain("ref: sc:2023_16_872_887");
 
     // ---- The research log ----

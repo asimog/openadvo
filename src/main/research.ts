@@ -8,11 +8,10 @@
  */
 import type { Matters } from "./matters.ts";
 import { findCitations, ulosAvailable, verifyCitation, type UlosPaths } from "../lib/ulos/index.ts";
-import { parseReferences } from "../lib/research/index.ts";
 import { readParagraphs } from "../lib/drafting/index.ts";
 import { MatterStoreError } from "../lib/matter-store/index.ts";
 import type { WriteContext } from "../shared/records.ts";
-import type { AdverseReview, AuthorityRecord, CitationCheck, MemorandumRecord, ResearchState } from "../shared/work.ts";
+import type { AdverseReview, AuthorityRecord, CitationCheck, ResearchState } from "../shared/work.ts";
 
 const advocate: WriteContext = { actor: "advocate" };
 
@@ -85,39 +84,6 @@ export class Research {
 
   async decideAuthority(matterId: string, id: string, decision: "adopted" | "rejected") {
     return (await this.work(matterId)).decideAuthority(id, decision, advocate);
-  }
-
-  /**
-   * A memorandum (workflow 7D). Every reference in its body is resolved against the matter:
-   * Notebook events, issues, authorities, and source lines. A reference that does not resolve
-   * is stored as unresolved and shown as such; a memorandum with none that resolve is refused.
-   */
-  async writeMemorandum(matterId: string, input: { title: string; issueId: string | null; body: string }, ctx: WriteContext): Promise<MemorandumRecord> {
-    const store = await this.matters.store(matterId);
-    const w = store.work;
-    const notebook = await this.matters.notebook(matterId);
-    const sources = await this.matters.listSources(matterId);
-    const refs: string[] = [];
-    const unresolved: string[] = [];
-    for (const r of parseReferences(input.body)) {
-      let ok = false;
-      if (r.kind === "event") ok = notebook.events.some((e) => e.id === r.id);
-      else if (r.kind === "issue") ok = w.listIssues().some((i) => i.id === r.id);
-      else if (r.kind === "authority") ok = w.listAuthorities().some((a) => a.id === r.id);
-      else if (r.kind === "source") {
-        const source = sources.find((s) => s.name.toLowerCase() === r.name.toLowerCase());
-        if (source) {
-          const pages = await this.matters.listPages(matterId, source.id, r.page, r.page);
-          ok = pages.some((p) => p.lines.some((l) => l.line === r.line));
-        }
-      }
-      (ok ? refs : unresolved).push(r.raw);
-    }
-    if (refs.length === 0) {
-      throw new MatterStoreError("MEMO_UNGROUNDED", "a memorandum needs at least one reference that the matter resolves: [event:<id>], [issue:<id>], [authority:<id>] or [source name, p. N, l. M]");
-    }
-    if (input.issueId && !w.listIssues().some((i) => i.id === input.issueId)) throw new MatterStoreError("ISSUE_NOT_FOUND", input.issueId);
-    return w.addMemorandum({ ...input, refs, unresolved }, ctx);
   }
 
   /**

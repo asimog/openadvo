@@ -79,6 +79,8 @@ const bridge = (page: Page) => <T>(fn: string, ...args: unknown[]) =>
   page.evaluate(([f, a]) => (globalThis as any).openadvo[f as string](...(a as unknown[])), [fn, args] as const) as Promise<T>;
 const work = (app: ElectronApplication) => <T>(fn: string, ...args: unknown[]) =>
   app.evaluate((_e, [f, a]) => (globalThis as any).__openadvoTest.work()[f](...a), [fn, args] as const) as Promise<T>;
+const studioTool = (app: ElectronApplication) => <T>(matterId: string, tool: string, params: Record<string, unknown>) =>
+  app.evaluate((_e, [id, t, p]) => (globalThis as any).__openadvoTest.studioTool(id, t, p), [matterId, tool, params] as const) as Promise<T>;
 
 test("steps 6 to 10: research, citations, grounds, filing set, capture, agent filing, receipt, email", async () => {
   test.skip(!vendored || !ulos, "needs the vendored Euro-Office release and ulos (npm run vendor, npm run vendor:ulos)");
@@ -145,11 +147,11 @@ test("steps 6 to 10: research, citations, grounds, filing set, capture, agent fi
     await page.getByRole("button", { name: "Search index" }).click();
     await expect(page.getByTestId("index-hits")).toContainText("1950 INSC 2");
 
-    // A memorandum must be grounded in the matter's records.
-    await expect(agent("writeMemorandum", matterId, { title: "Bare", issueId: null, body: "No references at all [event:00000000-0000]." })).rejects.toThrow(/MEMO_UNGROUNDED/);
-    const memo = await agent<string>("writeMemorandum", matterId, {
+    // A memorandum must be grounded in the matter's records or in a verified quote.
+    const studio = studioTool(app);
+    await expect(studio(matterId, "write_research_memo", { title: "Bare", body: "No references at all [event:00000000-0000]." })).rejects.toThrow(/MEMO_UNGROUNDED/);
+    const memo = await studio<string>(matterId, "write_research_memo", {
       title: "Memorandum on the dismissal",
-      issueId: null,
       body: `Established fact: the writ petition was dismissed [event:${judgment.id}] [judgment.pdf, p. 1, l. 4]. Proposition: notice was required [event:ffffffff-ffff].`,
     });
     expect(memo).toContain("2 reference(s) resolved");

@@ -1,14 +1,14 @@
 ---
 name: oral-outline-rebuttal
 id: SK-020
-version: 1.0.0
+version: 1.0.1
 title: Oral outline and rebuttal
 description: "Drafts the oral outline: three or four points strongest first, each with its speaking notes, the rebuttal notes and the compilation of authorities. Use it when the advocate asks for the oral outline or the argument for the date."
 role: hearing
 packs: [general]
 inputs: [the accepted arguments, the authorities, the bench questions]
 required_context: [issues, authorities, drafts]
-permitted_tools: [list_sources, search_sources, read_source_text, list_events, get_chronology, list_facts, list_evidence, get_contradictions, read_draft, get_paragraph_source, list_preferences, find_in_matter, search_knowledge, verify_quote, find_adverse_authority, search_judgments, read_judgment, search_statutes, read_statute_section, search_citation_index, web_search, web_fetch, list_hearings]
+permitted_tools: [list_sources, search_sources, read_source_text, list_events, get_chronology, list_facts, list_evidence, get_contradictions, read_draft, get_paragraph_source, list_preferences, find_in_matter, search_knowledge, verify_quote, find_adverse_authority, discover_judgments, read_judgment, discover_statutes, read_statute_section, search_citation_index, web_search, web_fetch, list_hearings]
 output: draft
 checks: [schema, anchors]
 approval_points: []

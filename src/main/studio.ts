@@ -33,6 +33,7 @@ import { bindingEffect } from "../lib/authority/binding.ts";
 import { quoteHash, verifyQuote } from "../lib/knowledge/quote.ts";
 import { adverseQueries, composeResearchMemo, type VerifiedQuote } from "../lib/research-workflow/index.ts";
 import type { Matters } from "./matters.ts";
+import { resolveMemoReferences } from "./memo-grounding.ts";
 import type { AdvocateStore } from "../lib/advocate-store/index.ts";
 import type { WriteContext } from "../shared/records.ts";
 import type { KnowledgeHealthView, KnowledgeHit, QuoteCheck, RetrievalResult } from "../shared/law.ts";
@@ -237,20 +238,22 @@ export class ResearchHub {
   }
 
   /**
-   * Write a quote-first research memorandum. Every selected quote is located in its source; one
-   * unverified quote refuses the whole memorandum. The memo is a candidate for the advocate and
-   * opens a review item.
+   * Write the matter's memorandum. Every selected quote is located in its source; one unverified
+   * quote refuses the whole memorandum. Every [event:], [issue:], [authority:] or source-line
+   * reference in the body is resolved against the matter. A memorandum needs at least one
+   * verified quote or one resolved reference. The memo is a candidate for the advocate and opens
+   * a review item. This is the only memorandum tool; there is no second, unverified path.
    */
   async writeResearchMemo(
     matterId: string,
     input: {
       title: string;
       issueId?: string | null;
-      question: string;
+      question?: string;
       governingDate?: string | null;
       body: string;
-      coverage: string;
-      quotes: Array<{ hitId: string; quote: string }>;
+      coverage?: string;
+      quotes?: Array<{ hitId: string; quote: string }>;
       adverse?: Array<{ hitId: string; quote: string }>;
       openQuestions?: string[];
     },
@@ -268,16 +271,22 @@ export class ResearchHub {
       }
       return out;
     };
-    const quotes = await verifyAll(input.quotes);
+    const quotes = await verifyAll(input.quotes ?? []);
     const adverse = await verifyAll(input.adverse ?? []);
+    const grounding = await resolveMemoReferences(this.matters, matterId, input.body);
+    const refs = [...new Set([...grounding.refs, ...quotes.map((row) => row.hitId), ...adverse.map((row) => row.hitId)])];
+    if (refs.length === 0) {
+      throw new MatterStoreError("MEMO_UNGROUNDED", "a memorandum needs at least one verified quote or one reference that the matter resolves: [event:<id>], [issue:<id>], [authority:<id>] or [source name, p. N, l. M]");
+    }
+    if (input.issueId && !store.work.listIssues().some((issue) => issue.id === input.issueId)) throw new MatterStoreError("ISSUE_NOT_FOUND", input.issueId);
     const body = composeResearchMemo({
       title: input.title,
-      question: input.question,
+      question: input.question?.trim() || input.title,
       governingDate: input.governingDate ?? null,
       body: input.body,
       quotes,
       adverse,
-      coverage: input.coverage,
+      coverage: input.coverage ?? "",
       openQuestions: input.openQuestions ?? [],
     });
     const memo = store.work.addMemorandum(
@@ -285,13 +294,13 @@ export class ResearchHub {
         title: input.title,
         issueId: input.issueId ?? null,
         body,
-        refs: [...quotes, ...adverse].map((row) => row.hitId),
-        unresolved: [],
+        refs,
+        unresolved: grounding.unresolved,
       },
       ctx,
     );
-    const reviewItem = store.openReviewItem("research_memo", memo.id, null, `Research memorandum "${memo.title}" is ready for review. ${quotes.length} verified quote(s), ${adverse.length} adverse quote(s).`);
-    return { memo, reviewItem, quotes: quotes.length, adverse: adverse.length };
+    const reviewItem = store.openReviewItem("research_memo", memo.id, null, `Memorandum "${memo.title}" is ready for review. ${quotes.length} verified quote(s), ${adverse.length} adverse quote(s), ${grounding.refs.length} resolved reference(s).`);
+    return { memo, reviewItem, quotes: quotes.length, adverse: adverse.length, refs: grounding.refs.length, unresolved: grounding.unresolved.length };
   }
 
   /** Load the owner's ten-instrument first wave. It writes law rows and source hashes. */

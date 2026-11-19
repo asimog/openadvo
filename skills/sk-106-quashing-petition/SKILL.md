@@ -1,7 +1,7 @@
 ---
 name: quashing-petition
 id: SK-106
-version: 1.0.0
+version: 1.0.1
 title: Quashing petition
 description: "Drafts the quashing petition from the FIR, the charge-sheet and the ingredients chart, with each ground tied to the ingredient or the record that fails. Use it when the advocate asks for a quashing petition under the criminal procedure's quashing power."
 role: research
@@ -9,7 +9,7 @@ packs: [criminal]
 proceedings: [Quashing petition]
 inputs: [the FIR or complaint, the charge-sheet, the ingredients chart]
 required_context: [sources, events, issues, authorities, drafts]
-permitted_tools: [list_sources, search_sources, read_source_text, list_events, get_chronology, list_facts, list_evidence, get_contradictions, read_draft, get_paragraph_source, list_preferences, find_in_matter, search_knowledge, verify_quote, find_adverse_authority, search_judgments, read_judgment, search_statutes, read_statute_section, search_citation_index, web_search, web_fetch]
+permitted_tools: [list_sources, search_sources, read_source_text, list_events, get_chronology, list_facts, list_evidence, get_contradictions, read_draft, get_paragraph_source, list_preferences, find_in_matter, search_knowledge, verify_quote, find_adverse_authority, discover_judgments, read_judgment, discover_statutes, read_statute_section, search_citation_index, web_search, web_fetch]
 output: draft
 checks: [schema, anchors]
 approval_points: []

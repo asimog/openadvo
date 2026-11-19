@@ -29,7 +29,7 @@ export const BUILT_IN: Workflow[] = [
   {
     id: "builtin-research",
     title: "Research the accepted issues",
-    body: "For each accepted issue in list_research, search the citation index for supporting and adverse Supreme Court authorities. Record each candidate with add_authority and its role. Then write one memorandum per issue with write_memorandum, grounded in [event:], [issue:], [authority:] and source references. Separate established facts, disputed facts, propositions, assumptions and open questions.",
+    body: "For each accepted issue in list_research, search the citation index for supporting and adverse Supreme Court authorities. Record each candidate with add_authority and its role. Then write one memorandum per issue with write_research_memo, grounded in [event:], [issue:], [authority:] and source references; verify every quote first with verify_quote. Separate established facts, disputed facts, propositions, assumptions and open questions.",
     builtIn: true,
   },
   {

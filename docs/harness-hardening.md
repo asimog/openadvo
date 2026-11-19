@@ -92,7 +92,7 @@ From the part B work of 2026-11-15 ([../.agents/logs/2026-11-15-part-b-agent-fra
 |---|---|---|---|
 | H-33 | A helper started with `wait: false` starts a main turn by itself; the window did not see it, did not save it and did not count its usage. | H-25: one listener per session. | built |
 | H-34 | Stop aborted the main turn only; helpers kept running. | Stop on the chat stops every helper, foreground or background, and the notice says how many. A helper's own Stop and Steer are in the status line's menu. | built |
-| H-35 | A helper's writes carried the main session's id; `propose_issue`, `add_authority` and `write_memorandum` carried none. | Every write records `<session id>`, or `<session id>/<parent call id>` for a call made by another tool. | built |
+| H-35 | A helper's writes carried the main session's id; `propose_issue`, `add_authority` and the memorandum write carried none. | Every write records `<session id>`, or `<session id>/<parent call id>` for a call made by another tool. | built |
 | H-36 | A failed Studio call was returned as text, so the model and the window saw a success. | The call throws; Pi reports an error. | built |
 | H-37 | The tools did not follow Pi's extension guide. | `StringEnum`, `readOnlyHint`, `executionMode: "sequential"`, Stop ends a call at once, long results cut at Pi's limits with a hint. | built |
 | H-38 | The comment on `writePermissionPolicy` said an `ask` gets the default answer. | Corrected: it is a question. | built |

@@ -1,14 +1,14 @@
 ---
 name: review-curative-petitions
 id: SK-307
-version: 1.0.0
+version: 1.0.1
 title: Review and curative petitions
 description: "Drafts a review or curative petition from the judgment and the record, with the error apparent on the face of the record and the paragraphs it touches. Use it when the advocate asks for a review or a curative petition."
 role: research
 packs: [writ]
 inputs: [the judgment, the error]
 required_context: [sources, events, issues, authorities, drafts]
-permitted_tools: [list_sources, search_sources, read_source_text, list_events, get_chronology, list_facts, list_evidence, get_contradictions, read_draft, get_paragraph_source, list_preferences, find_in_matter, search_knowledge, verify_quote, find_adverse_authority, search_judgments, read_judgment, search_statutes, read_statute_section, search_citation_index, web_search, web_fetch]
+permitted_tools: [list_sources, search_sources, read_source_text, list_events, get_chronology, list_facts, list_evidence, get_contradictions, read_draft, get_paragraph_source, list_preferences, find_in_matter, search_knowledge, verify_quote, find_adverse_authority, discover_judgments, read_judgment, discover_statutes, read_statute_section, search_citation_index, web_search, web_fetch]
 output: draft
 checks: [schema, anchors]
 approval_points: []

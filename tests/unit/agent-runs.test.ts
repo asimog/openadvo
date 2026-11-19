@@ -100,7 +100,7 @@ test("a failed Studio call is an error to the model and the window, and the trac
     });
     let seen = "";
     f.core.setResponses([
-      fauxAssistantMessage([fauxToolCall("search_statutes", { query: "section 483" }, { id: "st-1" })], { stopReason: "toolUse" }),
+      fauxAssistantMessage([fauxToolCall("discover_statutes", { query: "section 483" }, { id: "st-1" })], { stopReason: "toolUse" }),
       (context) => {
         seen = JSON.stringify(context.messages.at(-1));
         return fauxAssistantMessage("It failed.");

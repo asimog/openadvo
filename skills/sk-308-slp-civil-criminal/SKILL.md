@@ -1,7 +1,7 @@
 ---
 name: slp-civil-criminal
 id: SK-308
-version: 1.0.0
+version: 1.0.1
 title: SLP (civil and criminal)
 description: "Drafts a special leave petition from the impugned judgment, the approved Questions of Law and Grounds, the list of dates and the record, for the SLP pack. Use it when the advocate asks for an SLP in a civil or criminal matter."
 role: research
@@ -10,7 +10,7 @@ courts: [in.sc]
 proceedings: [SLP(C), SLP(Cr)]
 inputs: [the impugned judgment, the approved Questions of Law and Grounds, the limitation working]
 required_context: [sources, events, issues, authorities, drafts]
-permitted_tools: [list_sources, search_sources, read_source_text, list_events, get_chronology, list_facts, list_evidence, get_contradictions, read_draft, get_paragraph_source, list_preferences, find_in_matter, search_knowledge, verify_quote, find_adverse_authority, search_judgments, read_judgment, search_statutes, read_statute_section, search_citation_index, web_search, web_fetch]
+permitted_tools: [list_sources, search_sources, read_source_text, list_events, get_chronology, list_facts, list_evidence, get_contradictions, read_draft, get_paragraph_source, list_preferences, find_in_matter, search_knowledge, verify_quote, find_adverse_authority, discover_judgments, read_judgment, discover_statutes, read_statute_section, search_citation_index, web_search, web_fetch]
 output: draft
 checks: [schema, anchors]
 approval_points: []

@@ -1,14 +1,14 @@
 ---
 name: issues-proposal
 id: SK-012
-version: 1.0.0
+version: 1.0.1
 title: Issues proposal
 description: "Proposes the issues for determination from the record, each tied to the facts it rests on and the relief it serves, as candidates for the case conference. Use it when the advocate asks what the issues are or wants the issues proposed before the conference."
 role: strategy
 packs: [general]
 inputs: [the record, the relief sought]
 required_context: [events, issues, conflicts, authorities, drafts]
-permitted_tools: [list_sources, read_source_text, search_sources, list_events, get_chronology, read_draft, get_paragraph_source, list_research, list_research_plans, list_record_table, read_matter_memory, find_in_matter, list_arguments, list_preferences, list_hearings, list_facts, list_evidence, list_matter_memory, get_jurisdiction, get_timeline, list_document_parts, get_contradictions, search_knowledge, verify_quote, find_adverse_authority, search_judgments, read_judgment, search_statutes, read_statute_section, search_citation_index, web_search, web_fetch, propose_issue]
+permitted_tools: [list_sources, read_source_text, search_sources, list_events, get_chronology, read_draft, get_paragraph_source, list_research, list_research_plans, list_record_table, read_matter_memory, find_in_matter, list_arguments, list_preferences, list_hearings, list_facts, list_evidence, list_matter_memory, get_jurisdiction, get_timeline, list_document_parts, get_contradictions, search_knowledge, verify_quote, find_adverse_authority, discover_judgments, read_judgment, discover_statutes, read_statute_section, search_citation_index, web_search, web_fetch, propose_issue]
 output: list
 checks: [schema, anchors]
 approval_points: [before_write]

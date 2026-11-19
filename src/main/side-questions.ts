@@ -25,9 +25,9 @@ export const SIDE_TOOLS = [
   "read_matter_memory",
   "find_in_matter",
   "list_arguments",
-  "search_judgments",
+  "discover_judgments",
   "read_judgment",
-  "search_statutes",
+  "discover_statutes",
   "read_statute_section",
   "search_citation_index",
 ] as const;

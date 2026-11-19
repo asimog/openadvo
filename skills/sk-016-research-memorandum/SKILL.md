@@ -1,14 +1,14 @@
 ---
 name: research-memorandum
 id: SK-016
-version: 1.0.0
+version: 1.0.1
 title: Research memorandum
 description: "Writes a research memorandum on one accepted issue: the question, the answer the law supports, the authorities with their passages, the adverse authority and the coverage. Use it when the advocate asks for a memorandum or a note on a question of law."
 role: research
 packs: [general]
 inputs: [the accepted issue, the verified authorities]
 required_context: [issues, authorities, rules, drafts]
-permitted_tools: [list_sources, read_source_text, search_sources, list_events, get_chronology, read_draft, get_paragraph_source, list_research, list_research_plans, list_record_table, read_matter_memory, find_in_matter, list_arguments, list_preferences, list_hearings, list_facts, list_evidence, list_matter_memory, get_jurisdiction, get_timeline, list_document_parts, get_contradictions, search_knowledge, verify_quote, find_adverse_authority, search_judgments, read_judgment, search_statutes, read_statute_section, search_citation_index, web_search, web_fetch]
+permitted_tools: [list_sources, read_source_text, search_sources, list_events, get_chronology, read_draft, get_paragraph_source, list_research, list_research_plans, list_record_table, read_matter_memory, find_in_matter, list_arguments, list_preferences, list_hearings, list_facts, list_evidence, list_matter_memory, get_jurisdiction, get_timeline, list_document_parts, get_contradictions, search_knowledge, verify_quote, find_adverse_authority, discover_judgments, read_judgment, discover_statutes, read_statute_section, search_citation_index, web_search, web_fetch]
 output: draft
 checks: [schema, anchors]
 approval_points: [before_write]

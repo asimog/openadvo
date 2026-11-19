@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "score": 25,
   "max": 26,
   "parameters": [
@@ -79,11 +79,11 @@
       "key": "version",
       "title": "Version and author",
       "score": 2,
-      "detail": "Version 1.0.0, advocate."
+      "detail": "Version 1.0.1, advocate."
     }
   ],
   "failure_modes": [],
-  "reviewed_at": "2026-11-18",
+  "reviewed_at": "2026-11-19",
   "fixtures": [
     "civil-injunction"
   ]

@@ -28,19 +28,19 @@ export function studioTools(hub: ResearchHub, studio: ArgumentStudio, matters: M
     const n = (k: string) => (typeof p[k] === "number" ? (p[k] as number) : undefined);
     try {
       switch (tool) {
-        case "search_judgments": {
+        case "discover_judgments": {
           const source: SourceName = p.court === "hc" ? "aws_hc" : "aws_sc";
           const r = await hub.search(matterId, source, s("query"), { from: n("from_year"), to: n("to_year"), limit: 15 }, agent);
-          return `${r.notice}\n${r.hits.map((h, i) => `${i + 1}. ${h.title}\n   ${h.detail}\n   ref: ${h.ref}`).join("\n") || "No match in the indexed parts."}`;
+          return `Discovery only: these are candidates, not retrieved text. Open one with read_judgment; then retrieve it with search_knowledge and verify a quote with verify_quote before citing it.\n${r.notice}\n${r.hits.map((h, i) => `${i + 1}. ${h.title}\n   ${h.detail}\n   ref: ${h.ref}`).join("\n") || "No match in the indexed parts."}`;
         }
         case "read_judgment": {
           const ref = s("ref");
           const doc = await hub.read(matterId, ref.startsWith("hc:") ? "aws_hc" : "aws_sc", ref, agent);
           return pagesText(doc, n("from_page") ?? 1);
         }
-        case "search_statutes": {
+        case "discover_statutes": {
           const r = await hub.search(matterId, "indiacode", s("query"), { limit: 10 }, agent);
-          return `${r.notice}\n${r.hits.map((h, i) => `${i + 1}. ${h.title}\n   ${h.detail}\n   id: ${h.ref}`).join("\n") || "No result."}`;
+          return `Discovery only: these are candidates, not verified text. Open one with read_statute_section; then retrieve it with search_knowledge and verify a quote with verify_quote before citing it.\n${r.notice}\n${r.hits.map((h, i) => `${i + 1}. ${h.title}\n   ${h.detail}\n   id: ${h.ref}`).join("\n") || "No result."}`;
         }
         case "read_statute_section":
           return pagesText(await hub.read(matterId, "indiacode", s("id"), agent));
@@ -143,17 +143,17 @@ export function studioTools(hub: ResearchHub, studio: ArgumentStudio, matters: M
             {
               title: s("title"),
               issueId: s("issue_id") || null,
-              question: s("question"),
+              question: s("question") || undefined,
               governingDate: s("governing_date") || null,
               body: s("body"),
-              coverage: s("coverage"),
+              coverage: s("coverage") || undefined,
               quotes: rows(p.quotes),
               adverse: rows(p.adverse),
               openQuestions: Array.isArray(p.open_questions) ? p.open_questions.filter((q): q is string => typeof q === "string") : [],
             },
             agent,
           );
-          return `Memorandum written (${r.memo.id}): ${r.quotes} verified quote(s), ${r.adverse} adverse quote(s). A review item is open for the advocate.`;
+          return `Memorandum written (${r.memo.id}): ${r.quotes} verified quote(s), ${r.adverse} adverse quote(s), ${r.refs} reference(s) resolved${r.unresolved ? `; unresolved: ${r.unresolved}` : ""}. A review item is open for the advocate.`;
         }
         case "save_provision": {
           const pr = await hub.saveProvision(matterId, s("id"), agent);

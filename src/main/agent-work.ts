@@ -45,10 +45,6 @@ export function agentWorkHost(deps: { matters: Matters; research: Research; draf
       const a = await research.addAuthority(matterId, input, agent(actor));
       return `Recorded as a candidate authority [authority:${a.id}] (${a.role}). The advocate adopts or rejects it. It is not verified until the validator says so.`;
     },
-    async writeMemorandum(matterId, input, actor) {
-      const m = await research.writeMemorandum(matterId, input, agent(actor));
-      return `Memorandum stored: ${m.title}. ${m.refs.length} reference(s) resolved${m.unresolved.length ? `; unresolved: ${m.unresolved.join(", ")}` : ""}.`;
-    },
     async proposeParagraph(matterId, input, sessionId) {
       const generated = await drafts.generate(matterId, input.kind);
       const r = await drafts.proposeParagraph(matterId, { draftId: generated.draft.id, after: input.after, text: input.text, reason: input.reason }, sessionId);

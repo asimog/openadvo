@@ -1,14 +1,14 @@
 ---
 name: alternative-remedy-analysis
 id: SK-302
-version: 1.0.0
+version: 1.0.1
 title: Alternative remedy analysis
 description: "Analyses the alternative statutory remedy, its adequacy, the delay and the exceptions, with the record and the authority for each. Use it when the advocate asks about the alternative remedy or why the writ should be heard despite it."
 role: jurisdiction
 packs: [writ]
 inputs: [the statutory remedy, the impugned order, the record]
 required_context: [sources, events, issues, authorities, rules]
-permitted_tools: [list_sources, read_source_text, search_sources, list_events, get_chronology, read_draft, get_paragraph_source, list_research, list_research_plans, list_record_table, read_matter_memory, find_in_matter, list_arguments, list_preferences, list_hearings, list_facts, list_evidence, list_matter_memory, get_jurisdiction, get_timeline, list_document_parts, get_contradictions, search_knowledge, verify_quote, find_adverse_authority, search_judgments, read_judgment, search_statutes, read_statute_section, search_citation_index, web_search, web_fetch]
+permitted_tools: [list_sources, read_source_text, search_sources, list_events, get_chronology, read_draft, get_paragraph_source, list_research, list_research_plans, list_record_table, read_matter_memory, find_in_matter, list_arguments, list_preferences, list_hearings, list_facts, list_evidence, list_matter_memory, get_jurisdiction, get_timeline, list_document_parts, get_contradictions, search_knowledge, verify_quote, find_adverse_authority, discover_judgments, read_judgment, discover_statutes, read_statute_section, search_citation_index, web_search, web_fetch]
 output: report
 checks: [schema, anchors, no_unverified_claims]
 approval_points: []

@@ -1,14 +1,14 @@
 ---
 name: hearing-brief
 id: SK-018
-version: 1.0.0
+version: 1.0.1
 title: Hearing brief
 description: "Builds the one-page hearing brief: the posture, what is listed, the last order's directions with anchors, the open items, the bench questions and the challenge register. Use it when the advocate asks for the hearing brief or before a listed date."
 role: hearing
 packs: [general]
 inputs: [the next hearing, the last order's directions, the accepted arguments]
 required_context: [events, issues, drafts, authorities]
-permitted_tools: [list_sources, search_sources, read_source_text, list_events, get_chronology, list_facts, list_evidence, get_contradictions, read_draft, get_paragraph_source, list_preferences, find_in_matter, search_knowledge, verify_quote, find_adverse_authority, search_judgments, read_judgment, search_statutes, read_statute_section, search_citation_index, web_search, web_fetch, list_hearings]
+permitted_tools: [list_sources, search_sources, read_source_text, list_events, get_chronology, list_facts, list_evidence, get_contradictions, read_draft, get_paragraph_source, list_preferences, find_in_matter, search_knowledge, verify_quote, find_adverse_authority, discover_judgments, read_judgment, discover_statutes, read_statute_section, search_citation_index, web_search, web_fetch, list_hearings]
 output: draft
 checks: [schema, anchors]
 approval_points: []
