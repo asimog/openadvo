@@ -35,6 +35,7 @@ import { Contacts } from "../lib/contacts/index.ts";
 import { captureLogs, diagnosticsEntries, diagnosticsZip, docket, dueReminders, questionsDocument } from "./practice.ts";
 import { readParagraphs } from "../lib/drafting/index.ts";
 import { detectMediaType } from "../lib/document-intelligence/formats.ts";
+import { renderPagePng } from "../lib/document-intelligence/index.ts";
 import { setFetcher } from "../lib/research-sources/http.ts";
 import type { ResearchSettings } from "../shared/studio.ts";
 import { Portal, portalOptionsFromEnv } from "./portal.ts";
@@ -635,6 +636,15 @@ function registerBridge(): void {
   handle("notebook:get", (matterId: string) => matters.notebook(matterId));
   handle("notebook:status", (matterId: string) => matters.notebookStatus(matterId));
   handle("notebook:rebuild", (matterId: string) => matters.rebuildNotebook(matterId));
+  handle("sources:pageImage", async (matterId: string, sourceId: string, page: number, scale?: number) => {
+    const store = await matters.store(String(matterId));
+    const source = store.getSource(String(sourceId));
+    if (!source) throw new Error(`SOURCE_NOT_FOUND: ${String(sourceId)}`);
+    if (source.mediaType !== "application/pdf") throw new Error("NOT_A_PDF: only a PDF has page images");
+    const bytes = new Uint8Array(await store.readBlob(source.sha256));
+    const png = await renderPagePng(bytes, Math.max(1, Math.floor(Number(page) || 1)), Math.max(0.75, Math.min(Number(scale) || 1.5, 4)));
+    return `data:image/png;base64,${png.toString("base64")}`;
+  });
   for (const decision of ["confirmed", "rejected", "excluded", "included"] as const) {
     handle(`notebook:${decision}`, (matterId: string, eventId: string) => matters.decideEvent(matterId, eventId, decision));
   }

@@ -68,6 +68,10 @@ Outside a matter, **Browser** in the left navigation opens the same tab strip an
 
 The browser toolbar offers **Import case list**. The pane explains the step: sign in to eCourts, the High Court or the Supreme Court portal, open the case list, then choose Import. The main process reads the visible page, sends its text to the model with a strict output shape, and returns proposals. The advocate ticks the cases to create. Each created matter gets its CNR, court, petitioner, respondent, a proposed stage and the next date as a hearing. No proposal is created without the advocate's tick.
 
+### 2.5 Documents in tabs
+
+The Matter tab always stays. A source or a draft opens its own tab beside it, with a close button; closing the tab returns to the Matter tab and the Notebook. A read-only PDF is a page image in a normal scroll container: the mouse wheel scrolls it, pages load as they come near the viewport, and zoom changes the page image. The Euro-Office editor remains the editor for drafts.
+
 ## 3. Onboarding and the Practice Profile (A1 to A6)
 
 The first start shows **Set up your practice** on Home. Five steps, each skippable, and the whole flow skippable. Nothing blocks the chat.

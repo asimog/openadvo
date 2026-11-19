@@ -636,26 +636,10 @@ export function App() {
                 <RightPane
                   ref={rightPane}
                   matterId={matter.id}
-                  workKey={openItem ?? ""}
                   onBrowserActive={setBrowserActive}
                   onMattersChanged={refreshMatters}
                   work={
                     <div className="work" aria-label="View" data-testid="work-view">
-                  {draftOpen ? (
-                    <DraftView
-                      matterId={matter.id}
-                      draft={openDraft}
-                      revision={openRevision}
-                      dock={dockSlot}
-                      onChanged={async () => {
-                        await refreshMatter(matter.id);
-                      }}
-                      onOpenSource={openSource}
-                      focus={draftFocus}
-                    />
-                  ) : source ? (
-                    <SourceDetail matterId={matter.id} source={source} events={events} version={version} focus={focus} dock={dockSlot} onChanged={() => void refreshMatter(matter.id)} />
-                  ) : (
                     <div className="work-scroll">
                       {notice ? (
                         <div className="notice notice-closable" role="status" data-testid="notice">
@@ -767,9 +751,32 @@ export function App() {
                         }
                       />
                     </div>
-                  )}
                     </div>
                   }
+                  document={
+                    openDraft && openRevision ? {
+                      key: `draft:${openDraft.id}:${openRevision.id}`,
+                      title: openDraft.title,
+                      content: (
+                        <DraftView
+                          matterId={matter.id}
+                          draft={openDraft}
+                          revision={openRevision}
+                          dock={dockSlot}
+                          onChanged={async () => {
+                            await refreshMatter(matter.id);
+                          }}
+                          onOpenSource={openSource}
+                          focus={draftFocus}
+                        />
+                      ),
+                    } : source ? {
+                      key: `source:${source.id}:${source.sha256}`,
+                      title: source.name,
+                      content: <SourceDetail matterId={matter.id} source={source} events={events} version={version} focus={focus} dock={dockSlot} onChanged={() => void refreshMatter(matter.id)} />,
+                    } : null
+                  }
+                  onCloseDocument={closeDocument}
                 />
               </Panel>
             </Group>

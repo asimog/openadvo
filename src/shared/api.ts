@@ -745,6 +745,8 @@ export interface OpenAdvoApi {
   notebookStatus(matterId: string): Promise<NotebookSourceStatus[]>;
   /** Re-run the Notebook extraction over every read source, adding events that are missing. */
   rebuildNotebook(matterId: string): Promise<{ added: number; status: NotebookSourceStatus[] }>;
+  /** One page of a source PDF as a PNG data URL, for the read-only viewer. */
+  sourcePageImage(matterId: string, sourceId: string, page: number, scale?: number): Promise<string>;
   /** Human-only actions on Notebook events (decision 5). */
   confirmEvent(matterId: string, eventId: string): Promise<Notebook>;
   rejectEvent(matterId: string, eventId: string): Promise<Notebook>;

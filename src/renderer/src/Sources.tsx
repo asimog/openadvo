@@ -1,4 +1,4 @@
-import { useEffect, useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import { createPortal } from "react-dom";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { Badge } from "@astryxdesign/core/Badge";
@@ -138,48 +138,97 @@ function cleanError(e: Error): string {
   return e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, "");
 }
 
-/** Opens a source in the Euro-Office PDF editor (read only) and closes the view when the source changes. */
-function useSourceView(matterId: string, sourceId: string, enabled: boolean): { url: string | null; error: string | null } {
-  const [url, setUrl] = useState<string | null>(null);
+/**
+ * The read-only PDF view. The pages are images in one normal scroll container, so the mouse wheel
+ * scrolls the document. A page image is rendered when it comes near the viewport; a large judgment
+ * never renders every page at once.
+ */
+function PdfSourceView(props: { matterId: string; sourceId: string; pages: number; focus: SourceLink | null }) {
+  const [scale, setScale] = useState(1.5);
+  const [images, setImages] = useState<Record<number, string>>({});
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    let live = true;
-    let opened: string | null = null;
-    setUrl(null);
-    setError(null);
-    if (!enabled) return;
-    api.openSourceView(matterId, sourceId).then(
-      (u) => {
-        opened = u;
-        if (live) setUrl(u);
-        else void api.closeView(u);
-      },
-      (e: Error) => live && setError(cleanError(e)),
-    );
-    return () => {
-      live = false;
-      if (opened) void api.closeView(opened);
-    };
-  }, [matterId, sourceId, enabled]);
-  return { url, error };
-}
+  const [busy, setBusy] = useState(0);
+  const imagesRef = useRef(images);
+  imagesRef.current = images;
+  const loading = useRef(new Set<number>());
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const pageRefs = useRef(new Map<number, HTMLDivElement>());
 
-/** The state the editor host page reports: opened, error or failed. */
-function ViewerState(props: { url: string }) {
-  const [state, setState] = useState<{ state: string; detail: string } | null>(null);
+  const load = (page: number) => {
+    if (imagesRef.current[page] || loading.current.has(page)) return;
+    loading.current.add(page);
+    setBusy((n) => n + 1);
+    void api.sourcePageImage(props.matterId, props.sourceId, page, scale).then(
+      (url) => setImages((all) => ({ ...all, [page]: url })),
+      (e: Error) => setError(cleanError(e)),
+    ).finally(() => {
+      loading.current.delete(page);
+      setBusy((n) => Math.max(0, n - 1));
+    });
+  };
+
   useEffect(() => {
-    const doc = new URL(props.url).searchParams.get("doc");
-    const onMessage = (e: MessageEvent) => {
-      if (e.origin !== "oa-eo://app") return;
-      const d = e.data as { type?: string; doc?: string; state?: string; detail?: string };
-      if (d?.type === "oa-editor/state" && d.doc === doc) setState({ state: String(d.state), detail: String(d.detail ?? "") });
-    };
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, [props.url]);
-  if (!state) return <Text type="supporting">Starting the PDF editor…</Text>;
-  if (state.state === "opened") return <Text type="supporting" data-testid="viewer-state">Opened read only in the Euro-Office PDF editor.</Text>;
-  return <div className="notice" data-testid="viewer-state">The PDF editor reported a problem: {state.detail}</div>;
+    setImages({});
+    setError(null);
+    loading.current.clear();
+    // The first page is always loaded, even when the observer has not fired yet.
+    load(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.sourceId, scale]);
+
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const page = Number((entry.target as HTMLElement).dataset.page);
+          if (page) load(page);
+        }
+      },
+      { root, rootMargin: "800px 0px" },
+    );
+    for (const el of pageRefs.current.values()) io.observe(el);
+    return () => io.disconnect();
+    // load reads the current refs; a new observer is needed only when the source or scale changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.sourceId, scale, props.pages]);
+
+  const focusPage = props.focus?.page;
+  useEffect(() => {
+    if (focusPage) pageRefs.current.get(focusPage)?.scrollIntoView({ block: "start" });
+  }, [focusPage]);
+
+  return (
+    <div className="pdf-viewer" data-testid="pdf-viewer">
+      <div className="pdf-toolbar">
+        <Text>{props.pages} page{props.pages === 1 ? "" : "s"}</Text>
+        <Button label="Zoom out" size="sm" variant="ghost" isDisabled={scale <= 0.75} clickAction={() => setScale((s) => Math.max(0.75, Math.round((s - 0.25) * 100) / 100))} />
+        <Text type="supporting">{Math.round(scale * 100)}%</Text>
+        <Button label="Zoom in" size="sm" variant="ghost" isDisabled={scale >= 4} clickAction={() => setScale((s) => Math.min(4, Math.round((s + 0.25) * 100) / 100))} />
+        <Text type="supporting">Scroll with the mouse wheel. Each page is read only.</Text>
+        {busy > 0 ? <Text type="supporting">Reading {busy} page{busy === 1 ? "" : "s"}…</Text> : null}
+      </div>
+      {error ? <div className="notice" role="alert" data-testid="pdf-error">{error}</div> : null}
+      <div className="pdf-scroll" ref={scrollRef} data-testid="pdf-scroll">
+        {Array.from({ length: props.pages }, (_, i) => i + 1).map((page) => (
+          <div
+            key={page}
+            className="pdf-page"
+            data-page={page}
+            data-testid={`pdf-page-${page}`}
+            ref={(el) => {
+              if (el) pageRefs.current.set(page, el);
+              else pageRefs.current.delete(page);
+            }}
+          >
+            {images[page] ? <img src={images[page]} alt={`Page ${page}`} /> : <div className="pdf-page-placeholder">Page {page}</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 const KIND_TEXT: Record<string, string> = {
@@ -245,8 +294,6 @@ const FORMAT_NOTE: Record<string, string> = {
   "image/jpeg": "Image: no PDF view. Read by OCR as one page.",
 };
 
-const FRAME_SANDBOX = "allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads";
-
 /**
  * One source in the view: the Euro-Office PDF editor fills the view to its top edge (editor-design item j).
  * The stored page text appears below it only when it is needed: when a page was read by OCR or has no
@@ -275,16 +322,13 @@ export function SourceDetail(props: {
   }, [props.matterId, props.source.id, props.version]);
   const events = props.events.filter((e) => e.subject === props.source.id);
   const isPdf = props.source.mediaType === "application/pdf";
-  const view = useSourceView(props.matterId, props.source.id, isPdf);
   const unreadable = pages.filter((p) => p.kind !== "born_digital").length;
   const showText = pages.length > 0 && (unreadable > 0 || props.focus !== null);
   const textOnly = !isPdf;
-  const frame = (
-    <>
-      {view.error ? <div className="notice work-pad" data-testid="viewer-error">{view.error}</div> : null}
-      {!view.error && !view.url ? <div className="work-pad"><Text type="supporting">Opening the PDF editor…</Text></div> : null}
-      {view.url ? <iframe className="work-frame" title="Source document" data-testid="source-frame" src={view.url} sandbox={FRAME_SANDBOX} /> : null}
-    </>
+  const frame = pages.length > 0 ? (
+    <PdfSourceView matterId={props.matterId} sourceId={props.source.id} pages={pages.length} focus={props.focus} />
+  ) : (
+    <div className="work-pad"><Text type="supporting">Reading the file…</Text></div>
   );
   return (
     <div className="source-view" data-testid="source-view">
@@ -304,7 +348,7 @@ export function SourceDetail(props: {
               </div>
               <DocTypeControl matterId={props.matterId} source={props.source} onChanged={() => props.onChanged?.()} />
               <InspectButton id={props.source.id} label="Inspect the source record" />
-              {view.url ? <ViewerState url={view.url} /> : null}
+              {isPdf ? <Text type="supporting" data-testid="viewer-state">Read-only PDF view. Scroll the page with the wheel.</Text> : null}
               {textOnly ? <Text type="supporting" data-testid="viewer-state">{FORMAT_NOTE[props.source.mediaType] ?? "No PDF view for this format."}</Text> : null}
               <details>
                 <summary>Hash, origins and events</summary>

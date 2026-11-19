@@ -196,7 +196,7 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
       "addFiles", "createMatter", "getChat", "getModel", "listEvents", "listMatters", "listModels", "listOrigins",
       "closeView", "listSources", "onChatEvent", "onAddToContext", "openMatter", "openSourceView", "pathsForFiles", "pickFiles", "sendChat", "setModel",
       "getEffort", "setEffort", "getSourcePages", "listJobs", "listReviewItems", "onIngestUpdate", "resolveReviewItem", "skipReviewItem",
-      "getNotebook", "notebookStatus", "rebuildNotebook", "confirmEvent", "rejectEvent", "excludeEvent", "includeEvent", "resolveConflict",
+      "getNotebook", "notebookStatus", "rebuildNotebook", "sourcePageImage", "confirmEvent", "rejectEvent", "excludeEvent", "includeEvent", "resolveConflict",
       "listDrafts", "getRevision", "getParagraphSource", "generateListOfDates", "generateSynopsis",
       "openRevisionInEditor", "insertFromNotebook", "checkDraft", "saveRevision", "approveRevision",
       "agentChanges", "decideAgentChanges", "generateDraft",

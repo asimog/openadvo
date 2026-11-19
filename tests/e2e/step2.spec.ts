@@ -1,19 +1,16 @@
 /**
- * Step 2 end-to-end: text, OCR, review items and the Euro-Office PDF view, against the built application.
+ * Step 2 end-to-end: text, OCR, review items and the read-only PDF view, against the built application.
  * Spec: docs/specs/v0-document-intelligence.md.
  */
 import { test, expect, _electron as electron, type ElectronApplication, type Page } from "@playwright/test";
-import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { renderPagePng, stopOcr } from "../../src/lib/document-intelligence/index.ts";
-import { platformKey } from "../../src/lib/euro-office/platform.ts";
 import { appEnv } from "./env.ts";
 
 const repo = path.resolve(import.meta.dirname, "../..");
-const vendored = existsSync(path.join(repo, "resources", "euro-office", platformKey(), "converter"));
 
 test.afterAll(() => stopOcr());
 
@@ -43,7 +40,7 @@ async function launch(): Promise<{ app: ElectronApplication; page: Page; inbox: 
   return { app, page, inbox };
 }
 
-test("a dropped PDF is read: text layer, OCR, a review item for the blank page, and the PDF editor view", async () => {
+test("a dropped PDF is read: text layer, OCR, a review item for the blank page, and the PDF view in its own tab", async () => {
   const { app, page, inbox } = await launch();
   const file = path.join(inbox, "brief.pdf");
   await brief(file);
@@ -81,11 +78,21 @@ test("a dropped PDF is read: text layer, OCR, a review item for the blank page, 
   await expect(page.getByText(/^OCR: single reading, not cross-checked/)).toBeVisible();
   await expect(lines).toContainText(/writ petition/i);
 
-  // The Euro-Office PDF editor opens the source, read only.
-  if (vendored) {
-    await expect(page.getByTestId("viewer-state")).toHaveText("Opened read only in the Euro-Office PDF editor.", { timeout: 60_000 });
-  } else {
-    await expect(page.getByTestId("viewer-error")).toContainText("npm run vendor");
+  // The source opens in its own tab, read only, in a normal scroll container.
+  await expect(page.getByTestId("document-tab")).toBeVisible();
+  await expect(page.getByTestId("pdf-viewer")).toBeVisible();
+  await expect(page.getByTestId("pdf-page-1").locator("img")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("viewer-state")).toContainText("Read-only PDF view");
+  const scroller = page.getByTestId("pdf-scroll");
+  const box = await scroller.boundingBox();
+  if (box) {
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, 900);
   }
+  await expect.poll(() => scroller.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+  // The document tab closes; the Matter tab stays and its Notebook returns.
+  await page.getByTestId("document-tab").getByRole("button", { name: /^Close / }).click();
+  await expect(page.getByTestId("document-tab")).toHaveCount(0);
+  await expect(page.getByTestId("work-view")).toBeVisible();
   await app.close();
 });

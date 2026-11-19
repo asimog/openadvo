@@ -104,6 +104,7 @@ const api: OpenAdvoApi = {
   resolveReviewItem: (matterId, itemId) => ipcRenderer.invoke("review:resolve", matterId, itemId),
   skipReviewItem: (matterId, itemId) => ipcRenderer.invoke("review:skip", matterId, itemId),
   getNotebook: (matterId) => ipcRenderer.invoke("notebook:get", matterId),
+  sourcePageImage: (matterId, sourceId, page, scale) => ipcRenderer.invoke("sources:pageImage", matterId, sourceId, page, scale),
   notebookStatus: (matterId) => ipcRenderer.invoke("notebook:status", matterId),
   rebuildNotebook: (matterId) => ipcRenderer.invoke("notebook:rebuild", matterId),
   confirmEvent: (matterId, eventId) => ipcRenderer.invoke("notebook:confirmed", matterId, eventId),

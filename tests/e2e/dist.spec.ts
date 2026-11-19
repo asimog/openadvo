@@ -22,7 +22,7 @@ const executable =
 
 test.describe.configure({ timeout: 240_000 });
 
-test("dist: the built application starts, reads a PDF, opens the PDF editor and shows its versions", async () => {
+test("dist: the built application starts, reads a PDF, opens its own PDF view and shows its versions", async () => {
   test.skip(!existsSync(executable), "run `npm run dist` first");
   const base = await mkdtemp(path.join(tmpdir(), "oa-dist-"));
   await mkdir(path.join(base, "inbox"), { recursive: true });
@@ -61,7 +61,7 @@ test("dist: the built application starts, reads a PDF, opens the PDF editor and 
     const nb = await page.evaluate(async () => { const oa = (globalThis as any).openadvo; const m = (await oa.listMatters())[0]; return oa.getNotebook(m.id); });
     expect(nb.events.some((e: any) => e.reading === "ocr" && e.dateStart === "2024-04-01")).toBe(true);
     await page.getByRole("button", { name: "order.pdf" }).click();
-    await expect(page.getByTestId("viewer-state")).toContainText("Opened read only", { timeout: 90_000 });
+    await expect(page.getByTestId("pdf-viewer")).toBeVisible({ timeout: 90_000 });
     await page.getByRole("button", { name: "Back to matter" }).click();
     await page.getByRole("button", { name: "Settings" }).click();
     await expect(page.getByTestId("versions")).toContainText("1.2.0");

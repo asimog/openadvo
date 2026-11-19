@@ -98,7 +98,7 @@ test("generate, show source, edit and save twice, approve", async () => {
   await expect(frame).toBeVisible({ timeout: 120_000 });
   await expect(page.getByTestId("draft-status")).toContainText("Revision 1");
   // The editor fills the view to its top edge; the harness bar sits in the chat dock, left of the editor.
-  const view = (await page.getByTestId("work-view").boundingBox())!;
+  const view = (await page.getByTestId("document-content").boundingBox())!;
   const frameBox = (await frame.boundingBox())!;
   expect(Math.abs(frameBox.y - view.y)).toBeLessThan(2);
   expect(Math.abs(frameBox.height - view.height)).toBeLessThan(2);

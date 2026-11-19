@@ -10,6 +10,7 @@ import {
   ArrowRightIcon,
   BookmarkIcon,
   DocumentArrowDownIcon,
+  DocumentTextIcon,
   GlobeAltIcon,
   LockClosedIcon,
   PlusIcon,
@@ -165,8 +166,9 @@ export const RightPane = forwardRef<RightPaneHandle, {
   matterId: string | null;
   /** The Matter tab's content. */
   work?: ReactNode;
-  /** Change this when a source or a draft opens, so the pane returns to the Matter tab. */
-  workKey?: string;
+  /** A source or a draft opens in its own tab; the Matter tab stays. */
+  document?: { key: string; title: string; content: ReactNode } | null;
+  onCloseDocument?: () => void;
   /** True for the Browser page outside a matter: no Matter tab. */
   standalone?: boolean;
   onBrowserActive?: (active: boolean) => void;
@@ -230,15 +232,12 @@ export const RightPane = forwardRef<RightPaneHandle, {
     return () => void api.browserSetMatter(null);
   }, [props.matterId]);
 
-  // A source or a draft opened: return to the Matter tab.
-  const firstWork = useRef(true);
+  // A source or a draft opens its own tab. The Matter tab never closes.
+  const documentKey = props.document?.key ?? null;
   useEffect(() => {
-    if (firstWork.current) {
-      firstWork.current = false;
-      return;
-    }
-    if (!props.standalone) setActive((a) => (a === "matter" ? a : "matter"));
-  }, [props.workKey, props.standalone]);
+    if (documentKey) setActive("document");
+    else setActive((a) => (a === "document" ? "matter" : a));
+  }, [documentKey]);
 
   useEffect(() => {
     setAddress(pageShown && shownTab ? shownTab.url : "");
@@ -269,7 +268,7 @@ export const RightPane = forwardRef<RightPaneHandle, {
   useEffect(() => {
     void api.browserSetVisible(pageShown);
     measure();
-    props.onBrowserActive?.(active !== "matter");
+    props.onBrowserActive?.(active !== "matter" && active !== "document");
     return () => void api.browserSetVisible(false);
   }, [pageShown, active, props, measure]);
 
@@ -424,6 +423,33 @@ export const RightPane = forwardRef<RightPaneHandle, {
           <span className="browser-tab-title">Matter</span>
         </div>
       ) : null}
+      {props.document ? (
+        <div
+          className="browser-tab browser-document-tab"
+          data-active={active === "document"}
+          role="tab"
+          aria-selected={active === "document"}
+          tabIndex={0}
+          onClick={() => setActive("document")}
+          onKeyDown={(e) => e.key === "Enter" && setActive("document")}
+          title={props.document.title}
+          data-testid="document-tab"
+        >
+          <DocumentTextIcon width={14} height={14} aria-hidden="true" />
+          <span className="browser-tab-title">{props.document.title}</span>
+          <button
+            type="button"
+            className="browser-tab-close"
+            aria-label={`Close ${props.document.title}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              props.onCloseDocument?.();
+            }}
+          >
+            <XMarkIcon width={12} height={12} />
+          </button>
+        </div>
+      ) : null}
       {state.tabs.map((tab) => (
         <div
           key={tab.id}
@@ -526,6 +552,8 @@ export const RightPane = forwardRef<RightPaneHandle, {
               setCaseError(errorText(e));
             }
           }} />
+        ) : active === "document" && props.document ? (
+          <div className="document-content" data-testid="document-content">{props.document.content}</div>
         ) : active === "matter" && !props.standalone ? (
           props.work
         ) : shownTab && (shownTab.url === "about:blank" || shownTab.error) ? (
