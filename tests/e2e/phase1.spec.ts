@@ -149,6 +149,12 @@ test("navigation, the Review Inbox across matters, Workflows & Skills, the profi
   for (const id of ["SK-008", "SK-011", "SK-012", "SK-027"]) await expect(page.getByTestId(`skill-${id}`)).toContainText("reviewed");
   for (const id of ["criminal", "civil", "writ", "slp"]) await expect(page.getByTestId(`pack-${id}`)).toBeVisible();
   await expect(page.getByTestId("roles-list")).toContainText("chronology");
+  // A skill and a pack open in full: the advocate can read what each includes.
+  await page.getByTestId("skill-SK-016").click();
+  await expect(page.getByTestId("reference-detail")).toContainText("SK-016");
+  await expect(page.getByTestId("reference-detail")).toContainText("Research memorandum");
+  await page.getByTestId("pack-criminal").click();
+  await expect(page.getByTestId("reference-detail")).toContainText("Bharatiya Nyaya Sanhita");
 
   // A skill run that fails the gate three times goes to the Review Inbox, which blocks.
   const matterId = await newMatter(page, "Inbox v. Gate");
@@ -195,5 +201,22 @@ test("navigation, the Review Inbox across matters, Workflows & Skills, the profi
   expect(chains.advocate.ok).toBe(true);
   expect(chains.advocate.events).toBeGreaterThanOrEqual(3);
   expect(chains.intel.ok).toBe(true);
+  await app.close();
+});
+
+test("chat sessions: a new conversation is separate and an older one opens again", async () => {
+  const { app, page } = await launch();
+  const matterId = await newMatter(page, "Sessions v. Matter");
+  const call = <T>(fn: string, ...args: unknown[]) =>
+    page.evaluate(([f, a]) => (globalThis as any).openadvo[f as string](...(a as unknown[])), [fn, args] as const) as Promise<T>;
+  const first = await call<{ conversationId: string }>("getChat", matterId);
+  expect(first.conversationId).toBeTruthy();
+  const second = await call<{ conversationId: string }>("newConversation", matterId);
+  expect(second.conversationId).toBeTruthy();
+  expect(second.conversationId).not.toBe(first.conversationId);
+  const list = await call<Array<{ id: string; messages: number }>>("listConversations", matterId);
+  expect(list.length).toBeGreaterThanOrEqual(2);
+  const back = await call<{ conversationId: string }>("switchConversation", matterId, first.conversationId);
+  expect(back.conversationId).toBe(first.conversationId);
   await app.close();
 });

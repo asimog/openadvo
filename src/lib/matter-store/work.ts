@@ -335,7 +335,12 @@ export class WorkStore {
 
   /** System: record a proposal once per source. A later run never replaces it. */
   proposeSourceType(sourceId: string, type: string, matched: string, method: string): boolean {
-    const r = this.db.prepare("INSERT INTO source_type (source_id, proposed, matched, method, proposed_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING").run(sourceId, type, matched, method, now());
+    // A new proposal replaces an older proposal, never a type the advocate confirmed.
+    const r = this.db
+      .prepare(
+        "INSERT INTO source_type (source_id, proposed, matched, method, proposed_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(source_id) DO UPDATE SET proposed = excluded.proposed, matched = excluded.matched, method = excluded.method, proposed_at = excluded.proposed_at WHERE source_type.confirmed IS NULL",
+      )
+      .run(sourceId, type, matched, method, now());
     if (Number(r.changes) === 0) return false;
     this.event({ actor: "system" }, "source.type_proposed", sourceId, { type, matched, method });
     return true;

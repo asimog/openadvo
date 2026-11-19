@@ -15,6 +15,8 @@ test("the agent has one legal retrieval tool and explicit discovery tools", () =
   assert.ok(tools.includes("discover_statutes"), "statute discovery is named as discovery");
   assert.ok(tools.includes("read_judgment"), "a discovered judgment is opened by ref");
   assert.ok(tools.includes("read_statute_section"), "a discovered statute is opened by id");
+  assert.ok(tools.includes("import_case_documents"), "a case number can become sources");
+  assert.ok(tools.includes("rebuild_notebook"), "the Notebook extraction can be re-run");
   assert.ok(!tools.includes("search_judgments"), "no second judgment search");
   assert.ok(!tools.includes("search_statutes"), "no second statute search");
   const searches = tools.filter((name) => name.startsWith("search_"));

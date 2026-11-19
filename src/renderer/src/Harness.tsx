@@ -12,7 +12,7 @@ import { List, ListItem } from "@astryxdesign/core/List";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
-import { SIDE_EVENT, type ChatEvent, type ContextPackageRecord, type JobRow, type ReportCard, type SideThread } from "../../shared/api.ts";
+import { SIDE_EVENT, type ChatEvent, type ContextPackageRecord, type ConversationSummary, type JobRow, type ReportCard, type SideThread } from "../../shared/api.ts";
 import { Markdown } from "./Markdown.tsx";
 
 const api = window.openadvo;
@@ -127,14 +127,16 @@ export function ReportCardView(props: { matterId: string; card: ReportCard }) {
 }
 
 /** O7: every run of the matter: chat runs, helpers and skill runs, with state, cost, package and report card. */
-export function JobsPanel(props: { matterId: string; version: number }) {
+export function JobsPanel(props: { matterId: string; version: number; onOpenConversation?: (id: string) => void }) {
   const [rows, setRows] = useState<JobRow[] | null>(null);
   const [cards, setCards] = useState<Record<string, ReportCard | null>>({});
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [open, setOpen] = useState<string | null>(null);
   const load = useCallback(async () => {
-    const [jobs, runs] = await Promise.all([api.listRunJobs(props.matterId), api.listSkillRuns(props.matterId)]);
+    const [jobs, runs, chats] = await Promise.all([api.listRunJobs(props.matterId), api.listSkillRuns(props.matterId), api.listConversations(props.matterId)]);
     setRows(jobs);
     setCards(Object.fromEntries(runs.map((r) => [r.id, r.report])));
+    setConversations(chats);
   }, [props.matterId]);
   useEffect(() => {
     void load();
@@ -148,37 +150,67 @@ export function JobsPanel(props: { matterId: string; version: number }) {
         </Text>
         <Button label="Refresh" size="sm" variant="ghost" clickAction={load} />
       </div>
-      {rows.length === 0 ? <Text type="supporting">No runs yet.</Text> : null}
-      <List density="compact">
-        {rows.map((r) => (
+      <Text weight="semibold" data-testid="jobs-conversations-title">Conversations</Text>
+      <Text type="supporting">Every conversation of this matter. Open one to read it and continue it.</Text>
+      {conversations.length === 0 ? <Text type="supporting">No conversation yet.</Text> : null}
+      <List density="compact" data-testid="jobs-conversations">
+        {conversations.map((c) => (
           <ListItem
-            key={`${r.kind}:${r.id}`}
-            data-testid={`job-${r.kind}`}
-            data-state={r.state}
-            startContent={<StatusDot variant={STATE_DOT[r.state] ?? "neutral"} label={words(r.state)} />}
-            label={r.title}
-            description={`${words(r.state)} · ${r.tokens} tokens · ${money(r.cost)}${r.tools ? ` · ${r.tools} tool call${r.tools === 1 ? "" : "s"}` : ""}${r.errors ? `, ${r.errors} refused or failed` : ""}${r.startedAt ? ` · ${r.startedAt.slice(0, 19).replace("T", " ")}` : ""}`}
-            endContent={
-              r.kind === "skill" ? (
-                <span className="row-actions">
-                  {r.state === "interrupted" ? <Button label="Resume" size="sm" clickAction={async () => { await api.resumeSkillRun(props.matterId, r.id); await load(); }} /> : null}
-                  <Button label={open === r.id ? "Close" : "Open"} size="sm" variant="ghost" onClick={() => setOpen((o) => (o === r.id ? null : r.id))} />
-                </span>
-              ) : undefined
-            }
+            key={c.id}
+            data-testid={`conversation-${c.id}`}
+            label={c.title}
+            description={`${c.messages} message${c.messages === 1 ? "" : "s"} · started ${c.createdAt.slice(0, 10)} · last ${c.updatedAt.slice(0, 16).replace("T", " ")}`}
+            onClick={() => props.onOpenConversation?.(c.id)}
+            endContent={<Button label="Open" size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); props.onOpenConversation?.(c.id); }} />}
           />
         ))}
       </List>
-      {open ? (
-        cards[open] ? (
-          <ReportCardView matterId={props.matterId} card={cards[open]!} />
-        ) : (
-          <div className="notice">
-            This run has no report card yet{rows.find((r) => r.id === open)?.packageId ? "; its package is below" : ""}.
-            {rows.find((r) => r.id === open)?.packageId ? <PackageView matterId={props.matterId} packageId={rows.find((r) => r.id === open)!.packageId!} /> : null}
+      <Text weight="semibold">Runs</Text>
+      {rows.length === 0 ? <Text type="supporting">No runs yet.</Text> : null}
+      <List density="compact">
+        {rows.map((r) => {
+          const key = `${r.kind}:${r.id}`;
+          return (
+            <ListItem
+              key={key}
+              data-testid={`job-${r.kind}`}
+              data-state={r.state}
+              startContent={<StatusDot variant={STATE_DOT[r.state] ?? "neutral"} label={words(r.state)} />}
+              label={r.title}
+              description={`${words(r.state)} · ${r.tokens} tokens · ${money(r.cost)}${r.tools ? ` · ${r.tools} tool call${r.tools === 1 ? "" : "s"}` : ""}${r.errors ? `, ${r.errors} refused or failed` : ""}${r.startedAt ? ` · ${r.startedAt.slice(0, 19).replace("T", " ")}` : ""}`}
+              onClick={() => setOpen((o) => (o === key ? null : key))}
+              endContent={
+                <span className="row-actions" onClick={(e) => e.stopPropagation()}>
+                  {r.kind === "skill" && r.state === "interrupted" ? <Button label="Resume" size="sm" clickAction={async () => { await api.resumeSkillRun(props.matterId, r.id); await load(); }} /> : null}
+                  <Button label={open === key ? "Close" : "Open"} size="sm" variant="ghost" onClick={() => setOpen((o) => (o === key ? null : key))} />
+                </span>
+              }
+            />
+          );
+        })}
+      </List>
+      {open ? (() => {
+        const row = rows.find((r) => `${r.kind}:${r.id}` === open);
+        if (!row) return null;
+        if (row.kind === "skill") {
+          return cards[row.id] ? (
+            <ReportCardView matterId={props.matterId} card={cards[row.id]!} />
+          ) : (
+            <div className="notice">
+              This run has no report card yet{row.packageId ? "; its package is below" : ""}.
+              {row.packageId ? <PackageView matterId={props.matterId} packageId={row.packageId} /> : null}
+            </div>
+          );
+        }
+        return (
+          <div className="notice" data-testid="job-detail">
+            <Text weight="semibold">{row.title}</Text>
+            <Text>State {words(row.state)}{row.startedAt ? `, started ${row.startedAt.slice(0, 19).replace("T", " ")}` : ""}{row.endedAt ? `, ended ${row.endedAt.slice(0, 19).replace("T", " ")}` : ""}.</Text>
+            <Text type="supporting">{row.tokens} tokens, {money(row.cost)}, {row.tools} tool call{row.tools === 1 ? "" : "s"}{row.errors ? `, ${row.errors} refused or failed` : ""}.</Text>
+            <Text type="supporting">A chat or helper run belongs to the conversation that ran it. Open the conversation above to read it.</Text>
           </div>
-        )
-      ) : null}
+        );
+      })() : null}
     </div>
   );
 }

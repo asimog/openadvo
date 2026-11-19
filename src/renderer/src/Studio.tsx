@@ -8,6 +8,7 @@ import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Text } from "@astryxdesign/core/Text";
 import { TabList, Tab } from "@astryxdesign/core/TabList";
+import { TextInput } from "@astryxdesign/core/TextInput";
 import type { ArgumentRecord, ArgumentStatus, CorpusPart, EventRecord, IssueRecord, KnowledgeHealthView, KnowledgeHit, ResearchDocument, ResearchHit, ResearchPlan, RetrievalResult, SearchMode, StudioState } from "../../shared/api.ts";
 import { GROUNDS, STANCES } from "../../shared/studio.ts";
 import { citationKeyText, summariseVerification } from "../../shared/law.ts";
@@ -29,6 +30,48 @@ const SOURCE_LABEL: Record<ResearchHit["source"], string> = {
   web: "Web (discovery only)",
 };
 
+const CONFERENCE_PROMPTS = [
+  "Open the case conference. Read the accepted issues and the authorities, and tell me the strongest and weakest parts of the case.",
+  "Explore the issues in this matter. For each, give the record it rests on, the authority for it, and the gap I must fill.",
+  "Run the argument loop on the accepted issues and explain the result, including the adverse points.",
+  "What must I decide before the next hearing? List the open questions, the missing documents and the deadlines.",
+];
+
+/** The Studio is a conversation first. These actions send the request to the matter's one agent. */
+function ConferenceChat(props: { matterId: string }) {
+  const [text, setText] = useState("");
+  const [note, setNote] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const send = async (q: string) => {
+    if (!q.trim()) return;
+    try {
+      setError(null);
+      await api.sendChat(props.matterId, q);
+      setText("");
+      setNote("Sent to the matter chat. The agent answers there.");
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  return (
+    <section className="work-section studio-chat" aria-label="Agent conference" data-testid="studio-chat">
+      <Heading level={3}>Agent conference</Heading>
+      <Text type="supporting">
+        The Studio is a conversation, not a form. Ask the agent to open the case conference, explore an issue, run the argument loop, test a theory or prepare the hearing. The panels below are its working record; every legal point stays yours.
+      </Text>
+      <div className="row-actions">
+        {CONFERENCE_PROMPTS.map((p) => <Button key={p} label={p.split(".")[0]} size="sm" variant="ghost" clickAction={() => send(p)} />)}
+      </div>
+      <TextInput label="Ask the agent about this matter" placeholder="For example: explore the maintainability issue" value={text} onChange={setText} onEnter={() => void send(text)} />
+      <div className="row-actions">
+        <Button label="Send to the agent" size="sm" isDisabled={!text.trim()} clickAction={() => send(text)} data-testid="studio-send" />
+      </div>
+      {note ? <div className="notice" role="status">{note}</div> : null}
+      {error ? <div className="notice" role="alert">{error}</div> : null}
+    </section>
+  );
+}
+
 export function StudioView(props: { matterId: string; version: number; conference: ReactNode }) {
   const [part, setPart] = useState("conference");
   const [changed, setChanged] = useState(0);
@@ -47,6 +90,7 @@ export function StudioView(props: { matterId: string; version: number; conferenc
       <div className="studio-body">
         {part === "conference" ? (
           <>
+            <ConferenceChat matterId={props.matterId} />
             {props.conference}
             <AuthorityReview matterId={props.matterId} version={props.version + changed} />
           </>

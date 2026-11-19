@@ -76,8 +76,9 @@ test("v3: progress, review inbox, command bar, settings, export, finish", async 
     await expect(page.getByRole("tab", { name: "Studio" })).toHaveAttribute("aria-selected", "true");
     await page.keyboard.press("Control+K");
     await page.getByRole("textbox", { name: "Command" }).fill("certified copy");
-    await expect(page.getByRole("option", { name: /certified copy.*order\.pdf, p\. 1, l\. 3/ })).toBeVisible();
-    await page.keyboard.press("Enter");
+    const line = page.getByRole("option", { name: /certified copy.*order\.pdf, p\. 1, l\. 3/ });
+    await expect(line).toBeVisible();
+    await line.click();
     await expect(page.getByTestId("source-view")).toBeVisible();
     await expect(page.getByTestId("page-lines").locator('[data-focus="true"]')).toContainText("certified copy");
 

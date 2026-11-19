@@ -2,7 +2,7 @@
  * The bridge contract between the preload script and the renderer.
  * Types, and one constant name. The renderer calls these named functions; it has no other access.
  */
-import type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict, DraftKind, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft, DraftCheck, DraftDefect, AgentChanges } from "./records.ts";
+import type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, NotebookSourceStatus, DateConflict, DraftKind, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft, DraftCheck, DraftDefect, AgentChanges } from "./records.ts";
 export type { AgentChanges, AgentChange } from "./records.ts";
 import type { InboxItem, ProgressStage, DuplicatePair, MemoryProposal, RecordColumn, RecordTable, Workflow, ManifestCheck, AdverseReview, AnnexureRecord, Attestation, AuthorityRecord, CitationCheck, FilingSetRecord, FilingState, IssueRecord, LimitationRecord, MatterDetails, MatterProfile, MatterProposal, MatterRelation, RelatedMatter, ResearchState } from "./work.ts";
 export type * from "./work.ts";
@@ -66,7 +66,7 @@ import type { ClassificationProposal } from "../lib/classification/index.ts";
 export type { DirectoryCourt };
 
 export type { AGUIEvent };
-export type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, DateConflict, DraftKind, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft, DraftCheck, DraftDefect };
+export type { AddFileResult, EventRecord, MatterSummary, OriginRecord, SourceRecord, IngestJob, PageRecord, ReviewItem, AnchorRecord, Notebook, NotebookEvent, NotebookSourceStatus, DateConflict, DraftKind, DraftRecord, RevisionRecord, RevisionDetail, ParagraphSource, GeneratedDraft, DraftCheck, DraftDefect };
 
 /** One entry of the phase 6 document catalogue (L3). */
 export type CatalogueEntry = { kind: DraftKind; title: string; group: string; groupLabel: string; note: string };
@@ -77,6 +77,10 @@ export interface ChatMessage {
   id: string;
   role: ChatRole;
   text: string;
+  /** The model's reasoning before its answer. Shown in a folded block. */
+  reasoning?: boolean;
+  /** The conversation this message belongs to. */
+  conversationId?: string;
   /** A tool call, shown with ChatToolCalls. Set on a role "tool" message. */
   tool?: ToolCallView;
   /** A helper's lifecycle event, grouped into one card per helper. */
@@ -90,6 +94,10 @@ export interface ToolCallView {
   name: string;
   /** What the call acted on: the query, the URL, the source, the task. */
   target?: string;
+  /** The arguments as sent, bounded. The chat shows them folded. */
+  args?: string;
+  /** The result as returned, bounded. The chat shows it folded. */
+  result?: string;
   status: "running" | "done" | "error";
   durationMs?: number;
   /** The refusal or failure, in one line. */
@@ -97,6 +105,16 @@ export interface ToolCallView {
   /** Set when a helper made the call. */
   helperId?: string;
   helperName?: string;
+}
+
+/** One conversation inside a matter. The chat can start a new one and return to an older one. */
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: number;
+  sessionId: string | null;
 }
 
 /** One event in a helper's life, as the chat groups it. */
@@ -294,6 +312,9 @@ export interface ChatState {
   helpers?: HelperView[];
   /** The Pi session behind this conversation. */
   sessionId?: string;
+  /** The conversation now open, and every conversation of the matter. */
+  conversationId?: string;
+  conversations?: ConversationSummary[];
   /** The last run's tokens, cache and cost. */
   lastRun?: RunSummary;
   /** The matter's totals from its trace. */
@@ -353,6 +374,12 @@ export interface OpenAdvoApi {
   setMatterArchived(matterId: string, archived: boolean): Promise<void>;
   /** V1-1: end the conversation; a new Pi session file starts. */
   newConversation(matterId: string): Promise<ChatState>;
+  /** The conversations of the matter, newest first. */
+  listConversations(matterId: string): Promise<ConversationSummary[]>;
+  /** Open an older conversation; its messages and its Pi session continue. */
+  switchConversation(matterId: string, conversationId: string): Promise<ChatState>;
+  /** Rename a conversation for the sessions list. */
+  renameConversation(matterId: string, conversationId: string, title: string): Promise<ConversationSummary[]>;
   getMemory(matterId: string): Promise<string>;
   /** Human-only (V1-3). */
   setMemory(matterId: string, text: string): Promise<string>;
@@ -528,6 +555,10 @@ export interface OpenAdvoApi {
   // ---- Phase 1: harness and stores ----
   /** N1, O2: the skill registry and the roles; fresh reads the skill files again. */
   listSkills(fresh?: boolean): Promise<{ skills: SkillSummary[]; roles: RoleSummary[]; folders: { builtIn: string; advocate: string }; practicePacks: PackSummary[] }>;
+  /** The full SKILL.md text of one skill, for the Workflows & Skills page. */
+  readSkill(id: string, version: string): Promise<{ id: string; version: string; file: string; text: string }>;
+  /** The full pack file of one practice pack, for the Workflows & Skills page. */
+  readPack(id: string): Promise<{ id: string; file: string; text: string }>;
   /** N2: the skill runs of a matter, newest first, with their report cards. */
   listSkillRuns(matterId: string): Promise<SkillRunRecord[]>;
   /** I1: one recorded context package: what was included, what was left out, and why. */
@@ -538,6 +569,8 @@ export interface OpenAdvoApi {
   resumeSkillRun(matterId: string, runId: string): Promise<void>;
   /** O1, human-only: approve the plan that waits; the agent then carries it out. */
   approvePlan(matterId: string): Promise<void>;
+  /** The text the advocate selected with the right-click menu, added to the chat composer. */
+  onAddToContext(listener: (text: string) => void): () => void;
   /** O9: ask a side question in a thread, or open a new thread (threadId null). */
   askSide(matterId: string, threadId: string | null, question: string, view: string): Promise<SideThread>;
   /** O9: discard a side thread. */
@@ -708,6 +741,10 @@ export interface OpenAdvoApi {
   onStudioChanged(listener: (matterId: string) => void): () => void;
   onStudioProgress(listener: (text: string) => void): () => void;
   getNotebook(matterId: string): Promise<Notebook>;
+  /** Why each source did or did not produce Notebook events. */
+  notebookStatus(matterId: string): Promise<NotebookSourceStatus[]>;
+  /** Re-run the Notebook extraction over every read source, adding events that are missing. */
+  rebuildNotebook(matterId: string): Promise<{ added: number; status: NotebookSourceStatus[] }>;
   /** Human-only actions on Notebook events (decision 5). */
   confirmEvent(matterId: string, eventId: string): Promise<Notebook>;
   rejectEvent(matterId: string, eventId: string): Promise<Notebook>;

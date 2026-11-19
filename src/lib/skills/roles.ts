@@ -89,6 +89,9 @@ export const WRITING_TOOLS = new Set([
   "set_research_step",
   "write_research_memo",
   "propose_advocate_memory",
+  // The case-number import and the Notebook rebuild write sources and events.
+  "import_case_documents",
+  "rebuild_notebook",
 ]);
 
 const R = [...READ_MATTER_TOOLS];
@@ -97,7 +100,7 @@ const L = [...READ_LAW_TOOLS];
 export const ROLE_TABLE: Record<Role, { description: string; tools: string[] }> = {
   intake: { description: "Takes in a new matter or document and proposes its classification and what is missing.", tools: [...R, "propose_memory_note"] },
   jurisdiction: { description: "Settles the forum, limitation and the law on the governing date, as questions and workings.", tools: [...R, ...L] },
-  research: { description: "Finds and assesses law, supporting and adverse, and records candidates and memoranda.", tools: [...R, ...L, "save_judgment", "save_provision", "add_authority", "assess_authority", "record_treatment", "write_research_memo", "propose_research_plan", "set_research_step", "propose_issue"] },
+  research: { description: "Finds and assesses law, supporting and adverse, and records candidates and memoranda. It can import the case documents and rebuild the Notebook.", tools: [...R, ...L, "save_judgment", "save_provision", "add_authority", "assess_authority", "record_treatment", "write_research_memo", "propose_research_plan", "set_research_step", "propose_issue", "import_case_documents", "rebuild_notebook"] },
   evidence: { description: "Reads the record and answers questions of each source with exact anchors.", tools: [...R, "fill_record_cell"] },
   chronology: { description: "Builds and tests the chronology: dates, conflicts and contradictions.", tools: [...R] },
   drafting: { description: "Proposes text as tracked changes from confirmed records.", tools: [...R, "propose_correction", "propose_paragraph", "insert_citation", "propose_preference"] },

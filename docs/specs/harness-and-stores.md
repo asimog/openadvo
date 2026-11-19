@@ -64,6 +64,12 @@ Checks available in phase 1: `schema`, `anchors` (every anchor names a record of
 
 [../harness-build.md](../harness-build.md) HB-1 owns the design. As built: an in-memory Pi session per thread, on the chat's model, with the reading tools of the Matter Agent only. Each call checks the tool policy first. The prompt holds the last 40 messages of the main chat and the open view, copied once. Threads last for the window session.
 
+### 5.1 Conversations and chat controls
+
+A matter has many conversations. `chat/conversations.json` holds the list; each conversation has its own messages file under `chat/conversations/` and its own Pi session file. New conversation, switch and rename are bridge functions; the Sessions menu in the chat and the Jobs tab both list the conversations. A conversation with no session file and no messages never continues another one's session.
+
+The chat shows the model's reasoning in a folded block, and each tool call carries its arguments and its result in a folded "What the agent did" list. Stop is always in the dock header; it is disabled when nothing runs. The right-click menu offers cut, copy, paste, select all and "Add to context"; that last item inserts the selection into the chat composer and sends nothing.
+
 ## 6. The stores (Q4)
 
 Each store has one writer module and its own hash-chained `event` table, checked like `matter.db` ([../architecture.md](../architecture.md) section 3).

@@ -1,7 +1,7 @@
 /**
  * Electron main process: the window, the bridge handlers, the matter store and the agent.
  */
-import { Menu, Notification, app, BrowserWindow, crashReporter, dialog, ipcMain, safeStorage, shell, type IpcMainInvokeEvent } from "electron";
+import { Menu, Notification, app, BrowserWindow, crashReporter, dialog, ipcMain, safeStorage, shell, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
 import path from "node:path";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { existsSync, unlinkSync } from "node:fs";
@@ -40,6 +40,7 @@ import type { ResearchSettings } from "../shared/studio.ts";
 import { Portal, portalOptionsFromEnv } from "./portal.ts";
 import { Mail, type MailAccount } from "./mail.ts";
 import { agentWorkHost } from "./agent-work.ts";
+import { importCaseDocuments } from "./case-import.ts";
 import { SkillRegistry } from "./skills.ts";
 import { registerHarnessBridge } from "./harness-bridge.ts";
 import { registerIntelBridge } from "./intel-bridge.ts";
@@ -244,6 +245,9 @@ function registerBridge(): void {
   handle("matters:archive", (matterId: string, archived: boolean) => matters.setArchived(matterId, archived === true));
   // V1-1: a new conversation.
   handle("chat:new", (matterId: string) => agent.newConversation(matterId));
+  handle("chat:conversations", (matterId: string) => agent.listConversations(matterId));
+  handle("chat:switch", (matterId: string, conversationId: string) => agent.switchConversation(matterId, String(conversationId)));
+  handle("chat:rename", (matterId: string, conversationId: string, title: string) => agent.renameConversation(matterId, String(conversationId), String(title)));
   // V1-3: matter memory (human-only write).
   handle("memory:get", (matterId: string) => matters.memory(matterId));
   handle("memory:set", (matterId: string, text: string) => matters.setMemory(matterId, String(text ?? "")));
@@ -629,6 +633,8 @@ function registerBridge(): void {
   handle("review:resolve", (matterId: string, itemId: string) => matters.decideReviewItem(matterId, itemId, "resolved"));
   handle("review:skip", (matterId: string, itemId: string) => matters.decideReviewItem(matterId, itemId, "skipped"));
   handle("notebook:get", (matterId: string) => matters.notebook(matterId));
+  handle("notebook:status", (matterId: string) => matters.notebookStatus(matterId));
+  handle("notebook:rebuild", (matterId: string) => matters.rebuildNotebook(matterId));
   for (const decision of ["confirmed", "rejected", "excluded", "included"] as const) {
     handle(`notebook:${decision}`, (matterId: string, eventId: string) => matters.decideEvent(matterId, eventId, decision));
   }
@@ -1449,6 +1455,22 @@ function createWindow(): void {
     if (event.url.startsWith(`${EO_ORIGIN}/`) || event.url === "about:blank") return;
     event.preventDefault();
   });
+  // The app has no native menu bar, so the right-click menu is the only edit menu. It also
+  // offers the selection to the chat composer as context.
+  window.webContents.on("context-menu", (_event, params) => {
+    const selection = params.selectionText.trim();
+    const items: MenuItemConstructorOptions[] = [];
+    if (params.isEditable) {
+      items.push({ role: "cut" }, { role: "copy" }, { role: "paste" }, { type: "separator" }, { role: "selectAll" });
+    } else if (selection) {
+      items.push({ role: "copy" }, { type: "separator" }, { role: "selectAll" });
+    }
+    if (selection) {
+      if (items.length) items.push({ type: "separator" });
+      items.push({ label: "Add to context", click: () => window?.webContents.send("context:add", params.selectionText) });
+    }
+    if (items.length) Menu.buildFromTemplate(items).popup({ window: window ?? undefined });
+  });
   window.once("ready-to-show", () => window?.show());
   if (rendererDevUrl) void window.loadURL(rendererDevUrl);
   else void window.loadFile(rendererFile);
@@ -1993,6 +2015,11 @@ app.whenReady().then(() => {
       recordTable: (id) => recordTables.describe(id),
       fillRecordCell: (id, input, sessionId) => recordTables.fillByAgent(id, input, sessionId, findSource),
       studio: (id, tool, params, sessionId) => studioTools(hub, studio, matters)(id, tool, params, sessionId),
+      importCaseDocuments: async (id, input) => {
+        if (!ingest) throw new Error("INGEST_NOT_READY: the reader is not open yet");
+        return importCaseDocuments({ matters, ingest, hub }, id, input);
+      },
+      rebuildNotebook: (id) => matters.rebuildNotebook(id),
       policy: async (id) => {
         if (id === FIRM_AGENT_ID) return { budgetTokens: null, usedTokens: 0 };
         const store = await matters.store(id);

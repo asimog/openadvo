@@ -27,6 +27,9 @@ export const DOC_TYPE_LABEL: Record<string, string> = {
   reply: "Reply",
   notice: "Notice",
   letter: "Letter",
+  questionnaire: "Client questionnaire",
+  chronology: "Client chronology",
+  client_statement: "Client statement",
   other: "Other",
 };
 

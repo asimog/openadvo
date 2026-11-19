@@ -109,7 +109,9 @@ Key files:
 | File | Holds |
 |---|---|
 | `src/main/index.ts` | Start-up (`claimPiAgentDir`, stores, the agent, the extension manager), every `handle(...)` bridge handler, the test hooks |
-| `src/main/agent.ts` | One Pi session per matter, the application's agent tools (`AGENT_TOOLS`), the system prompt, the start check, `send`, `stop`, `reloadIdle` |
+| `src/main/agent.ts` | The matter's conversations and their Pi sessions, the application's agent tools (`AGENT_TOOLS`), the system prompt, the start check, `send`, `stop`, `reloadIdle` |
+| `src/main/case-import.ts` | A case number to downloaded court PDFs, the ingest queue and the Notebook rebuild |
+| `src/main/memo-grounding.ts` | The reference grounding shared by the one memorandum tool |
 | `src/main/pi-extensions.ts` | The resource loader, bundled and added extensions, the extension UI context |
 | `src/main/tool-policy.ts` | The tool policy: rules, deny-hiding, the party rule, MCP rules, the approval queue and the review log |
 | `src/main/helpers.ts`, `src/main/helper-types.ts` | The helper runtime: foreground and background jobs, Steer, Stop, results, the Final Recap, the files |

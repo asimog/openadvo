@@ -23,7 +23,7 @@ async function brief(file: string): Promise<void> {
   const font = await doc.embedFont(StandardFonts.TimesRoman);
   const p1 = doc.addPage([595, 842]);
   p1.drawText("IN THE SUPREME COURT OF INDIA", { x: 150, y: 780, size: 16, font });
-  p1.drawText("The High Court dismissed the writ petition on 12.03.2024.", { x: 72, y: 720, size: 12, font });
+  p1.drawText("The High Court dismissed the writ petition on 2024-03-12.", { x: 72, y: 720, size: 12, font });
   const png = await renderPagePng(await doc.save(), 1, 2.5);
   const image = await doc.embedPng(png);
   doc.addPage([595, 842]).drawImage(image, { x: 0, y: 0, width: 595, height: 842 });
@@ -68,6 +68,14 @@ test("a dropped PDF is read: text layer, OCR, a review item for the blank page, 
   await page.getByRole("button", { name: "brief.pdf" }).click();
   const lines = page.getByTestId("page-lines");
   await expect(lines).toContainText("IN THE SUPREME COURT OF INDIA");
+  // The Notebook says why each source did or did not produce events, and a rebuild is safe.
+  const matter = (await page.evaluate(() => (globalThis as any).openadvo.listMatters())) as Array<{ id: string }>;
+  const status = (await page.evaluate((id) => (globalThis as any).openadvo.notebookStatus(id), matter[0].id)) as Array<{ events: number; note: string }>;
+  expect(status.length).toBe(1);
+  expect(status[0].events).toBeGreaterThan(0);
+  expect(status[0].note).toContain("event(s)");
+  const rebuilt = (await page.evaluate((id) => (globalThis as any).openadvo.rebuildNotebook(id), matter[0].id)) as { added: number };
+  expect(rebuilt.added).toBe(0);
   await expect(page.getByText("Text layer", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Next page" }).click();
   await expect(page.getByText(/^OCR: single reading, not cross-checked/)).toBeVisible();

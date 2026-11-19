@@ -28,39 +28,55 @@ export async function eventsFromDecidedLine(matters: Matters, matterId: string, 
   return store.addEvents(d.sourceId, found.map((e, i) => ({ ...e, id: `ev:${d.anchorId}:d${i + 1}`, method: `${METHOD}+decided` })));
 }
 
+/** Extract one read source. Existing event ids are kept, so a rebuild never duplicates or deletes. */
+async function extractSource(matters: Matters, matterId: string, sourceId: string, name: string): Promise<number> {
+  const lines = await matters.sourceLines(matterId, sourceId);
+  const byPage = new Map<number, typeof lines>();
+  for (const l of lines) byPage.set(l.page, [...(byPage.get(l.page) ?? []), l]);
+  const events: CandidateEvent[] = [];
+  const running = runningLines(lines.map((l) => ({ anchorId: l.id, sourceId: l.sourceId, page: l.page, line: l.line, text: l.text })));
+  for (const pageLines of byPage.values()) {
+    const input = pageLines.map((l) => ({ anchorId: l.id, sourceId: l.sourceId, page: l.page, line: l.line, text: l.text }));
+    events.push(...extractEvents(input, pageLines[0].reading, running));
+  }
+  // V2-4: relative dates, against the header date or the last explicit date.
+  const store = await matters.store(matterId);
+  const unresolved: string[] = [];
+  events.push(
+    ...anchoredIds(
+      extractRelative(
+        lines.map((l) => ({ anchorId: l.id, sourceId: l.sourceId, page: l.page, line: l.line, text: l.text, reading: l.reading })),
+        running,
+        store.dateAnchor(sourceId),
+        (l, phrase) => unresolved.push(`"${phrase}" on page ${l.page}, line ${l.line}`),
+      ),
+    ),
+  );
+  // V5-7: one question per file when a relative date has nothing to count from.
+  if (unresolved.length) store.askDateAnchor(sourceId, `${name}: ${unresolved.slice(0, 3).join("; ")}${unresolved.length > 3 ? ` and ${unresolved.length - 3} more` : ""} cannot be dated: the file has no date to count from. Give the base date (for example the date the document was made).`);
+  return matters.recordEvents(matterId, sourceId, events, METHOD);
+}
+
 export async function extractNotebook(matters: Matters, matterId: string): Promise<number> {
   let added = 0;
-  for (const source of await matters.sourcesToExtract(matterId)) {
-    const lines = await matters.sourceLines(matterId, source.id);
-    const byPage = new Map<number, typeof lines>();
-    for (const l of lines) byPage.set(l.page, [...(byPage.get(l.page) ?? []), l]);
-    const events: CandidateEvent[] = [];
-    const running = runningLines(lines.map((l) => ({ anchorId: l.id, sourceId: l.sourceId, page: l.page, line: l.line, text: l.text })));
-    for (const pageLines of byPage.values()) {
-      const input = pageLines.map((l) => ({ anchorId: l.id, sourceId: l.sourceId, page: l.page, line: l.line, text: l.text }));
-      events.push(...extractEvents(input, pageLines[0].reading, running));
-    }
-    // V2-4: relative dates, against the header date or the last explicit date.
-    const store = await matters.store(matterId);
-    const unresolved: string[] = [];
-    events.push(
-      ...anchoredIds(
-        extractRelative(
-          lines.map((l) => ({ anchorId: l.id, sourceId: l.sourceId, page: l.page, line: l.line, text: l.text, reading: l.reading })),
-          running,
-          store.dateAnchor(source.id),
-          (l, phrase) => unresolved.push(`"${phrase}" on page ${l.page}, line ${l.line}`),
-        ),
-      ),
-    );
-    // V5-7: one question per file when a relative date has nothing to count from.
-    if (unresolved.length) store.askDateAnchor(source.id, `${source.name}: ${unresolved.slice(0, 3).join("; ")}${unresolved.length > 3 ? ` and ${unresolved.length - 3} more` : ""} cannot be dated: the file has no date to count from. Give the base date (for example the date the document was made).`);
-    await matters.recordEvents(matterId, source.id, events, METHOD);
-    added += events.length;
-  }
+  for (const source of await matters.sourcesToExtract(matterId)) added += await extractSource(matters, matterId, source.id, source.name);
   if (added > 0) {
     const all = (await matters.notebook(matterId)).events;
     await matters.recordConflicts(matterId, findConflicts(all));
   }
+  return added;
+}
+
+/**
+ * Re-run the extraction over every read source. A source extracted as zero before is tried again,
+ * and a source whose text changed (a corrected OCR reading) gains what it missed. Existing events
+ * are never deleted, so a confirmed event stays.
+ */
+export async function rebuildNotebook(matters: Matters, matterId: string): Promise<number> {
+  let added = 0;
+  const done = new Set((await matters.listJobs(matterId)).filter((j) => j.state === "done").map((j) => j.sourceId));
+  for (const source of (await matters.listSources(matterId)).filter((s) => done.has(s.id))) added += await extractSource(matters, matterId, source.id, source.name);
+  const all = (await matters.notebook(matterId)).events;
+  await matters.recordConflicts(matterId, findConflicts(all));
   return added;
 }

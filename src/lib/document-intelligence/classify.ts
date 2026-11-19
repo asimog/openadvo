@@ -14,6 +14,9 @@ export const DOC_TYPES = [
   "reply",
   "notice",
   "letter",
+  "questionnaire",
+  "chronology",
+  "client_statement",
   "other",
 ] as const;
 
@@ -30,6 +33,9 @@ export const DOC_TYPE_LABEL: Record<DocType, string> = {
   reply: "Reply",
   notice: "Notice",
   letter: "Letter",
+  questionnaire: "Client questionnaire",
+  chronology: "Client chronology",
+  client_statement: "Client statement",
   other: "Other",
 };
 
@@ -45,6 +51,10 @@ const RULES: Array<{ type: DocType; re: RegExp }> = [
   { type: "order", re: /\border\b|\bcoram\b/i },
   { type: "application", re: /\bapplication\b|\bI\.?A\.?\s+No\b/i },
   { type: "petition", re: /\bpetition\b/i },
+  // Client documents. They come before "notice", because a questionnaire can mention a notice.
+  { type: "questionnaire", re: /\bquestionnaire\b|\bplease\s+answer\b/i },
+  { type: "chronology", re: /\bevent\s+chronology\b|\bchronology\b|\btimeline\b|\blist\s+of\s+dates\b/i },
+  { type: "client_statement", re: /\bclient\s+statement\b|\bstatement\s+of\s+(?:the\s+)?(?:client|complainant|witness)\b/i },
   { type: "notice", re: /\bnotice\b/i },
   { type: "letter", re: /\bdear\s+(?:sir|madam)\b|\byours\s+(?:faithfully|sincerely|truly)\b/i },
 ];

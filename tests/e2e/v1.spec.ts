@@ -108,7 +108,7 @@ test("v1: record table, memory, workflows, durable chat, rename and archive", as
     // A new conversation is empty, apart from the no-model notice when no model is signed in (CI).
     expect(fresh.messages.filter((m: any) => !/^No model is available/.test(m.text))).toEqual([]);
     expect(fresh.messages.length).toBe(fresh.model === null ? 1 : 0);
-    expect((await readdir(chatDir)).some((f) => /^messages-.*\.json$/.test(f))).toBe(true);
+    expect((await readdir(path.join(chatDir, "conversations"))).includes(`${fresh.conversationId}.json`)).toBe(true);
 
     // ---- V1-10: archive and restore ----
     await page.getByRole("button", { name: "Ram Kumar v. State of Delhi" }).click();

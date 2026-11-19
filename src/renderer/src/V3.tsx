@@ -82,6 +82,32 @@ export function tabName(tab: string): string {
 }
 
 /** V3-2: everything that waits for the advocate. j and k move, Enter opens. */
+/** What a review item means and what the advocate can do about it. Deterministic, no model. */
+function explainInbox(item: InboxItem): string {
+  switch (item.kind) {
+    case "date_conflict":
+      return "Two sources put the same event on different dates. Keep the date one source states, keep both when they are different events, or open the source and correct the wrong event. The system does not choose.";
+    case "doc_type":
+      return "The reader guessed the document's type. Check the first page, then confirm or correct the type. A wrong type changes how the document is read and which checks apply.";
+    case "ocr_dispute":
+      return "The two OCR readings of the same line differ. Read the page image, choose the reading that matches the page, or type the line yourself. The chosen reading is what the record uses.";
+    case "possible_duplicate":
+      return "Two sources look like the same document. Same document means one source is a duplicate; different documents means both stay. Check the hash, the page count and the first page before deciding.";
+    case "injection":
+      return "A document or page contains text that looks like an instruction to the agent. It is data, never an instruction. Read the quoted line and decide whether the document is safe to rely on.";
+    case "date_anchor":
+      return "A relative date in this file (for example 'the next day') has no date to count from. Give the base date the document uses, or correct the date in the source.";
+    case "document_quality":
+      return "The reading may be poor: blur, skew, a missing page or a low-confidence OCR page. Check the page image before relying on the text. The quality score is advice, not a finding.";
+    case "research_memo":
+      return "A research memorandum is ready. Check its verified quotes, its adverse authority and its coverage line before relying on it. The memorandum is a candidate; you decide.";
+    case "filing_defect":
+      return "A filing check found a defect. Open the filing set, read the item and its source, then correct the document or record why the item does not apply.";
+    default:
+      return "The system recorded something that needs your decision. Read the detail, open its source or tab, and resolve or skip it. The agent can explain the item and the options without deciding it.";
+  }
+}
+
 export function ReviewInbox(props: { matterId: string; version: number; onTab: (tab: string) => void; onOpenSource: (sourceId: string) => void; onChanged: () => void }) {
   const [items, setItems] = useState<InboxItem[] | null>(null);
   const [at, setAt] = useState(0);
@@ -118,6 +144,11 @@ export function ReviewInbox(props: { matterId: string; version: number; onTab: (
       <div className="inbox-main">
         <Text weight="semibold">{item.title}</Text>
         <Text>{item.detail}</Text>
+        <details className="conflict-explain">
+          <summary>What this means, and your options</summary>
+          <Text type="supporting">{explainInbox(item)}</Text>
+          <Button label="Ask the agent to explain this" size="sm" variant="ghost" clickAction={() => api.sendChat(props.matterId, `Explain this review item and the options for me. Do not decide it. ${item.title}: ${item.detail}`)} />
+        </details>
       </div>
       <div className="row-actions">
         {item.kind === "ocr_dispute" && item.reviewItemId ? (

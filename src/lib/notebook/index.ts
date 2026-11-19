@@ -23,6 +23,8 @@ const MONTHS: Record<string, number> = {
   dec: 12, december: 12,
 };
 const MONTH = "(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)";
+/** The same month names without a capturing group, for patterns whose own groups are numbered. */
+const MONTH_NC = MONTH.replace(/^\(/, "(?:").replace(/\)$/, ")");
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
@@ -47,6 +49,28 @@ function fullYear(yy: number, now = new Date()): number {
 }
 
 const PATTERNS: Array<{ re: RegExp; read: (m: RegExpExecArray) => Omit<DateHit, "text" | "index"> | null }> = [
+  {
+    // June 2023-Oct 2023 / Nov/Dec 2023 - Jan 2025 / Feb 2025-Nov2025: one range, one event.
+    re: new RegExp(`\\b(${MONTH_NC})\\s*(?:/\\s*(${MONTH_NC})\\s*)?(\\d{4})\\s*(?:[-–—]|to)\\s*(?:(${MONTH_NC})\\s*/\\s*)?(${MONTH_NC})\\s*(\\d{4})\\b`, "gi"),
+    read: (m) => {
+      const first = MONTHS[m[1].toLowerCase()];
+      const last = MONTHS[m[5].toLowerCase()];
+      if (!first || !last) return null;
+      const y1 = Number(m[3]);
+      const y2 = Number(m[6]);
+      const start = iso(y1, first, 1);
+      const end = iso(y2, last, lastDay(y2, last));
+      return start && end ? { start, end, type: "range" } : null;
+    },
+  },
+  {
+    // 2024-03-12 / 2024/03/12 / 2024.03.12 (ISO and its variants, year first).
+    re: /\b(\d{4})([./-])(\d{1,2})\2(\d{1,2})\b/g,
+    read: (m) => {
+      const d = iso(Number(m[1]), Number(m[3]), Number(m[4]));
+      return d ? { start: d, end: d, type: "explicit" } : null;
+    },
+  },
   {
     // 12th March, 2024 / 12 March 2024 / 12th day of March, 2024
     re: new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:day\\s+of\\s+)?${MONTH}\\.?,?\\s+(\\d{4})\\b`, "gi"),

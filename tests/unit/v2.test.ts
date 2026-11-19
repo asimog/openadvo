@@ -20,6 +20,9 @@ test("V2-2: the heading decides the type; the matched words are named", () => {
   assert.equal(classifyDocument("AFFIDAVIT\nI, the deponent above named, solemnly affirm").type, "affidavit");
   assert.equal(classifyDocument("Dear Sir,\nPlease find enclosed.\nYours faithfully").type, "letter");
   assert.equal(classifyDocument("Shopping list: milk, bread").type, "other");
+  assert.equal(classifyDocument("GENERAL QUESTIONNAIRE\nPlease answer every question").type, "questionnaire");
+  assert.equal(classifyDocument("EVENT CHRONOLOGY\nDate | Event").type, "chronology");
+  assert.equal(classifyDocument("CLIENT STATEMENT\nI state as follows").type, "client_statement");
   assert.match(classifyDocument("ORDER\nCoram: Hon'ble Justice X").matched, /"ORDER" in the heading/);
 });
 
@@ -106,12 +109,15 @@ test("V2-2, V2-3, V2-5, V2-8 in the matter store: proposals, human decisions, ev
     const w = store.work;
     // Type: a proposal once, then the advocate's choice.
     assert.equal(w.proposeSourceType(a.id, "order", '"ORDER" in the heading', "type-rules-v1"), true);
-    assert.equal(w.proposeSourceType(a.id, "judgment", "x", "type-rules-v1"), false);
-    assert.deepEqual(store.getSource(a.id)?.docType, { type: "order", status: "candidate", matched: '"ORDER" in the heading' });
+    // A proposal refreshes an older proposal; the advocate has not confirmed it yet.
+    assert.equal(w.proposeSourceType(a.id, "judgment", "x", "type-rules-v1"), true);
+    assert.deepEqual(store.getSource(a.id)?.docType, { type: "judgment", status: "candidate", matched: "x" });
     assert.throws(() => w.setSourceType(a.id, "judgment", { actor: "agent" }), /HUMAN_ONLY/);
     w.setSourceType(a.id, "judgment", adv);
     assert.deepEqual(store.getSource(a.id)?.docType?.status, "confirmed");
     assert.equal(store.getSource(a.id)?.docType?.type, "judgment");
+    // A confirmed type is never overwritten by a new proposal.
+    assert.equal(w.proposeSourceType(a.id, "order", "again", "type-rules-v1"), false);
     // Duplicates: one review item per pair, decided by the advocate, nothing merged.
     assert.equal(w.recordDuplicates([{ a: b.id, b: a.id, overlap: 0.95 }]), 1);
     assert.equal(w.recordDuplicates([{ a: a.id, b: b.id, overlap: 0.95 }]), 0);

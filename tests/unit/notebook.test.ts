@@ -11,6 +11,8 @@ test("Indian court date formats, day first", () => {
     ["on the 3rd day of January, 2021", "2021-01-03", "explicit"],
     ["on March 12, 2024", "2024-03-12", "explicit"],
     ["on 12.03.24", "2024-03-12", "inferred"],
+    ["on 2024-03-12", "2024-03-12", "explicit"],
+    ["on 2024/03/12", "2024-03-12", "explicit"],
   ];
   for (const [text, iso, type] of cases) {
     const [d] = findDates(text);
@@ -23,6 +25,10 @@ test("Indian court date formats, day first", () => {
 test("a month and year is a range; vague words and impossible dates are not dates", () => {
   const [r] = findDates("in February, 2024 the respondent");
   assert.deepEqual([r.start, r.end, r.type], ["2024-02-01", "2024-02-29", "range"]);
+  const [rr] = findDates("Jun 2023-Oct 2023 at the address");
+  assert.deepEqual([rr.start, rr.end, rr.type], ["2023-06-01", "2023-10-31", "range"]);
+  const [rr2] = findDates("Nov/Dec 2023 - Jan 2025 at the address");
+  assert.deepEqual([rr2.start, rr2.end, rr2.type], ["2023-11-01", "2025-01-31", "range"]);
   assert.equal(findDates("thereafter the petitioner").length, 0);
   assert.equal(findDates("on 31.02.2024").length, 0);
   assert.equal(findDates("Section 12.3 of the Act").length, 0);

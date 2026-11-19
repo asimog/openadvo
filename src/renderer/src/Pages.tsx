@@ -178,6 +178,7 @@ export function SkillsPage() {
   const [preview, setPreview] = useState<SkillImportPreview | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [installed, setInstalled] = useState<string | null>(null);
+  const [detail, setDetail] = useState<{ kind: "skill" | "pack"; title: string; file: string; text: string } | null>(null);
   const load = useCallback(async (fresh: boolean) => setData(await api.listSkills(fresh)), []);
   useEffect(() => {
     void load(false);
@@ -232,20 +233,32 @@ export function SkillsPage() {
       ) : null}
       <Text type="supporting">Built-in skills: {data.folders.builtIn}. Your own skills: {data.folders.advocate} (one folder per skill, with SKILL.md).</Text>
       <Heading level={3}>Practice packs</Heading>
-      <Text type="supporting">A pack is content: its proceedings, acts, templates, stages, skills and terms. It owns no matter fact and takes no decision.</Text>
+      <Text type="supporting">A pack is content: its proceedings, acts, templates, stages, skills and terms. It owns no matter fact and takes no decision. Open one to read every field.</Text>
       {packs.length === 0 ? <Text type="supporting">No practice pack is installed.</Text> : (
         <List density="compact" data-testid="packs-list">
           {packs.map((p) => (
             <ListItem
               key={p.id}
               data-testid={`pack-${p.id}`}
+              onClick={() => void api.readPack(p.id).then((r) => setDetail({ kind: "pack", title: `${p.title} v${p.version}`, file: r.file, text: r.text }))}
               startContent={<StatusDot variant={p.error ? "error" : "success"} label={p.error ? "Cannot read" : p.isDefault ? "Default" : "Ready"} />}
               label={`${p.title} v${p.version}${p.isDefault ? " (default)" : ""}`}
               description={p.error ? p.error : `${p.proceedings.length} proceeding${p.proceedings.length === 1 ? "" : "s"}: ${p.proceedings.map((x) => `${x.title} (${x.caseType})`).join(", ")}. Acts: ${p.acts.map((a) => `${a.act} (${a.version})`).join("; ")}. Pack skills: ${p.skills.length}; the every-proceeding skills apply too.`}
+              endContent={<Button label="Read" size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); void api.readPack(p.id).then((r) => setDetail({ kind: "pack", title: `${p.title} v${p.version}`, file: r.file, text: r.text })); }} />}
             />
           ))}
         </List>
       )}
+      {detail ? (
+        <section className="work-section" data-testid="reference-detail">
+          <div className="row-actions">
+            <Heading level={3}>{detail.kind === "skill" ? "Skill" : "Pack"}: {detail.title}</Heading>
+            <Button label="Close" size="sm" variant="ghost" onClick={() => setDetail(null)} />
+          </div>
+          <Text type="supporting">{detail.file}</Text>
+          <pre className="mono reference-text">{detail.text}</pre>
+        </section>
+      ) : null}
       <Heading level={3}>Skills</Heading>
       <label className="field">Pack
         <select aria-label="Filter the skills by pack" value={pack} onChange={(e) => setPack(e.target.value)} data-testid="skill-pack-filter">
@@ -259,6 +272,7 @@ export function SkillsPage() {
           <ListItem
             key={`${s.id}:${s.version}:${s.file}`}
             data-testid={`skill-${s.id}`}
+            onClick={() => void api.readSkill(s.id, s.version).then((r) => setDetail({ kind: "skill", title: `${s.id} ${s.title} v${s.version}`, file: r.file, text: r.text }))}
             startContent={<StatusDot variant={s.error ? "error" : s.shadowed ? "neutral" : "success"} label={s.error ? "Cannot run" : s.shadowed ? "Older version" : s.reviewScore != null ? `${s.reviewScore}/${s.reviewMax}` : "Ready"} />}
             label={`${s.id} ${s.title} v${s.version}`}
             description={
@@ -266,6 +280,7 @@ export function SkillsPage() {
                 ? `Cannot run: ${s.error}`
                 : `${s.description} Pack${s.packs.length === 1 ? "" : "s"} ${s.packs.join(", ")}. Role ${s.role}. Output ${s.output}. Tools: ${s.permittedTools.join(", ")}. Checks: ${s.checks.join(", ")}.${s.approvalPoints.length ? ` Stops for you: ${s.approvalPoints.join(", ").replace(/_/g, " ")}.` : ""} ${s.author}, ${s.review}.${s.shadowed ? " A higher version runs instead." : ""}`
             }
+            endContent={<Button label="Read" size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); void api.readSkill(s.id, s.version).then((r) => setDetail({ kind: "skill", title: `${s.id} ${s.title} v${s.version}`, file: r.file, text: r.text })); }} />}
           />
         ))}
       </List>

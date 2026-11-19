@@ -3,6 +3,7 @@
  * Each is a named function on the preload bridge. The human-only ones (approve a plan, decide a
  * preference or a memory record, set a profile field) are never agent tools (decision 5).
  */
+import { readFileSync } from "node:fs";
 import type { Agent } from "./agent.ts";
 import { readTrace } from "./agent.ts";
 import type { Matters } from "./matters.ts";
@@ -39,6 +40,17 @@ export function registerHarnessBridge(handle: Handle, d: HarnessBridgeDeps): voi
   handle("skills:list", (fresh?: boolean) => {
     const registry = d.skills.get(fresh === true);
     return { skills: registry.all, roles: roleSummaries(registry), folders: d.skills.folders(), practicePacks: d.packs.get(fresh === true).summaries };
+  });
+  // A skill or a pack, read in full: the Workflows & Skills page opens it.
+  handle("skills:read", (id: string, version: string) => {
+    const skill = d.skills.get().all.find((s) => s.id === str(id) && s.version === str(version));
+    if (!skill) throw new Error(`SKILL_NOT_FOUND: ${str(id)} v${str(version)}`);
+    return { id: skill.id, version: skill.version, file: skill.file, text: readFileSync(skill.file, "utf8") };
+  });
+  handle("packs:read", (id: string) => {
+    const pack = d.packs.get().packs.find((p) => p.id === str(id));
+    if (!pack) throw new Error(`PACK_NOT_FOUND: ${str(id)}`);
+    return { id: pack.id, file: `packs/${pack.id}.json`, text: JSON.stringify(pack, null, 2) };
   });
   // N2, O7: runs, their packages and the Jobs rows of one matter.
   handle("skills:runs", async (matterId: string) => (await d.matters.store(str(matterId))).skillRuns());

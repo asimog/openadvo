@@ -180,6 +180,20 @@ export interface Notebook {
   readiness: Readiness;
 }
 
+/** Why a source did or did not produce Notebook events. The Notebook tab shows this. */
+export interface NotebookSourceStatus {
+  sourceId: string;
+  name: string;
+  mediaType: string;
+  pages: number;
+  lines: number;
+  events: number;
+  extractedAt: string | null;
+  method: string | null;
+  state: "read" | "reading" | "failed" | "not_read";
+  note: string;
+}
+
 // ---- Step 4: drafts and revisions (work products). The matter store writes them. ----
 
 export const DRAFT_KINDS = [

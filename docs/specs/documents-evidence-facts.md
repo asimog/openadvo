@@ -55,6 +55,12 @@ After ingest, `src/main/evidence.ts` reads the stored lines and pages and writes
 
 The second OCR engine stays PP-OCR until a docTR model is vendored. H3 says docTR; the difference is recorded in section 7.
 
+### 3.1 The Notebook diagnosis and the case number
+
+The Notebook shows one row per source: its type, pages, lines, extracted events, the extraction time and why it has no event. "Rebuild extraction" re-runs the fixed rules over every read source and adds what is missing; it never deletes or confirms an event. The rebuild also refreshes an unconfirmed document type, so a questionnaire is no longer read as a notice.
+
+The agent tool `import_case_documents` takes a case number (and a court, when known), finds the judgment or order PDFs on the public web with official court hosts first, downloads them into the matter, reads them and rebuilds the Notebook. If no public PDF is found, it returns the court page for the browser and the advocate's sign-in. The agent cannot create an event directly.
+
 ## 4. Views
 
 - **Facts & chronology** (`FactsPanel`): facts with type, status, source, date and amount; confirm, dispute, reject, supersede; contradictions; timeline filters (all, procedural, factual, payment, communication, limitation); before/after comparison.

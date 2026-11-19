@@ -194,9 +194,9 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
   expect(probe.bridge).toEqual(
     [
       "addFiles", "createMatter", "getChat", "getModel", "listEvents", "listMatters", "listModels", "listOrigins",
-      "closeView", "listSources", "onChatEvent", "openMatter", "openSourceView", "pathsForFiles", "pickFiles", "sendChat", "setModel",
+      "closeView", "listSources", "onChatEvent", "onAddToContext", "openMatter", "openSourceView", "pathsForFiles", "pickFiles", "sendChat", "setModel",
       "getEffort", "setEffort", "getSourcePages", "listJobs", "listReviewItems", "onIngestUpdate", "resolveReviewItem", "skipReviewItem",
-      "getNotebook", "confirmEvent", "rejectEvent", "excludeEvent", "includeEvent", "resolveConflict",
+      "getNotebook", "notebookStatus", "rebuildNotebook", "confirmEvent", "rejectEvent", "excludeEvent", "includeEvent", "resolveConflict",
       "listDrafts", "getRevision", "getParagraphSource", "generateListOfDates", "generateSynopsis",
       "openRevisionInEditor", "insertFromNotebook", "checkDraft", "saveRevision", "approveRevision",
       "agentChanges", "decideAgentChanges", "generateDraft",
@@ -204,7 +204,7 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
       "getFiling", "setMatterDetails", "setAnnexures", "computeLimitation", "confirmLimitation", "approveForFiling", "confirmFiling", "revealFilingSet",
       "openPortal", "importEmail", "getMailAccount", "setMailAccount", "fetchMail", "voiceStatus", "transcribe",
       // V1 (docs/specs/v1.md).
-      "verifyFilingManifest", "renameMatter", "setMatterArchived", "newConversation", "getMemory", "setMemory",
+      "verifyFilingManifest", "renameMatter", "setMatterArchived", "newConversation", "listConversations", "switchConversation", "renameConversation", "getMemory", "setMemory",
       "listExtensions", "addExtension", "removeExtension", "setExtensionEnabled",
       "listWorkflows", "saveWorkflow", "deleteWorkflow", "getRecordTable", "addRecordColumn", "decideRecordCell",
       "setSourceType", "listDuplicates", "decideDuplicate", "getListOfDatesRows", "setListOfDatesRows", "listMemoryProposals", "decideMemoryProposal", "signingFingerprint",
@@ -220,7 +220,7 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
       // list after they were found missing from it (phase 6's full-suite run caught the gap).
       "knowledgeHealth", "knowledgeIndexJudgment", "knowledgeLoadFirstWave", "knowledgePlans", "knowledgeSaveProvision", "knowledgeSearch", "decideResearchPlan",
       // Phase 1: harness and stores (docs/specs/harness-and-stores.md).
-      "listSkills", "listSkillRuns", "getContextPackage", "listRunJobs", "resumeSkillRun", "approvePlan", "askSide", "discardSide", "listSide", "contextCandidates", "inboxAll", "searchAll",
+      "listSkills", "readSkill", "readPack", "listSkillRuns", "getContextPackage", "listRunJobs", "resumeSkillRun", "approvePlan", "askSide", "discardSide", "listSide", "contextCandidates", "inboxAll", "searchAll",
       "getAdvocateProfile", "setAdvocateProfile", "listAdvocateMemory", "decideAdvocateMemory", "listPreferences", "decidePreference", "listIntelSources", "storeChains",
       // Phase 2: local legal intelligence and filing readiness (docs/specs/court-adapters.md).
       "searchCourts", "appealRoute", "getCourtProfile", "setCourtProfile", "courtOverview", "listAdapters", "forkAdapter", "addAdapter", "buildList", "getList", "editList", "uploadSource", "addBench",
@@ -297,6 +297,8 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
     "read_judgment",
     "discover_statutes",
     "read_statute_section",
+    "import_case_documents",
+    "rebuild_notebook",
     // Phase 5: the Studio knowledge search and research tools (law-research-authority.md).
     // Added to the exact list after they were found missing from it (the phase 6 full-suite run
     // caught the gap).

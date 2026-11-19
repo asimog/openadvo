@@ -11,6 +11,9 @@ const api: OpenAdvoApi = {
   renameMatter: (matterId, title) => ipcRenderer.invoke("matters:rename", matterId, title),
   setMatterArchived: (matterId, archived) => ipcRenderer.invoke("matters:archive", matterId, archived),
   newConversation: (matterId) => ipcRenderer.invoke("chat:new", matterId),
+  listConversations: (matterId) => ipcRenderer.invoke("chat:conversations", matterId),
+  switchConversation: (matterId, conversationId) => ipcRenderer.invoke("chat:switch", matterId, conversationId),
+  renameConversation: (matterId, conversationId, title) => ipcRenderer.invoke("chat:rename", matterId, conversationId, title),
   getMemory: (matterId) => ipcRenderer.invoke("memory:get", matterId),
   setMemory: (matterId, text) => ipcRenderer.invoke("memory:set", matterId, text),
   listExtensions: () => ipcRenderer.invoke("extensions:list"),
@@ -101,6 +104,8 @@ const api: OpenAdvoApi = {
   resolveReviewItem: (matterId, itemId) => ipcRenderer.invoke("review:resolve", matterId, itemId),
   skipReviewItem: (matterId, itemId) => ipcRenderer.invoke("review:skip", matterId, itemId),
   getNotebook: (matterId) => ipcRenderer.invoke("notebook:get", matterId),
+  notebookStatus: (matterId) => ipcRenderer.invoke("notebook:status", matterId),
+  rebuildNotebook: (matterId) => ipcRenderer.invoke("notebook:rebuild", matterId),
   confirmEvent: (matterId, eventId) => ipcRenderer.invoke("notebook:confirmed", matterId, eventId),
   rejectEvent: (matterId, eventId) => ipcRenderer.invoke("notebook:rejected", matterId, eventId),
   excludeEvent: (matterId, eventId) => ipcRenderer.invoke("notebook:excluded", matterId, eventId),
@@ -209,6 +214,8 @@ const api: OpenAdvoApi = {
   closeFirmHandoff: (id) => ipcRenderer.invoke("firm:close-handoff", id),
   clearPlan: (id) => ipcRenderer.invoke("chat:clear-plan", id),
   listSkills: (fresh) => ipcRenderer.invoke("skills:list", fresh),
+  readSkill: (id, version) => ipcRenderer.invoke("skills:read", id, version),
+  readPack: (id) => ipcRenderer.invoke("packs:read", id),
   listSkillRuns: (matterId) => ipcRenderer.invoke("skills:runs", matterId),
   getContextPackage: (matterId, packageId) => ipcRenderer.invoke("skills:package", matterId, packageId),
   listRunJobs: (matterId) => ipcRenderer.invoke("runs:jobs", matterId),
@@ -398,6 +405,13 @@ const api: OpenAdvoApi = {
     ipcRenderer.on("chat:event", handler);
     return () => {
       ipcRenderer.removeListener("chat:event", handler);
+    };
+  },
+  onAddToContext: (listener) => {
+    const handler = (_event: unknown, text: string) => listener(text);
+    ipcRenderer.on("context:add", handler);
+    return () => {
+      ipcRenderer.removeListener("context:add", handler);
     };
   },
 };

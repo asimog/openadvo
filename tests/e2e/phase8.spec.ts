@@ -51,7 +51,7 @@ test("phase 8: the four packs, a bail skill with its review, and the pack on the
   await page.getByRole("button", { name: "Create matter" }).click();
   const matterId = ((await call<Array<{ id: string }>>("listMatters"))[0]).id;
   await page.evaluate(([m, f]) => (globalThis as any).openadvo.addFiles(m, [f]), [matterId, brief]);
-  await expect(page.getByText("FIR.txt")).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByRole("button", { name: "FIR.txt" })).toBeVisible({ timeout: 120_000 });
   await app.evaluate(() => (globalThis as any).__openadvoTest.ingestIdle());
   const nb = await call<{ events: Array<{ id: string }> }>("getNotebook", matterId);
   for (const e of nb.events) await call("confirmEvent", matterId, e.id);

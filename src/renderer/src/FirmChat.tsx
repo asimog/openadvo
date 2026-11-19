@@ -85,13 +85,18 @@ export function FirmChat(props: { onOpenMatter: (matterId: string, carry: Carry)
           isDisabled={busy}
           clickAction={async () => setMessages((await api.newConversation(FIRM_AGENT_ID)).messages)}
         />
-        {busy ? (
-          <span className="dock-busy">
-            <Spinner size="sm" />
-            <Text type="supporting">Working…</Text>
-            <Button label="Stop" size="sm" variant="ghost" clickAction={async () => { await api.stopChat(FIRM_AGENT_ID); }} />
-          </span>
-        ) : null}
+        <span className="dock-busy">
+          {busy ? <Spinner size="sm" /> : null}
+          {busy ? <Text type="supporting">Working…</Text> : null}
+          <Button
+            label="Stop"
+            size="sm"
+            variant="secondary"
+            data-testid="stop-firm-chat"
+            isDisabled={!busy}
+            clickAction={async () => { await api.stopChat(FIRM_AGENT_ID); }}
+          />
+        </span>
       </div>
       <Text type="supporting" color="secondary">
         Ask about the whole firm: what is pending, which hearings come next, which deadlines are near, which workflow fits. It reads each matter's stage, hearings, deadlines and open items, and your workflows. It does not read a matter's documents. It proposes; you decide. Not yet available to it: the Knowledge Library and advocate memory.

@@ -28,7 +28,7 @@ import { AgentChangesCard } from "./AgentChangesCard.tsx";
 import { ExtensionQuestionCard } from "./ExtensionQuestionCard.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { DropdownMenu } from "@astryxdesign/core/DropdownMenu";
-import type { AgentChanges, ChatEvent, ChatMessage as ChatRecord, ContextMeter, CostSummary, EffortLevel, HelperView, EffortState, ExtensionQuestion, ModelChoice, Plan, RunSummary, Workflow } from "../../shared/api.ts";
+import type { AgentChanges, ChatEvent, ChatMessage as ChatRecord, ChatState, ContextMeter, ConversationSummary, CostSummary, EffortLevel, HelperView, EffortState, ExtensionQuestion, ModelChoice, Plan, RunSummary, Workflow } from "../../shared/api.ts";
 
 const api = window.openadvo;
 
@@ -124,6 +124,17 @@ export function ModelPicker(props: { isDisabled: boolean }) {
 
 export function Message(props: { message: ChatRecord; matterId?: string }) {
   const m = props.message;
+  // The model's reasoning, streamed before its answer. Folded by default; the advocate can read it.
+  if (m.reasoning) {
+    return (
+      <ChatSystemMessage>
+        <details className="reasoning-block" data-testid="reasoning">
+          <summary>Reasoning</summary>
+          <pre className="reasoning-text">{m.text}</pre>
+        </details>
+      </ChatSystemMessage>
+    );
+  }
   // N2: a skill run's report card.
   if (m.skillRun && props.matterId) return <ReportCardView matterId={props.matterId} card={m.skillRun} />;
   if (m.role === "advocate") {
@@ -272,6 +283,8 @@ export function ChatDock(props: {
   const [lastRun, setLastRun] = useState<RunSummary | undefined>();
   const [cost, setCost] = useState<CostSummary | undefined>();
   const [sessionId, setSessionId] = useState<string | undefined>();
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [conversationId, setConversationId] = useState<string | undefined>();
   const [view, setView] = useState<"chat" | "context" | "jobs">("chat");
   // O9: the side panel, opened with a first question ("Side question" or /btw).
   const [side, setSide] = useState<{ id: number; text: string } | null>(null);
@@ -291,6 +304,22 @@ export function ChatDock(props: {
   useEffect(() => {
     void api.listWorkflows().then(setWorkflows, () => setWorkflows([]));
   }, []);
+
+  const applyState = (s: ChatState) => {
+    setMessages(s.messages);
+    setBusy(s.busy);
+    setModel(s.model);
+    setExtStatus(s.status ?? {});
+    setQuestions(s.questions ?? []);
+    setPlan(s.plan ?? null);
+    setMeter(s.context ?? null);
+    setHelpers(s.helpers ?? []);
+    setLastRun(s.lastRun);
+    setCost(s.cost);
+    setSessionId(s.sessionId);
+    setConversationId(s.conversationId);
+    setConversations(s.conversations ?? []);
+  };
 
   useEffect(() => {
     setMessages([]);
@@ -318,23 +347,15 @@ export function ChatDock(props: {
         setLastRun(s.lastRun);
         setCost(s.cost);
         setSessionId(s.sessionId);
+        setConversationId(s.conversationId);
+        setConversations(s.conversations ?? []);
       }, () => undefined);
     };
     window.addEventListener("focus", refresh);
     api.getChat(props.matterId).then(
       (s) => {
         if (!live) return;
-        setMessages(s.messages);
-        setBusy(s.busy);
-        setModel(s.model);
-        setExtStatus(s.status ?? {});
-        setQuestions(s.questions ?? []);
-        setPlan(s.plan ?? null);
-        setMeter(s.context ?? null);
-        setHelpers(s.helpers ?? []);
-        setLastRun(s.lastRun);
-        setCost(s.cost);
-        setSessionId(s.sessionId);
+        applyState(s);
       },
       (e: Error) => live && setError(`The agent could not start: ${e.message}`),
     );
@@ -391,6 +412,12 @@ export function ChatDock(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [carryId]);
 
+  // The right-click menu's "Add to context" puts the selection in the composer; nothing is sent.
+  useEffect(() => api.onAddToContext((text) => {
+    inputRef.current?.focus();
+    inputRef.current?.insertText(text);
+  }), []);
+
   const send = (text: string) => {
     if (!text.trim()) return;
     // O9: "/btw <question>" opens the side panel; it never goes to the main conversation.
@@ -435,18 +462,25 @@ export function ChatDock(props: {
             isIconOnly
             icon={<Icon icon={PlusCircleIcon} size="sm" />}
             isDisabled={busy}
+            data-testid="new-conversation"
             clickAction={async () => {
-              const s = await api.newConversation(props.matterId);
-              setMessages(s.messages);
-              setModel(s.model);
-              setPlan(s.plan ?? null);
-              setMeter(s.context ?? null);
-              setHelpers(s.helpers ?? []);
-              setLastRun(s.lastRun);
-              setCost(s.cost);
-              setSessionId(s.sessionId);
+              applyState(await api.newConversation(props.matterId));
               setView("chat");
             }}
+          />
+          <DropdownMenu
+            button={{ label: "Sessions", variant: "ghost", size: "sm", children: "Sessions", isDisabled: busy }}
+            menuWidth={340}
+            items={[
+              ...conversations.map((c) => ({
+                label: `${c.id === conversationId ? "● " : ""}${c.title} · ${c.messages} message${c.messages === 1 ? "" : "s"}`,
+                onClick: async () => {
+                  applyState(await api.switchConversation(props.matterId, c.id));
+                  setView("chat");
+                },
+              })),
+              ...(conversations.length ? [{ label: "New conversation", onClick: async () => { applyState(await api.newConversation(props.matterId)); setView("chat"); } }] : []),
+            ]}
           />
           <Button
             label="Export cost CSV"
@@ -454,13 +488,19 @@ export function ChatDock(props: {
             variant="ghost"
             clickAction={async () => saveTextFile(`Open Advocate cost ${props.title.replace(/[\\/:*?"<>|]+/g, " ").trim()}.csv`, await api.costCsv(props.matterId))}
           />
-          {busy || helpers.some((h) => h.state === "running") ? (
-            <span className="dock-busy">
-              {busy ? <Spinner size="sm" /> : null}
-              {busy ? <Text type="supporting">Working…</Text> : <Text type="supporting">{helpers.filter((h) => h.state === "running").length} helper{helpers.filter((h) => h.state === "running").length === 1 ? "" : "s"} running</Text>}
-              <Button label="Stop" size="sm" variant="ghost" data-testid="stop-chat" clickAction={async () => { await api.stopChat(props.matterId); }} />
-            </span>
-          ) : null}
+          <span className="dock-busy">
+            {busy ? <Spinner size="sm" /> : null}
+            {busy ? <Text type="supporting">Working…</Text> : helpers.some((h) => h.state === "running") ? <Text type="supporting">{helpers.filter((h) => h.state === "running").length} helper{helpers.filter((h) => h.state === "running").length === 1 ? "" : "s"} running</Text> : null}
+            <Button
+              label="Stop"
+              size="sm"
+              variant="secondary"
+              icon={<Icon icon={StopIcon} size="sm" />}
+              data-testid="stop-chat"
+              isDisabled={!busy && !helpers.some((h) => h.state === "running")}
+              clickAction={async () => { await api.stopChat(props.matterId); }}
+            />
+          </span>
         </div>
         {props.openItem ? (
           <div className="dock-open">
@@ -486,7 +526,14 @@ export function ChatDock(props: {
         <div className="dock-slot" ref={props.slotRef} />
       </div>
       {view === "jobs" ? (
-        <JobsPanel matterId={props.matterId} version={jobsVersion} />
+        <JobsPanel
+          matterId={props.matterId}
+          version={jobsVersion}
+          onOpenConversation={async (id) => {
+            applyState(await api.switchConversation(props.matterId, id));
+            setView("chat");
+          }}
+        />
       ) : view === "context" ? (
         <ContextPanel
           conversationId={props.matterId}

@@ -62,9 +62,34 @@ function toolItems(calls: ChatRecord[]): ChatToolCallItem[] {
 
 /** The tool calls of the agent, as Astryx ChatToolCalls. A run of calls is one collapsible group. */
 export function ToolCallGroup(props: { calls: ChatRecord[] }) {
+  const detailed = props.calls.filter((m) => m.tool?.args || m.tool?.result || m.tool?.error);
   return (
     <ChatMessage sender="assistant">
       <ChatToolCalls calls={toolItems(props.calls)} label={`${props.calls.length} tool call${props.calls.length === 1 ? "" : "s"}`} />
+      {detailed.length ? (
+        <details className="tool-detail">
+          <summary>What the agent did ({detailed.length})</summary>
+          {detailed.map((m) => (
+            <div key={m.id} className="tool-detail-row" data-status={m.tool?.status}>
+              <Text weight="semibold">{m.tool?.name}</Text>
+              {m.tool?.target ? <Text type="supporting">Target: {m.tool.target}</Text> : null}
+              {m.tool?.args ? (
+                <div>
+                  <Text type="supporting">Arguments</Text>
+                  <pre className="tool-text">{m.tool.args}</pre>
+                </div>
+              ) : null}
+              {m.tool?.result ? (
+                <div>
+                  <Text type="supporting">Result</Text>
+                  <pre className="tool-text">{m.tool.result}</pre>
+                </div>
+              ) : null}
+              {m.tool?.error ? <div className="notice" role="alert">{m.tool.error}</div> : null}
+            </div>
+          ))}
+        </details>
+      ) : null}
     </ChatMessage>
   );
 }

@@ -1319,6 +1319,12 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
     return this.listSources().filter((s) => read.has(s.id) && !done.has(s.id));
   }
 
+  /** The last extraction of one source, or null when it was never extracted. */
+  notebookExtraction(sourceId: string): { events: number; method: string; at: string } | null {
+    const r = this.db.prepare("SELECT events, method, at FROM notebook_extract WHERE source_id = ?").get(sourceId) as Record<string, unknown> | undefined;
+    return r ? { events: Number(r.events), method: String(r.method), at: String(r.at) } : null;
+  }
+
   /** Every stored line of one source, in page and line order, with the reading of its page. */
   sourceLines(sourceId: string): Array<AnchorRecord & { reading: "text_layer" | "ocr" }> {
     const kinds = new Map((this.db.prepare("SELECT page, kind FROM page WHERE source_id = ?").all(sourceId) as Array<{ page: number; kind: string }>).map((r) => [Number(r.page), r.kind]));
@@ -1328,21 +1334,23 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
     }));
   }
 
-  recordEvents(sourceId: string, events: EventInput[], method: string): void {
+  recordEvents(sourceId: string, events: EventInput[], method: string): number {
+    let added = 0;
     this.db.exec("BEGIN");
     try {
       const insert = this.db.prepare(
-        "INSERT INTO notebook_event (id, source_id, anchor_id, page, line, date_text, date_start, date_end, date_type, description, kind, reading, method, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT OR IGNORE INTO notebook_event (id, source_id, anchor_id, page, line, date_text, date_start, date_end, date_type, description, kind, reading, method, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       );
       const at = now();
-      for (const e of events) insert.run(e.id, sourceId, e.anchorId, e.page, e.line, e.dateText, e.dateStart, e.dateEnd, e.dateType, e.description, e.kind, e.reading, e.method, at);
-      this.db.prepare("INSERT INTO notebook_extract (source_id, events, method, at) VALUES (?, ?, ?, ?)").run(sourceId, events.length, method, at);
+      for (const e of events) added += Number(insert.run(e.id, sourceId, e.anchorId, e.page, e.line, e.dateText, e.dateStart, e.dateEnd, e.dateType, e.description, e.kind, e.reading, e.method, at).changes ?? 0);
+      this.db.prepare("INSERT OR REPLACE INTO notebook_extract (source_id, events, method, at) VALUES (?, ?, ?, ?)").run(sourceId, events.length, method, at);
       this.db.exec("COMMIT");
     } catch (e) {
       this.db.exec("ROLLBACK");
       throw e;
     }
-    this.appendEvent({ actor: "system" }, "notebook.events_extracted", sourceId, { events: events.length, method });
+    this.appendEvent({ actor: "system" }, "notebook.events_extracted", sourceId, { events: events.length, added, method });
+    return added;
   }
 
   /** Flag date conflicts. A pair already recorded is not flagged again. */

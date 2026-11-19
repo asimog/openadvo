@@ -10,6 +10,8 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { zipSync } from "fflate";
 import { ARCHIVED_FILE, MatterStore, MatterStoreError, listMatters } from "../lib/matter-store/index.ts";
+import { rebuildNotebook as rebuildNotebookEvents } from "./notebook.ts";
+import type { NotebookSourceStatus } from "../shared/records.ts";
 import { answerMemoryQuestion } from "../lib/memory-answers/index.ts";
 import type { MemoryAnswer, OutcomeInput, OutcomeRecord } from "../shared/knowledge.ts";
 import type {
@@ -200,8 +202,8 @@ export class Matters {
     return (await this.store(matterId)).sourceLines(sourceId);
   }
 
-  async recordEvents(matterId: string, sourceId: string, events: EventInput[], method: string): Promise<void> {
-    (await this.store(matterId)).recordEvents(sourceId, events, method);
+  async recordEvents(matterId: string, sourceId: string, events: EventInput[], method: string): Promise<number> {
+    return (await this.store(matterId)).recordEvents(sourceId, events, method);
   }
 
   async recordConflicts(matterId: string, pairs: Array<[string, string]>): Promise<number> {
@@ -210,6 +212,62 @@ export class Matters {
 
   async notebook(matterId: string): Promise<Notebook> {
     return (await this.store(matterId)).notebook();
+  }
+
+  /** Why each source did or did not produce events. The Notebook tab shows this, not a bare count. */
+  async notebookStatus(matterId: string): Promise<NotebookSourceStatus[]> {
+    const store = await this.store(matterId);
+    const jobs = new Map(store.listJobs().map((j) => [j.sourceId, j]));
+    const notebook = store.notebook();
+    return store.listSources().map((source) => {
+      const job = jobs.get(source.id);
+      const pages = store.listPages(source.id);
+      const lines = store.sourceLines(source.id);
+      const extraction = store.notebookExtraction(source.id);
+      const events = notebook.events.filter((e) => e.sourceId === source.id).length;
+      const state: NotebookSourceStatus["state"] = !job ? "not_read" : job.state === "done" ? "read" : job.state === "failed" ? "failed" : "reading";
+      const note =
+        state === "failed"
+          ? `Not read: ${job?.error ?? "the reader failed"}`
+          : state === "reading"
+            ? "The reader is working on this file."
+            : state === "not_read"
+              ? "Waiting to be read."
+              : pages.length === 0
+                ? "Read, but no page text is stored. A scan needs OCR, or the file type is not read."
+                : lines.length === 0
+                  ? "Read, but no lines are stored for this file."
+                  : events === 0
+                    ? `Read ${pages.length} page(s), ${lines.length} line(s). The rules found no date. Add a date in the document, or correct the text.`
+                    : `${events} event(s) from ${lines.length} line(s) on ${pages.length} page(s).`;
+      return {
+        sourceId: source.id,
+        name: source.name,
+        mediaType: source.mediaType,
+        pages: pages.length,
+        lines: lines.length,
+        events,
+        extractedAt: extraction?.at ?? null,
+        method: extraction?.method ?? null,
+        state,
+        note,
+      };
+    });
+  }
+
+  /** Re-run extraction over every read source. Existing and confirmed events are kept. */
+  async rebuildNotebook(matterId: string): Promise<{ added: number; status: NotebookSourceStatus[] }> {
+    const store = await this.store(matterId);
+    // A proposal is refreshed; a type the advocate confirmed is never overwritten.
+    for (const source of store.listSources()) {
+      if (source.docType?.status === "confirmed") continue;
+      const first = store.listPages(source.id, 1, 1)[0];
+      if (!first) continue;
+      const p = classifyDocument(first.text);
+      store.work.proposeSourceType(source.id, p.type, p.matched, CLASSIFY_METHOD);
+    }
+    const added = await rebuildNotebookEvents(this, matterId);
+    return { added, status: await this.notebookStatus(matterId) };
   }
 
   // ---- Phase 10: memory answers and outcome records ----
