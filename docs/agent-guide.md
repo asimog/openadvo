@@ -67,6 +67,7 @@ The agent uses the model credentials of the owner's Pi (`~/.pi/agent/auth.json`)
 | `npm run build` | Builds main, preload and renderer into `out/`. Check that "built in" appears three times. |
 | `npm start` | Runs the built application |
 | `npm run typecheck` | `tsc` over the Node and web projects (`tsconfig.node.json`, `tsconfig.web.json`) |
+| `npm run lint` | `oxlint` over `src/` and `tests/`; `oxlint --fix` fixes the safe findings |
 | `npm run test:unit` | `node --test` over `tests/unit/**/*.test.ts` |
 | `npm run test:e2e` | Playwright against the built application (`playwright.config.ts`: four workers, tests run in parallel, 120 s per test) |
 | `npm test` | Unit tests, build, end-to-end tests |
@@ -108,7 +109,9 @@ Key files:
 
 | File | Holds |
 |---|---|
-| `src/main/index.ts` | Start-up (`claimPiAgentDir`, stores, the agent, the extension manager), every `handle(...)` bridge handler, the test hooks |
+| `src/main/index.ts` | Start-up (`claimPiAgentDir`, stores, the agent, the extension manager), the test hooks, and the call that wires the bridge |
+| `src/main/bridge.ts` | Every `handle(...)` IPC handler, one named function per renderer action |
+| `src/main/agent-format.ts` | The agent's text formats and cost helpers, separate from the session |
 | `src/main/agent.ts` | The matter's conversations and their Pi sessions, the application's agent tools (`AGENT_TOOLS`), the system prompt, the start check, `send`, `stop`, `reloadIdle` |
 | `src/main/case-import.ts` | A case number to downloaded court PDFs, the ingest queue and the Notebook rebuild |
 | `src/main/memo-grounding.ts` | The reference grounding shared by the one memorandum tool |
@@ -260,7 +263,7 @@ Use pi-ai's faux provider. The pattern is in `tests/unit/pi-extensions.test.ts`:
 
 | Change | Run |
 |---|---|
-| Any code | `npm run typecheck` |
+| Any code | `npm run typecheck` and `npm run lint` |
 | A library or the agent | `npm run test:unit`, or the one file with `node --test tests/unit/<file>.test.ts` |
 | A bridge function, a view, start-up, during a phase | `npm run typecheck` and the unit tests. Write or change the end-to-end test, but do not run it yet |
 | The end of a phase | `npm run build`, then the full end-to-end suite, once |

@@ -1,0 +1,36 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "react", "import", "unicorn"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn"
+  },
+  "ignorePatterns": [
+    "out/**",
+    "release/**",
+    "resources/**",
+    "docs/archive/**",
+    "spikes/**",
+    "scratchpad/**",
+    ".agents/**"
+  ],
+  "rules": {
+    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+    "no-explicit-any": "off",
+    "no-underscore-dangle": "off",
+    "no-control-regex": "off",
+    "no-useless-escape": "off",
+    "unicorn/no-useless-spread": "off",
+    "react-in-jsx-scope": "off",
+    "unicorn/prefer-string-starts-ends-with": "off",
+    "unicorn/no-useless-fallback-in-spread": "off",
+    "unicorn/no-new-array": "off",
+    "unicorn/no-array-sort": "off",
+    "unicorn/no-array-reverse": "off",
+    "unicorn/consistent-function-scoping": "off",
+    "react/set-state-in-effect": "off",
+    "react/purity": "off",
+    "react/memo-dependencies": "off",
+    "react-hooks/exhaustive-deps": "warn"
+  }
+}

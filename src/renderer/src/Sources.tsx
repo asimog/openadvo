@@ -9,8 +9,8 @@ import { Text } from "@astryxdesign/core/Text";
 import { Table, pixel, proportional, useTableSortable, useTableSortableState } from "@astryxdesign/core/Table";
 import { ArrowUpTrayIcon, PaperClipIcon } from "@heroicons/react/24/outline";
 import type { SourceLink } from "./Notebook.tsx";
-import { DocTypeBadge, DocTypeControl } from "./V2.tsx";
-import { InspectButton, inspect } from "./V5.tsx";
+import { DocTypeBadge, DocTypeControl } from "./SourcePanels.tsx";
+import { InspectButton, inspect } from "./AuditPanels.tsx";
 import type { EventRecord, IngestJob, OriginRecord, PageRecord, SourceRecord } from "../../shared/api.ts";
 
 const api = window.openadvo;

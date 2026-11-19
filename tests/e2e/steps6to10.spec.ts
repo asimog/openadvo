@@ -156,6 +156,9 @@ test("steps 6 to 10: research, citations, grounds, filing set, capture, agent fi
     });
     expect(memo).toContain("2 reference(s) resolved");
     expect(memo).toContain("unresolved");
+    const memoDocx = /A DOCX is at (.+?)\. A review item/.exec(memo)?.[1];
+    expect(memoDocx).toBeTruthy();
+    expect(existsSync(memoDocx!)).toBe(true);
 
     // ---- Grounds: the agent inserts paragraphs as tracked changes; the advocate keeps them ----
     const g1 = await agent<any>("proposeParagraph", matterId, { kind: "grounds", after: null, text: "Because the High Court did not follow 1950 INSC 1, as the order at Annexure P-1 shows.", reason: "issue 1" }, "");

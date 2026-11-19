@@ -9,8 +9,17 @@ import {
   readParagraphs,
 } from "../../src/lib/drafting/index.ts";
 import type { DraftEvent } from "../../src/lib/drafting/index.ts";
+import { memoDocument } from "../../src/lib/drafting/structured.ts";
 
 const GENERATED_AT = "2026-11-14T00:00:00.000Z";
+
+test("a research memorandum is a DOCX with its headings and paragraphs", () => {
+  const g = memoDocument("Memorandum on bail", "# Memorandum on bail\n\n## Question\n\nWhether bail is due.\n", GENERATED_AT);
+  const paragraphs = readParagraphs(g.docx).map((p) => p.text);
+  assert.ok(paragraphs.includes("Memorandum on bail"));
+  assert.ok(paragraphs.includes("Question"));
+  assert.ok(paragraphs.includes("Whether bail is due."));
+});
 const OPTIONS = { title: "List of Dates", generatedAt: GENERATED_AT };
 
 function draftEvent(overrides: Partial<DraftEvent> & { id: string }): DraftEvent {

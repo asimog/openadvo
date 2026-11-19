@@ -8,7 +8,7 @@ import { readFile } from "node:fs/promises";
 import { processSource } from "../lib/document-intelligence/index.ts";
 import type { Matters } from "./matters.ts";
 import { extractNotebook } from "./notebook.ts";
-import { orderImpact } from "./practice.ts";
+import { finalOrderNextStep, orderImpact } from "./practice.ts";
 
 export class Ingest {
   private matters: Matters;
@@ -48,12 +48,18 @@ export class Ingest {
         // Every source is read: build the Notebook from the new text (step 3).
         const added = await extractNotebook(this.matters, matterId);
         // V2-2 and V2-3: document types and same-text pairs.
-        const changed = await this.matters.afterIngest(matterId).catch((e) => {
+        let changed = await this.matters.afterIngest(matterId).catch((e) => {
           console.error(`afterIngest: ${(e as Error).message}`);
           return false;
         });
         // V5-19: a new order or judgment after an approval asks the advocate to re-check the approved drafts.
         await orderImpact(this.matters, matterId).catch((e) => console.error(`orderImpact: ${(e as Error).message}`));
+        // A judgment or order is the start of the next step, not an end.
+        const finalOrders = await finalOrderNextStep(this.matters, matterId).catch((e) => {
+          console.error(`finalOrderNextStep: ${(e as Error).message}`);
+          return 0;
+        });
+        if (finalOrders > 0) changed = true;
         // Phase 4: facts, structure, relations, contradictions, the graph and the jurisdiction report.
         const analyzed = this.analyze
           ? await this.analyze(matterId).catch((e) => {

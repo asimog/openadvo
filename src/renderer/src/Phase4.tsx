@@ -18,7 +18,7 @@ import type { DocumentQuality } from "../../shared/quality.ts";
 import { dmy } from "../../shared/dates.ts";
 import { factProvenance } from "../../lib/verification/provenance.ts";
 import type { SourceLink } from "./Notebook.tsx";
-import { MemoryEditor } from "./V1.tsx";
+import { MemoryEditor } from "./MatterAdminViews.tsx";
 
 const api = window.openadvo;
 

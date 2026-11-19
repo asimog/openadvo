@@ -189,7 +189,9 @@ export const RightPane = forwardRef<RightPaneHandle, {
   const contentRef = useRef<HTMLDivElement>(null);
   const addressRef = useRef<HTMLInputElement>(null);
   const stateRef = useRef(state);
-  stateRef.current = state;
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   const activeTab = useMemo(() => (active === "matter" ? null : state.tabs.find((t) => t.id === active) ?? null), [active, state.tabs]);
   const shownTab = active !== "matter" ? activeTab : null;

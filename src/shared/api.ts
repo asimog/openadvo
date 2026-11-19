@@ -776,6 +776,8 @@ export interface OpenAdvoApi {
   /** Step 6: start the Questions of Law or Grounds draft (title only). */
   generateDraft(matterId: string, kind: DraftKind): Promise<GeneratedDraft>;
   getResearch(matterId: string): Promise<ResearchState>;
+  /** Write, if needed, and open the DOCX of one memorandum. */
+  openMemoDocx(matterId: string, memoId: string): Promise<string>;
   addIssue(matterId: string, text: string): Promise<IssueRecord>;
   /** Human-only: the case conference decides an issue, with a reason. */
   decideIssue(matterId: string, id: string, decision: "accepted" | "rejected", reason: string): Promise<IssueRecord>;

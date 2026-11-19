@@ -1549,8 +1549,9 @@ ALTER TABLE revision_step5 RENAME TO revision;`);
   readiness(): Readiness {
     const jobsPending = this.sourcesToIngest().length;
     // Draft defects belong to the draft's gate, a document quality item is advice about the
-    // reading, and a trigger response is a proposal. None blocks the Notebook's readiness.
-    const openReviewItems = this.listReviewItems().filter((r) => r.status === "open" && r.draftId === null && r.kind !== "document_quality" && !r.kind.startsWith("trigger_")).length;
+    // reading, a final-order item is the next-step choice, and a trigger response is a proposal.
+    // None blocks the Notebook's readiness.
+    const openReviewItems = this.listReviewItems().filter((r) => r.status === "open" && r.draftId === null && r.kind !== "document_quality" && r.kind !== "final_order" && !r.kind.startsWith("trigger_")).length;
     return { ready: jobsPending === 0 && openReviewItems === 0, jobsPending, openReviewItems };
   }
 

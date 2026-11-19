@@ -129,7 +129,6 @@
       xhr.send(null)
       return false
     }
-    proto['LoadFontAsync'] = proto.LoadFontAsync
     return true
   }
 

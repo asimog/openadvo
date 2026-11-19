@@ -1,6 +1,6 @@
 /**
- * V3 views (docs/archive/2026-11-15/specs/v3.md): matter progress (V3-1) and the review inbox (V3-2).
- * Reads only, except the review-item decisions, which are the same bridge functions as before.
+ * Workspace views: matter progress, the Review Inbox, Settings, the command bar, tool permissions,
+ * plan strength and Pi extensions. Reads only, except the human-only decisions.
  */
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Badge } from "@astryxdesign/core/Badge";
@@ -10,7 +10,7 @@ import { Layout, LayoutContent, LayoutFooter, LayoutHeader, LayoutPanel, VStack 
 import { List, ListItem } from "@astryxdesign/core/List";
 import { Text } from "@astryxdesign/core/Text";
 import type { AppInfo, Appearance, InboxItem, IntegrationRecord, PiExtensionInfo, ProgressStage, StorageFolder, ToolPolicyView } from "../../shared/api.ts";
-import { DateAnchorForm, DisputeDecision } from "./V5.tsx";
+import { DateAnchorForm, DisputeDecision } from "./AuditPanels.tsx";
 import { TriggersPanel } from "./Builders.tsx";
 
 const api = window.openadvo;
@@ -99,6 +99,8 @@ function explainInbox(item: InboxItem): string {
       return "A relative date in this file (for example 'the next day') has no date to count from. Give the base date the document uses, or correct the date in the source.";
     case "document_quality":
       return "The reading may be poor: blur, skew, a missing page or a low-confidence OCR page. Check the page image before relying on the text. The quality score is advice, not a finding.";
+    case "final_order":
+      return "This is a judgment or order, and the next step is a choice, not an end. Check the date and the operative order, compute limitation, then decide: appeal or special leave petition, review or revision, or no action. The court directory names the next forum; the agent can propose the route.";
     case "research_memo":
       return "A research memorandum is ready. Check its verified quotes, its adverse authority and its coverage line before relying on it. The memorandum is a candidate; you decide.";
     case "filing_defect":

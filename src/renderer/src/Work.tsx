@@ -6,7 +6,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { CourtChecklistView } from "./Intel.tsx";
-import { PortalResult } from "./DraftsV5.tsx";
+import { PortalResult } from "./DraftTools.tsx";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
@@ -338,6 +338,7 @@ export function ResearchView(props: { matterId: string; version: number }) {
           {s.memoranda.map((m) => (
             <li key={m.id} data-testid="memorandum">
               <Button label={m.title} size="sm" variant="ghost" onClick={() => setOpenMemo(openMemo === m.id ? null : m.id)} />{" "}
+              <Button label="Open DOCX" size="sm" variant="ghost" isDisabled={busy} clickAction={() => run(() => api.openMemoDocx(props.matterId, m.id))} />{" "}
               <Text type="supporting">{m.author}, {m.refs.length} reference(s) resolved{m.unresolved.length ? `, ${m.unresolved.length} unresolved` : ""}</Text>
               {openMemo === m.id ? (
                 <div className="memo-body">

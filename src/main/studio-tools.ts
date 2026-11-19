@@ -153,7 +153,7 @@ export function studioTools(hub: ResearchHub, studio: ArgumentStudio, matters: M
             },
             agent,
           );
-          return `Memorandum written (${r.memo.id}): ${r.quotes} verified quote(s), ${r.adverse} adverse quote(s), ${r.refs} reference(s) resolved${r.unresolved ? `; unresolved: ${r.unresolved}` : ""}. A review item is open for the advocate.`;
+          return `Memorandum written (${r.memo.id}): ${r.quotes} verified quote(s), ${r.adverse} adverse quote(s), ${r.refs} reference(s) resolved${r.unresolved ? `; unresolved: ${r.unresolved}` : ""}. A DOCX is at ${r.docx}. A review item is open for the advocate.`;
         }
         case "save_provision": {
           const pr = await hub.saveProvision(matterId, s("id"), agent);

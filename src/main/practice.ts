@@ -6,6 +6,8 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { zipSync } from "fflate";
 import { generateStructured } from "../lib/drafting/structured.ts";
+import { findDates } from "../lib/notebook/index.ts";
+import { DIRECTORY, appealRoute } from "../lib/court-directory/index.ts";
 import type { Matters } from "./matters.ts";
 import type { Progress } from "./progress.ts";
 
@@ -24,6 +26,40 @@ export async function orderImpact(matters: Matters, matterId: string): Promise<n
     const before = approved.filter((d) => (d.approved!.approvedAt ?? "") < s.addedAt);
     if (before.length === 0) continue;
     store.openReviewItem("new_order_impact", s.id, null, `${s.name} (a new ${type}) was added after ${before.map((d) => `${d.title} revision ${d.approved!.seq}`).join(", ")} ${before.length === 1 ? "was" : "were"} approved. Re-check ${before.length === 1 ? "it" : "them"} against the new ${type}.`);
+    opened++;
+  }
+  return opened;
+}
+
+/**
+ * A judgment or order is not an end. When one is read, open one review item that says what it is,
+ * the date, the next forum in the directory, and the choice: appeal/SLP, review/revision, or no
+ * action. The advocate decides; the agent reads the item and proposes the route.
+ */
+export async function finalOrderNextStep(matters: Matters, matterId: string): Promise<number> {
+  const store = await matters.store(matterId);
+  const details = store.work.details();
+  const done = new Set(store.listReviewItems().filter((r) => r.kind === "final_order").map((r) => r.sourceId));
+  const courtRow = details.court
+    ? DIRECTORY.find((c) => c.id === details.court || c.name.toLowerCase() === details.court.toLowerCase()) ??
+      DIRECTORY.find((c) => c.name.toLowerCase().includes(details.court.toLowerCase()))
+    : undefined;
+  const route = courtRow ? appealRoute(courtRow.id) : [];
+  const next = route[1] ?? null;
+  const finalWords = /\b(dismissed|allowed|disposed|convicted|acquitted|set\s+aside|upheld|decree|final\s+order|judgment)\b/i;
+  let opened = 0;
+  for (const source of store.listSources()) {
+    const type = source.docType?.type;
+    if (type !== "judgment" && type !== "order") continue;
+    if (done.has(source.id)) continue;
+    const pages = store.listPages(source.id);
+    const text = pages.slice(0, 3).map((p) => p.text).join("\n");
+    const date = findDates(text)[0]?.start ?? null;
+    const final = finalWords.test(text);
+    const court = courtRow?.name ?? details.court ?? "the court in the matter profile";
+    const nextText = next ? `The next forum in the directory is ${next.name}.` : "The directory does not give a next forum; the route is for the advocate to decide.";
+    const detail = `${source.name} is a ${String(type).replace("_", " ")}${date ? ` dated ${date}` : ""} of ${court}. ${final ? "Its text reads as a final disposal." : "Confirm whether it is a final order."} ${nextText} Decide the next step: an appeal or a special leave petition, a review or revision, or no action. Compute limitation from the date of the order and the date of the certified copy before it is filed. If this document is a cited authority and not the order against your client, skip this item.`;
+    store.openReviewItem("final_order", source.id, null, detail);
     opened++;
   }
   return opened;

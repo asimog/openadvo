@@ -5,7 +5,6 @@
 import { test, expect, _electron as electron, type ElectronApplication, type Page } from "@playwright/test";
 import { mkdtemp, mkdir, writeFile, rm, appendFile, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { existsSync } from "node:fs";
 import path from "node:path";
 import { appEnv } from "./env.ts";
 
@@ -200,7 +199,7 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
       "listDrafts", "getRevision", "getParagraphSource", "generateListOfDates", "generateSynopsis",
       "openRevisionInEditor", "insertFromNotebook", "checkDraft", "saveRevision", "approveRevision",
       "agentChanges", "decideAgentChanges", "generateDraft",
-      "getResearch", "addIssue", "decideIssue", "addAuthority", "decideAuthority", "checkCitations", "attestCitation", "recordAdverseReview", "searchCitationIndex",
+      "getResearch", "openMemoDocx", "addIssue", "decideIssue", "addAuthority", "decideAuthority", "checkCitations", "attestCitation", "recordAdverseReview", "searchCitationIndex",
       "getFiling", "setMatterDetails", "setAnnexures", "computeLimitation", "confirmLimitation", "approveForFiling", "confirmFiling", "revealFilingSet",
       "openPortal", "importEmail", "getMailAccount", "setMailAccount", "fetchMail", "voiceStatus", "transcribe",
       // V1 (docs/specs/v1.md).
@@ -271,6 +270,7 @@ test("the renderer has no file or Node access; the bridge exposes only named fun
     "search_sources",
     "list_events",
     "get_chronology",
+    "list_review_items",
     "read_draft",
     "get_paragraph_source",
     "check_draft",

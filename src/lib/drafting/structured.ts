@@ -29,6 +29,29 @@ export function generateStructured(blocks: Block[], options: { title: string; ge
   return generateStructuredDocx(rows, options);
 }
 
+/** A research memorandum as a DOCX: its markdown headings and paragraphs, with the title. */
+export function memoDocument(title: string, body: string, generatedAt: string): GeneratedDocument {
+  const blocks: Block[] = [];
+  let first = true;
+  for (const raw of body.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const heading = /^(#{1,3})\s+(.+)$/.exec(line);
+    if (heading) {
+      // The composed memo opens with its own title; the DOCX title carries it.
+      if (first && heading[1].length === 1) {
+        first = false;
+        continue;
+      }
+      blocks.push({ text: heading[2], style: "heading" });
+    } else {
+      blocks.push({ text: line, style: "plain" });
+    }
+    first = false;
+  }
+  return generateStructured(blocks, { title, generatedAt });
+}
+
 /** The marker the petition writes where a detail is not recorded. Check rule 23 finds it. */
 export const TO_COMPLETE = "[TO BE COMPLETED";
 

@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { zipSync } from "fflate";
 import { ARCHIVED_FILE, MatterStore, MatterStoreError, listMatters } from "../lib/matter-store/index.ts";
 import { rebuildNotebook as rebuildNotebookEvents } from "./notebook.ts";
+import { memoDocument } from "../lib/drafting/structured.ts";
 import type { NotebookSourceStatus } from "../shared/records.ts";
 import { answerMemoryQuestion } from "../lib/memory-answers/index.ts";
 import type { MemoryAnswer, OutcomeInput, OutcomeRecord } from "../shared/knowledge.ts";
@@ -253,6 +254,21 @@ export class Matters {
         note,
       };
     });
+  }
+
+  /** The DOCX of one memorandum. It is written on first use, so an older memo gets one too. */
+  async ensureMemoDocx(matterId: string, memoId: string): Promise<string> {
+    const store = await this.store(matterId);
+    const memo = store.work.listMemoranda().find((m) => m.id === memoId);
+    if (!memo) throw new MatterStoreError("MEMO_NOT_FOUND", memoId);
+    const dir = path.join(store.folder, "memos");
+    const file = path.join(dir, `${memo.id}.docx`);
+    const existing = await readFile(file).catch(() => null);
+    if (existing) return file;
+    const g = memoDocument(memo.title, memo.body, new Date().toISOString());
+    await mkdir(dir, { recursive: true });
+    await writeFile(file, g.docx);
+    return file;
   }
 
   /** Re-run extraction over every read source. Existing and confirmed events are kept. */

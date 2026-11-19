@@ -7,7 +7,7 @@ import "./app.css";
 import { Theme } from "@astryxdesign/core/theme";
 import { neutralTheme } from "@astryxdesign/theme-neutral/built";
 import { App } from "./App.tsx";
-import { APPEARANCE_EVENT } from "./V3.tsx";
+import { APPEARANCE_EVENT } from "./WorkspaceViews.tsx";
 import type { Appearance } from "../../shared/api.ts";
 
 /** V3-4: the appearance follows the advocate's setting. */

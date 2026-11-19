@@ -59,6 +59,8 @@ The second OCR engine stays PP-OCR until a docTR model is vendored. H3 says docT
 
 The Notebook shows one row per source: its type, pages, lines, extracted events, the extraction time and why it has no event. "Rebuild extraction" re-runs the fixed rules over every read source and adds what is missing; it never deletes or confirms an event. The rebuild also refreshes an unconfirmed document type, so a questionnaire is no longer read as a notice.
 
+A judgment or order also opens one `final_order` review item. It names the court, the date, whether the text reads as a final disposal, and the next forum in the court directory. The choices are an appeal or a special leave petition, a review or revision, or no action; limitation is computed before filing. The item is the next step, not a reading defect, so it does not block Notebook readiness.
+
 The agent tool `import_case_documents` takes a case number (and a court, when known), finds the judgment or order PDFs on the public web with official court hosts first, downloads them into the matter, reads them and rebuilds the Notebook. If no public PDF is found, it returns the court page for the browser and the advocate's sign-in. The agent cannot create an event directly.
 
 ## 4. Views

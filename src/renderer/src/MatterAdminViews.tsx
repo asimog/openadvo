@@ -1,6 +1,6 @@
 /**
- * V1 views (docs/archive/2026-11-15/specs/v1.md): matter rename and archive (V1-10), matter memory (V1-3) and the
- * record table (V1-5). No business logic: each action is one bridge function.
+ * Matter administration and records: rename and archive, matter memory and the record table.
+ * No business logic: each action is one bridge function.
  */
 import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@astryxdesign/core/Badge";
@@ -9,7 +9,7 @@ import { Heading } from "@astryxdesign/core/Heading";
 import { Text } from "@astryxdesign/core/Text";
 import type { MatterSummary, RecordTable, SourceRecord } from "../../shared/api.ts";
 import { recordGaps } from "../../lib/evidence/templates.ts";
-import { MemoryProposals } from "./V2.tsx";
+import { MemoryProposals } from "./SourcePanels.tsx";
 
 const api = window.openadvo;
 

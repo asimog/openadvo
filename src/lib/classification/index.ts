@@ -71,9 +71,6 @@ export function proposeClassification(input: {
   basis.push(`The stage list for ${list.title.toLowerCase()} has ${list.stages.length} stages.`);
 
   const parties: Array<{ role: string; name: string }> = [];
-  if (input.profile.court || true) {
-    // The matter details are not in this input; the caller adds the petitioner and respondent from them.
-  }
   for (const p of input.parties) if (p.nameInRecord.trim()) parties.push({ role: p.role, name: p.nameInRecord.trim() });
   if (parties.length) basis.push(`${parties.length} party record(s) are already linked.`);
 

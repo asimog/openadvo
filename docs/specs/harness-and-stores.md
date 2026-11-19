@@ -23,7 +23,7 @@ Status: started 2026-11-15 (owner's instruction: "implement Phase 1: Harness and
 | Q2 | `src/main/skill-runner.ts`, `src/main/context-assembly.ts`, `src/main/tool-policy.ts` | A run gets only its skill's tools, through the tool policy. Retrieval refuses records of another matter. |
 | Q4 | `src/lib/advocate-store/`, `src/lib/intel-store/` | The advocate profile page; Court Intelligence lists sources and their freshness; Diagnostics checks both chains. |
 | Q5 | `src/renderer/src/AppNav.tsx` | The left pane of [../advocate-workflow.md](../advocate-workflow.md) section 3. A view that is not built says so and names its phase. |
-| R1 | `src/renderer/src/V3.tsx` `ReviewInbox`; `inbox:all` | Review Inbox in the left pane: one queue across matters, "blocks the work" first, keyboard operable. |
+| R1 | `src/renderer/src/WorkspaceViews.tsx` `ReviewInbox`; `inbox:all` | Review Inbox in the left pane: one queue across matters, "blocks the work" first, keyboard operable. |
 | Y4 | Pi providers (built) | Embeddings and reranking are not built. The vector-index spike decides them before phase 5. |
 | Y5 | Built | — |
 

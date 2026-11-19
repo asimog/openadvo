@@ -53,7 +53,9 @@ export function FirmInbox(props: { onOpenMatter: (matterId: string, tab: string)
   const [at, setAt] = useState(0);
   const listRef = useRef<HTMLOListElement>(null);
   const onCount = useRef(props.onCount);
-  onCount.current = props.onCount;
+  useEffect(() => {
+    onCount.current = props.onCount;
+  }, [props.onCount]);
   const load = useCallback(async () => {
     const all = await api.inboxAll();
     setItems(all);

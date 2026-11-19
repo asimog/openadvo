@@ -13,7 +13,9 @@
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-    "test:unit": "node --test \"tests/unit/**/*.test.ts\"",
+    "lint": "oxlint src tests",
+    "lint:fix": "oxlint --fix src tests",
+    "test:unit": "node --test --test-concurrency=1 \"tests/unit/**/*.test.ts\"",
     "test:e2e": "playwright test",
     "test": "npm run test:unit && npm run build && npm run test:e2e",
     "session:start": "node scripts/session-start.ts",
@@ -35,6 +37,7 @@
     "electron-builder": "26.18.0",
     "electron-vite": "6.0.0",
     "hyparquet-writer": "0.18.0",
+    "oxlint": "^1.94.0",
     "pdf-lib": "1.17.1",
     "typescript": "7.0.2",
     "vite": "8.3.8"

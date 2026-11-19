@@ -31,7 +31,7 @@ type KnowledgeScope = "advocate" | "firm" | "statute" | "procedure" | "matter" |
 
 One registry per session. One retrieval function. The agent sees one retrieval tool, `search_knowledge`. Discovery is a separate step with its own tools: `discover_judgments`, `discover_statutes`, `web_search` and `web_fetch` return a source to open, never a citable passage. `read_judgment` and `read_statute_section` open and index the source. Only then does `search_knowledge` retrieve it, with its anchor, verification and coverage. A discovery result is never quoted as if it had been retrieved.
 
-The agent has one memorandum tool, `write_research_memo`. It locates every selected quote in its source, resolves every matter reference in the body, and refuses a memorandum with neither a verified quote nor a resolved reference. There is no second, unverified memorandum path.
+The agent has one memorandum tool, `write_research_memo`. It locates every selected quote in its source, resolves every matter reference in the body, and refuses a memorandum with neither a verified quote nor a resolved reference. There is no second, unverified memorandum path. The memorandum is also written as a DOCX in the matter's `memos/` folder; the Research view opens it with **Open DOCX**, and an older memorandum gets its DOCX on first open.
 
 ### 2.2 Citation key
 

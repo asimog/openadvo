@@ -1,5 +1,6 @@
 /**
- * V5 views (docs/archive/2026-11-15/specs/v5.md). No business logic: each action is one bridge function.
+ * Audit and evidence panels: the Inspector, record integrity, files and jobs, entities, OCR
+ * disputes, the date anchor and event correction. No business logic: each action is a bridge function.
  */
 import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@astryxdesign/core/Badge";

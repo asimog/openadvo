@@ -12,6 +12,7 @@ export const READ_MATTER_TOOLS = [
   "search_sources",
   "list_events",
   "get_chronology",
+  "list_review_items",
   "read_draft",
   "get_paragraph_source",
   "list_research",

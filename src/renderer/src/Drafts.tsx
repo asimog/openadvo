@@ -5,9 +5,9 @@ import { Heading } from "@astryxdesign/core/Heading";
 import { Text } from "@astryxdesign/core/Text";
 import type { CatalogueEntry, DraftRecord, RevisionRecord } from "../../shared/api.ts";
 import type { PrecedentOffer } from "../../shared/knowledge.ts";
-import { ListOfDatesRows } from "./V2.tsx";
-import { InspectButton } from "./V5.tsx";
-import { DraftTools } from "./DraftsV5.tsx";
+import { ListOfDatesRows } from "./SourcePanels.tsx";
+import { InspectButton } from "./AuditPanels.tsx";
+import { DraftTools } from "./DraftTools.tsx";
 
 const api = window.openadvo;
 

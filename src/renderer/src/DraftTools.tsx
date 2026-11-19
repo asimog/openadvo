@@ -1,6 +1,6 @@
 /**
- * V5-13 and V5-18 views (docs/archive/2026-11-15/specs/v5.md): compare revisions, the Word round trip, and the
- * portal result after an uncertain submission.
+ * Draft tools: compare revisions, the Word round trip, and the portal result after an uncertain
+ * submission.
  */
 import { useEffect, useState } from "react";
 import { Badge } from "@astryxdesign/core/Badge";

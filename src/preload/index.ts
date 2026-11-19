@@ -275,6 +275,7 @@ const api: OpenAdvoApi = {
   saveAgent: (input) => ipcRenderer.invoke("builders:save-agent", input),
   deleteAgent: (id) => ipcRenderer.invoke("builders:delete-agent", id),
   testAgentProfile: (input) => ipcRenderer.invoke("builders:test-agent", input),
+  openMemoDocx: (matterId, memoId) => ipcRenderer.invoke("memo:docx", matterId, memoId),
   previewSkillImport: () => ipcRenderer.invoke("skills:import-preview"),
   installSkillImport: (id) => ipcRenderer.invoke("skills:import-install", id),
   listTriggers: () => ipcRenderer.invoke("triggers:list"),

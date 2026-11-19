@@ -7,7 +7,7 @@ import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
 import type { DateConflict, Notebook, NotebookEvent, NotebookSourceStatus } from "../../shared/api.ts";
 import { dmyRange } from "../../shared/dates.ts";
-import { CorrectEvent } from "./V5.tsx";
+import { CorrectEvent } from "./AuditPanels.tsx";
 
 const api = window.openadvo;
 

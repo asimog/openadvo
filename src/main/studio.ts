@@ -300,7 +300,8 @@ export class ResearchHub {
       ctx,
     );
     const reviewItem = store.openReviewItem("research_memo", memo.id, null, `Memorandum "${memo.title}" is ready for review. ${quotes.length} verified quote(s), ${adverse.length} adverse quote(s), ${grounding.refs.length} resolved reference(s).`);
-    return { memo, reviewItem, quotes: quotes.length, adverse: adverse.length, refs: grounding.refs.length, unresolved: grounding.unresolved.length };
+    const docx = await this.matters.ensureMemoDocx(matterId, memo.id);
+    return { memo, reviewItem, quotes: quotes.length, adverse: adverse.length, refs: grounding.refs.length, unresolved: grounding.unresolved.length, docx };
   }
 
   /** Load the owner's ten-instrument first wave. It writes law rows and source hashes. */

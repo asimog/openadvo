@@ -14,8 +14,8 @@ import { GROUNDS, STANCES } from "../../shared/studio.ts";
 import { citationKeyText, summariseVerification } from "../../shared/law.ts";
 import { recordGaps } from "../../lib/evidence/templates.ts";
 import { strategyView } from "../../lib/studio/strategy.ts";
-import { InspectButton } from "./V5.tsx";
-import { AuthorityReview, RehearsalPart } from "./StudioV5.tsx";
+import { InspectButton } from "./AuditPanels.tsx";
+import { AuthorityReview, RehearsalPart } from "./StudioPanels.tsx";
 
 const api = window.openadvo;
 
