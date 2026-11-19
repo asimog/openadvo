@@ -29,6 +29,12 @@ export function FirmChat(props: { onOpenMatter: (matterId: string, carry: Carry)
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<ChatComposerInputHandle>(null);
 
+  // The right-click menu's "Add to context" puts the selection in this composer; nothing is sent.
+  useEffect(() => api.onAddToContext((text) => {
+    inputRef.current?.focus();
+    inputRef.current?.insertText(text);
+  }), []);
+
   useEffect(() => {
     let live = true;
     api.getChat(FIRM_AGENT_ID).then(
