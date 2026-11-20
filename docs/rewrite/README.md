@@ -21,6 +21,7 @@ The greenfield-rewrite planning session, 2026-11-20, at commit `26ac806`. Read i
 | 15 | [capability-map.md](capability-map.md) | Addendum | The systems-design report on the proposed architecture: the fourteen capabilities, the relationship matrix (owner, consumer, contract, exchange, coupling, duplication risk), the twenty design principles, five findings. | Design report |
 | 16 | [capability-map-current.md](capability-map-current.md) | Addendum | The systems-design report on the **current code** at `26ac806`, standing alone on file:line evidence: the fourteen capabilities as implemented, the relationship matrix as wired, the twenty principles as honoured or missed, and the systems diagnosis. | Current-state report |
 | 17 | [executive-report.md](executive-report.md) | Combined | The unified executive report for discussion: both series' verdicts per module, the merged failure register, the lessons, the combined rulebook, and the one open fork — refactor in place or greenfield — with the decisions already answered and the genuinely new questions. | Discussion document |
+| 18 | [summary.md](summary.md) | Standalone | The self-contained summary, restated inline with no references to other documents: what was assessed, what failed, what is planned, the modules, the repository structure, the discipline and the verdict. Read this one alone. | Summary |
 
 Deliverable J (open decisions and risks) is owned by [decisions.md](decisions.md); every decision is answered, and the residuals are carried into [assessment.md](assessment.md) as limitations.
 
