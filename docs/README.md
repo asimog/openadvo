@@ -22,6 +22,7 @@ Read in this order. Each fact has one owning file. Link to it; do not restate it
 | 14 | [agent-guide.md](agent-guide.md) | How a coding agent works here: setup, commands, code patterns, recipes, testing, verification, document rules, pitfalls. |
 | — | [questions.md](questions.md) | Open questions for the owner, with the default used until answered. |
 | — | [parking.md](parking.md) | Items outside the current step (lesson L6). |
+| — | [rewrite/](rewrite/) | The greenfield-rewrite planning series (2026-11-20): the verified audit, the failure analysis, the proposed boundaries, the answered decisions, the alternatives, the architecture plan, the scenario validation and the final assessment. Its own index is [rewrite/README.md](rewrite/README.md). |
 
 Session reports and logs are in `../.agents/logs/`. They govern nothing. The assessment behind this plan is [../.agents/logs/2026-11-15-litigation-harness-report.md](../.agents/logs/2026-11-15-litigation-harness-report.md).
 
