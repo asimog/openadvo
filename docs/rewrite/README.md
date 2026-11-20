@@ -18,6 +18,7 @@ The greenfield-rewrite planning session, 2026-11-20, at commit `26ac806`. Read i
 | 12 | [rules.md](rules.md) | 6 | Deliverable I: the thirty enforceable rules for future coding agents. | Proposed |
 | 13 | [validation.md](validation.md) | 7 | The twelve required scenarios walked through the design; three revisions recorded. | Validated design |
 | 14 | [assessment.md](assessment.md) | 17 | The final engineering assessment and the verdict: **ADOPT WITH LIMITATIONS**. | Verdict |
+| 15 | [capability-map.md](capability-map.md) | Addendum | The systems-design report on the proposed architecture: the fourteen capabilities, the relationship matrix (owner, consumer, contract, exchange, coupling, duplication risk), the twenty design principles, five findings. | Design report |
 
 Deliverable J (open decisions and risks) is owned by [decisions.md](decisions.md); every decision is answered, and the residuals are carried into [assessment.md](assessment.md) as limitations.
 
