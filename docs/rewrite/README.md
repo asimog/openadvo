@@ -19,6 +19,7 @@ The greenfield-rewrite planning session, 2026-11-20, at commit `26ac806`. Read i
 | 13 | [validation.md](validation.md) | 7 | The twelve required scenarios walked through the design; three revisions recorded. | Validated design |
 | 14 | [assessment.md](assessment.md) | 17 | The final engineering assessment and the verdict: **ADOPT WITH LIMITATIONS**. | Verdict |
 | 15 | [capability-map.md](capability-map.md) | Addendum | The systems-design report on the proposed architecture: the fourteen capabilities, the relationship matrix (owner, consumer, contract, exchange, coupling, duplication risk), the twenty design principles, five findings. | Design report |
+| 16 | [capability-map-current.md](capability-map-current.md) | Addendum | The systems-design report on the **current code** at `26ac806`, standing alone on file:line evidence: the fourteen capabilities as implemented, the relationship matrix as wired, the twenty principles as honoured or missed, and the systems diagnosis. | Current-state report |
 
 Deliverable J (open decisions and risks) is owned by [decisions.md](decisions.md); every decision is answered, and the residuals are carried into [assessment.md](assessment.md) as limitations.
 
