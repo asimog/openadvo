@@ -13,7 +13,7 @@ Read in this order. Each fact has one owning file. Link to it; do not restate it
 | 5 | [architecture.md](architecture.md) | Layers, the stores and what each owns, the three graphs, context assembly, memory, the harness, local intelligence, court adapters, languages. |
 | 6 | [features.md](features.md) | The feature catalogue: 165 features with ids, phases, outputs and dependencies. |
 | 7 | [skills.md](skills.md) | The skill format, the skills library and the practice packs. |
-| 8 | [build-plan.md](build-plan.md) | The thirteen phases, the order inside each, the proof tests and the exits. |
+| 8 | [build-plan.md](build-plan.md) | The thirteen phases of the **old application**, the order inside each, the proof tests and the exits. The new application's build order is [rewrite/phases.md](rewrite/phases.md); the amendment of decision 20 is proposed in [rewrite/execution-plan.md](rewrite/execution-plan.md) section 4. |
 | 9 | [harness-hardening.md](harness-hardening.md) | The hardening items H-n and the Pi feature status. |
 | 10 | [harness-build.md](harness-build.md) | How the harness is built: Pi folders, extensions, the permission policy, helper agents; planned side questions and browser. |
 | 11 | [engineering.md](engineering.md) | Engineering choices, the vendored parts and their scripts, the editor rules. |
@@ -22,7 +22,7 @@ Read in this order. Each fact has one owning file. Link to it; do not restate it
 | 14 | [agent-guide.md](agent-guide.md) | How a coding agent works here: setup, commands, code patterns, recipes, testing, verification, document rules, pitfalls. |
 | — | [questions.md](questions.md) | Open questions for the owner, with the default used until answered. |
 | — | [parking.md](parking.md) | Items outside the current step (lesson L6). |
-| — | [rewrite/](rewrite/) | The greenfield-rewrite planning series (2026-11-20): the verified audit, the failure analysis, the proposed boundaries, the answered decisions, the alternatives, the architecture plan, the scenario validation and the final assessment. Its own index is [rewrite/README.md](rewrite/README.md). |
+| — | [rewrite/](rewrite/) | The greenfield-rewrite planning series (2026-11-20): the verified audit, the failure analysis, the proposed boundaries, the answered decisions, the alternatives, the architecture plan, the scenario validation and the final assessment. Its own index is [rewrite/README.md](rewrite/README.md). The road is chosen; its build order, mechanics and gates are proposed in [rewrite/execution-plan.md](rewrite/execution-plan.md). |
 
 Session reports and logs are in `../.agents/logs/`. They govern nothing. The assessment behind this plan is [../.agents/logs/2026-11-15-litigation-harness-report.md](../.agents/logs/2026-11-15-litigation-harness-report.md).
 

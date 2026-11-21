@@ -22,9 +22,10 @@ The greenfield-rewrite planning session, 2026-11-20, at commit `26ac806`. Read i
 | 16 | [capability-map-current.md](capability-map-current.md) | Addendum | The systems-design report on the **current code** at `26ac806`, standing alone on file:line evidence: the fourteen capabilities as implemented, the relationship matrix as wired, the twenty principles as honoured or missed, and the systems diagnosis. | Current-state report |
 | 17 | [executive-report.md](executive-report.md) | Combined | The unified executive report for discussion: both series' verdicts per module, the merged failure register, the lessons, the combined rulebook, and the one open fork — refactor in place or greenfield — with the decisions already answered and the genuinely new questions. | Discussion document |
 | 18 | [summary.md](summary.md) | Standalone | The self-contained summary, restated inline with no references to other documents: what was assessed, what failed, what is planned, the modules, the repository structure, the discipline and the verdict. Read this one alone. | Summary |
+| 19 | [execution-plan.md](execution-plan.md) | Execution | The greenfield road chosen, the repository mechanics (the `v2/` tree, the carry list, the cutover), the nine frozen decisions the road amends, the coverage of the product catalogue and its seven gaps, the gates. | Proposed for acceptance |
 
 Deliverable J (open decisions and risks) is owned by [decisions.md](decisions.md); every decision is answered, and the residuals are carried into [assessment.md](assessment.md) as limitations.
 
 Session records for this series are in [../../.agents/logs/](../../.agents/logs/): `2026-11-20-stage1-audit.md`, `2026-11-20-stage2-failures.md`, `2026-11-20-stage3-5-planning.md`, `2026-11-20-stage6-7-plan.md`.
 
-No code was written during this session. Phase 1 starts with the owner's acceptance and a one-page phase spec (lesson L1).
+No code was written during this session. Phase 1 starts with the owner's acceptance and a one-page phase spec (lesson L1). The instrument of acceptance is [execution-plan.md](execution-plan.md) (order 19): it records the road the owner chose and the gates that follow.
